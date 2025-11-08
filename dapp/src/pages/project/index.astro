@@ -48,11 +48,7 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
         const project = await getProjectFromName(projectName);
         if (project && project.name && project.config && project.maintainers) {
           setProject(project);
-          const { username, repoName } = getAuthorRepo(project.config.url);
-          if (username && repoName) {
-            setProjectRepoInfo(username, repoName);
-          }
-          setConfigData(extractConfigData({}, project));
+
           projectInfoLoaded.set(true);
 
           (async () => {
@@ -60,18 +56,32 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
               fetchTomlFromIpfs(project.config.ipfs),
               getProjectHash(),
             ]);
+            let configData: any = {};
             if (tomlResult.status === "fulfilled" && tomlResult.value) {
-              setConfigData(extractConfigData(tomlResult.value, project));
+              configData = extractConfigData(tomlResult.value, project);
+              setConfigData(configData);
+            } else {
+              setConfigData({});
             }
-            const sha =
-              hashResult.status === "fulfilled" ? hashResult.value : null;
-            setProjectLatestSha(
-              sha && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
-                ? sha
-                : "",
-            );
-            if (hashResult.status === "rejected") {
-              toast.error("Something Went Wrong!", hashResult.reason?.message);
+
+            // Only set GitHub repo info for SOFTWARE projects
+            const isSoftwareProject = configData.projectType === "SOFTWARE";
+            if (isSoftwareProject) {
+              const { username, repoName } = getAuthorRepo(project.config.url);
+              if (username && repoName) {
+                setProjectRepoInfo(username, repoName);
+              }
+
+              const sha =
+                hashResult.status === "fulfilled" ? hashResult.value : null;
+              setProjectLatestSha(
+                sha && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
+                  ? sha
+                  : "",
+              );
+              if (hashResult.status === "rejected") {
+                toast.error("Something Went Wrong!", hashResult.reason?.message);
+              }
             }
           })();
         } else {

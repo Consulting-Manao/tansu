@@ -177,20 +177,26 @@ const ProjectList = () => {
       const project = await getProjectFromName(projectName);
       if (project && project.name && project.config && project.maintainers) {
         const tomlData = await fetchTomlFromIpfs(project.config.ipfs);
-        const configData = tomlData
-          ? extractConfigData(tomlData, project)
-          : {
-              projectName: project.name,
-              logoImageLink: undefined,
-              thumbnailImageLink: "",
-              description: "",
-              organizationName: "",
-              officials: { githubLink: project.config.url },
-              socialLinks: {},
-              authorGithubNames: [],
-              maintainersAddresses: project.maintainers,
-            };
-        setConfigInfo(configData);
+        if (tomlData) {
+          const configData = extractConfigData(tomlData, project);
+          setConfigInfo(configData);
+        } else {
+          const configData = {
+            projectName: project.name,
+            logoImageLink: undefined,
+            thumbnailImageLink: "",
+            description: "",
+            organizationName: "",
+            projectType: "SOFTWARE",
+            officials: {
+              githubLink: project.config.url,
+            },
+            socialLinks: {},
+            authorHandles: [],
+            maintainersAddresses: project.maintainers,
+          };
+          setConfigInfo(configData);
+        }
         setIsInOnChain(true);
       } else {
         setIsInOnChain(false);
@@ -235,7 +241,7 @@ const ProjectList = () => {
     organizationName: "",
     officials: { githubLink: project.config.url },
     socialLinks: {},
-    authorGithubNames: [],
+    authorHandles: [],
     maintainersAddresses: project.maintainers,
   });
 

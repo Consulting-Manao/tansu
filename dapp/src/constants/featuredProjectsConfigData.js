@@ -2,6 +2,7 @@ export const featuredProjectsConfigData = [
   {
     projectName: "tansu",
     projectFullName: "Tansu - Git on Stellar",
+    projectType: "SOFTWARE",
     logoImageLink:
       "https://github.com/Consulting-Manao/tansu/blob/main/website/static/img/logo.svg",
     description: "Decentralized project governance on Stellar",
@@ -11,7 +12,7 @@ export const featuredProjectsConfigData = [
       githubLink: "https://github.com/Consulting-Manao/tansu",
     },
     socialLinks: {},
-    authorGithubNames: ["tupui"],
+    authorHandles: ["tupui"],
     maintainersAddresses: [
       "GD4FXNCYPQWNDWZYZZD4WFYYFTP466IKAKCZOYE5TPFTSSOZDA4QF3ER",
     ],
