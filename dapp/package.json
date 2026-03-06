@@ -44,7 +44,7 @@
     "typescript": "^5.9.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.17",
     "@typescript-eslint/eslint-plugin": "^8.46.3",
