@@ -5,7 +5,7 @@ import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button";
 import Modal from "../../utils/Modal";
 
-const ProjectInfoModal = ({ id, projectInfo, onClose }) => {
+const ProjectInfoModal = ({ projectInfo, onClose }) => {
   const [projectName, setProjectName] = useState("");
 
   const getProjectName = () => {

@@ -9,10 +9,11 @@ import { loadedPublicKey } from "./walletService";
 import { loadedProjectId } from "./StateService";
 import { Buffer } from "buffer";
 import { deriveProjectKey } from "../utils/projectKey";
-import { parseContractError } from "../utils/contractErrors";
-import { checkSimulationError } from "../utils/contractErrors";
+import {
+  parseContractError,
+  checkSimulationError,
+} from "../utils/contractErrors";
 import { handleFreighterError } from "../utils/errorHandler";
-//
 import type { VoteType } from "types/proposal";
 import { signAndSend } from "./TxService";
 
@@ -30,8 +31,6 @@ function getClient() {
   return Tansu;
 }
 
-//
-
 /**
  * Universal transaction submitter - handles all contract calls
  * Uses the proven pattern from FlowService
@@ -42,6 +41,7 @@ async function submitTransaction(assembledTx: any): Promise<any> {
   // (already-executed result); in that case, just return it.
   const hasSimulate = typeof assembledTx?.simulate === "function";
   const hasToXdr = typeof assembledTx?.toXDR === "function";
+
   if (!hasSimulate && !hasToXdr) {
     return assembledTx?.result ?? assembledTx;
   }
@@ -54,8 +54,6 @@ async function submitTransaction(assembledTx: any): Promise<any> {
     throw new Error(errorMessage);
   }
 }
-
-//
 
 /**
  * Map UI vote type to contract vote choice
@@ -92,6 +90,8 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
   if (!projectId) throw new Error("No project defined");
 
   const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
 
   // Ensure projectId is a proper Buffer
   const projectKey = Buffer.isBuffer(projectId)
@@ -99,13 +99,12 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
     : Buffer.from(projectId, "hex");
 
   const assembledTx = await client.commit({
-    maintainer: client.options.publicKey!,
+    maintainer,
     project_key: projectKey,
     hash: commit_hash,
   });
-
   // Check for simulation errors (contract errors) before submitting
-  checkSimulationError(assembledTx as any);
+  checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
   return true;
@@ -121,6 +120,9 @@ export async function voteToProposal(
   customWeight?: number,
 ): Promise<boolean> {
   const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
   const projectKey = getProjectKey(project_name);
 
   // Get voting weight
@@ -131,10 +133,10 @@ export async function voteToProposal(
     try {
       const weightTx = await client.get_max_weight({
         project_key: projectKey,
-        member_address: client.options.publicKey!,
+        member_address: maintainer,
       });
       // Check for simulation errors (contract errors)
-      checkSimulationError(weightTx as any);
+      checkSimulationError(weightTx);
       weight = Number(weightTx.result) || 1;
     } catch {
       // Default weight
@@ -149,7 +151,7 @@ export async function voteToProposal(
       proposal_id: Number(proposal_id),
     });
     // Check for simulation errors (contract errors)
-    checkSimulationError(proposalTx as any);
+    checkSimulationError(proposalTx);
     isPublicVoting = proposalTx.result.vote_data.public_voting;
   } catch {
     // Default to public
@@ -162,7 +164,7 @@ export async function voteToProposal(
       tag: "PublicVote",
       values: [
         {
-          address: client.options.publicKey!,
+          address: maintainer,
           vote_choice: mapVoteType(vote),
           weight,
         },
@@ -187,23 +189,24 @@ export async function voteToProposal(
       project_key: projectKey,
     });
     // Ensure config actually exists (not an error bubbled in result)
-    checkSimulationError(configTx as any);
+    checkSimulationError(configTx);
+
     const publicKeyStr = configTx.result?.public_key;
-    if (!publicKeyStr) {
+    if (!publicKeyStr)
       throw new Error("Anonymous voting config missing public key");
-    }
 
     // Encrypt votes and seeds using project-configured public key
-    const saltPrefix = `${client.options.publicKey}:${project_name}:${proposal_id}`;
+    const saltPrefix = `${maintainer}:${project_name}:${proposal_id}`;
     const { encryptWithPublicKey } = await import("../utils/crypto");
 
     let encryptedSeeds: string[];
     let encryptedVotes: string[];
     let commitmentsTx: any;
+
     try {
       // Encode votes/seeds as u128 for contract bindings
-      const votesU128 = votesArr.map((v) => BigInt(v));
-      const seedsU128 = seedsArr.map((s) => BigInt(s));
+      const votesU128 = votesArr.map(BigInt);
+      const seedsU128 = seedsArr.map(BigInt);
 
       [encryptedSeeds, encryptedVotes, commitmentsTx] = await Promise.all([
         Promise.all(
@@ -223,7 +226,7 @@ export async function voteToProposal(
         }),
       ]);
       // Ensure the helper call did not surface a simulation error payload
-      checkSimulationError(commitmentsTx as any);
+      checkSimulationError(commitmentsTx);
     } catch (e: any) {
       // Normalize Wasm VM/host errors to user-friendly text
       throw new Error(parseContractError(e));
@@ -233,7 +236,7 @@ export async function voteToProposal(
       tag: "AnonymousVote",
       values: [
         {
-          address: client.options.publicKey!,
+          address: maintainer,
           weight,
           encrypted_seeds: encryptedSeeds,
           encrypted_votes: encryptedVotes,
@@ -244,14 +247,14 @@ export async function voteToProposal(
   }
 
   const assembledTx = await client.vote({
-    voter: client.options.publicKey!,
+    voter: maintainer,
     project_key: projectKey,
     proposal_id: Number(proposal_id),
     vote: votePayload,
   });
 
   // Check for simulation errors (contract errors) before submitting
-  checkSimulationError(assembledTx as any);
+  checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
   return true;
@@ -267,18 +270,20 @@ export async function execute(
   seeds?: bigint[],
 ): Promise<any> {
   const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
   const projectKey = getProjectKey(project_name);
 
   const assembledTx = await client.execute({
-    maintainer: client.options.publicKey!,
+    maintainer,
     project_key: projectKey,
     proposal_id: Number(proposal_id),
     tallies,
     seeds,
   });
-
   // Check for simulation errors (contract errors) before submitting
-  checkSimulationError(assembledTx as any);
+  checkSimulationError(assembledTx);
 
   return await submitTransaction(assembledTx);
 }
@@ -297,6 +302,8 @@ export async function setBadges(
   if (!projectId) throw new Error("No project defined");
 
   const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
 
   // Ensure projectId is a proper Buffer
   const projectKey = Buffer.isBuffer(projectId)
@@ -307,14 +314,14 @@ export async function setBadges(
 
   // Build transaction using current bindings (key)
   const assembledTx: any = await (client as any).set_badges({
-    maintainer: client.options.publicKey!,
+    maintainer,
     key: projectKey,
     member: member_address,
     badges,
   });
 
   // Check for simulation errors (contract errors) before submitting
-  checkSimulationError(assembledTx as any);
+  checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
   return true;
@@ -329,6 +336,9 @@ export async function setupAnonymousVoting(
   force = false,
 ): Promise<boolean> {
   const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
   const projectKey = getProjectKey(project_name);
 
   // Check if already configured
@@ -337,7 +347,7 @@ export async function setupAnonymousVoting(
       const configTx = await client.get_anonymous_voting_config({
         project_key: projectKey,
       });
-      checkSimulationError(configTx as any);
+      checkSimulationError(configTx);
       if (configTx.result) return true;
     } catch {
       // Fall-through to setup on network/simulation errors
@@ -345,13 +355,13 @@ export async function setupAnonymousVoting(
   }
 
   const assembledTx = await client.anonymous_voting_setup({
-    maintainer: client.options.publicKey!,
+    maintainer,
     project_key: projectKey,
     public_key,
   });
 
   // Check for simulation errors (contract errors) before submitting
-  checkSimulationError(assembledTx as any);
+  checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
   return true;

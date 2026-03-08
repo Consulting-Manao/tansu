@@ -28,7 +28,7 @@ const ProjectList = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isInOnChain, setIsInOnChain] = useState(false);
   const [configInfo, setConfigInfo] = useState();
-  const [prevPath, setPrevPath] = useState("");
+  const [_prevPath, setPrevPath] = useState("");
   const [memberNotFound, setMemberNotFound] = useState(false);
 
   const [showProjectInfoModal, setShowProjectInfoModal] = useState(false);
@@ -203,7 +203,7 @@ const ProjectList = () => {
       if (searchTerm && filtered.length === 0) {
         checkProjectOnChain(searchTerm);
       }
-    } catch (error) {
+    } catch (_) {
       // Remove console.error as it's an expected condition
       // Fallback to empty array on error
       setFilteredProjects([]);
@@ -240,7 +240,7 @@ const ProjectList = () => {
         setIsInOnChain(false);
         // No toast error for expected "not found" condition
       }
-    } catch (error) {
+    } catch (_) {
       // No toast error for expected "not found" condition
       setIsInOnChain(false);
       // Remove console.error as it's an expected condition
@@ -249,7 +249,7 @@ const ProjectList = () => {
     }
   };
 
-  const handleClearSearch = () => {
+  const _handleClearSearch = () => {
     setSearchTerm("");
     setMemberNotFound(false);
 
@@ -272,7 +272,7 @@ const ProjectList = () => {
         // No toast error for expected "not found" condition
         setMemberNotFound(true);
       }
-    } catch (e) {
+    } catch (_) {
       // No toast error for expected "not found" condition
       setMemberNotFound(true);
     } finally {

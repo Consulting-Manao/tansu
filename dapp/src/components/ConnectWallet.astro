@@ -50,9 +50,10 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
     loadedPublicKey,
     setConnection,
     disconnect,
-    loadedProvider,
     checkAndNotifyFunding,
   } from "../service/walletService";
+
+  import { StellarWalletsKit } from "./stellar-wallets-kit";
 
   document.addEventListener("astro:page-load", () => {
     initializeConnection();
@@ -63,20 +64,25 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
 
     async function setLoggedIn(publicKey: string) {
       button.textContent = "";
+
       const textElement = document.createElement("span");
       textElement.className =
         "hidden sm:inline text-xs md:text-sm lg:text-base font-medium text-white truncate";
       textElement.textContent = "Profile";
+
       const imgElement = document.createElement("img");
       imgElement.src = "/icons/profile.svg";
       imgElement.alt = "User profile icon";
       imgElement.className = "w-4 md:w-5 h-4 md:h-5 flex-shrink-0";
       imgElement.setAttribute("width", "20");
       imgElement.setAttribute("height", "20");
+
       button.appendChild(textElement);
       button.appendChild(imgElement);
+
       button.title = publicKey;
       button.setAttribute("aria-label", "Open user profile");
+
       button.classList.toggle("bg-white", false);
       button.classList.toggle("bg-primary", true);
       button.classList.toggle("text-white", true);
@@ -99,103 +105,88 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
     }
 
     async function connectWallet() {
-      const provider = loadedProvider();
-
+      // If already connected → open profile
       if (button.title) {
-        // Already connected - revalidate
-        if (provider) {
-          const { kit } = await import("./stellar-wallets-kit");
-          kit.setWallet(provider);
-          try {
-            const { address } = await kit.getAddress();
-            const currentStored = loadedPublicKey();
+        try {
+          const { address } = await StellarWalletsKit.getAddress();
+          const currentStored = loadedPublicKey();
 
-            if (address !== currentStored) {
-              setConnection(address, provider);
-              await setLoggedIn(address);
-              window.dispatchEvent(
-                new CustomEvent("walletSwitched", {
-                  detail: { address, provider },
-                }),
-              );
+          if (address !== currentStored) {
+            setConnection(address);
+            await setLoggedIn(address);
 
-              // Check funding after wallet switch
-              if (import.meta.env.MODE !== "test") {
-                await checkAndNotifyFunding();
-              }
+            window.dispatchEvent(
+              new CustomEvent("walletSwitched", {
+                detail: { address },
+              }),
+            );
+            // Check funding after wallet switch
+            if (import.meta.env.MODE !== "test") {
+              await checkAndNotifyFunding();
             }
-          } catch {
-            disconnect();
           }
-        } else {
-          window.dispatchEvent(new CustomEvent("openProfileModal"));
+        } catch {
+          disconnect();
         }
+
         return;
       }
 
       // First connection
       try {
-        const { kit } = await import("./stellar-wallets-kit");
-        await kit.openModal({
-          onWalletSelected: async (option: { id: string }) => {
-            try {
-              kit.setWallet(option.id);
-              const { address } = await kit.getAddress();
+        const { address } = await StellarWalletsKit.authModal();
 
-              setConnection(address, option.id);
-              await setLoggedIn(address);
+        setConnection(address);
+        await setLoggedIn(address);
 
-              window.dispatchEvent(
-                new CustomEvent("walletConnected", {
-                  detail: { address, provider: option.id },
-                }),
-              );
-
-              // Check funding status using centralized function
-              if (import.meta.env.MODE !== "test") {
-                await checkAndNotifyFunding();
-              }
-            } catch {}
-          },
-        });
+        window.dispatchEvent(
+          new CustomEvent("walletConnected", {
+            detail: { address },
+          }),
+        );
+        // Check funding status using centralized function
+        if (import.meta.env.MODE !== "test") {
+          await checkAndNotifyFunding();
+        }
       } catch {}
     }
 
     if (button) button.addEventListener("click", connectWallet);
 
     const getStarted = document.querySelector("#get-started");
+
     connectedPublicKey.subscribe((publicKey) => {
       if (publicKey) getStarted?.classList.remove("xl:flex");
     });
 
     window.addEventListener("walletDisconnected", () => {
       disconnect();
+
       button.textContent = "";
+
       const textElement = document.createElement("span");
       textElement.className =
         "text-xs md:text-sm lg:text-base font-medium text-pink truncate";
       textElement.textContent = "Connect";
+
       const imgElement = document.createElement("img");
       imgElement.src = "/icons/connect.png";
       imgElement.alt = "Connect wallet icon";
       imgElement.className =
         "w-3 md:w-4 lg:w-5 h-3 md:h-4 lg:h-5 flex-shrink-0";
+
       imgElement.setAttribute("width", "20");
       imgElement.setAttribute("height", "20");
+
       button.appendChild(textElement);
       button.appendChild(imgElement);
+
       button.title = "";
       button.setAttribute("aria-label", "Connect wallet to start using Tansu");
+
       button.classList.toggle("bg-white", true);
       button.classList.toggle("bg-primary", false);
       button.classList.toggle("text-white", false);
     });
-
-    const provider = loadedProvider();
-    if (provider) {
-      import("./stellar-wallets-kit").then(({ kit }) => {
-        kit.setWallet(provider);
-      });
-    }
   });
 </script>

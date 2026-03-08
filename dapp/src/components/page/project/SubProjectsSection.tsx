@@ -128,7 +128,7 @@ const SubProjectsSection = () => {
           <div className="border-t border-[#EEEEEE]" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subProjects.map((project, index) => {
+          {subProjects.map((project) => {
             const config = {
               projectName: project.name,
               description: project.configData?.description || "",

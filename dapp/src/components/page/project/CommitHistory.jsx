@@ -45,7 +45,7 @@ const CommitHistory = () => {
         } else {
           setCommitHistory([]);
         }
-      } catch (err) {
+      } catch (_) {
         setLoadError("Could not load commit history.");
         setCommitHistory([]);
       } finally {
@@ -73,7 +73,7 @@ const CommitHistory = () => {
           .filter(Boolean);
         setAuthors(authorList);
       }
-    } catch (error) {
+    } catch (_) {
       setAuthors([]);
     }
   };
