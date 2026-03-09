@@ -16,15 +16,19 @@ const JoinCommunityButton = () => {
   const fetchMember = async (address: string) => {
     try {
       const member = await getMember(address);
+      // If getMember succeeds, they are a member regardless of metadata content
       setIsMember(true);
       setMemberData(member);
     } catch {
+      // If getMember fails for any reason, treat as not a member
+      // This is expected behavior for non-members
       setIsMember(false);
       setMemberData(null);
     }
   };
 
   useEffect(() => {
+    // Reset state first to avoid showing stale profile
     setIsMember(false);
     setMemberData(null);
 

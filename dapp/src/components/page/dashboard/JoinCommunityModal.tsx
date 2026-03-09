@@ -25,6 +25,7 @@ const JoinCommunityModal: FC<{
   const [profileImage, setProfileImage] = useState<ProfileImageFile | null>(
     null,
   );
+  // const [isDropped,setIsDropped]=useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -41,7 +42,10 @@ const JoinCommunityModal: FC<{
   }, [prefillAddress]);
 
   const handleClose = () => {
+    // Reload page if joining was successful to show fresh data
     if (updateSuccessful) window.location.reload();
+
+    // Reset all states when closing
     setUpdateSuccessful(false);
     setStep(0);
     setIsLoading(false);
@@ -54,10 +58,12 @@ const JoinCommunityModal: FC<{
     const file = e.target.files?.[0];
     if (!file) return;
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
+    // Check if it's PNG or JPG
     if (!allowedTypes.includes(file.type)) {
       setImageError("Please upload a PNG or JPG image");
       return;
     }
+    // Check file size (limit to 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setImageError("Please upload an image smaller than 5MB");
       return;
