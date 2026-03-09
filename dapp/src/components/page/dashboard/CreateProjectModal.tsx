@@ -44,7 +44,9 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
 
   // Form validation errors
   const [projectNameError, setProjectNameError] = useState<string | null>(null);
-  const [projectFullNameError, setProjectFullNameError] = useState<string | null>(null);
+  const [projectFullNameError, setProjectFullNameError] = useState<
+    string | null
+  >(null);
   const [maintainersErrors, setMaintainersErrors] = useState<
     Array<string | null>
   >([null]);
@@ -413,7 +415,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                       setIsLoading(false);
                       return;
                     }
-                    
+
                     // Perform project name validation
                     const isValid = await validateAndSetProjectNameError();
 
@@ -702,11 +704,15 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
               </Button>
             </div>
             <Label label="Project Name (On-chain)">
-              <p className="leading-6 text-xl text-primary">{projectName}.xlm</p>
+              <p className="leading-6 text-xl text-primary">
+                {projectName}.xlm
+              </p>
             </Label>
             {projectFullName && (
               <Label label="Project Full Name">
-                <p className="leading-6 text-xl text-primary">{projectFullName}</p>
+                <p className="leading-6 text-xl text-primary">
+                  {projectFullName}
+                </p>
               </Label>
             )}
           </div>

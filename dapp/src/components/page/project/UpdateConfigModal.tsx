@@ -43,6 +43,7 @@ const UpdateConfigModal = () => {
   const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [projectFullName, setProjectFullName] = useState("");
+  const [domainName, setDomainName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [orgUrl, setOrgUrl] = useState("");
   const [orgLogo, setOrgLogo] = useState("");
@@ -58,20 +59,24 @@ const UpdateConfigModal = () => {
     if (!infoLoaded) return;
     const projectInfo = loadProjectInfo();
     const cfg = loadConfigData();
+
     if (!projectInfo || !projectInfo.maintainers || !projectInfo.config) {
       setShowButton(false);
       return;
     }
+
     setMaintainerAddresses(projectInfo.maintainers);
     setMaintainerGithubs(
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
     setGithubRepoUrl(projectInfo.config.url);
+    setDomainName(projectInfo.name || ""); // domain name (read-only)
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");
     setOrgName(cfg?.organizationName || "");
     setOrgUrl(cfg?.officials?.websiteLink || "");
     setOrgLogo(cfg?.logoImageLink || "");
     setOrgDescription(cfg?.description || "");
+
     setAddrErrors(projectInfo.maintainers.map(() => null));
     setGhErrors(projectInfo.maintainers.map(() => null));
 
@@ -80,10 +85,9 @@ const UpdateConfigModal = () => {
     import("@service/walletService")
       .then(({ loadedPublicKey }) => {
         const publicKey = loadedPublicKey();
-        const isMaintainer = publicKey
-          ? projectInfo.maintainers.includes(publicKey)
-          : false;
-        setShowButton(isMaintainer);
+        setShowButton(
+          publicKey ? projectInfo.maintainers.includes(publicKey) : false,
+        );
       })
       .catch(() => setShowButton(false));
   }, [infoLoaded]);
@@ -156,6 +160,7 @@ const UpdateConfigModal = () => {
         >[0];
         setConfigData(extractConfigData(parsedToml, p));
       }
+
       toast.success(
         "Config updated",
         "Project configuration updated successfully.",
@@ -180,6 +185,7 @@ const UpdateConfigModal = () => {
         <img src="/icons/gear.svg" className="w-5 h-5 flex-shrink-0" alt="" />
         <span>Update config</span>
       </button>
+
       {open && (
         <FlowProgressModal
           isOpen={open}
@@ -261,6 +267,7 @@ const UpdateConfigModal = () => {
                   </div>
                 </div>
               )}
+
               {step === 2 && (
                 <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
                   <img
@@ -273,6 +280,14 @@ const UpdateConfigModal = () => {
                       title="Project details"
                       description="Project name, organisation & repository"
                     />
+
+                    <Input
+                      label="Domain (read-only)"
+                      value={domainName}
+                      description="Domain name used for the project (cannot be modified)"
+                      disabled
+                    />
+
                     <Input
                       label="Project Full Name"
                       placeholder="My Awesome Project"
@@ -280,6 +295,7 @@ const UpdateConfigModal = () => {
                       onChange={(e) => setProjectFullName(e.target.value)}
                       description="Human-readable name shown in the UI."
                     />
+
                     <Input
                       label="Organisation name"
                       value={orgName}
@@ -300,6 +316,7 @@ const UpdateConfigModal = () => {
                       value={orgDescription}
                       onChange={(e) => setOrgDescription(e.target.value)}
                     />
+
                     <Input
                       label="GitHub repository URL"
                       value={githubRepoUrl}
@@ -309,6 +326,7 @@ const UpdateConfigModal = () => {
                       }}
                       error={repoError || undefined}
                     />
+
                     <div className="flex justify-between mt-4">
                       <Button type="secondary" onClick={() => setStep(1)}>
                         Back
@@ -324,6 +342,7 @@ const UpdateConfigModal = () => {
                   </div>
                 </div>
               )}
+
               {step === 3 && (
                 <div>
                   <Step step={3} totalSteps={3} />

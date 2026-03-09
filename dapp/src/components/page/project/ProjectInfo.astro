@@ -375,10 +375,11 @@ import Button from "components/utils/Button";
         }
 
         const configData = loadConfigData();
-        
+
         const projectNameElement = document.getElementById("project-name");
         if (projectNameElement) {
-          projectNameElement.textContent = configData?.projectFullName || projectInfo.name;
+          projectNameElement.textContent =
+            configData?.projectFullName || projectInfo.name;
         }
 
         const projectThumbnail = document.getElementById(

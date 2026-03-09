@@ -1,7 +1,7 @@
 export const featuredProjectsConfigData = [
   {
     projectName: "tansu",
-     projectFullName: "Tansu - Git on Stellar",
+    projectFullName: "Tansu - Git on Stellar",
     logoImageLink:
       "https://github.com/Consulting-Manao/tansu/blob/main/website/static/img/logo.svg",
     description: "Decentralized project governance on Stellar",
