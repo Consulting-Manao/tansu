@@ -58,7 +58,7 @@ const UpdateConfigModal = () => {
   const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [projectFullName, setProjectFullName] = useState("");
-  const [domainName, setDomainName] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [orgUrl, setOrgUrl] = useState("");
   const [orgLogo, setOrgLogo] = useState("");
@@ -88,7 +88,7 @@ const UpdateConfigModal = () => {
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
     setGithubRepoUrl(projectInfo.config.url);
-    setDomainName(projectInfo.name || ""); // domain name (read-only)
+    setProjectName(projectInfo.name || "");
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");
     setOrgName(cfg?.organizationName || "");
     setOrgUrl(cfg?.officials?.websiteLink || "");
@@ -307,9 +307,9 @@ const UpdateConfigModal = () => {
                     />
 
                     <Input
-                      label="Domain (read-only)"
-                      value={domainName}
-                      description="Domain name used for the project (cannot be modified)"
+                      label="Project Name (read-only)"
+                      value={projectName}
+                      description="Project name used for the project (cannot be modified)"
                       disabled
                     />
 

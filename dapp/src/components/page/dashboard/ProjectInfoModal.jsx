@@ -31,8 +31,8 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
                 {projectInfo?.organizationName || "No organization name"}
               </p>
               <h2 className="leading-6 text-2xl font-medium text-primary">
-                {projectInfo.projectFullName ||
-                  projectInfo.projectName ||
+                {projectInfo?.projectFullName ||
+                  projectInfo?.projectName ||
                   "No project name"}
               </h2>
               <p className="text-sm text-secondary">
@@ -101,7 +101,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
       ) : (
         <div className="space-y-4">
           <h2 className="text-2xl sm:text-3xl font-bold">
-            {projectDomain || "No project name"}
+            {projectName || "No project name"}
           </h2>
           <div className="h-40 flex items-center px-4 sm:px-8 pb-4">
             <p className="text-lg text-center">
@@ -121,7 +121,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
             <Button
               icon="/icons/search-white.svg"
               size="xl"
-              onClick={() => navigate(`/project?name=${projectDomain}`)}
+              onClick={() => navigate(`/project?name=${projectName}`)}
               className="whitespace-nowrap"
             >
               View Details
