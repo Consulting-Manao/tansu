@@ -17,7 +17,7 @@ concurrency:
 jobs:
   release-contract:
     name: Compile Stellar smart contract for production and create release
-    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@2ff8e0a5a122981b534bfc76851d26d74905c1cc
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@e43b241f114bcf02151c30d61088506c6ad3ae0b
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Tansu contract release"
