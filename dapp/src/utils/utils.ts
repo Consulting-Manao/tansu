@@ -29,9 +29,10 @@ export function extractConfigData(tomlData: any, project: Project) {
   const fullName = tomlData.DOCUMENTATION?.ORG_DBA || project.name;
   const projectType = tomlData.PROJECT_TYPE || "SOFTWARE";
 
-  const authorHandles = tomlData.PRINCIPALS?.map((p: { github?: string; handle?: string }) =>
-    p.handle || p.github || ""
-  ) || [];
+  const authorHandles =
+    tomlData.PRINCIPALS?.map(
+      (p: { github?: string; handle?: string }) => p.handle || p.github || "",
+    ) || [];
 
   return {
     projectName: project.name,

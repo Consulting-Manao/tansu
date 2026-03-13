@@ -531,7 +531,8 @@ import Button from "components/utils/Button";
                   commitPopup.replaceChildren();
                   const p2 = document.createElement("p");
                   p2.className = "text-sm w-36 sm:w-max";
-                  p2.textContent = "Commit SHA on-chain cannot be found on GitHub";
+                  p2.textContent =
+                    "Commit SHA on-chain cannot be found on GitHub";
                   commitPopup.appendChild(p2);
                 }
               } else {
@@ -549,7 +550,8 @@ import Button from "components/utils/Button";
               commitPopup.replaceChildren();
               const p4 = document.createElement("p");
               p4.className = "text-sm w-36 sm:w-max";
-              p4.textContent = "No commit SHA can be found on-chain or on GitHub";
+              p4.textContent =
+                "No commit SHA can be found on-chain or on GitHub";
               commitPopup.appendChild(p4);
             }
 
@@ -603,7 +605,9 @@ import Button from "components/utils/Button";
 
           // Render ContributionMetrics - only for SOFTWARE projects
           if (projectInfo?.name && projectInfo?.config?.url) {
-            const { username, repoName } = getAuthorRepo(projectInfo.config.url);
+            const { username, repoName } = getAuthorRepo(
+              projectInfo.config.url,
+            );
             if (username && repoName) {
               contributionMetricsRoot.render(
                 React.createElement(ContributionMetrics, {
@@ -619,21 +623,27 @@ import Button from "components/utils/Button";
         // Hide Git-specific UI components for non-software projects
         if (!isSoftwareProject) {
           // Hide LatestCommit component
-          const latestCommitEl = document.querySelector('[data-component="LatestCommit"]');
+          const latestCommitEl = document.querySelector(
+            '[data-component="LatestCommit"]',
+          );
           if (latestCommitEl) {
-            (latestCommitEl as HTMLElement).style.display = 'none';
+            (latestCommitEl as HTMLElement).style.display = "none";
           }
 
           // Hide CommitHistory component
-          const commitHistoryEl = document.querySelector('[data-component="CommitHistory"]');
+          const commitHistoryEl = document.querySelector(
+            '[data-component="CommitHistory"]',
+          );
           if (commitHistoryEl) {
-            (commitHistoryEl as HTMLElement).style.display = 'none';
+            (commitHistoryEl as HTMLElement).style.display = "none";
           }
 
           // Hide contribution metrics section
-          const contributionMetricsEl = document.getElementById('contribution-metrics-section');
+          const contributionMetricsEl = document.getElementById(
+            "contribution-metrics-section",
+          );
           if (contributionMetricsEl) {
-            contributionMetricsEl.style.display = 'none';
+            contributionMetricsEl.style.display = "none";
           }
         }
 

@@ -80,7 +80,10 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
                   : "",
               );
               if (hashResult.status === "rejected") {
-                toast.error("Something Went Wrong!", hashResult.reason?.message);
+                toast.error(
+                  "Something Went Wrong!",
+                  hashResult.reason?.message,
+                );
               }
             }
           })();

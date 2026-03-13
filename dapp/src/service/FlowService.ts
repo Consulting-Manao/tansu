@@ -225,6 +225,7 @@ export async function createProposalFlow({
 
   // Step 3: Upload to IPFS using the signed transaction as authentication
   onProgress?.(8); // Uploading to IPFS (UI index 3)
+
   const uploadedCid = await uploadWithDelegation({
     files: proposalFiles,
     signedTxXdr,
