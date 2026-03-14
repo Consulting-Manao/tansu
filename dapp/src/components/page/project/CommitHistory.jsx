@@ -17,11 +17,13 @@ import CommitRecord from "../../CommitRecord";
 const CommitHistory = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
   const configData = useStore(configDataStore);
+  const isSoftwareProject = configData?.projectType === "SOFTWARE";
   const [commitHistory, setCommitHistory] = useState([]);
   const [authors, setAuthors] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [readmeExpanded, setReadmeExpanded] = useState(false);
 
   const fetchCommitHistory = async (page = 1) => {
     setLoadError(null);
@@ -61,12 +63,12 @@ const CommitHistory = () => {
     try {
       const cfg = loadConfigData();
       if (
-        cfg &&
-        cfg.authorGithubNames &&
-        Array.isArray(cfg.authorGithubNames) &&
-        cfg.authorGithubNames.length > 0
+        configData &&
+        configData.authorGithubNames &&
+        Array.isArray(configData.authorGithubNames) &&
+        configData.authorGithubNames.length > 0
       ) {
-        const authorList = cfg.authorGithubNames
+        const authorList = configData.authorGithubNames
           .map((name) =>
             name && typeof name === "string" ? name.toLowerCase() : "",
           )
@@ -79,12 +81,12 @@ const CommitHistory = () => {
   };
 
   useEffect(() => {
-    if (isProjectInfoLoaded) {
+    if (isProjectInfoLoaded && isSoftwareProject) {
       fetchCommitHistory();
     } else {
       setIsLoading(false);
     }
-  }, [isProjectInfoLoaded]);
+  }, [isProjectInfoLoaded, isSoftwareProject]);
 
   useEffect(() => {
     if (configData) {
@@ -92,63 +94,93 @@ const CommitHistory = () => {
     }
   }, [configData]);
 
+  const readme = configData?.readmeContent;
+
   return (
     <>
       <div className="px-[16px] lg:px-[72px] flex flex-col gap-12">
         <div className="flex flex-col gap-[18px]">
           <p className="leading-6 text-2xl font-medium text-primary">
-            Commit History
+            {isSoftwareProject ? "Commit History" : "Project Activity"}
           </p>
           <div className="border-t border-[#EEEEEE]" />
         </div>
-        {isLoading && (
-          <p className="text-base text-tertiary" aria-busy="true">
-            Loading commit history…
-          </p>
-        )}
-        {loadError && (
-          <p className="text-sm text-red-600" role="alert">
-            {loadError}
-          </p>
-        )}
-        <div className="commit-history-container pl-[44px] lg:pl-[54px] max-h-[560px] flex flex-col gap-6 overflow-auto">
-          {commitHistory.map((day) => (
-            <div key={day.date} className="day-group flex flex-col gap-6">
-              <h3 className="relative">
-                <div className="absolute -left-[40px] lg:-left-[50px] top-1/2 -translate-y-1/2 w-5 h-5 border-2 border-[#2D0F512E] rounded-full"></div>
-                <span className="leading-6 text-lg text-primary">
-                  {formatDate(day.date)}
-                </span>
-              </h3>
-              <div className="space-y-4">
-                {day.commits.map((commit) => (
-                  <div key={commit.sha} className="relative">
-                    <div className="absolute -left-[31px] lg:-left-[41px] w-[2px] h-full bg-[#2D0F510D]" />
-                    <CommitRecord
-                      message={commit.message}
-                      date={commit.commit_date}
-                      authorName={commit.author.name}
-                      authorGithubLink={commit.author.html_url}
-                      sha={commit.sha}
-                      commitLink={commit.html_url}
-                      isMaintainer={
-                        authors
-                          ? authors.includes(commit.author.name.toLowerCase())
-                          : false
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+
+        {!isSoftwareProject ? (
+          readme ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-base text-primary whitespace-pre-wrap">
+                {readmeExpanded
+                  ? readme
+                  : readme.slice(0, 400) + (readme.length > 400 ? "..." : "")}
+              </p>
+              {readme.length > 400 && (
+                <button
+                  type="button"
+                  className="text-sm text-primary underline self-start"
+                  onClick={() => setReadmeExpanded(!readmeExpanded)}
+                >
+                  {readmeExpanded ? "Less" : "More"}
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-        <CommitPeriod
-          startDate={commitHistory[0]?.date}
-          endDate={commitHistory[commitHistory.length - 1]?.date}
-          currentPage={currentPage}
-          onPageChange={(page) => fetchCommitHistory(page)}
-        />
+          ) : (
+            <p className="text-base text-secondary">No README available.</p>
+          )
+        ) : (
+          <>
+            {isLoading && (
+              <p className="text-base text-tertiary" aria-busy="true">
+                Loading commit history…
+              </p>
+            )}
+            {loadError && (
+              <p className="text-sm text-red-600" role="alert">
+                {loadError}
+              </p>
+            )}
+            <div className="commit-history-container pl-[44px] lg:pl-[54px] max-h-[560px] flex flex-col gap-6 overflow-auto">
+              {commitHistory.map((day) => (
+                <div key={day.date} className="day-group flex flex-col gap-6">
+                  <h3 className="relative">
+                    <div className="absolute -left-[40px] lg:-left-[50px] top-1/2 -translate-y-1/2 w-5 h-5 border-2 border-[#2D0F512E] rounded-full"></div>
+                    <span className="leading-6 text-lg text-primary">
+                      {formatDate(day.date)}
+                    </span>
+                  </h3>
+                  <div className="space-y-4">
+                    {day.commits.map((commit) => (
+                      <div key={commit.sha} className="relative">
+                        <div className="absolute -left-[31px] lg:-left-[41px] w-[2px] h-full bg-[#2D0F510D]" />
+                        <CommitRecord
+                          message={commit.message}
+                          date={commit.commit_date}
+                          authorName={commit.author.name}
+                          authorGithubLink={commit.author.html_url}
+                          sha={commit.sha}
+                          commitLink={commit.html_url}
+                          isMaintainer={
+                            authors
+                              ? authors.includes(
+                                  commit.author.name.toLowerCase(),
+                                )
+                              : false
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <CommitPeriod
+              startDate={commitHistory[0]?.date}
+              endDate={commitHistory[commitHistory.length - 1]?.date}
+              currentPage={currentPage}
+              onPageChange={(page) => fetchCommitHistory(page)}
+            />
+          </>
+        )}
       </div>
     </>
   );

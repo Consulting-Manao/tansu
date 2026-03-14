@@ -27,16 +27,21 @@ export function truncateMiddle(str: string, maxLength: number): string {
 
 export function extractConfigData(tomlData: any, project: Project) {
   const fullName = tomlData.DOCUMENTATION?.ORG_DBA || project.name;
+  const projectType = tomlData.PROJECT_TYPE || "SOFTWARE";
+
   return {
     projectName: project.name,
     projectFullName: fullName,
+    projectType: projectType,
     logoImageLink: tomlData.DOCUMENTATION?.ORG_LOGO || "",
     thumbnailImageLink: tomlData.DOCUMENTATION?.ORG_THUMBNAIL || "",
     description: tomlData.DOCUMENTATION?.ORG_DESCRIPTION || "",
     organizationName: tomlData.DOCUMENTATION?.ORG_NAME || "",
     officials: {
       websiteLink: tomlData.DOCUMENTATION?.ORG_URL || "",
-      githubLink: project.config.url || "",
+      githubLink: tomlData.DOCUMENTATION?.ORG_GITHUB
+        ? `https://github.com/${tomlData.DOCUMENTATION.ORG_GITHUB}`
+        : project.config.url || "",
     },
     socialLinks: {
       ...(tomlData.DOCUMENTATION?.ORG_TWITTER && {

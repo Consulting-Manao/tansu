@@ -111,7 +111,6 @@ function setProject(project: Project): void {
 function loadProjectInfo(): Project | undefined {
   if (
     projectInfo.project_maintainers.length === 0 ||
-    projectInfo.project_config_url === "" ||
     projectInfo.project_config_ipfs === "" ||
     !projectState.project_name
   ) {

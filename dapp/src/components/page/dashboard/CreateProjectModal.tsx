@@ -22,6 +22,7 @@ import {
 } from "utils/validations.ts";
 import Textarea from "components/utils/Textarea.tsx";
 import Spinner from "components/utils/Spinner.tsx";
+import { ProjectType } from "types/projectConfig";
 
 // Get domain contract ID from environment with fallback
 const SOROBAN_DOMAIN_CONTRACT_ID =
@@ -53,12 +54,16 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState("");
   const [projectFullName, setProjectFullName] = useState("");
+  const [projectType, setProjectType] = useState<ProjectType>(
+    ProjectType.SOFTWARE,
+  );
   const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
     loadedPublicKey() || "",
   ]);
 
   const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [readmeContent, setReadmeContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [domainContractId] = useState(SOROBAN_DOMAIN_CONTRACT_ID);
   const [domainStatus, setDomainStatus] = useState<
@@ -329,6 +334,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
 
       // ── Build TOML content ───────────────────────────────────────────────
       const tomlContent = `VERSION="2.0.0"
+PROJECT_TYPE="${projectType}"
 
 ACCOUNTS=[
 ${maintainerAddresses.map((a) => `    "${a}"`).join(",\n")}
@@ -339,8 +345,7 @@ ORG_DBA="${projectFullName.trim()}"
 ORG_NAME="${orgName}"
 ORG_URL="${orgUrl}"
 ORG_LOGO="${orgLogo}"
-ORG_DESCRIPTION="${orgDescription}"
-ORG_GITHUB="${githubRepoUrl.split("https://github.com/")[1] || ""}"
+ORG_DESCRIPTION="${orgDescription}"${projectType === ProjectType.SOFTWARE ? `\nORG_GITHUB="${githubRepoUrl.split("https://github.com/")[1] || ""}"` : ""}
 
 ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
 `;
@@ -348,6 +353,15 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
       });
+
+      // Create README file for non-software projects
+      let additionalFiles: File[] | undefined = undefined;
+      if (projectType === ProjectType.GENERIC && readmeContent) {
+        const readmeFile = new File([readmeContent], "README.md", {
+          type: "text/plain",
+        });
+        additionalFiles = [readmeFile];
+      }
 
       // show progress
       setStep(6);
@@ -357,9 +371,11 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
       await createProjectFlow({
         projectName,
         tomlFile,
-        githubRepoUrl,
+        githubRepoUrl:
+          projectType === ProjectType.SOFTWARE ? githubRepoUrl : "",
         maintainers: maintainerAddresses,
         onProgress: setStep,
+        ...(additionalFiles && { additionalFiles }),
       });
 
       // ── Continue with existing UI/state updates ───────────────────────
@@ -537,6 +553,40 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                   description="Human-readable name shown in the UI (up to 100 ASCII characters)."
                   error={projectFullNameError}
                 />
+                <div className="flex flex-col gap-3">
+                  <Label label="Project Type" />
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="projectType"
+                        value={ProjectType.SOFTWARE}
+                        checked={projectType === ProjectType.SOFTWARE}
+                        onChange={() => setProjectType(ProjectType.SOFTWARE)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-primary">
+                        Software Project (uses Git/GitHub)
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="projectType"
+                        value={ProjectType.GENERIC}
+                        checked={projectType === ProjectType.GENERIC}
+                        onChange={() => setProjectType(ProjectType.GENERIC)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-primary">Non-Software Project</span>
+                    </label>
+                  </div>
+                  <p className="text-sm text-secondary">
+                    {projectType === ProjectType.SOFTWARE
+                      ? "For software projects with Git history and GitHub integration"
+                      : "For non-software projects like creative work, documentation, or community initiatives"}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
@@ -628,7 +678,9 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                         <Input
                           className="flex-1"
                           value={maintainerGithubs[i] ?? ""}
-                          {...(i == 0 && { label: "GitHub Handle" })}
+                          {...(i == 0 && {
+                            label: "GitHub Handle",
+                          })}
                           placeholder="username"
                           onChange={(e) => {
                             setMaintainerGithubs(
@@ -771,16 +823,28 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                     error={orgDescriptionError}
                   />
 
-                  <Input
-                    label="GitHub Repository URL"
-                    placeholder="Write the github repository URL"
-                    value={githubRepoUrl}
-                    onChange={(e) => {
-                      setGithubRepoUrl(e.target.value);
-                      setGithubRepoUrlError(null); // Clear error when typing
-                    }}
-                    error={githubRepoUrlError}
-                  />
+                  {projectType === ProjectType.SOFTWARE ? (
+                    <Input
+                      label="GitHub Repository URL"
+                      placeholder="Write the github repository URL"
+                      value={githubRepoUrl}
+                      onChange={(e) => {
+                        setGithubRepoUrl(e.target.value);
+                        setGithubRepoUrlError(null);
+                      }}
+                      error={githubRepoUrlError}
+                    />
+                  ) : (
+                    <Textarea
+                      label="README Content"
+                      placeholder="Write your project README in markdown format..."
+                      value={readmeContent}
+                      onChange={(e) => {
+                        setReadmeContent(e.target.value);
+                      }}
+                      description="Provide documentation for your non-software project."
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -794,7 +858,11 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
               </Button>
               <Button
                 onClick={() => {
-                  const isGithubUrlValid = validateGithubRepoUrl();
+                  // Only validate GitHub URL for software projects
+                  const isGithubUrlValid =
+                    projectType === ProjectType.SOFTWARE
+                      ? validateGithubRepoUrl()
+                      : true;
                   const areOrgFieldsValid = validateOrgFields();
 
                   if (isGithubUrlValid && areOrgFieldsValid) {
@@ -860,6 +928,13 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                 </p>
               </Label>
             )}
+            <Label label="Project type">
+              <p className="leading-6 text-xl text-primary">
+                {projectType === ProjectType.SOFTWARE
+                  ? "Software Project"
+                  : "Non-Software Project"}
+              </p>
+            </Label>
           </div>
           <div className="h-[1px] bg-[#ECE3F4]" />
           <div className="flex flex-col gap-6">

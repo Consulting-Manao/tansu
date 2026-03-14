@@ -6,7 +6,11 @@ import Tooltip from "components/utils/Tooltip";
 import CopyButton from "components/utils/CopyButton";
 import { useEffect, useState } from "react";
 import { formatDate } from "utils/formatTimeFunctions";
-import { projectHasSubProjects, projectInfoLoaded } from "utils/store";
+import {
+  configData as configDataStore,
+  projectHasSubProjects,
+  projectInfoLoaded,
+} from "utils/store";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 
 enum Status {
@@ -18,6 +22,9 @@ enum Status {
 const LatestCommit = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
   const hasSubProjects = useStore(projectHasSubProjects);
+  const configData = useStore(configDataStore);
+  const isSoftwareProject =
+    !configData || configData.projectType === "SOFTWARE";
   const [commitData, setCommitData] = useState<{
     sha: string;
     commit: {
@@ -34,6 +41,10 @@ const LatestCommit = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadLatestCommitData = async () => {
+    if (!isSoftwareProject) {
+      setIsLoading(false);
+      return;
+    }
     setLoadError(null);
     setIsLoading(true);
     const projectInfo = loadProjectInfo();
@@ -69,7 +80,7 @@ const LatestCommit = () => {
 
   useEffect(() => {
     loadLatestCommitData();
-  }, [isProjectInfoLoaded]);
+  }, [isProjectInfoLoaded, isSoftwareProject]);
 
   const configCid = loadProjectInfo()?.config?.ipfs;
   const tomlLink =
@@ -86,6 +97,10 @@ const LatestCommit = () => {
     ) : null;
 
   if (hasSubProjects) {
+    return <div className="flex flex-col gap-3">{tomlLink}</div>;
+  }
+
+  if (!isSoftwareProject) {
     return <div className="flex flex-col gap-3">{tomlLink}</div>;
   }
 
