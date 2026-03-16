@@ -17,7 +17,10 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
 </Layout>
 
 <script>
-  import { fetchTomlFromIpfs } from "../../utils/ipfsFunctions";
+  import {
+    fetchTomlFromIpfs,
+    fetchTextFromIpfs,
+  } from "../../utils/ipfsFunctions";
   import {
     getProjectFromName,
     getProjectHash,
@@ -48,10 +51,6 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
         const project = await getProjectFromName(projectName);
         if (project && project.name && project.config && project.maintainers) {
           setProject(project);
-          const { username, repoName } = getAuthorRepo(project.config.url);
-          if (username && repoName) {
-            setProjectRepoInfo(username, repoName);
-          }
           setConfigData(extractConfigData({}, project));
           projectInfoLoaded.set(true);
 
@@ -60,18 +59,45 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
               fetchTomlFromIpfs(project.config.ipfs),
               getProjectHash(),
             ]);
+            let configData: any = extractConfigData({}, project);
             if (tomlResult.status === "fulfilled" && tomlResult.value) {
-              setConfigData(extractConfigData(tomlResult.value, project));
+              configData = extractConfigData(tomlResult.value, project);
             }
-            const sha =
-              hashResult.status === "fulfilled" ? hashResult.value : null;
-            setProjectLatestSha(
-              sha && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
-                ? sha
-                : "",
-            );
-            if (hashResult.status === "rejected") {
-              toast.error("Something Went Wrong!", hashResult.reason?.message);
+
+            // For non-software projects, fetch README from IPFS
+            if (configData.projectType !== "SOFTWARE" && project.config.ipfs) {
+              const readme = await fetchTextFromIpfs(
+                project.config.ipfs,
+                "/README.md",
+              );
+              if (readme) {
+                configData = { ...configData, readmeContent: readme };
+              }
+            }
+
+            setConfigData(configData);
+
+            // Only set GitHub repo info for SOFTWARE projects
+            const isSoftwareProject = configData.projectType === "SOFTWARE";
+            if (isSoftwareProject) {
+              const { username, repoName } = getAuthorRepo(project.config.url);
+              if (username && repoName) {
+                setProjectRepoInfo(username, repoName);
+              }
+
+              const sha =
+                hashResult.status === "fulfilled" ? hashResult.value : null;
+              setProjectLatestSha(
+                sha && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
+                  ? sha
+                  : "",
+              );
+              if (hashResult.status === "rejected") {
+                toast.error(
+                  "Something Went Wrong!",
+                  hashResult.reason?.message,
+                );
+              }
             }
           })();
         } else {

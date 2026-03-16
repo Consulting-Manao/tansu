@@ -24,6 +24,8 @@ const { title, page } = Astro.props;
 
   document.addEventListener("astro:page-load", () => {
     document.addEventListener("show-create-project-modal", async () => {
+      // ProjectList handles the modal on the dashboard page — avoid double-mounting
+      if (document.querySelector(".project-list-container")) return;
       try {
         await mountModal(
           `project-modal-container ${MODAL_CLASS}`,
