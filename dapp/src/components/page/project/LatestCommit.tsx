@@ -23,8 +23,13 @@ const LatestCommit = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
   const hasSubProjects = useStore(projectHasSubProjects);
   const configData = useStore(configDataStore);
+
+  // configData is undefined until the TOML/IPFS fetch completes
+  const configLoaded = configData !== undefined;
+  // Only treat as software when configData has loaded AND projectType is SOFTWARE
   const isSoftwareProject =
-    !configData || configData.projectType === "SOFTWARE";
+    configLoaded && configData?.projectType === "SOFTWARE";
+
   const [commitData, setCommitData] = useState<{
     sha: string;
     commit: {
@@ -79,8 +84,9 @@ const LatestCommit = () => {
   };
 
   useEffect(() => {
+    if (!configLoaded) return;
     loadLatestCommitData();
-  }, [isProjectInfoLoaded, isSoftwareProject]);
+  }, [isProjectInfoLoaded, isSoftwareProject, configLoaded]);
 
   const configCid = loadProjectInfo()?.config?.ipfs;
   const tomlLink =
@@ -96,12 +102,16 @@ const LatestCommit = () => {
       </a>
     ) : null;
 
+  // Don't render anything until we know the project type
+  if (!configLoaded) return null;
+
   if (hasSubProjects) {
     return <div className="flex flex-col gap-3">{tomlLink}</div>;
   }
 
+  // Non-software: render nothing (tomlLink is shown in the sync status section instead)
   if (!isSoftwareProject) {
-    return <div className="flex flex-col gap-3">{tomlLink}</div>;
+    return null;
   }
 
   if (isLoading) {

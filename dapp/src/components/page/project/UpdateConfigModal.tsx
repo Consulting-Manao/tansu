@@ -5,7 +5,7 @@ import {
   setConfigData,
   setProject,
 } from "@service/StateService";
-import { projectInfoLoaded } from "utils/store";
+import { projectInfoLoaded, configData as configDataStore } from "utils/store";
 import { useEffect, useState } from "react";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Button from "components/utils/Button";
@@ -40,6 +40,9 @@ const validateDbaField = (value: string): string | null => {
 
 const UpdateConfigModal = () => {
   const infoLoaded = useStore(projectInfoLoaded);
+  // Subscribe to configData store so the component re-renders when config arrives
+  const storeConfigData = useStore(configDataStore);
+
   const [showButton, setShowButton] = useState(false);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -50,6 +53,9 @@ const UpdateConfigModal = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Derived directly from the reactive store value — no separate useState needed
+  const isSoftwareProject = storeConfigData?.projectType === "SOFTWARE";
 
   // fields
   const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
@@ -72,7 +78,7 @@ const UpdateConfigModal = () => {
     string | null
   >(null);
 
-  // pre-fill from current config and gate by maintainer status
+  // Pre-fill all fields whenever projectInfo OR configData becomes available
   useEffect(() => {
     if (!infoLoaded) return;
     const projectInfo = loadProjectInfo();
@@ -87,7 +93,7 @@ const UpdateConfigModal = () => {
     setMaintainerGithubs(
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
-    setGithubRepoUrl(projectInfo.config.url);
+    setGithubRepoUrl(projectInfo.config.url || "");
     setProjectName(projectInfo.name || "");
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");
     setOrgName(cfg?.organizationName || "");
@@ -107,12 +113,11 @@ const UpdateConfigModal = () => {
         );
       })
       .catch(() => setShowButton(false));
-  }, [infoLoaded]);
+  }, [infoLoaded, storeConfigData]);
 
   const handleClose = () => {
     setOpen(false);
     setUpdateSuccessful(false);
-    // Reload page if update was successful to show fresh data
     if (updateSuccessful) {
       window.location.reload();
     }
@@ -149,7 +154,6 @@ const UpdateConfigModal = () => {
     return e === null;
   };
 
-  // Validate the DBA field and set error state; returns true if valid
   const validateProjectFullName = (): boolean => {
     const dbaError = validateDbaField(projectFullName);
     setProjectFullNameError(dbaError);
@@ -175,7 +179,6 @@ const UpdateConfigModal = () => {
         maintainers: maintainerAddresses,
         onProgress: setStep,
       });
-      // refresh state
       const p = await getProject();
       if (p) {
         setProject(p);
@@ -191,7 +194,6 @@ const UpdateConfigModal = () => {
         "Project configuration updated successfully.",
       );
       setUpdateSuccessful(true);
-      // Don't close modal immediately - let user close it manually
     } catch (e: any) {
       toast.error("Update config", e.message);
     } finally {
@@ -199,7 +201,16 @@ const UpdateConfigModal = () => {
     }
   };
 
-  // render
+  const handleNextFromStep2 = () => {
+    const isDbaValid = validateProjectFullName();
+    if (isSoftwareProject) {
+      const isRepoValid = validateRepo();
+      if (isRepoValid && isDbaValid) setStep(3);
+    } else {
+      if (isDbaValid) setStep(3);
+    }
+  };
+
   if (!showButton) return null;
   return (
     <>
@@ -318,7 +329,6 @@ const UpdateConfigModal = () => {
                       placeholder="My Awesome Project"
                       value={projectFullName}
                       onChange={(e) => {
-                        // Printable ASCII-only sanitization; enforce max 100 chars
                         const sanitized = e.target.value.replace(
                           /[^\x20-\x7E]/g,
                           "",
@@ -351,29 +361,23 @@ const UpdateConfigModal = () => {
                       onChange={(e) => setOrgDescription(e.target.value)}
                     />
 
-                    <Input
-                      label="GitHub repository URL"
-                      value={githubRepoUrl}
-                      onChange={(e) => {
-                        setGithubRepoUrl(e.target.value);
-                        setRepoError(null);
-                      }}
-                      error={repoError || undefined}
-                    />
+                    {isSoftwareProject && (
+                      <Input
+                        label="GitHub repository URL"
+                        value={githubRepoUrl}
+                        onChange={(e) => {
+                          setGithubRepoUrl(e.target.value);
+                          setRepoError(null);
+                        }}
+                        error={repoError || undefined}
+                      />
+                    )}
 
                     <div className="flex justify-between mt-4">
                       <Button type="secondary" onClick={() => setStep(1)}>
                         Back
                       </Button>
-                      <Button
-                        onClick={() => {
-                          const isRepoValid = validateRepo();
-                          const isDbaValid = validateProjectFullName();
-                          if (isRepoValid && isDbaValid) setStep(3);
-                        }}
-                      >
-                        Next
-                      </Button>
+                      <Button onClick={handleNextFromStep2}>Next</Button>
                     </div>
                   </div>
                 </div>
