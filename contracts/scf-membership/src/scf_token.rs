@@ -1,7 +1,7 @@
-//! SCF Membership
+//! SCF Membership NFT
 
 use crate::{
-    SCFMembership, SCFMembershipArgs, SCFMembershipClient, SCFMembershipTrait, errors, events,
+    SCFMembership, SCFMembershipArgs, SCFMembershipClient, SCFTokenTrait, errors, events,
 };
 use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, contractimpl, contracttype, panic_with_error,
@@ -23,7 +23,7 @@ pub enum NFTStorageKey {
 }
 
 #[contractimpl]
-impl SCFMembershipTrait for SCFMembership {
+impl SCFTokenTrait for SCFMembership {
     fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String) {
         e.storage().instance().set(&DataKey::Admin, &admin);
 

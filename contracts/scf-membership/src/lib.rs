@@ -1,10 +1,24 @@
+//! SCF Membership
+//!
+//! Members are verified members of the community. After verification,
+//! the admin can add a member. A member is represented with a SEP-50 NFT.
+//! This is a soulbound NFT which can only be clawed backed by an admin.
+//!
+//! Additional traits are defined following ERC-7496:
+//! - SCF role,
+//! - Neural Quorum Governance Score.
+//!
+//! We pull NQG score from the NQG contract itself. So only the role can be
+//! set via this contract.
+//!
 #![no_std]
 
-use soroban_sdk::{Address, BytesN, Env, String, contract, contractmeta};
+use soroban_sdk::{Address, BytesN, Env, String, contract, contractmeta, Vec, Bytes};
 
 contractmeta!(key = "Description", val = "SCF Membership");
 
-mod contract;
+mod scf_token;
+mod scf_governance;
 
 mod errors;
 mod events;
@@ -14,7 +28,7 @@ mod events;
 #[contract]
 pub struct SCFMembership;
 
-pub trait SCFMembershipTrait {
+pub trait SCFTokenTrait {
     fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String);
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
@@ -46,7 +60,8 @@ pub trait SCFMembershipTrait {
     ///
     /// Only the admin can execute this function which sends the token to the
     /// admin address. This is an extreme measure which quarantines
-    /// the token. Used in case of terms breach.
+    /// the token. Used in case of terms breach or key rotation.
+    /// For audit purposes tokens are kept and not burned.
     ///
     /// # Arguments
     ///
@@ -100,8 +115,79 @@ pub trait SCFMembershipTrait {
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
-    /// # Notes
+    /// # Returns
     ///
-    /// If the token does not exist, this function is expected to panic.
+    /// The URI of the specific `token_id`.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
     fn token_uri(e: &Env, token_id: u32) -> String;
+}
+
+pub trait SCFGovernanceTrait {
+    /// Returns the trait value of a token.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    /// * `token_id` - Token id as a number.
+    /// * `trait_key` - Trait key as a string.
+    ///
+    /// # Returns
+    ///
+    /// The trait value.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
+    /// * If the trait does not exist.
+    fn get_trait_value(e: &Env, token_id: u32, trait_key: String) -> i128;
+
+    /// Returns the trait values of a token.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    /// * `token_id` - Token id as a number.
+    /// * `trait_keys` - Trait keys as strings.
+    ///
+    /// # Returns
+    ///
+    /// The traits value.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
+    /// * If one of the trait does not exist.
+    fn get_trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> Vec<i128>;
+
+    /// Set the trait value of a token.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    /// * `token_id` - Token id as a number.
+    /// * `trait_key` - Trait key as a string.
+    /// * `new_value` - The value of the trait.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
+    /// * If the trait does not exist.
+    /// * If the new value is out of bound.
+    fn set_trait(e: &Env, token_id: u32, trait_key: String, new_value: i128);
+
+    /// Returns the Uniform Resource Identifier (URI) for trait definition.
+    ///
+    /// Specifies metadata for trait representation and usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    ///
+    /// # Returns
+    ///
+    /// The URI of the specification.
+    fn get_trait_metadata_uri(e: &Env) -> String;
 }
