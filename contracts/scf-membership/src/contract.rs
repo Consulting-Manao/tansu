@@ -10,9 +10,7 @@ use soroban_sdk::{
 #[contracttype]
 pub enum DataKey {
     Admin,
-    CollectionContract,
     NextTokenId,
-    MaxTokens,
     Name,
     Symbol,
     Uri,
@@ -20,30 +18,19 @@ pub enum DataKey {
 
 #[contracttype]
 pub enum NFTStorageKey {
-    ChipNonceByPublicKey(BytesN<65>),
     Owner(u32),
-    PublicKey(u32),
-    TokenIdByPublicKey(BytesN<65>),
     Balance(Address),
 }
 
 #[contractimpl]
 impl SCFMembershipTrait for SCFMembership {
-    fn __constructor(
-        e: &Env,
-        admin: Address,
-        name: String,
-        symbol: String,
-        uri: String,
-        max_tokens: u32,
-    ) {
+    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String) {
         e.storage().instance().set(&DataKey::Admin, &admin);
 
         e.storage().instance().set(&DataKey::Name, &name);
         e.storage().instance().set(&DataKey::Symbol, &symbol);
         e.storage().instance().set(&DataKey::Uri, &uri);
 
-        e.storage().instance().set(&DataKey::MaxTokens, &max_tokens);
         e.storage().instance().set(&DataKey::NextTokenId, &0u32);
     }
 
@@ -59,11 +46,6 @@ impl SCFMembershipTrait for SCFMembership {
         admin.require_auth();
 
         let token_id: u32 = e.storage().instance().get(&DataKey::NextTokenId).unwrap();
-        let max_tokens: u32 = e.storage().instance().get(&DataKey::MaxTokens).unwrap();
-
-        if token_id >= max_tokens {
-            panic_with_error!(&e, &errors::NonFungibleTokenError::TokenIDsAreDepleted);
-        }
 
         e.storage()
             .instance()

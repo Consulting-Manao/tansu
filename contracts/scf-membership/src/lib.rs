@@ -15,14 +15,7 @@ mod events;
 pub struct SCFMembership;
 
 pub trait SCFMembershipTrait {
-    fn __constructor(
-        e: &Env,
-        admin: Address,
-        name: String,
-        symbol: String,
-        uri: String,
-        max_tokens: u32,
-    );
+    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String);
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
 
