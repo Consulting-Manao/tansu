@@ -11,6 +11,7 @@ interface ImportMetaEnv {
   readonly PUBLIC_DEFAULT_FEE: string;
   readonly PUBLIC_DEFAULT_TIMEOUT: number;
   readonly PUBLIC_DELEGATION_API_URL: string;
+  readonly PUBLIC_GIT_PROXY_URL?: string;
 }
 
 interface ImportMeta {
