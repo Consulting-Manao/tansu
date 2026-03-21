@@ -10,8 +10,7 @@ export interface ProjectInfoValue {
 }
 
 export interface ProjectRepoInfoValue {
-  project_author?: string;
-  project_repository?: string;
+  project_url?: string;
 }
 
 export interface ProjectLatestShaValue {

@@ -4,7 +4,7 @@ import { connectedPublicKey, walletInitialized } from "utils/store";
 import {
   setConfigData,
   setProject,
-  setProjectRepoInfo,
+  setProjectRepoUrl,
 } from "@service/StateService";
 import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button.tsx";
@@ -14,7 +14,6 @@ import FlowProgressModal from "components/utils/FlowProgressModal.tsx";
 import Step from "components/utils/Step.tsx";
 import Title from "components/utils/Title.tsx";
 import { useState, type FC, useCallback, useEffect } from "react";
-import { getAuthorRepo } from "utils/editLinkFunctions";
 import { extractConfigData, toast } from "utils/utils";
 import {
   validateProjectName as validateProjectNameUtil,
@@ -23,6 +22,8 @@ import {
 } from "utils/validations.ts";
 import Textarea from "components/utils/Textarea.tsx";
 import Spinner from "components/utils/Spinner.tsx";
+import { ProjectType } from "types/projectConfig";
+import { getRepositoryProjectPath } from "utils/editLinkFunctions";
 import { ProjectType } from "types/projectConfig";
 
 // Get domain contract ID from environment with fallback
@@ -357,7 +358,8 @@ ORG_DBA="${projectFullName.trim()}"
 ORG_NAME="${orgName}"
 ORG_URL="${orgUrl}"
 ORG_LOGO="${orgLogo}"
-ORG_DESCRIPTION="${orgDescription}"${projectType === ProjectType.SOFTWARE ? `\nORG_GITHUB="${githubRepoUrl.split("https://github.com/")[1] || ""}"` : ""}
+ORG_DESCRIPTION="${orgDescription}"
+${projectType === ProjectType.SOFTWARE ? `ORG_GITHUB="${getRepositoryProjectPath(githubRepoUrl)}"` : ""}
 
 ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
 `;
@@ -395,9 +397,8 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
       if (project && project.name && project.config && project.maintainers) {
         setProject(project);
 
-        const { username, repoName } = getAuthorRepo(project.config.url);
-        if (username && repoName) {
-          setProjectRepoInfo(username, repoName);
+        if (project.config.url) {
+          setProjectRepoUrl(project.config.url);
         }
 
         const tomlData = await fetchTomlFromIpfs(project.config.ipfs);
@@ -844,8 +845,8 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
 
                   {projectType === ProjectType.SOFTWARE ? (
                     <Input
-                      label="GitHub Repository URL"
-                      placeholder="Write the github repository URL"
+                      label="Repository URL"
+                      placeholder="Enter the repository URL"
                       value={githubRepoUrl}
                       onChange={(e) => {
                         setGithubRepoUrl(e.target.value);
@@ -998,7 +999,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                 Back to the Third Step
               </Button>
             </div>
-            <Label label="GitHub Repository URL">
+            <Label label="Repository URL">
               <p className="leading-6 text-xl text-primary">{githubRepoUrl}</p>
             </Label>
           </div>

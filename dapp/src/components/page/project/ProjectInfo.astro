@@ -179,10 +179,7 @@ import Button from "components/utils/Button";
     loadProjectLatestSha,
     loadProjectName,
   } from "../../../service/StateService";
-  import {
-    convertGitHubLink,
-    getAuthorRepo,
-  } from "../../../utils/editLinkFunctions";
+  import { convertGitHubLink } from "../../../utils/editLinkFunctions";
   import {
     configData as configDataStore,
     projectHasSubProjects,
@@ -545,7 +542,7 @@ import Button from "components/utils/Button";
               addLinkButton(
                 officialLinks,
                 configData.officials.githubLink,
-                "github",
+                  "git",
               );
             }
             if (configData.officials.websiteLink) {
@@ -556,7 +553,7 @@ import Button from "components/utils/Button";
               );
             }
           } else {
-            addLinkButton(officialLinks, projectInfo.config.url, "github");
+            addLinkButton(officialLinks, projectInfo.config.url, "git");
           }
         }
 
@@ -585,6 +582,85 @@ import Button from "components/utils/Button";
           if (!isSoftwareProject) {
             syncStatusContainer.appendChild(createTansuTomlLink(projectInfo));
           }
+        }
+
+        if (syncStatusContainer && isSoftwareProject) {
+          const latestSha = loadProjectLatestSha();
+          const commitComponent = document.createElement("div");
+          commitComponent.className =
+            "flex items-center space-x-2 rounded-full relative group";
+
+          const commitIcon = document.createElement("img");
+          commitIcon.className = "w-5 h-5";
+
+          const commitText = document.createElement("span");
+          commitText.className = "text-sm sm:text-base";
+          commitText.textContent = "Commit";
+
+          const commitPopup = document.createElement("div");
+          commitPopup.className =
+            "absolute bottom-full left-1/2 sm:left-1/4 transform -translate-x-1/2 mb-2 p-2 bg-black text-white rounded hidden group-hover:inline";
+
+          const commitTriangle = document.createElement("div");
+          commitTriangle.className =
+            "absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-black";
+
+          try {
+            if (projectInfo.config.url && latestSha) {
+              const latestCommit = await getLatestCommitData(
+                projectInfo.config.url,
+                latestSha,
+              );
+
+              if (
+                latestCommit &&
+                latestCommit.sha &&
+                latestCommit.sha === latestSha
+              ) {
+                commitIcon.src = "/icons/check.svg";
+                commitIcon.alt = "Check";
+                commitPopup.replaceChildren();
+                const p1 = document.createElement("p");
+                p1.className = "text-sm w-36 sm:w-max";
+                p1.textContent =
+                  "Commit SHA on-chain exists in repository history";
+                commitPopup.appendChild(p1);
+              } else {
+                commitIcon.src = "/icons/failed.svg";
+                commitIcon.alt = "Failed";
+                commitPopup.replaceChildren();
+                const p2 = document.createElement("p");
+                p2.className = "text-sm w-36 sm:w-max";
+                p2.textContent =
+                  "Commit SHA on-chain cannot be found in repository history";
+                commitPopup.appendChild(p2);
+              }
+            } else {
+              commitIcon.src = "/icons/failed.svg";
+              commitIcon.alt = "Failed";
+              commitPopup.replaceChildren();
+              const p3 = document.createElement("p");
+              p3.className = "text-sm w-36 sm:w-max";
+              p3.textContent = "No commit SHA on-chain yet";
+              commitPopup.appendChild(p3);
+            }
+          } catch (error) {
+            commitIcon.src = "/icons/failed.svg";
+            commitIcon.alt = "Failed";
+            commitPopup.replaceChildren();
+            const p4 = document.createElement("p");
+            p4.className = "text-sm w-36 sm:w-max";
+            p4.textContent =
+              "No commit SHA can be found on-chain or in repository history";
+            commitPopup.appendChild(p4);
+          }
+
+          commitPopup.appendChild(commitTriangle);
+          commitComponent.appendChild(commitIcon);
+          commitComponent.appendChild(commitText);
+          commitComponent.appendChild(commitPopup);
+
+          syncStatusContainer.appendChild(commitComponent);
         }
 
         // Set up project data for ReadMoreModal
@@ -625,18 +701,68 @@ import Button from "components/utils/Button";
           }
 
           if (projectInfo?.name && projectInfo?.config?.url) {
-            const { username, repoName } = getAuthorRepo(
-              projectInfo.config.url,
+            contributionMetricsRoot.render(
+              React.createElement(ContributionMetrics, {
+                projectName: projectInfo.name,
+                repoUrl: projectInfo.config.url,
+              }),
             );
-            if (username && repoName) {
-              contributionMetricsRoot.render(
-                React.createElement(ContributionMetrics, {
-                  projectName: projectInfo.name,
-                  owner: username,
-                  repo: repoName,
-                }),
+          }
+        }
+
+        // Hide contribution metrics for non-software projects
+        if (!isSoftwareProject) {
+          const contributionMetricsEl = document.getElementById(
+            "contribution-metrics-section",
+          );
+          if (contributionMetricsEl) {
+            contributionMetricsEl.style.display = "none";
+          }
+        }
+        // Set up project data for ReadMoreModal
+        projectData = {
+          name: projectInfo.name,
+          description: configData?.description || "",
+          organization: configData?.organizationName || "",
+          logoImageLink: configData?.logoImageLink
+            ? convertGitHubLink(configData.logoImageLink)
+            : "",
+          githubUrl:
+            configData?.officials?.githubLink || projectInfo.config.url,
+          websiteUrl: configData?.officials?.websiteLink,
+        };
+
+        if (isSoftwareProject) {
+          const latestSha = loadProjectLatestSha();
+          if (latestSha) {
+            try {
+              const latestCommit = await getLatestCommitData(
+                projectInfo.config.url,
+                latestSha,
               );
+
+              if (latestCommit) {
+                commitData = {
+                  sha: latestCommit.sha,
+                  html_url: latestCommit.html_url,
+                  date: formatDateTime(latestCommit.commit.committer.date),
+                  author: latestCommit.commit.author.name,
+                };
+              }
+            } catch (error) {
+              if (import.meta.env.DEV) {
+                console.error("Error loading commit data:", error);
+              }
             }
+          }
+
+          if (projectInfo?.name && projectInfo?.config?.url) {
+            contributionMetricsRoot.render(
+              React.createElement(ContributionMetrics, {
+                projectName: projectInfo.name,
+                repoUrl: projectInfo.config.url,
+              }),
+            );
           }
         }
 
@@ -729,6 +855,7 @@ import Button from "components/utils/Button";
       const icons: { [key: string]: string } = {
         web: "/icons/logos/web.svg",
         github: "/icons/logos/github.svg",
+        git: "/icons/git.svg",
         twitter: "/icons/logos/twitter-x.svg",
         telegram: "/icons/logos/telegram.svg",
         discord: "/icons/logos/discord.svg",

@@ -9,12 +9,9 @@ import {
   setProject,
   setProjectId,
   setProjectLatestSha,
-  setProjectRepoInfo,
+  setProjectRepoUrl,
 } from "../../../service/StateService";
-import {
-  convertGitHubLink,
-  getAuthorRepo,
-} from "../../../utils/editLinkFunctions";
+import { convertGitHubLink } from "../../../utils/editLinkFunctions";
 import { projectCardModalOpen } from "../../../utils/store";
 import { extractConfigData, toast } from "../../../utils/utils";
 
@@ -39,9 +36,8 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
       const project = await getProjectFromName(config.projectName);
       if (project && project.name && project.config && project.maintainers) {
         setProject(project);
-        const { username, repoName } = getAuthorRepo(project.config.url);
-        if (username && repoName) {
-          setProjectRepoInfo(username, repoName);
+        if (project.config.url) {
+          setProjectRepoUrl(project.config.url);
         }
         setConfigData(extractConfigData({}, project));
         projectCardModalOpen.set(true);
@@ -137,7 +133,7 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
                 className="hover:opacity-80 transition-opacity"
               >
                 <img
-                  src="/icons/logos/github.svg"
+                  src="/icons/git.svg"
                   width={24}
                   height={24}
                   className="icon-github"

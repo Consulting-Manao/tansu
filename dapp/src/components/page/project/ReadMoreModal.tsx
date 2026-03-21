@@ -5,6 +5,7 @@ import { fetchReadmeContentFromConfigUrl } from "../../../service/GithubService"
 import Markdown from "markdown-to-jsx";
 
 import CopyButton from "components/utils/CopyButton";
+import { getRepositoryReleasesUrl } from "../../../utils/editLinkFunctions";
 
 interface ReadMoreModalProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   projectData,
 }) => {
   const [readmeContent, setReadmeContent] = useState("");
+  const releasesUrl = getRepositoryReleasesUrl(projectData?.githubUrl);
 
   useEffect(() => {
     const loadReadme = async () => {
@@ -89,10 +91,10 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   }, [isOpen, projectData?.githubUrl]);
 
   const handleGoToReleases = useCallback(() => {
-    if (projectData?.githubUrl) {
-      window.open(`${projectData.githubUrl}/releases`, "_blank");
+    if (releasesUrl) {
+      window.open(releasesUrl, "_blank");
     }
-  }, [projectData?.githubUrl]);
+  }, [releasesUrl]);
 
   if (!isOpen) return null;
 
@@ -121,8 +123,8 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                     rel="noopener noreferrer"
                   >
                     <img
-                      src="/icons/logos/github.svg"
-                      alt="GitHub"
+                      src="/icons/git.svg"
+                      alt="Repository"
                       className="w-4 h-4"
                     />
                   </a>
@@ -162,19 +164,21 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                     className="w-full sm:w-auto p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9]"
                   />
                 </div>
-                <button
-                  onClick={handleGoToReleases}
-                  className="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9] flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
-                >
-                  <img
-                    src="/icons/link.svg"
-                    className="w-4 h-4 sm:w-auto sm:h-auto"
-                    alt="External link"
-                  />
-                  <span className="leading-5 text-base sm:text-xl text-primary cursor-pointer">
-                    Go to Releases
-                  </span>
-                </button>
+                {releasesUrl ? (
+                  <button
+                    onClick={handleGoToReleases}
+                    className="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9] flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
+                  >
+                    <img
+                      src="/icons/link.svg"
+                      className="w-4 h-4 sm:w-auto sm:h-auto"
+                      alt="External link"
+                    />
+                    <span className="leading-5 text-base sm:text-xl text-primary cursor-pointer">
+                      Go to Releases
+                    </span>
+                  </button>
+                ) : null}
               </div>
               <div className="markdown-body border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
                 <Markdown options={{ overrides: markdownOverrides }}>
