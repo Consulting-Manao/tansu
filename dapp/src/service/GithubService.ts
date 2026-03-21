@@ -1,172 +1,165 @@
-import axios from "axios";
-
 import type { FormattedCommit } from "../types/github";
-import {
-  getAuthorRepo,
-  getGithubContentUrlFromReadmeUrl,
-} from "../utils/editLinkFunctions";
+
+interface GitHistoryCommit {
+  sha: string;
+  authorName: string;
+  authorDate: string;
+  message: string;
+  commitUrl?: string;
+}
+
+interface GitCommitDetails {
+  sha: string;
+  html_url?: string;
+  commit: {
+    message: string;
+    author: { name: string; email?: string; date: string };
+    committer: { name: string; email?: string; date: string };
+  };
+}
+
+function getGitApiUrl(): string {
+  const proxyUrl = import.meta.env.PUBLIC_GIT_PROXY_URL;
+  if (proxyUrl && typeof proxyUrl === "string" && proxyUrl.trim()) {
+    return proxyUrl.trim();
+  }
+
+  throw new Error("PUBLIC_GIT_PROXY_URL is not configured");
+}
+
+async function callGitApi<T>(body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(getGitApiUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Git API request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+function groupCommitsByDate(commits: FormattedCommit[]) {
+  const groupedCommits = commits.reduce(
+    (acc: Record<string, FormattedCommit[]>, commit) => {
+      const date = new Date(commit.commit_date).toISOString().split("T")[0];
+      if (!date) {
+        return acc;
+      }
+
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+
+      acc[date].push(commit);
+      return acc;
+    },
+    {},
+  );
+
+  return Object.entries(groupedCommits).map(([date, grouped]) => ({
+    date,
+    commits: grouped as FormattedCommit[],
+  }));
+}
 
 async function getCommitHistory(
-  username: string,
-  repo: string,
+  repoUrl: string,
   page: number = 1,
   perPage: number = 30,
 ): Promise<{ date: string; commits: FormattedCommit[] }[] | null> {
-  if (!username || !repo) {
+  if (!repoUrl) {
     return null;
   }
 
   try {
-    const response = await axios.get(
-      `https://api.github.com/repos/${username}/${repo}/commits`,
-      {
-        params: { per_page: perPage, page: page },
-        headers: { Accept: "application/vnd.github.v3+json" },
-      },
-    );
+    const data = await callGitApi<{ commits: GitHistoryCommit[] }>({
+      action: "history",
+      repoUrl,
+      page,
+      perPage,
+    });
 
-    const formattedCommits = response.data.map((commit: any) => ({
-      message: commit.commit.message,
+    const formattedCommits = data.commits.map((commit) => ({
+      message: commit.message,
       author: {
-        name: commit.commit.author.name,
-        html_url: commit.author ? commit.author.html_url : "",
+        name: commit.authorName,
+        html_url: "",
       },
-      commit_date: commit.commit.author.date,
-      html_url: commit.html_url,
+      commit_date: commit.authorDate,
+      html_url: commit.commitUrl || "",
       sha: commit.sha,
     }));
 
-    // Group commits by date
-    const groupedCommits = formattedCommits.reduce(
-      (acc: Record<string, FormattedCommit[]>, commit: FormattedCommit) => {
-        const date = new Date(commit.commit_date).toISOString().split("T")[0];
-        if (!date) {
-          return acc;
-        }
-        if (!acc[date]) {
-          acc[date] = [];
-        }
-        acc[date].push(commit);
-        return acc;
-      },
-      {},
-    );
-
-    // Convert grouped commits to array format
-    return Object.entries(groupedCommits).map(([date, commits]) => ({
-      date,
-      commits: commits as FormattedCommit[],
-    }));
-  } catch {
-    // Don't show error toast as this may be an expected condition
-    // (e.g., repository is private or doesn't exist)
-    return null;
-  }
-}
-
-async function getCommitDataFromSha(
-  owner: string,
-  repo: string,
-  sha: string,
-): Promise<any> {
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits/${sha}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      // Expected condition (commit may not exist)
-      return undefined;
+    return groupCommitsByDate(formattedCommits);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("Failed to load commit history", error);
     }
-
-    return await response.json();
-  } catch {
-    // Don't show error toast as this may be an expected condition
-    return undefined;
+    return null;
   }
 }
 
 async function getLatestCommitData(
-  configUrl: string,
+  repoUrl: string,
   sha: string,
-): Promise<any> {
-  if (!configUrl) {
+): Promise<GitCommitDetails | undefined> {
+  if (!repoUrl || !sha) {
     return undefined;
   }
 
-  const { username, repoName } = getAuthorRepo(configUrl);
-  if (!username || !repoName) {
-    // Expected condition (URL may be malformed or not a GitHub URL)
+  try {
+    return await callGitApi<GitCommitDetails>({
+      action: "commit",
+      repoUrl,
+      sha,
+    });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("Failed to load commit data", error);
+    }
     return undefined;
   }
-
-  return await getCommitDataFromSha(username, repoName, sha);
 }
 
-async function getLatestCommitHash(
-  configUrl: string,
+async function getLatestCommitHash(repoUrl: string): Promise<string | undefined> {
+  if (!repoUrl) {
+    return undefined;
+  }
+
+  try {
+    const { sha } = await callGitApi<{ sha: string }>({
+      action: "latest-hash",
+      repoUrl,
+    });
+    return sha;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("Failed to load latest commit hash", error);
+    }
+    return undefined;
+  }
+}
+
+async function fetchReadmeContentFromConfigUrl(
+  repoUrl: string,
 ): Promise<string | undefined> {
-  if (!configUrl) {
-    return undefined;
-  }
-
-  const { username, repoName } = getAuthorRepo(configUrl);
-  if (!username || !repoName) {
-    // Expected condition (URL may be malformed or not a GitHub URL)
+  if (!repoUrl) {
     return undefined;
   }
 
   try {
-    const repoRes = await fetch(
-      `https://api.github.com/repos/${username}/${repoName}`,
-    );
-    if (!repoRes.ok) {
-      // Expected condition (repo may not exist or be private)
-      return undefined;
+    const { content } = await callGitApi<{ content?: string | null }>({
+      action: "readme",
+      repoUrl,
+    });
+    return content ?? undefined;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("Failed to load repository README", error);
     }
-
-    const repoData = await repoRes.json();
-    const defaultBranch = repoData.default_branch;
-
-    const commitRes = await fetch(
-      `https://api.github.com/repos/${username}/${repoName}/commits/${defaultBranch}`,
-    );
-    if (!commitRes.ok) {
-      // Expected condition (branch may not exist)
-      return undefined;
-    }
-
-    const latestCommit = await commitRes.json();
-    const latestSha = latestCommit.sha;
-    return latestSha;
-  } catch {
-    // Don't show error toast as these are often expected conditions
-    return undefined;
-  }
-}
-
-async function fetchReadmeContentFromConfigUrl(configUrl: string) {
-  if (!configUrl) {
-    return undefined;
-  }
-
-  try {
-    const url = getGithubContentUrlFromReadmeUrl(configUrl);
-
-    if (url) {
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        // Expected condition (readme may not exist)
-        return undefined;
-      }
-
-      const tomlText = await response.text();
-      return tomlText;
-    }
-
-    return undefined;
-  } catch {
-    // Don't show error toast as this may be an expected condition
     return undefined;
   }
 }
