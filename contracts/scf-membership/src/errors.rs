@@ -18,5 +18,7 @@ pub enum NonFungibleTokenError {
     /// Indicates the token exists but has not been claimed yet
     TokenNotClaimed = 212,
     /// Indicates a non-existent `trait_key`.
-    NonExistentTraitKey = 213,
+    TraitDoesNotExist = 213,
+    /// Indicates that `trait_key` cannot be set.
+    TraitUnSettable = 214,
 }

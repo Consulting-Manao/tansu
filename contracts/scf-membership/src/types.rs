@@ -21,8 +21,8 @@ pub enum NFTStorageKey {
 
 // Types
 
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct Governance {
-    pub role: i128,
-}
+// #[contracttype]
+// #[derive(Clone, Debug, PartialEq)]
+// pub struct Governance {
+//     pub role: i128,
+// }
