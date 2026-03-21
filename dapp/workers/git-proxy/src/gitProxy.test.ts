@@ -35,32 +35,38 @@ test("handleApiRequest returns normalized GitHub history", async () => {
       perPage: 1,
     },
     {},
-    async () => new Response(JSON.stringify([
-      {
-        sha: "abc123",
-        html_url: "https://github.com/example/project/commit/abc123",
-        commit: {
-          message: "Initial commit",
-          author: {
-            name: "Alice",
-            email: "alice@example.com",
-            date: "2026-03-16T00:00:00Z",
+    async () =>
+      new Response(
+        JSON.stringify([
+          {
+            sha: "abc123",
+            html_url: "https://github.com/example/project/commit/abc123",
+            commit: {
+              message: "Initial commit",
+              author: {
+                name: "Alice",
+                email: "alice@example.com",
+                date: "2026-03-16T00:00:00Z",
+              },
+              committer: {
+                name: "Alice",
+                email: "alice@example.com",
+                date: "2026-03-16T00:00:00Z",
+              },
+            },
           },
-          committer: {
-            name: "Alice",
-            email: "alice@example.com",
-            date: "2026-03-16T00:00:00Z",
-          },
+        ]),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
         },
-      },
-    ]), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
+      ),
   );
 
   assert.equal(response.status, 200);
-  const body = await response.json() as { commits: Array<{ sha: string; message: string; authorName: string }> };
+  const body = (await response.json()) as {
+    commits: Array<{ sha: string; message: string; authorName: string }>;
+  };
   assert.equal(body.commits.length, 1);
   assert.equal(body.commits[0]?.sha, "abc123");
   assert.equal(body.commits[0]?.message, "Initial commit");
@@ -74,16 +80,20 @@ test("handleApiRequest decodes gitea readme payloads", async () => {
       repoUrl: "https://codeberg.org/example/project",
     },
     {},
-    async () => new Response(JSON.stringify({
-      content: "IyBIZWxsbyBUYW5zdQo=",
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
+    async () =>
+      new Response(
+        JSON.stringify({
+          content: "IyBIZWxsbyBUYW5zdQo=",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
   );
 
   assert.equal(response.status, 200);
-  const body = await response.json() as { content: string };
+  const body = (await response.json()) as { content: string };
   assert.equal(body.content, "# Hello Tansu\n");
 });
 
@@ -97,7 +107,7 @@ test("handleApiRequest rejects unsupported hosts", async () => {
   );
 
   assert.equal(response.status, 400);
-  const body = await response.json() as { error: string };
+  const body = (await response.json()) as { error: string };
   assert.match(body.error, /Unsupported repository host/);
 });
 
@@ -109,34 +119,41 @@ test("handleApiRequest normalizes Bitbucket commit responses", async () => {
       sha: "abc123",
     },
     {},
-    async () => new Response(JSON.stringify({
-      hash: "abc123",
-      message: "Bitbucket commit",
-      date: "2026-03-16T00:00:00Z",
-      author: {
-        user: {
-          display_name: "Alice",
+    async () =>
+      new Response(
+        JSON.stringify({
+          hash: "abc123",
+          message: "Bitbucket commit",
+          date: "2026-03-16T00:00:00Z",
+          author: {
+            user: {
+              display_name: "Alice",
+            },
+          },
+          links: {
+            html: {
+              href: "https://bitbucket.org/example/project/commits/abc123",
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
         },
-      },
-      links: {
-        html: {
-          href: "https://bitbucket.org/example/project/commits/abc123",
-        },
-      },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
+      ),
   );
 
   assert.equal(response.status, 200);
-  const body = await response.json() as {
+  const body = (await response.json()) as {
     sha: string;
     html_url?: string;
     commit: { message: string; author: { name: string } };
   };
   assert.equal(body.sha, "abc123");
-  assert.equal(body.html_url, "https://bitbucket.org/example/project/commits/abc123");
+  assert.equal(
+    body.html_url,
+    "https://bitbucket.org/example/project/commits/abc123",
+  );
   assert.equal(body.commit.message, "Bitbucket commit");
   assert.equal(body.commit.author.name, "Alice");
 });

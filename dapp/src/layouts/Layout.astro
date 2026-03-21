@@ -30,20 +30,57 @@ const { title, page } = Astro.props;
     sessionStorage.setItem(PRELOAD_RECOVERY_KEY, "1");
     window.location.reload();
   });
+  const GLOBAL_CREATE_PROJECT_MODAL_KEY = Symbol.for(
+    "tansu.createProjectModalListenerInited",
+  );
+
+  const openCreateProjectModal = async () => {
+    try {
+      await mountModal(
+        `project-modal-container ${MODAL_CLASS}`,
+        () => import("components/page/dashboard/CreateProjectModal.tsx"),
+        () => ({}),
+      );
+    } catch (e) {
+      console.error("Error opening modal:", e);
+    }
+  };
+
+  const initCreateProjectModalListener = () => {
+    if (
+      (window as Window & Record<symbol, unknown>)[
+        GLOBAL_CREATE_PROJECT_MODAL_KEY
+      ]
+    ) {
+      return;
+    }
+
+    (window as Window & Record<symbol, unknown>)[
+      GLOBAL_CREATE_PROJECT_MODAL_KEY
+    ] = true;
+
+    document.addEventListener("show-create-project-modal", async () => {
+      if (document.querySelector(".project-modal-container")) {
+        return;
+      }
+
+      if (document.querySelector(".project-list-container")) {
+        window.setTimeout(() => {
+          if (!document.querySelector(".project-modal-container")) {
+            void openCreateProjectModal();
+          }
+        }, 150);
+        return;
+      }
+
+      await openCreateProjectModal();
+    });
+  };
+
+  initCreateProjectModalListener();
 
   document.addEventListener("astro:page-load", () => {
-    document.addEventListener("show-create-project-modal", async () => {
-      // ProjectList handles the modal on the dashboard page — avoid double-mounting
-      try {
-        await mountModal(
-          `project-modal-container ${MODAL_CLASS}`,
-          () => import("components/page/dashboard/CreateProjectModal.tsx"),
-          () => ({}),
-        );
-      } catch (e) {
-        console.error("Error opening modal:", e);
-      }
-    });
+    initCreateProjectModalListener();
 
     window.addEventListener("openJoinCommunity", async (event: Event) => {
       try {

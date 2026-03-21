@@ -25,7 +25,6 @@ import Spinner from "components/utils/Spinner.tsx";
 import { ProjectType } from "types/projectConfig";
 import { getRepositoryProjectPath } from "utils/editLinkFunctions";
 
-
 // Get domain contract ID from environment with fallback
 const SOROBAN_DOMAIN_CONTRACT_ID =
   import.meta.env.PUBLIC_SOROBAN_DOMAIN_CONTRACT_ID ||

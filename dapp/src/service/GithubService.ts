@@ -124,7 +124,9 @@ async function getLatestCommitData(
   }
 }
 
-async function getLatestCommitHash(repoUrl: string): Promise<string | undefined> {
+async function getLatestCommitHash(
+  repoUrl: string,
+): Promise<string | undefined> {
   if (!repoUrl) {
     return undefined;
   }
