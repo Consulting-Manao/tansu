@@ -25,6 +25,7 @@ import {
   getIpfsBasicLink,
   fetchTextFromIpfs,
 } from "utils/ipfsFunctions";
+import { getRepositoryProjectPath } from "utils/editLinkFunctions";
 import toml from "toml";
 
 // Validate DBA (Project Full Name): ASCII-only, max 100 chars
@@ -107,7 +108,9 @@ function mergeTomlData(
   existingDoc["ORG_LOGO"] = fields.orgLogo;
   existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
   existingDoc["ORG_GITHUB"] =
-    fields.githubRepoUrl.split("https://github.com/")[1] || "";
+    fields.isSoftwareProject
+      ? getRepositoryProjectPath(fields.githubRepoUrl)
+      : "";
 
   // README is now only stored as a separate file, so we explicitly remove it
   // from the TOML if it was previously there to enforce a single source of truth.
@@ -605,7 +608,7 @@ const UpdateConfigModal = () => {
 
                     {isSoftwareProject && (
                       <Input
-                        label="GitHub repository URL"
+                        label="Repository URL"
                         value={githubRepoUrl}
                         onChange={(e) => {
                           setGithubRepoUrl(e.target.value);

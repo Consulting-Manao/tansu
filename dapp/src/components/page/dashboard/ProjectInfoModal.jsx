@@ -64,7 +64,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
                                 platform === "websiteLink"
                                   ? "/icons/logos/web.svg"
                                   : platform === "githubLink"
-                                    ? "/icons/logos/github.svg"
+                                    ? "/icons/git.svg"
                                     : ""
                               }
                               width={24}

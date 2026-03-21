@@ -31,9 +31,8 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
     setProject,
     setProjectId,
     setProjectLatestSha,
-    setProjectRepoInfo,
+    setProjectRepoUrl,
   } from "../../service/StateService";
-  import { getAuthorRepo } from "../../utils/editLinkFunctions";
   import { projectHasSubProjects, projectInfoLoaded } from "../../utils/store";
   import { extractConfigData, toast } from "../../utils/utils";
 
@@ -51,6 +50,9 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
         const project = await getProjectFromName(projectName);
         if (project && project.name && project.config && project.maintainers) {
           setProject(project);
+          if (project.config.url) {
+            setProjectRepoUrl(project.config.url);
+          }
 
           (async () => {
             const [tomlResult, hashResult] = await Promise.allSettled([
@@ -88,14 +90,9 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
             setConfigData(configData);
             projectInfoLoaded.set(true);
 
-            // Only set GitHub repo info for SOFTWARE projects
+            // Only set git-derived metadata for SOFTWARE projects
             const isSoftwareProject = configData.projectType === "SOFTWARE";
             if (isSoftwareProject) {
-              const { username, repoName } = getAuthorRepo(project.config.url);
-              if (username && repoName) {
-                setProjectRepoInfo(username, repoName);
-              }
-
               const sha =
                 hashResult.status === "fulfilled" ? hashResult.value : null;
               setProjectLatestSha(

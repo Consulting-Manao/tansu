@@ -146,10 +146,7 @@ import Button from "components/utils/Button";
     loadProjectLatestSha,
     loadProjectName,
   } from "../../../service/StateService";
-  import {
-    convertGitHubLink,
-    getAuthorRepo,
-  } from "../../../utils/editLinkFunctions";
+  import { convertGitHubLink } from "../../../utils/editLinkFunctions";
   import {
     configData as configDataStore,
     projectHasSubProjects,
@@ -476,7 +473,7 @@ import Button from "components/utils/Button";
               addLinkButton(
                 officialLinks,
                 configData.officials.githubLink,
-                "github",
+                  "git",
               );
             }
             if (configData.officials.websiteLink) {
@@ -487,7 +484,7 @@ import Button from "components/utils/Button";
               );
             }
           } else {
-            addLinkButton(officialLinks, projectInfo.config.url, "github");
+            addLinkButton(officialLinks, projectInfo.config.url, "git");
           }
         }
 
@@ -556,16 +553,17 @@ import Button from "components/utils/Button";
                 commitPopup.replaceChildren();
                 const p1 = document.createElement("p");
                 p1.className = "text-sm w-36 sm:w-max";
-                p1.textContent = "Commit SHA on-chain exists on GitHub";
+                p1.textContent =
+                  "Commit SHA on-chain exists in repository history";
                 commitPopup.appendChild(p1);
               } else {
-                commitIcon.src = "/icons/check.svg";
+                commitIcon.src = "/icons/failed.svg";
                 commitIcon.alt = "Failed";
                 commitPopup.replaceChildren();
                 const p2 = document.createElement("p");
                 p2.className = "text-sm w-36 sm:w-max";
                 p2.textContent =
-                  "Commit SHA on-chain cannot be found on GitHub";
+                  "Commit SHA on-chain cannot be found in repository history";
                 commitPopup.appendChild(p2);
               }
             } else {
@@ -583,7 +581,8 @@ import Button from "components/utils/Button";
             commitPopup.replaceChildren();
             const p4 = document.createElement("p");
             p4.className = "text-sm w-36 sm:w-max";
-            p4.textContent = "No commit SHA can be found on-chain or on GitHub";
+            p4.textContent =
+              "No commit SHA can be found on-chain or in repository history";
             commitPopup.appendChild(p4);
           }
 
@@ -633,18 +632,12 @@ import Button from "components/utils/Button";
           }
 
           if (projectInfo?.name && projectInfo?.config?.url) {
-            const { username, repoName } = getAuthorRepo(
-              projectInfo.config.url,
+            contributionMetricsRoot.render(
+              React.createElement(ContributionMetrics, {
+                projectName: projectInfo.name,
+                repoUrl: projectInfo.config.url,
+              }),
             );
-            if (username && repoName) {
-              contributionMetricsRoot.render(
-                React.createElement(ContributionMetrics, {
-                  projectName: projectInfo.name,
-                  owner: username,
-                  repo: repoName,
-                }),
-              );
-            }
           }
         }
 
@@ -737,6 +730,7 @@ import Button from "components/utils/Button";
       const icons: { [key: string]: string } = {
         web: "/icons/logos/web.svg",
         github: "/icons/logos/github.svg",
+        git: "/icons/git.svg",
         twitter: "/icons/logos/twitter-x.svg",
         telegram: "/icons/logos/telegram.svg",
         discord: "/icons/logos/discord.svg",

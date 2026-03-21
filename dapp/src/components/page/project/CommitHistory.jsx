@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { getCommitHistory } from "../../../service/GithubService.ts";
 import {
   loadConfigData,
-  loadProjectRepoInfo,
+  loadProjectRepoUrl,
 } from "../../../service/StateService.ts";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
 import {
@@ -27,15 +27,11 @@ const CommitHistory = () => {
 
   const fetchCommitHistory = async (page = 1) => {
     setLoadError(null);
-    const projectRepoInfo = loadProjectRepoInfo();
-    if (projectRepoInfo?.author && projectRepoInfo?.repository) {
+    const projectRepoUrl = loadProjectRepoUrl();
+    if (projectRepoUrl) {
       setIsLoading(true);
       try {
-        const history = await getCommitHistory(
-          projectRepoInfo.author,
-          projectRepoInfo.repository,
-          page,
-        );
+        const history = await getCommitHistory(projectRepoUrl, page);
 
         if (history) {
           setCommitHistory(history);
@@ -54,7 +50,7 @@ const CommitHistory = () => {
         setIsLoading(false);
       }
     } else {
-      setLoadError("Project repository info not available.");
+      setLoadError("Project repository URL not available.");
       setIsLoading(false);
     }
   };

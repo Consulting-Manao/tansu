@@ -24,19 +24,33 @@ export const projectNameSchema = z
 
 export const githubUrlSchema = z
   .string()
-  .min(1, "GitHub URL is required")
-  .refine((url) => {
+  .min(1, "Repository URL is required")
+  .refine((value) => {
     try {
-      const parsedUrl = new URL(url);
-      if (parsedUrl.hostname !== "github.com") {
+      if (value.startsWith("git@")) {
+        const [, path] = value.split(":");
+        if (!path) {
+          return false;
+        }
+
+        const segments = path
+          .replace(/\.git$/, "")
+          .split("/")
+          .filter(Boolean);
+        return segments.length >= 2;
+      }
+
+      const parsedUrl = new URL(value);
+      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
         return false;
       }
+
       const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
-      return pathParts.length === 2;
+      return pathParts.length >= 2;
     } catch {
       return false;
     }
-  }, "URL must be in format: https://github.com/username/repository");
+  }, "URL must be a valid git repository (for example https://host/owner/repo or git@host:owner/repo.git)");
 
 export const githubHandleSchema = z
   .string()
