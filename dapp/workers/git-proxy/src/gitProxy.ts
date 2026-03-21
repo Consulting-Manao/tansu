@@ -57,7 +57,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://deploy-preview-*--staging-tansu.netlify.app",
 ];
 
-export function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
+export function getCorsHeaders(
+  origin: string | null,
+  env: Env,
+): Record<string, string> {
   if (!origin) {
     return {};
   }
@@ -67,11 +70,12 @@ export function getCorsHeaders(origin: string | null, env: Env): Record<string, 
     .map((item) => item.trim())
     .filter(Boolean);
 
-  const allowedOrigins = configuredOrigins.length > 0
-    ? configuredOrigins
-    : DEFAULT_ALLOWED_ORIGINS;
+  const allowedOrigins =
+    configuredOrigins.length > 0 ? configuredOrigins : DEFAULT_ALLOWED_ORIGINS;
 
-  const isAllowed = allowedOrigins.some((allowed) => originMatches(origin, allowed));
+  const isAllowed = allowedOrigins.some((allowed) =>
+    originMatches(origin, allowed),
+  );
   if (!isAllowed) {
     return {};
   }
@@ -136,7 +140,13 @@ function parseHostPath(host: string, pathname: string): ParsedRepoUrl {
   }
 
   if (host === "github.com") {
-    return buildParsedRepo("github", host, segments[0] || "", segments[1] || "", [segments[0] || "", segments[1] || ""]);
+    return buildParsedRepo(
+      "github",
+      host,
+      segments[0] || "",
+      segments[1] || "",
+      [segments[0] || "", segments[1] || ""],
+    );
   }
 
   if (host === "gitlab.com") {
@@ -146,11 +156,23 @@ function parseHostPath(host: string, pathname: string): ParsedRepoUrl {
   }
 
   if (host === "bitbucket.org") {
-    return buildParsedRepo("bitbucket", host, segments[0] || "", segments[1] || "", [segments[0] || "", segments[1] || ""]);
+    return buildParsedRepo(
+      "bitbucket",
+      host,
+      segments[0] || "",
+      segments[1] || "",
+      [segments[0] || "", segments[1] || ""],
+    );
   }
 
   if (host === "codeberg.org" || host === "gitea.com") {
-    return buildParsedRepo("gitea", host, segments[0] || "", segments[1] || "", [segments[0] || "", segments[1] || ""]);
+    return buildParsedRepo(
+      "gitea",
+      host,
+      segments[0] || "",
+      segments[1] || "",
+      [segments[0] || "", segments[1] || ""],
+    );
   }
 
   throw new Error(`Unsupported repository host: ${host}`);
@@ -203,7 +225,13 @@ export async function handleApiRequest(
   try {
     switch (action as RequestAction) {
       case "history": {
-        const commits = await getCommitHistory(repo, page, perPage, env, fetchImpl);
+        const commits = await getCommitHistory(
+          repo,
+          page,
+          perPage,
+          env,
+          fetchImpl,
+        );
         return jsonResponse({ commits }, 200);
       }
 
@@ -235,7 +263,10 @@ export async function handleApiRequest(
     }
   } catch (error) {
     console.error("Git proxy error", error);
-    return jsonResponse({ error: getErrorMessage(error) || "Failed to process git request" }, 500);
+    return jsonResponse(
+      { error: getErrorMessage(error) || "Failed to process git request" },
+      500,
+    );
   }
 }
 
@@ -315,13 +346,16 @@ function getProviderHeaders(repo: ParsedRepoUrl, env: Env): HeadersInit {
       return env.GITLAB_TOKEN ? { "PRIVATE-TOKEN": env.GITLAB_TOKEN } : {};
     case "bitbucket": {
       if (env.BITBUCKET_USERNAME && env.BITBUCKET_APP_PASSWORD) {
-        const credentials = btoa(`${env.BITBUCKET_USERNAME}:${env.BITBUCKET_APP_PASSWORD}`);
+        const credentials = btoa(
+          `${env.BITBUCKET_USERNAME}:${env.BITBUCKET_APP_PASSWORD}`,
+        );
         return { Authorization: `Basic ${credentials}` };
       }
       return {};
     }
     case "gitea": {
-      const token = repo.host === "codeberg.org" ? env.CODEBERG_TOKEN : env.GITEA_TOKEN;
+      const token =
+        repo.host === "codeberg.org" ? env.CODEBERG_TOKEN : env.GITEA_TOKEN;
       return token ? { Authorization: `token ${token}` } : {};
     }
   }
@@ -334,12 +368,18 @@ async function getGithubHistory(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitHistoryCommit[]> {
-  const url = new URL(`https://api.github.com/repos/${repo.owner}/${repo.repo}/commits`);
+  const url = new URL(
+    `https://api.github.com/repos/${repo.owner}/${repo.repo}/commits`,
+  );
   url.searchParams.set("page", String(page));
   url.searchParams.set("per_page", String(perPage));
-  const payload = await fetchJson<any[]>(url.toString(), {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchJson<any[]>(
+    url.toString(),
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
 
   return payload.map((entry) => ({
     sha: entry.sha,
@@ -360,9 +400,13 @@ async function getGithubCommit(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitCommitDetails | undefined> {
-  const payload = await fetchMaybeJson<any>(`https://api.github.com/repos/${repo.owner}/${repo.repo}/commits/${sha}`, {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchMaybeJson<any>(
+    `https://api.github.com/repos/${repo.owner}/${repo.repo}/commits/${sha}`,
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
   if (!payload) {
     return undefined;
   }
@@ -391,12 +435,15 @@ async function getGithubReadme(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<string | undefined> {
-  const response = await fetchImpl(`https://api.github.com/repos/${repo.owner}/${repo.repo}/readme`, {
-    headers: {
-      ...getProviderHeaders(repo, env),
-      Accept: "application/vnd.github.raw+json",
+  const response = await fetchImpl(
+    `https://api.github.com/repos/${repo.owner}/${repo.repo}/readme`,
+    {
+      headers: {
+        ...getProviderHeaders(repo, env),
+        Accept: "application/vnd.github.raw+json",
+      },
     },
-  });
+  );
   if (response.status === 404) {
     return undefined;
   }
@@ -414,12 +461,18 @@ async function getGitlabHistory(
   fetchImpl: typeof fetch,
 ): Promise<GitHistoryCommit[]> {
   const project = encodeURIComponent(repo.projectPath);
-  const url = new URL(`https://gitlab.com/api/v4/projects/${project}/repository/commits`);
+  const url = new URL(
+    `https://gitlab.com/api/v4/projects/${project}/repository/commits`,
+  );
   url.searchParams.set("page", String(page));
   url.searchParams.set("per_page", String(perPage));
-  const payload = await fetchJson<any[]>(url.toString(), {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchJson<any[]>(
+    url.toString(),
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
 
   return payload.map((entry) => ({
     sha: entry.id,
@@ -441,9 +494,13 @@ async function getGitlabCommit(
   fetchImpl: typeof fetch,
 ): Promise<GitCommitDetails | undefined> {
   const project = encodeURIComponent(repo.projectPath);
-  const payload = await fetchMaybeJson<any>(`https://gitlab.com/api/v4/projects/${project}/repository/commits/${encodeURIComponent(sha)}`, {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchMaybeJson<any>(
+    `https://gitlab.com/api/v4/projects/${project}/repository/commits/${encodeURIComponent(sha)}`,
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
   if (!payload) {
     return undefined;
   }
@@ -482,7 +539,9 @@ async function getGitlabReadme(
       continue;
     }
     if (!response.ok) {
-      throw new Error(`GitLab API request failed with status ${response.status}`);
+      throw new Error(
+        `GitLab API request failed with status ${response.status}`,
+      );
     }
     return response.text();
   }
@@ -496,12 +555,18 @@ async function getBitbucketHistory(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitHistoryCommit[]> {
-  const url = new URL(`https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repo}/commits`);
+  const url = new URL(
+    `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repo}/commits`,
+  );
   url.searchParams.set("page", String(page));
   url.searchParams.set("pagelen", String(perPage));
-  const payload = await fetchJson<{ values: any[] }>(url.toString(), {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchJson<{ values: any[] }>(
+    url.toString(),
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
 
   return payload.values.map((entry) => ({
     sha: entry.hash,
@@ -510,7 +575,8 @@ async function getBitbucketHistory(
     committerName: entry.author?.user?.display_name || entry.author?.raw || "",
     committerDate: entry.date || "",
     message: entry.message || "",
-    commitUrl: entry.links?.html?.href || `${repo.normalizedUrl}/commits/${entry.hash}`,
+    commitUrl:
+      entry.links?.html?.href || `${repo.normalizedUrl}/commits/${entry.hash}`,
   }));
 }
 
@@ -520,17 +586,24 @@ async function getBitbucketCommit(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitCommitDetails | undefined> {
-  const payload = await fetchMaybeJson<any>(`https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repo}/commit/${encodeURIComponent(sha)}`, {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchMaybeJson<any>(
+    `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repo}/commit/${encodeURIComponent(sha)}`,
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
   if (!payload) {
     return undefined;
   }
 
-  const authorName = payload.author?.user?.display_name || payload.author?.raw || "";
+  const authorName =
+    payload.author?.user?.display_name || payload.author?.raw || "";
   return {
     sha: payload.hash,
-    html_url: payload.links?.html?.href || `${repo.normalizedUrl}/commits/${payload.hash}`,
+    html_url:
+      payload.links?.html?.href ||
+      `${repo.normalizedUrl}/commits/${payload.hash}`,
     commit: {
       message: payload.message || "",
       author: {
@@ -561,7 +634,9 @@ async function getBitbucketReadme(
       continue;
     }
     if (!response.ok) {
-      throw new Error(`Bitbucket API request failed with status ${response.status}`);
+      throw new Error(
+        `Bitbucket API request failed with status ${response.status}`,
+      );
     }
     return response.text();
   }
@@ -575,12 +650,18 @@ async function getGiteaHistory(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitHistoryCommit[]> {
-  const url = new URL(`https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/commits`);
+  const url = new URL(
+    `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/commits`,
+  );
   url.searchParams.set("page", String(page));
   url.searchParams.set("limit", String(perPage));
-  const payload = await fetchJson<any[]>(url.toString(), {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchJson<any[]>(
+    url.toString(),
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
 
   return payload.map((entry) => ({
     sha: entry.sha,
@@ -601,9 +682,13 @@ async function getGiteaCommit(
   env: Env,
   fetchImpl: typeof fetch,
 ): Promise<GitCommitDetails | undefined> {
-  const payload = await fetchMaybeJson<any>(`https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/commits/${encodeURIComponent(sha)}`, {
-    headers: getProviderHeaders(repo, env),
-  }, fetchImpl);
+  const payload = await fetchMaybeJson<any>(
+    `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/commits/${encodeURIComponent(sha)}`,
+    {
+      headers: getProviderHeaders(repo, env),
+    },
+    fetchImpl,
+  );
   if (!payload) {
     return undefined;
   }
@@ -633,9 +718,13 @@ async function getGiteaReadme(
   fetchImpl: typeof fetch,
 ): Promise<string | undefined> {
   for (const candidate of README_CANDIDATES) {
-    const payload = await fetchMaybeJson<any>(`https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(candidate)}?ref=HEAD`, {
-      headers: getProviderHeaders(repo, env),
-    }, fetchImpl);
+    const payload = await fetchMaybeJson<any>(
+      `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(candidate)}?ref=HEAD`,
+      {
+        headers: getProviderHeaders(repo, env),
+      },
+      fetchImpl,
+    );
     if (!payload) {
       continue;
     }
@@ -653,7 +742,9 @@ async function fetchJson<T>(
 ): Promise<T> {
   const response = await fetchImpl(url, init);
   if (!response.ok) {
-    throw new Error(`${new URL(url).hostname} API request failed with status ${response.status}`);
+    throw new Error(
+      `${new URL(url).hostname} API request failed with status ${response.status}`,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -668,7 +759,9 @@ async function fetchMaybeJson<T>(
     return undefined;
   }
   if (!response.ok) {
-    throw new Error(`${new URL(url).hostname} API request failed with status ${response.status}`);
+    throw new Error(
+      `${new URL(url).hostname} API request failed with status ${response.status}`,
+    );
   }
   return response.json() as Promise<T>;
 }

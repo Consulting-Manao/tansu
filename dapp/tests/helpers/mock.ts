@@ -143,7 +143,7 @@ export async function applyAllMocks(page) {
       const result = {
         name: name || "demo",
         maintainers: ["G".padEnd(56, "A"), "G".padEnd(56, "C"), "${WALLET_PK}"],
-        config: { url: "https://github.com/test/demo", ipfs: "abc123" },
+        config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" },
       };
       console.log(
         "Mock getProjectFromName called with:",
@@ -309,11 +309,11 @@ export async function applyAllMocks(page) {
           return null;
         }
         // For existing project names, return the project data
-        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "https://github.com/test/demo", ipfs: "abc123" } };
+        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" } };
       }
 
       export async function getProjectFromId(id) {
-        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "https://github.com/test/demo", ipfs: "abc123" } };
+        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" } };
       }
 
       export async function getMember(address) {
@@ -321,7 +321,7 @@ export async function applyAllMocks(page) {
       }
 
       export async function getProject(projectKey) {
-        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "https://github.com/test/demo", ipfs: "abc123" } };
+        return { name: "demo", maintainers: ["G".padEnd(56, "A")], config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" } };
       }
 
       export async function getProjectHash(projectKey) {
