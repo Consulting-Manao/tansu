@@ -1,0 +1,18 @@
+{
+  "name": "git-proxy-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker for repository metadata across public git hosts",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy",
+    "check": "tsc --noEmit",
+    "test": "node --test src/gitProxy.test.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251117.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.47.0"
+  }
+}
