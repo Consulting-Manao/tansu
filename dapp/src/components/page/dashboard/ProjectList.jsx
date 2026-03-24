@@ -10,9 +10,11 @@ import {
 import { convertGitHubLink } from "../../../utils/editLinkFunctions";
 import {
   configData as configDataStore,
+  connectedPublicKey,
   projectCardModalOpen,
+  walletInitialized,
 } from "../../../utils/store.ts";
-import { extractConfigData } from "../../../utils/utils";
+import { extractConfigData, toast } from "../../../utils/utils";
 import CreateProjectModal from "./CreateProjectModal.tsx";
 import ProjectCard from "./ProjectCard";
 import ProjectInfoModal from "./ProjectInfoModal.jsx";
@@ -22,6 +24,7 @@ import Spinner from "components/utils/Spinner.tsx";
 const ProjectList = () => {
   const isProjectInfoModalOpen = useStore(projectCardModalOpen);
   const configDataFromStore = useStore(configDataStore);
+  const isWalletReady = useStore(walletInitialized);
 
   const [projects, setProjects] = useState(undefined);
   const [filteredProjects, setFilteredProjects] = useState(undefined);
@@ -92,8 +95,28 @@ const ProjectList = () => {
       "openCreateProjectModal",
     );
     if (openCreateProjectModal === "true") {
-      setShowCreateProjectModal(true);
       sessionStorage.removeItem("openCreateProjectModal");
+
+      const tryOpenModal = () => {
+        if (connectedPublicKey.get()) {
+          setShowCreateProjectModal(true);
+        } else {
+          toast.error(
+            "Connect Wallet",
+            "Please connect your wallet first to add a project",
+          );
+        }
+      };
+
+      if (walletInitialized.get()) {
+        tryOpenModal();
+      } else {
+        const unsub = walletInitialized.subscribe((initialized) => {
+          if (!initialized) return;
+          unsub();
+          tryOpenModal();
+        });
+      }
     }
 
     window.addEventListener("search-projects", handleSearchProjectEvent);
@@ -455,7 +478,7 @@ const ProjectList = () => {
         />
       )}
 
-      {showCreateProjectModal && (
+      {showCreateProjectModal && isWalletReady && (
         <div className="project-modal-container">
           <CreateProjectModal onClose={closeCreateProjectModal} />
         </div>

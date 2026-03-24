@@ -44,7 +44,7 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
 <WalletFundingWrapper client:load />
 
 <script>
-  import { connectedPublicKey } from "utils/store";
+  import { connectedPublicKey, walletInitialized } from "utils/store";
   import {
     initializeConnection,
     loadedPublicKey,
@@ -61,6 +61,8 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
     const button = document.querySelector(
       "[data-connect]",
     ) as HTMLButtonElement;
+
+    button.disabled = true;
 
     function setLoggedIn(publicKey: string) {
       button.textContent = "";
@@ -103,6 +105,23 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
         checkAndNotifyFunding();
       }
     }
+
+    walletInitialized.subscribe((initialized) => {
+      if (!initialized) return;
+
+      button.disabled = false;
+
+      if (import.meta.env.MODE === "test") return;
+
+      const confirmedKey = connectedPublicKey.get();
+
+      if (confirmedKey && button.title !== confirmedKey) {
+        setLoggedIn(confirmedKey);
+        checkAndNotifyFunding();
+      } else if (!confirmedKey && button.title) {
+        window.dispatchEvent(new CustomEvent("walletDisconnected"));
+      }
+    });
 
     async function connectWallet() {
       // If already connected → open profile

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import { useStore } from "@nanostores/react";
 import Button from "./utils/Button";
 
-import { loadedPublicKey } from "../service/walletService";
+import { connectedPublicKey } from "../utils/store";
 import { toast } from "../utils/utils";
 
 // Constants for URL handling
@@ -12,28 +13,15 @@ const NavbarSearch = () => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [originalUrl, setOriginalUrl] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [isClient, setIsClient] = useState(false);
+
+  const walletKey = useStore(connectedPublicKey);
+  const isWalletConnected = !!walletKey;
 
   useEffect(() => {
     setIsClient(true);
-
     saveOriginalUrl();
     initializeSearchTerm();
-
-    // Check wallet connection status on client-side only
-    setIsWalletConnected(!!loadedPublicKey());
-
-    // Listen for wallet connection/disconnection events
-    const handleWalletConnection = () =>
-      setIsWalletConnected(!!loadedPublicKey());
-    window.addEventListener("walletConnected", handleWalletConnection);
-    window.addEventListener("walletDisconnected", handleWalletConnection);
-
-    return () => {
-      window.removeEventListener("walletConnected", handleWalletConnection);
-      window.removeEventListener("walletDisconnected", handleWalletConnection);
-    };
   }, []);
 
   // Save the original URL when the component mounts

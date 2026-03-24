@@ -92,8 +92,8 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
       >
         <img
           src={
-            config.logoImageLink !== undefined
-              ? convertGitHubLink(config.logoImageLink as string)
+            config.logoImageLink
+              ? convertGitHubLink(config.logoImageLink)
               : "/fallback-image.jpg"
           }
           alt={config.projectName}

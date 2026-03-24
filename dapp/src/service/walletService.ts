@@ -1,4 +1,4 @@
-import { connectedPublicKey } from "utils/store";
+import { connectedPublicKey, walletInitialized } from "utils/store";
 
 interface ConnectionState {
   publicKey: string | undefined;
@@ -24,7 +24,7 @@ function disconnect(): void {
 
   localStorage.removeItem("publicKey");
 
-  connectedPublicKey.set("");
+  connectedPublicKey.set(undefined);
 }
 
 export async function checkAndNotifyFunding(): Promise<void> {
@@ -53,18 +53,34 @@ export async function checkAndNotifyFunding(): Promise<void> {
   }
 }
 
-function initializeConnection(): void {
+async function initializeConnection(): Promise<void> {
   const storedPublicKey = localStorage.getItem("publicKey");
 
   if (storedPublicKey) {
     connectionState.publicKey = storedPublicKey;
-
     connectedPublicKey.set(storedPublicKey);
+  }
 
-    // Check funding for returning users
-    setTimeout(() => {
-      checkAndNotifyFunding();
-    }, 500);
+  if (import.meta.env.MODE === "test" || !storedPublicKey) {
+    walletInitialized.set(true);
+    return;
+  }
+
+  try {
+    const { StellarWalletsKit } = await import(
+      "../components/stellar-wallets-kit"
+    );
+    const { address } = await StellarWalletsKit.getAddress();
+
+    if (address && address !== storedPublicKey) {
+      setConnection(address);
+    } else if (!address) {
+      disconnect();
+    }
+  } catch {
+    disconnect();
+  } finally {
+    walletInitialized.set(true);
   }
 }
 

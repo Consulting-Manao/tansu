@@ -5,7 +5,7 @@ import type { OutcomeContract } from "../types/proposal";
 
 //
 import Tansu from "../contracts/soroban_tansu";
-import { loadedPublicKey } from "./walletService";
+import { connectedPublicKey } from "../utils/store";
 import { loadedProjectId } from "./StateService";
 import { deriveProjectKey } from "../utils/projectKey";
 //
@@ -122,7 +122,7 @@ async function createSignedProposalTransaction(
   outcomeContracts?: OutcomeContract[],
   tokenContract?: string,
 ): Promise<string> {
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
@@ -152,7 +152,7 @@ async function createSignedAddMemberTransaction(
   memberAddress: string,
   meta: string,
 ): Promise<string> {
-  const address = memberAddress || loadedPublicKey();
+  const address = memberAddress || connectedPublicKey.get();
   if (!address) throw new Error("Please connect your wallet first");
 
   // Validate meta parameter - ensure it's not just whitespace
@@ -339,7 +339,7 @@ export async function createProjectFlow({
   // Step 2 – Create & sign register transaction
   onProgress?.(7); // signing step indicator (offset -4 → shows Sign)
 
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
@@ -386,7 +386,7 @@ async function createSignedUpdateConfigTransaction(
   configUrl: string,
   cid: string,
 ): Promise<string> {
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;

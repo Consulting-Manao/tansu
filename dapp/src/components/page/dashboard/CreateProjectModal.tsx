@@ -1,5 +1,6 @@
 import { getProjectFromName } from "@service/ReadContractService";
-import { loadedPublicKey } from "@service/walletService";
+import { useStore } from "@nanostores/react";
+import { connectedPublicKey, walletInitialized } from "utils/store";
 import {
   setConfigData,
   setProject,
@@ -58,7 +59,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     ProjectType.SOFTWARE,
   );
   const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
-    loadedPublicKey() || "",
+    "",
   ]);
 
   const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
@@ -71,6 +72,18 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   >(null);
   const [domainCheckTimeout, setDomainCheckTimeout] =
     useState<NodeJS.Timeout | null>(null);
+
+  const walletKey = useStore(connectedPublicKey);
+  const isWalletReady = useStore(walletInitialized);
+
+  // Seed the first maintainer address once when the wallet resolves
+  useEffect(() => {
+    if (!walletKey) return;
+    setMaintainerAddresses((prev) => {
+      if (prev[0] !== "") return prev;
+      return [walletKey, ...prev.slice(1)];
+    });
+  }, [walletKey]);
 
   // Form validation errors
   const [projectNameError, setProjectNameError] = useState<string | null>(null);
@@ -324,10 +337,9 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     const [{ fetchTomlFromIpfs }] = await Promise.all([
       import("utils/ipfsFunctions"),
     ]);
-    const { loadedPublicKey } = await import("@service/walletService");
 
     try {
-      const publicKey = loadedPublicKey();
+      const publicKey = connectedPublicKey.get();
       if (!publicKey) {
         throw new Error("Please connect your wallet first");
       }
@@ -601,6 +613,13 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                 isLoading={isLoading}
                 className="w-full sm:w-auto"
                 onClick={async () => {
+                  if (!isWalletReady || !walletKey) {
+                    toast.error(
+                      "Connect Wallet",
+                      "Please connect your wallet first to create a project",
+                    );
+                    return;
+                  }
                   setIsLoading(true);
                   try {
                     // Validate DBA field first
