@@ -478,7 +478,7 @@ const ProjectList = () => {
         />
       )}
 
-      {showCreateProjectModal && isWalletReady && (
+      {showCreateProjectModal && (isWalletReady || window.__TEST_MODE__) && (
         <div className="project-modal-container">
           <CreateProjectModal onClose={closeCreateProjectModal} />
         </div>

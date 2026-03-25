@@ -82,8 +82,7 @@ Why this change is necessary for the project's governance.
   {
     id: "pg-award-request",
     name: "Public Goods Award",
-    description:
-      "Stellar Community Fund Public Goods Award - Submission Form",
+    description: "Stellar Community Fund Public Goods Award - Submission Form",
     content: `# SCF Public Goods Award: [Project Name]
 
 #SCF Public Goods Award - Submission Form
