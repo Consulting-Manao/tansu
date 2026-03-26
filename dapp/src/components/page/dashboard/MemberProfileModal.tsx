@@ -1,5 +1,7 @@
 import type { FC } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+
+const EditProfileModal = lazy(() => import("./EditProfileModal"));
 import Modal, { type ModalProps } from "components/utils/Modal";
 import Button from "components/utils/Button";
 import type { Member, Badge } from "../../../../packages/tansu";
@@ -41,6 +43,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   const [projectsWithNames, setProjectsWithNames] = useState<ProjectWithName[]>(
     [],
   );
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Use the address prop directly or extract the address from the search query if needed
   const memberAddress = address || "";
@@ -251,191 +254,217 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   const noBadges = member.projects.every((p) => p.badges.length === 0);
 
   return (
-    <Modal onClose={onClose} fullWidth>
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <div>
-            <img src="/images/loading.svg" className="w-12 animate-spin" />
+    <>
+      <Modal onClose={onClose} fullWidth>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <div>
+              <img src="/images/loading.svg" className="w-12 animate-spin" />
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">
-          <div className="flex flex-col items-center gap-3 sm:gap-4 md:w-1/3">
-            {/* Profile Image */}
-            {profileImageUrl ? (
-              <img
-                src={profileImageUrl}
-                alt={profileData?.name || "Profile"}
-                className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-3 border-primary"
-                onError={() => {
-                  // If image fails to load, just hide it and show fallback
-                  setProfileImageUrl("");
-                }}
-              />
-            ) : (
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-indigo-100 flex items-center justify-center">
-                <span className="text-3xl md:text-4xl font-semibold text-indigo-700">
-                  {getInitialLetter(profileData?.name)}
-                </span>
+        ) : (
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 md:w-1/3">
+              {/* Profile Image */}
+              {profileImageUrl ? (
+                <img
+                  src={profileImageUrl}
+                  alt={profileData?.name || "Profile"}
+                  className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-3 border-primary"
+                  onError={() => {
+                    // If image fails to load, just hide it and show fallback
+                    setProfileImageUrl("");
+                  }}
+                />
+              ) : (
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <span className="text-3xl md:text-4xl font-semibold text-indigo-700">
+                    {getInitialLetter(profileData?.name)}
+                  </span>
+                </div>
+              )}
+
+              {/* Name and Address */}
+              <div className="text-center w-full">
+                <h3 className="text-xl sm:text-2xl font-semibold text-primary">
+                  {profileData?.name || "Anonymous"}
+                </h3>
+
+                {memberAddress && <AddressDisplay address={memberAddress} />}
+
+                {profileData?.social && (
+                  <a
+                    href={profileData.social}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm sm:text-base text-blue-500 hover:underline mt-2 block"
+                  >
+                    {profileData.social.replace(/^https?:\/\//, "")}
+                  </a>
+                )}
+
+                {/* IPFS metadata link */}
+                {member?.meta && hasValidMetadata && (
+                  <a
+                    href={getIpfsBasicLink(member.meta)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1 text-sm sm:text-base text-blue-500 hover:underline mt-2"
+                  >
+                    <img
+                      src="/icons/ipfs.svg"
+                      alt="IPFS"
+                      width={16}
+                      height={16}
+                    />
+                    <span>View on IPFS</span>
+                  </a>
+                )}
               </div>
-            )}
 
-            {/* Name and Address */}
-            <div className="text-center w-full">
-              <h3 className="text-xl sm:text-2xl font-semibold text-primary">
-                {profileData?.name || "Anonymous"}
-              </h3>
-
-              {memberAddress && <AddressDisplay address={memberAddress} />}
-
-              {profileData?.social && (
-                <a
-                  href={profileData.social}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm sm:text-base text-blue-500 hover:underline mt-2 block"
-                >
-                  {profileData.social.replace(/^https?:\/\//, "")}
-                </a>
-              )}
-
-              {/* IPFS metadata link */}
-              {member?.meta && hasValidMetadata && (
-                <a
-                  href={getIpfsBasicLink(member.meta)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1 text-sm sm:text-base text-blue-500 hover:underline mt-2"
-                >
-                  <img
-                    src="/icons/ipfs.svg"
-                    alt="IPFS"
-                    width={16}
-                    height={16}
-                  />
-                  <span>View on IPFS</span>
-                </a>
-              )}
+              {/* Action Buttons */}
+              <div className="flex w-full flex-col gap-2 sm:gap-3 mt-2 sm:mt-4">
+                {publicKey === memberAddress && (
+                  <Button
+                    type="primary"
+                    onClick={() => setShowEditModal(true)}
+                    className="w-full"
+                  >
+                    Edit Profile
+                  </Button>
+                )}
+                {publicKey === memberAddress && (
+                  <Button
+                    type="primary"
+                    onClick={handleDisconnect}
+                    className="bg-red-500 text-white hover:bg-red-600 w-full border-0"
+                  >
+                    Disconnect
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex w-full justify-between gap-2 sm:gap-3 mt-2 sm:mt-4">
-              {publicKey === memberAddress && (
-                <Button
-                  type="primary"
-                  onClick={handleDisconnect}
-                  className="bg-red-500 text-white hover:bg-red-600 w-full border-0"
-                >
-                  Disconnect
-                </Button>
+            <div className="md:w-2/3 flex flex-col gap-4">
+              {/* Description - Only show if exists */}
+              {profileData?.description && (
+                <div className="w-full">
+                  <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
+                    About
+                  </h4>
+                  <div className="prose prose-sm sm:prose-base max-w-none text-secondary bg-zinc-50 p-3 sm:p-4 rounded">
+                    <Markdown
+                      options={{
+                        overrides: {
+                          p: { props: { className: "text-secondary mb-2" } },
+                          a: {
+                            props: {
+                              className: "text-blue-500 hover:underline",
+                            },
+                          },
+                          h1: {
+                            props: {
+                              className: "text-xl font-bold text-primary mb-2",
+                            },
+                          },
+                          h2: {
+                            props: {
+                              className: "text-lg font-bold text-primary mb-2",
+                            },
+                          },
+                          h3: {
+                            props: {
+                              className:
+                                "text-base font-bold text-primary mb-2",
+                            },
+                          },
+                          ul: {
+                            props: {
+                              className: "list-disc ml-5 text-secondary",
+                            },
+                          },
+                          ol: {
+                            props: {
+                              className: "list-decimal ml-5 text-secondary",
+                            },
+                          },
+                        },
+                      }}
+                    >
+                      {profileData.description}
+                    </Markdown>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
 
-          <div className="md:w-2/3 flex flex-col gap-4">
-            {/* Description - Only show if exists */}
-            {profileData?.description && (
+              {/* Engagement Section (previously Badges) */}
               <div className="w-full">
                 <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                  About
+                  Community Engagements
                 </h4>
-                <div className="prose prose-sm sm:prose-base max-w-none text-secondary bg-zinc-50 p-3 sm:p-4 rounded">
-                  <Markdown
-                    options={{
-                      overrides: {
-                        p: { props: { className: "text-secondary mb-2" } },
-                        a: {
-                          props: { className: "text-blue-500 hover:underline" },
-                        },
-                        h1: {
-                          props: {
-                            className: "text-xl font-bold text-primary mb-2",
-                          },
-                        },
-                        h2: {
-                          props: {
-                            className: "text-lg font-bold text-primary mb-2",
-                          },
-                        },
-                        h3: {
-                          props: {
-                            className: "text-base font-bold text-primary mb-2",
-                          },
-                        },
-                        ul: {
-                          props: { className: "list-disc ml-5 text-secondary" },
-                        },
-                        ol: {
-                          props: {
-                            className: "list-decimal ml-5 text-secondary",
-                          },
-                        },
-                      },
-                    }}
-                  >
-                    {profileData.description}
-                  </Markdown>
-                </div>
-              </div>
-            )}
-
-            {/* Engagement Section (previously Badges) */}
-            <div className="w-full">
-              <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                Community Engagements
-              </h4>
-              {noBadges ? (
-                <p className="text-sm sm:text-base text-secondary">
-                  No community engagement with any projects yet
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                  {projectsWithNames.map((proj, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-zinc-50 cursor-pointer hover:bg-zinc-100 transition-colors rounded"
-                      onClick={() => navigateToProject(proj.name)}
-                    >
-                      <p className="font-medium text-primary mb-2 text-sm sm:text-base text-center">
-                        {proj.name}
-                      </p>
-                      <div className="flex flex-wrap justify-center gap-2">
-                        {Array.from(new Set(proj.badges)).map((b) => (
-                          <span
-                            key={b}
-                            className="px-2 py-0.5 sm:px-3 sm:py-1 bg-primary text-white text-xs sm:text-sm rounded"
-                          >
-                            {badgeName(b)}
-                          </span>
-                        ))}
+                {noBadges ? (
+                  <p className="text-sm sm:text-base text-secondary">
+                    No community engagement with any projects yet
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                    {projectsWithNames.map((proj, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-zinc-50 cursor-pointer hover:bg-zinc-100 transition-colors rounded"
+                        onClick={() => navigateToProject(proj.name)}
+                      >
+                        <p className="font-medium text-primary mb-2 text-sm sm:text-base text-center">
+                          {proj.name}
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {Array.from(new Set(proj.badges)).map((b) => (
+                            <span
+                              key={b}
+                              className="px-2 py-0.5 sm:px-3 sm:py-1 bg-primary text-white text-xs sm:text-sm rounded"
+                            >
+                              {badgeName(b)}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* On-chain Actions List */}
+              {address && (
+                <div className="mt-6">
+                  <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
+                    On-chain Activity
+                  </h4>
+                  <OnChainActions
+                    address={address}
+                    projectCache={Object.fromEntries(
+                      projectsWithNames.map((p) => [
+                        Buffer.from(p.projectId).toString("hex"),
+                        p.name,
+                      ]),
+                    )}
+                  />
                 </div>
               )}
             </div>
-
-            {/* On-chain Actions List */}
-            {address && (
-              <div className="mt-6">
-                <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                  On-chain Activity
-                </h4>
-                <OnChainActions
-                  address={address}
-                  projectCache={Object.fromEntries(
-                    projectsWithNames.map((p) => [
-                      Buffer.from(p.projectId).toString("hex"),
-                      p.name,
-                    ]),
-                  )}
-                />
-              </div>
-            )}
           </div>
-        </div>
+        )}
+      </Modal>
+
+      {showEditModal && (
+        <Suspense fallback={null}>
+          <EditProfileModal
+            onClose={() => setShowEditModal(false)}
+            onUpdated={() => setShowEditModal(false)}
+            initialProfile={profileData}
+          />
+        </Suspense>
       )}
-    </Modal>
+    </>
   );
 };
 

@@ -55,6 +55,8 @@ pub trait TansuTrait {
 pub trait MembershipTrait {
     fn add_member(env: Env, member_address: Address, meta: String);
 
+    fn update_member(env: Env, member_address: Address, meta: String);
+
     fn get_member(env: Env, member_address: Address) -> types::Member;
 
     fn set_badges(

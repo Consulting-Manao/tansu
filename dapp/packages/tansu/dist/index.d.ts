@@ -648,6 +648,28 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
+   * Construct and simulate a update_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Update the metadata of an existing member.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `member_address` - The address of the member to update
+   * * `meta` - New metadata string associated with the member (e.g., IPFS hash)
+   *
+   * # Panics
+   * * If the member doesn't exist
+   */
+  update_member: (
+    {
+      member_address,
+      meta,
+    }: {
+      member_address: string;
+      meta: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
    * Construct and simulate a get_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get member information including all project badges.
    *

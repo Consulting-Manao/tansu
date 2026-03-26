@@ -37,6 +37,36 @@ impl MembershipTrait for Tansu {
         };
     }
 
+    /// Update the metadata of an existing member.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `member_address` - The address of the member to update
+    /// * `meta` - New metadata string associated with the member (e.g., IPFS hash)
+    ///
+    /// # Panics
+    /// * If the member doesn't exist
+    fn update_member(env: Env, member_address: Address, meta: String) {
+        Tansu::require_not_paused(env.clone());
+
+        member_address.require_auth();
+
+        let member_key_ = types::DataKey::Member(member_address.clone());
+        match env
+            .storage()
+            .persistent()
+            .get::<types::DataKey, types::Member>(&member_key_)
+        {
+            None => panic_with_error!(&env, &errors::ContractErrors::UnknownMember),
+            Some(mut member) => {
+                member.meta = meta;
+                env.storage().persistent().set(&member_key_, &member);
+
+                events::MemberAdded { member_address }.publish(&env);
+            }
+        };
+    }
+
     /// Get member information including all project badges.
     ///
     /// # Arguments
