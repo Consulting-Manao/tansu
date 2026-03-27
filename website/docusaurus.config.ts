@@ -73,14 +73,13 @@ const config: Config = {
   themes: ["@docusaurus/theme-mermaid"],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: "https://tansu.dev/img/logo.png",
+    image: "img/social-card.png",
     metadata: [
       { name: "x:creator", content: "@PamphileRoy" },
       { name: "x:card", content: "summary_large_image" },
       {
         name: "x:image",
-        content: "https://app.tansu.dev/logo.svg",
+        content: "https://tansu.dev/img/social-card.png",
       },
       { name: "x:title", content: "Tansu" },
       {
