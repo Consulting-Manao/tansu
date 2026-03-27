@@ -260,6 +260,7 @@ import Button from "components/utils/Button";
 
     // Initial render
     renderModals();
+
     const updateConfigButton = document.querySelector("[data-update-config]");
     const udpateConfigModal = document.getElementById(
       "update-config-modal",
@@ -297,18 +298,22 @@ import Button from "components/utils/Button";
         const viewAllButtonContainer =
           maintainersList.querySelector(".view-all");
         if (viewAllButtonContainer) viewAllButtonContainer.replaceChildren();
+
         const viewAllButton = document.createElement("button");
         viewAllButton.className =
           "leading-[18px] text-lg font-[450] text-primary underline";
         viewAllButton.textContent = viewAll ? "Less" : "View All";
+
         if (viewAll) {
           viewAllButton.addEventListener("click", () =>
             updateMaintainerList(projectInfo, configData, !viewAll),
           );
         }
+
         const ul = maintainersList.querySelector("ul");
         if (ul) {
           ul.replaceChildren();
+
           const hasMapping =
             configData &&
             Array.isArray(configData.maintainersAddresses) &&
@@ -346,11 +351,13 @@ import Button from "components/utils/Button";
             addrP.className = displayName
               ? "leading-[14px] text-sm text-secondary cursor-pointer underline"
               : "leading-6 text-xl text-primary truncate cursor-pointer underline";
+
             addrP.textContent = displayName
               ? `(${maintainer.length > 16 ? maintainer.slice(0, 16) + "..." : maintainer})`
               : maintainer.length > 20
                 ? maintainer.slice(0, 20) + "..."
                 : maintainer;
+
             li.appendChild(addrP);
 
             if (!displayName) {
@@ -405,6 +412,7 @@ import Button from "components/utils/Button";
         const lastHashWrapper = document.getElementById(
           "last-hash-button-wrapper",
         );
+
         if (readMoreWrapper) {
           readMoreWrapper.style.display = isSoftwareProject ? "" : "none";
         }
@@ -429,6 +437,7 @@ import Button from "components/utils/Button";
         const projectThumbnail = document.getElementById(
           "project-thumbnail",
         ) as HTMLImageElement;
+
         const projectDescription = document.getElementById(
           "project-description",
         );
@@ -495,20 +504,6 @@ import Button from "components/utils/Button";
             nameSpan.textContent = loadedName;
             projectNameSpan.appendChild(nameSpan);
             projectNameSpan.appendChild(document.createTextNode(".xlm"));
-          }
-
-          const donateTipPopup = document.getElementById("donate-tip-popup");
-          if (donateTipPopup) {
-            donateTipPopup.replaceChildren();
-            donateTipPopup.appendChild(
-              document.createTextNode(
-                "Help us run the Tansu platform sustainability",
-              ),
-            );
-            const triangle = document.createElement("div");
-            triangle.className =
-              "absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-800";
-            donateTipPopup.appendChild(triangle);
           }
         }
 
@@ -667,16 +662,19 @@ import Button from "components/utils/Button";
       }
     }
 
-    projectInfoLoaded.subscribe((loaded) => {
-      if (loaded) {
+    // UPDATED BLOCK (as requested)
+    const tryUpdateProjectInfo = () => {
+      if (projectInfoLoaded.get() && configDataStore.get()) {
         updateProjectInfo();
       }
+    };
+
+    projectInfoLoaded.subscribe((loaded) => {
+      if (loaded) tryUpdateProjectInfo();
     });
 
     configDataStore.subscribe((config) => {
-      if (projectInfoLoaded.get() && config) {
-        updateProjectInfo();
-      }
+      if (config) tryUpdateProjectInfo();
     });
 
     projectHasSubProjects.subscribe((hasSubProjects) => {

@@ -3,58 +3,60 @@ import Markdown from "markdown-to-jsx";
 import { useEffect, useState } from "react";
 import { fetchReadmeContentFromConfigUrl } from "../../../service/GithubService";
 import { loadProjectInfo, loadConfigData } from "../../../service/StateService";
-import { projectInfoLoaded } from "../../../utils/store";
+import {
+  configData as configDataStore,
+  projectInfoLoaded,
+} from "../../../utils/store";
 import DOMPurify from "dompurify";
-import { getIpfsBasicLink } from "../../../utils/ipfsFunctions";
 
 import "github-markdown-css";
 
 const ReadmeViewer = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
+  const configData = useStore(configDataStore);
+
   const [readmeContent, setReadmeContent] = useState("");
 
   const loadReadme = async () => {
-    if (isProjectInfoLoaded) {
-      const projectInfo = loadProjectInfo();
-      const configData = loadConfigData();
+    if (!isProjectInfoLoaded) return;
 
-      if (projectInfo) {
-        const projectType = configData?.projectType || "SOFTWARE";
+    const projectInfo = loadProjectInfo();
+    const cfg = loadConfigData();
 
-        if (projectType === "SOFTWARE") {
-          const configUrl = projectInfo.config.url;
-          if (configUrl) {
-            const readmeContent =
-              await fetchReadmeContentFromConfigUrl(configUrl);
-            if (readmeContent) {
-              setReadmeContent(readmeContent);
-            }
-          }
+    if (!projectInfo) return;
+
+    const projectType = cfg?.projectType || "SOFTWARE";
+
+    if (projectType === "SOFTWARE") {
+      const configUrl = projectInfo.config.url;
+
+      if (configUrl) {
+        const content = await fetchReadmeContentFromConfigUrl(configUrl);
+
+        // Only fallback if truly null/undefined (not empty string)
+        if (content !== undefined && content !== null) {
+          setReadmeContent(content);
         } else {
-          try {
-            const ipfsCid = projectInfo.config.ipfs;
-            if (ipfsCid) {
-              const readmeUrl = `${getIpfsBasicLink(ipfsCid)}/README.md`;
-              const response = await fetch(readmeUrl);
-              if (response.ok) {
-                const content = await response.text();
-                setReadmeContent(content);
-              } else {
-                setReadmeContent("No README available for this project.");
-              }
-            }
-          } catch (error) {
-            console.error("Error fetching README from IPFS:", error);
-            setReadmeContent("Error loading README from IPFS.");
-          }
+          setReadmeContent("No README available for this project.");
         }
+      }
+    } else {
+      // Non-software projects → README comes from TOML (configData)
+
+      const readme = cfg?.readmeContent;
+
+      // FIX: do NOT use truthy check
+      if (readme !== undefined && readme !== null) {
+        setReadmeContent(readme);
+      } else {
+        setReadmeContent("No README available for this project.");
       }
     }
   };
 
   useEffect(() => {
     loadReadme();
-  }, [isProjectInfoLoaded]);
+  }, [isProjectInfoLoaded, configData]);
 
   return (
     <div className="markdown-body border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">

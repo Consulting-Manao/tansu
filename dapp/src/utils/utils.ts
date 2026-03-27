@@ -57,6 +57,7 @@ export function extractConfigData(tomlData: any, project: Project) {
     authorGithubNames:
       tomlData.PRINCIPALS?.map((p: { github: string }) => p.github) || [],
     maintainersAddresses: tomlData.ACCOUNTS || [],
+    readmeContent: tomlData.DOCUMENTATION?.README || "",
   };
 }
 

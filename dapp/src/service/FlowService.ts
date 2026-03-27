@@ -418,13 +418,16 @@ export async function updateConfigFlow({
   githubRepoUrl,
   maintainers,
   onProgress,
+  additionalFiles,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
   maintainers: string[];
   onProgress?: (step: number) => void;
+  additionalFiles?: File[];
 }): Promise<boolean> {
-  const expectedCid = await calculateDirectoryCid([tomlFile]);
+  const filesToUpload = [tomlFile, ...(additionalFiles || [])];
+  const expectedCid = await calculateDirectoryCid(filesToUpload);
 
   const client = await create();
   const did = client.agent.did();
@@ -440,7 +443,7 @@ export async function updateConfigFlow({
   // upload
   onProgress?.(8); // UI offset -4 → shows "Uploading"
   const cidUploaded = await uploadWithDelegation({
-    files: [tomlFile],
+    files: filesToUpload,
     signedTxXdr,
     did,
   });

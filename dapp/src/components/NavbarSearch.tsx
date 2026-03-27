@@ -17,9 +17,6 @@ const NavbarSearch = () => {
   const publicKeyFromStore = useStore(connectedPublicKey);
   const isWalletConnected = !!publicKeyFromStore;
 
-  const walletKey = useStore(connectedPublicKey);
-  const isWalletConnected = !!walletKey;
-
   useEffect(() => {
     setIsClient(true);
     saveOriginalUrl();

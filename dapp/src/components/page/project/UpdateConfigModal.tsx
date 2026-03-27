@@ -6,7 +6,7 @@ import {
   setProject,
 } from "@service/StateService";
 import { projectInfoLoaded, configData as configDataStore } from "utils/store";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
@@ -20,7 +20,7 @@ import {
 import { updateConfigFlow } from "@service/FlowService";
 import { toast, extractConfigData } from "utils/utils";
 import { getProject } from "@service/ReadContractService";
-import { calculateDirectoryCid } from "utils/ipfsFunctions";
+import { calculateDirectoryCid, getIpfsBasicLink } from "utils/ipfsFunctions";
 import toml from "toml";
 
 // Validate DBA (Project Full Name): ASCII-only, max 100 chars
@@ -38,6 +38,171 @@ const validateDbaField = (value: string): string | null => {
   return null;
 };
 
+/**
+ * Fetch and parse the existing tansu.toml from IPFS.
+ * Returns the raw parsed object (any shape), or null on failure.
+ */
+async function fetchExistingToml(
+  ipfsCid: string,
+): Promise<Record<string, any> | null> {
+  try {
+    const url = `${getIpfsBasicLink(ipfsCid)}/tansu.toml`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const text = await res.text();
+    return toml.parse(text) as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Merge form-managed fields into the existing parsed TOML object,
+ * preserving every field we don't explicitly manage (e.g. PROJECT_TYPE).
+ *
+ * TOML structure we manage:
+ *   VERSION
+ *   ACCOUNTS = [...]
+ *   [DOCUMENTATION]
+ *     ORG_DBA, ORG_NAME, ORG_URL, ORG_LOGO, ORG_DESCRIPTION, ORG_GITHUB
+ *   [[PRINCIPALS]]
+ *     github = "..."
+ */
+function mergeTomlData(
+  existing: Record<string, any>,
+  fields: {
+    maintainerAddresses: string[];
+    maintainerGithubs: string[];
+    projectFullName: string;
+    orgName: string;
+    orgUrl: string;
+    orgLogo: string;
+    orgDescription: string;
+    githubRepoUrl: string;
+    readmeContent?: string;
+    isSoftwareProject: boolean;
+  },
+): Record<string, any> {
+  const merged = { ...existing };
+
+  // Always bump / set version
+  merged["VERSION"] = "2.0.0";
+
+  // Overwrite only the accounts array
+  merged["ACCOUNTS"] = fields.maintainerAddresses;
+
+  // Merge DOCUMENTATION sub-table — preserve unknown keys inside it
+  const existingDoc: Record<string, any> =
+    typeof existing["DOCUMENTATION"] === "object" &&
+    existing["DOCUMENTATION"] !== null
+      ? { ...existing["DOCUMENTATION"] }
+      : {};
+
+  existingDoc["ORG_DBA"] = fields.projectFullName.trim();
+  existingDoc["ORG_NAME"] = fields.orgName;
+  existingDoc["ORG_URL"] = fields.orgUrl;
+  existingDoc["ORG_LOGO"] = fields.orgLogo;
+  existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
+  existingDoc["ORG_GITHUB"] =
+    fields.githubRepoUrl.split("https://github.com/")[1] || "";
+
+  // For non-software projects, always write the current readmeContent so it
+  // is never silently dropped. The field is pre-filled from the existing
+  // config on mount (and from the fetched IPFS TOML as a fallback), so
+  // writing it unconditionally is safe even when the user hasn't edited it.
+  // For software projects, preserve whatever README was already in the file.
+  if (!fields.isSoftwareProject) {
+    existingDoc["README"] = fields.readmeContent ?? "";
+  }
+
+  merged["DOCUMENTATION"] = existingDoc;
+
+  // Replace PRINCIPALS array entirely (only field we manage there is github)
+  merged["PRINCIPALS"] = fields.maintainerGithubs.map((gh) => ({ github: gh }));
+
+  return merged;
+}
+
+/**
+ * Serialize a merged TOML object back to a TOML string.
+ *
+ * We do this manually so we keep the same key ordering the contract expects
+ * and handle the array-of-tables ([[PRINCIPALS]]) syntax correctly.
+ * Unknown top-level scalar/string keys (like PROJECT_TYPE) are emitted first.
+ */
+function serializeToml(data: Record<string, any>): string {
+  const lines: string[] = [];
+
+  // 1. Known scalar keys first
+  const knownTopLevelKeys = new Set([
+    "VERSION",
+    "ACCOUNTS",
+    "DOCUMENTATION",
+    "PRINCIPALS",
+  ]);
+
+  // Emit VERSION
+  if (data["VERSION"] !== undefined) {
+    lines.push(`VERSION="${data["VERSION"]}"`);
+  }
+
+  // Emit unknown top-level scalars/strings (e.g. PROJECT_TYPE) — preserve them
+  for (const key of Object.keys(data)) {
+    if (knownTopLevelKeys.has(key)) continue;
+    const val = data[key];
+    if (typeof val === "string") {
+      lines.push(`${key}="${val}"`);
+    } else if (typeof val === "number" || typeof val === "boolean") {
+      lines.push(`${key}=${val}`);
+    }
+    // arrays/objects that are not in our known set: skip (rare edge case)
+  }
+
+  lines.push("");
+
+  // 2. ACCOUNTS array
+  if (Array.isArray(data["ACCOUNTS"])) {
+    const accounts = (data["ACCOUNTS"] as string[])
+      .map((a) => `    "${a}"`)
+      .join(",\n");
+    lines.push(`ACCOUNTS=[\n${accounts}\n]`);
+  }
+
+  lines.push("");
+
+  // 3. [DOCUMENTATION] table
+  if (data["DOCUMENTATION"] && typeof data["DOCUMENTATION"] === "object") {
+    lines.push("[DOCUMENTATION]");
+    const doc = data["DOCUMENTATION"] as Record<string, any>;
+    for (const key of Object.keys(doc)) {
+      const val = doc[key];
+      if (typeof val === "string") {
+        lines.push(`${key}="${val}"`);
+      } else if (typeof val === "number" || typeof val === "boolean") {
+        lines.push(`${key}=${val}`);
+      }
+    }
+  }
+
+  lines.push("");
+
+  // 4. [[PRINCIPALS]] array of tables
+  if (Array.isArray(data["PRINCIPALS"])) {
+    for (const principal of data["PRINCIPALS"] as Record<string, any>[]) {
+      lines.push("[[PRINCIPALS]]");
+      for (const key of Object.keys(principal)) {
+        const val = principal[key];
+        if (typeof val === "string") {
+          lines.push(`${key}="${val}"`);
+        }
+      }
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
 const UpdateConfigModal = () => {
   const infoLoaded = useStore(projectInfoLoaded);
   // Subscribe to configData store so the component re-renders when config arrives
@@ -53,6 +218,9 @@ const UpdateConfigModal = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Holds the raw parsed existing TOML so we can merge into it on submit
+  const existingTomlRef = useRef<Record<string, any> | null>(null);
 
   // Derived directly from the reactive store value — no separate useState needed
   const isSoftwareProject = storeConfigData?.projectType === "SOFTWARE";
@@ -104,7 +272,7 @@ const UpdateConfigModal = () => {
 
     setAddrErrors(projectInfo.maintainers.map(() => null));
     setGhErrors(projectInfo.maintainers.map(() => null));
-    setReadmeContent(cfg?.readmeContent || "");
+    setReadmeContent(cfg?.readmeContent ?? "");
 
     // Show button only if the connected wallet is a maintainer
     import("@service/walletService")
@@ -116,6 +284,34 @@ const UpdateConfigModal = () => {
       })
       .catch(() => setShowButton(false));
   }, [infoLoaded, storeConfigData]);
+
+  /**
+   * When the modal opens, fetch the existing tansu.toml from IPFS so we can
+   * merge into it rather than overwrite it.
+   *
+   * We also sync readmeContent from the fetched TOML as the source of truth,
+   * since the store may lag behind or differ from what's actually on IPFS.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const projectInfo = loadProjectInfo();
+    const ipfsCid = projectInfo?.config?.ipfs;
+    if (!ipfsCid) {
+      existingTomlRef.current = null;
+      return;
+    }
+
+    fetchExistingToml(ipfsCid).then((parsed) => {
+      existingTomlRef.current = parsed;
+
+      // For non-software projects, use the README from IPFS as the source of
+      // truth so the form is always in sync with what will be preserved.
+      if (parsed && typeof parsed["DOCUMENTATION"]?.["README"] === "string") {
+        setReadmeContent(parsed["DOCUMENTATION"]["README"]);
+      }
+    });
+  }, [open]);
 
   const handleClose = () => {
     setOpen(false);
@@ -162,10 +358,31 @@ const UpdateConfigModal = () => {
     return dbaError === null;
   };
 
-  // build TOML
+  /**
+   * Build the TOML string by:
+   * 1. Starting from the existing parsed TOML (preserves PROJECT_TYPE etc.)
+   * 2. Merging only the fields managed by this form
+   * 3. Serializing back to TOML
+   *
+   * Falls back to a blank base object if the existing file couldn't be fetched.
+   */
   const buildToml = (): string => {
-    return `VERSION="2.0.0"
-\nACCOUNTS=[\n${maintainerAddresses.map((a) => `    "${a}"`).join(",\n")}\n]\n\n[DOCUMENTATION]\nORG_DBA="${projectFullName.trim()}"\nORG_NAME="${orgName}"\nORG_URL="${orgUrl}"\nORG_LOGO="${orgLogo}"\nORG_DESCRIPTION="${orgDescription}"\nORG_GITHUB="${githubRepoUrl.split("https://github.com/")[1] || ""}"\n\n${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}\n`;
+    const base: Record<string, any> = existingTomlRef.current ?? {};
+
+    const merged = mergeTomlData(base, {
+      maintainerAddresses,
+      maintainerGithubs,
+      projectFullName,
+      orgName,
+      orgUrl,
+      orgLogo,
+      orgDescription,
+      githubRepoUrl,
+      readmeContent,
+      isSoftwareProject,
+    });
+
+    return serializeToml(merged);
   };
 
   const handleSubmit = async () => {
@@ -175,16 +392,25 @@ const UpdateConfigModal = () => {
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
       });
+
+      const additionalFiles: File[] = [];
+      if (!isSoftwareProject && readmeContent) {
+        additionalFiles.push(
+          new File([readmeContent], "README.md", { type: "text/markdown" }),
+        );
+      }
+
       await updateConfigFlow({
         tomlFile,
         githubRepoUrl,
         maintainers: maintainerAddresses,
         onProgress: setStep,
+        additionalFiles,
       });
       const p = await getProject();
       if (p) {
         setProject(p);
-        await calculateDirectoryCid([tomlFile]);
+        await calculateDirectoryCid([tomlFile, ...additionalFiles]);
         const parsedToml = toml.parse(tomlContent) as Parameters<
           typeof extractConfigData
         >[0];
@@ -195,7 +421,7 @@ const UpdateConfigModal = () => {
         "Config updated",
         "Project configuration updated successfully.",
       );
-      setUpdateSuccessful(true);
+      setIsSuccessful(true);
     } catch (e: any) {
       toast.error("Update config", e.message);
     } finally {
@@ -378,7 +604,9 @@ const UpdateConfigModal = () => {
                       <Textarea
                         label="README"
                         value={readmeContent}
-                        onChange={(e) => setReadmeContent(e.target.value)}
+                        onChange={(e) => {
+                          setReadmeContent(e.target.value);
+                        }}
                         description="Project README content (Markdown)"
                       />
                     )}
