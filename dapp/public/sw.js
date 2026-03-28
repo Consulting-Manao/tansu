@@ -3,7 +3,6 @@ const CACHE_NAME = "tansu-v1";
 const STATIC_ASSETS = [
   "/",
   "/logo.svg",
-  "/logo-background.png",
   "/manifest.json",
   // Add more critical assets here
 ];
