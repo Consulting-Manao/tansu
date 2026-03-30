@@ -20,7 +20,11 @@ import {
 import { updateConfigFlow } from "@service/FlowService";
 import { toast, extractConfigData } from "utils/utils";
 import { getProject } from "@service/ReadContractService";
-import { calculateDirectoryCid, getIpfsBasicLink } from "utils/ipfsFunctions";
+import {
+  calculateDirectoryCid,
+  getIpfsBasicLink,
+  fetchTextFromIpfs,
+} from "utils/ipfsFunctions";
 import toml from "toml";
 
 // Validate DBA (Project Full Name): ASCII-only, max 100 chars
@@ -79,7 +83,6 @@ function mergeTomlData(
     orgLogo: string;
     orgDescription: string;
     githubRepoUrl: string;
-    readmeContent?: string;
     isSoftwareProject: boolean;
   },
 ): Record<string, any> {
@@ -106,14 +109,9 @@ function mergeTomlData(
   existingDoc["ORG_GITHUB"] =
     fields.githubRepoUrl.split("https://github.com/")[1] || "";
 
-  // For non-software projects, always write the current readmeContent so it
-  // is never silently dropped. The field is pre-filled from the existing
-  // config on mount (and from the fetched IPFS TOML as a fallback), so
-  // writing it unconditionally is safe even when the user hasn't edited it.
-  // For software projects, preserve whatever README was already in the file.
-  if (!fields.isSoftwareProject) {
-    existingDoc["README"] = fields.readmeContent ?? "";
-  }
+  // README is now only stored as a separate file, so we explicitly remove it
+  // from the TOML if it was previously there to enforce a single source of truth.
+  delete existingDoc["README"];
 
   merged["DOCUMENTATION"] = existingDoc;
 
@@ -212,7 +210,6 @@ const UpdateConfigModal = () => {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [updateSuccessful, setUpdateSuccessful] = useState(false);
 
   // Flow state management
   const [isUploading, setIsUploading] = useState(false);
@@ -272,7 +269,6 @@ const UpdateConfigModal = () => {
 
     setAddrErrors(projectInfo.maintainers.map(() => null));
     setGhErrors(projectInfo.maintainers.map(() => null));
-    setReadmeContent(cfg?.readmeContent ?? "");
 
     // Show button only if the connected wallet is a maintainer
     import("@service/walletService")
@@ -289,8 +285,7 @@ const UpdateConfigModal = () => {
    * When the modal opens, fetch the existing tansu.toml from IPFS so we can
    * merge into it rather than overwrite it.
    *
-   * We also sync readmeContent from the fetched TOML as the source of truth,
-   * since the store may lag behind or differ from what's actually on IPFS.
+   * We also sync README.md from the file on IPFS as the source of truth.
    */
   useEffect(() => {
     if (!open) return;
@@ -302,22 +297,28 @@ const UpdateConfigModal = () => {
       return;
     }
 
-    fetchExistingToml(ipfsCid).then((parsed) => {
-      existingTomlRef.current = parsed;
+    // Parallel fetch of TOML and README
+    Promise.all([
+      fetchExistingToml(ipfsCid),
+      !isSoftwareProject ? fetchTextFromIpfs(ipfsCid, "/README.md") : null,
+    ]).then(([parsedToml, readme]) => {
+      existingTomlRef.current = parsedToml;
 
-      // For non-software projects, use the README from IPFS as the source of
-      // truth so the form is always in sync with what will be preserved.
-      if (parsed && typeof parsed["DOCUMENTATION"]?.["README"] === "string") {
-        setReadmeContent(parsed["DOCUMENTATION"]["README"]);
+      // Use the README from IPFS as the source of truth so the form is
+      // always in sync with what will be preserved.
+      if (!isSoftwareProject && readme !== null) {
+        setReadmeContent(readme);
       }
     });
-  }, [open]);
+  }, [open, isSoftwareProject]);
 
   const handleClose = () => {
+    const wasSuccessful = isSuccessful;
     setOpen(false);
-    setUpdateSuccessful(false);
-    if (updateSuccessful) {
+    setIsSuccessful(false);
+    if (wasSuccessful) {
       window.location.reload();
+      window.location.reload(); // double reload to ensure we bypass any stale cache and fetch the latest config from IPFS on load
     }
   };
 
@@ -369,6 +370,11 @@ const UpdateConfigModal = () => {
   const buildToml = (): string => {
     const base: Record<string, any> = existingTomlRef.current ?? {};
 
+    // Critical fix: ensure PROJECT_TYPE is preserved even if existingTomlRef is empty
+    if (!base["PROJECT_TYPE"] && storeConfigData?.projectType) {
+      base["PROJECT_TYPE"] = storeConfigData.projectType;
+    }
+
     const merged = mergeTomlData(base, {
       maintainerAddresses,
       maintainerGithubs,
@@ -378,7 +384,6 @@ const UpdateConfigModal = () => {
       orgLogo,
       orgDescription,
       githubRepoUrl,
-      readmeContent,
       isSoftwareProject,
     });
 
@@ -388,15 +393,27 @@ const UpdateConfigModal = () => {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
+      const projectInfo = loadProjectInfo();
+      const ipfsCid = projectInfo?.config?.ipfs;
+
+      // Double-check: if readmeContent is empty and we have an existing CID,
+      // try one last time to fetch it to prevent accidental overwrites if
+      // the initial fetch on mount was slow/failed.
+      let finalReadme = readmeContent;
+      if (!isSoftwareProject && !finalReadme && ipfsCid) {
+        const existing = await fetchTextFromIpfs(ipfsCid, "/README.md");
+        if (existing) finalReadme = existing;
+      }
+
       const tomlContent = buildToml();
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
       });
 
       const additionalFiles: File[] = [];
-      if (!isSoftwareProject && readmeContent) {
+      if (!isSoftwareProject) {
         additionalFiles.push(
-          new File([readmeContent], "README.md", { type: "text/markdown" }),
+          new File([finalReadme || ""], "README.md", { type: "text/markdown" }),
         );
       }
 
@@ -454,10 +471,7 @@ const UpdateConfigModal = () => {
         <FlowProgressModal
           isOpen={open}
           onClose={handleClose}
-          onSuccess={() => {
-            handleClose();
-            window.location.reload();
-          }}
+          onSuccess={handleClose}
           step={step}
           setStep={setStep}
           isLoading={isLoading}

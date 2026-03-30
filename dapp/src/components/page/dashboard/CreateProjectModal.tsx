@@ -366,10 +366,10 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
         type: "text/plain",
       });
 
-      // Create README file for non-software projects
+      // Create README file for non-software projects (always, even if empty)
       let additionalFiles: File[] | undefined = undefined;
-      if (projectType === ProjectType.GENERIC && readmeContent) {
-        const readmeFile = new File([readmeContent], "README.md", {
+      if (projectType === ProjectType.GENERIC) {
+        const readmeFile = new File([readmeContent || ""], "README.md", {
           type: "text/plain",
         });
         additionalFiles = [readmeFile];

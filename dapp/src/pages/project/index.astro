@@ -65,12 +65,22 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
 
             // For non-software projects, fetch README from IPFS
             if (configData.projectType !== "SOFTWARE" && project.config.ipfs) {
-              const readme = await fetchTextFromIpfs(
-                project.config.ipfs,
-                "/README.md",
-              );
-              if (readme) {
-                configData = { ...configData, readmeContent: readme };
+              try {
+                const readme = await fetchTextFromIpfs(
+                  project.config.ipfs,
+                  "/README.md",
+                );
+                // README must come from /README.md file ONLY
+                configData = {
+                  ...configData,
+                  readmeContent: readme || "No README available for this project.",
+                };
+              } catch (e) {
+                console.error("Failed to fetch README.md:", e);
+                configData = {
+                  ...configData,
+                  readmeContent: "No README available for this project.",
+                };
               }
             }
 
