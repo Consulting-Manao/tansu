@@ -73,7 +73,8 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
                 // README must come from /README.md file ONLY
                 configData = {
                   ...configData,
-                  readmeContent: readme || "No README available for this project.",
+                  readmeContent:
+                    readme || "No README available for this project.",
                 };
               } catch (e) {
                 console.error("Failed to fetch README.md:", e);
