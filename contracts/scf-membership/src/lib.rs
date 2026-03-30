@@ -22,9 +22,9 @@ mod scf_token;
 
 mod errors;
 mod events;
+#[cfg(test)]
+mod tests;
 mod types;
-// #[cfg(test)]
-// mod test;
 
 #[contract]
 pub struct SCFMembership;
@@ -37,6 +37,7 @@ pub trait SCFTokenTrait {
         symbol: String,
         uri: String,
         uri_trait: String,
+        nqg_contract: Address,
     );
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
@@ -150,7 +151,7 @@ pub trait SCFGovernanceTrait {
     ///
     /// * If the token does not exist.
     /// * If the trait does not exist.
-    fn get_trait_value(e: &Env, token_id: u32, trait_key: String) -> i128;
+    fn trait_value(e: &Env, token_id: u32, trait_key: String) -> i128;
 
     /// Returns the trait values of a token.
     ///
@@ -168,9 +169,12 @@ pub trait SCFGovernanceTrait {
     ///
     /// * If the token does not exist.
     /// * If one of the trait does not exist.
-    fn get_trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> Vec<i128>;
+    fn trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> types::Governance;
 
     /// Set the trait value of a token.
+    ///
+    /// We can only set the "role" trait. The "nqg" role is managed from
+    /// another contract
     ///
     /// # Arguments
     ///
@@ -197,5 +201,5 @@ pub trait SCFGovernanceTrait {
     /// # Returns
     ///
     /// The URI of the specification.
-    fn get_trait_metadata_uri(e: &Env) -> String;
+    fn trait_metadata_uri(e: &Env) -> String;
 }

@@ -474,10 +474,6 @@ impl DaoTrait for Tansu {
                 vote_address.clone(),
             );
 
-            if voter_max_weight == 0 {
-                panic_with_error!(&env, &errors::ContractErrors::UnknownMember);
-            }
-
             if vote_weight > &voter_max_weight {
                 panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
             }

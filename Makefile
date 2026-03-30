@@ -83,19 +83,15 @@ local-stack:  ## local stack
 # --------- CONTRACT BUILD/TEST/DEPLOY --------- #
 
 contract_build:
-	stellar contract build
+	stellar contract build --optimize
 	@ls -l target/wasm32v1-none/release/*.wasm
 
 contract_test:
 	cargo test
 
-contract_build-release: contract_build
-	stellar contract optimize --wasm target/wasm32v1-none/release/tansu.wasm
-	@ls -l target/wasm32v1-none/release/*.wasm
-
 
 # --contract-id $(tansu_id-$(network))
-contract_bindings: contract_build-release  ## Create bindings
+contract_bindings: contract_build  ## Create bindings
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(wasm) \
@@ -130,7 +126,7 @@ contract_unpause:  ## Unpause the contract
 		--admin $(shell stellar keys address $(admin)) \
 		--paused false
 
-contract_propose_upgrade: contract_build-release  ## After manually pulling the wasm from the pipeline, use it to propose to update the contract
+contract_propose_upgrade: contract_build  ## After manually pulling the wasm from the pipeline, use it to propose to update the contract
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \

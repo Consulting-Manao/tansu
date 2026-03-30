@@ -14,6 +14,7 @@ impl SCFTokenTrait for SCFMembership {
         symbol: String,
         uri: String,
         uri_trait: String,
+        nqg_contract: Address,
     ) {
         e.storage().instance().set(&types::DataKey::Admin, &admin);
 
@@ -27,6 +28,10 @@ impl SCFTokenTrait for SCFMembership {
         e.storage()
             .instance()
             .set(&types::DataKey::NextTokenId, &0u32);
+
+        e.storage()
+            .instance()
+            .set(&types::DataKey::NqgContract, &nqg_contract);
     }
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
@@ -49,6 +54,21 @@ impl SCFTokenTrait for SCFMembership {
         e.storage()
             .instance()
             .set(&types::DataKey::NextTokenId, &(token_id + 1));
+
+        e.storage()
+            .persistent()
+            .set(&types::NFTStorageKey::Owner(token_id), &to);
+
+        let to_balance = Self::balance(e, to.clone());
+        e.storage().persistent().set(
+            &types::NFTStorageKey::Balance(to.clone()),
+            &(to_balance + 1),
+        );
+
+        e.storage().persistent().set(
+            &types::NFTStorageKey::Role(token_id),
+            &types::Role::Verified,
+        );
 
         events::Mint { to, token_id }.publish(e);
 
@@ -90,7 +110,9 @@ impl SCFTokenTrait for SCFMembership {
         e.storage()
             .persistent()
             .get(&types::NFTStorageKey::Owner(token_id))
-            .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::TokenNotClaimed))
+            .unwrap_or_else(|| {
+                panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken)
+            })
     }
 
     fn name(e: &Env) -> String {
