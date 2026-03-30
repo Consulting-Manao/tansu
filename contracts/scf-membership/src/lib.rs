@@ -77,18 +77,24 @@ pub trait SCFTokenTrait {
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
-    /// # Events
+    /// # Panics
     ///
-    /// * topics - `["clawback", from: Address]`
-    /// * data - `[token_id: u32]`
+    /// * If the caller is not the admin.
+    /// * If the token does not exist.
     fn clawback(e: &Env, token_id: u32);
 
     /// Returns the number of tokens in `owner`'s account.
+    ///
+    /// Will always be at most 1 because it is a soulbound token.
     ///
     /// # Arguments
     ///
     /// * `e` - The environment object.
     /// * `owner` - Account of the token's owner.
+    ///
+    /// # Returns
+    ///
+    /// The owner's balance. 1 if a member, 0 if not.
     fn balance(e: &Env, owner: Address) -> u32;
 
     /// Returns the address of the owner of the given `token_id`.
@@ -98,9 +104,13 @@ pub trait SCFTokenTrait {
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
-    /// # Notes
+    /// # Returns
     ///
-    /// If the token does not exist, this function is expected to panic.
+    /// The owner's address.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
     fn owner_of(e: &Env, token_id: u32) -> Address;
 
     /// Returns the token collection name.
@@ -141,7 +151,7 @@ pub trait SCFGovernanceTrait {
     ///
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
-    /// * `trait_key` - Trait key as a string.
+    /// * `trait_key` - Trait key as a string. One of "nqg", "role".
     ///
     /// # Returns
     ///
@@ -159,7 +169,7 @@ pub trait SCFGovernanceTrait {
     ///
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
-    /// * `trait_keys` - Trait keys as strings.
+    /// * `trait_keys` - Trait keys as strings. One of "nqg", "role".
     ///
     /// # Returns
     ///
@@ -180,11 +190,12 @@ pub trait SCFGovernanceTrait {
     ///
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
-    /// * `trait_key` - Trait key as a string.
+    /// * `trait_key` - Trait key as a string. Must be "role".
     /// * `new_value` - The value of the trait.
     ///
     /// # Panics
     ///
+    /// * If the caller is not the admin.
     /// * If the token does not exist.
     /// * If the trait does not exist.
     /// * If the new value is out of bound.

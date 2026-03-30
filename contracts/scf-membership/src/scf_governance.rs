@@ -51,6 +51,10 @@ impl SCFGovernanceTrait for SCFMembership {
             panic_with_error!(e, errors::NonFungibleTokenError::TraitUnSettable);
         }
 
+        if !(0..=4).contains(&new_value) {
+            panic_with_error!(&e, errors::NonFungibleTokenError::TraitUnSettable)
+        }
+
         e.storage()
             .persistent()
             .set(&types::NFTStorageKey::Role(token_id), &new_value);
