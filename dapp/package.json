@@ -14,7 +14,7 @@
     "@storacha/client": "^2.1.2",
     "@ucanto/core": "^10.4.6",
     "@web3-storage/access": "^20.3.0",
-    "astro": "^6.0.8",
+    "astro": "^6.1.2",
     "astro-seo": "1.1.0",
     "axios": "^1.13.6",
     "buffer": "^6.0.3",
