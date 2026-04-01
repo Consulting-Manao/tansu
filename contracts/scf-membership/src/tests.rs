@@ -10,7 +10,7 @@ mod nqg {
     pub struct Mock;
     #[contractimpl]
     impl Mock {
-        pub fn get_voting_power(e: &Env, user: String) -> I256 {
+        pub fn get_voting_power_for_user(e: &Env, _user: String) -> I256 {
             I256::from_i32(e, 10)
         }
     }

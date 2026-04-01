@@ -86,7 +86,7 @@ fn get_nqg(e: &Env, token_id: u32) -> i128 {
         .unwrap();
     let r = e.try_invoke_contract::<I256, InvokeError>(
         &nqg_contract_address,
-        &Symbol::new(e, "get_voting_power"),
+        &Symbol::new(e, "get_voting_power_for_user"),
         vec![e, owner.to_string().to_val()],
     );
     let nqg: I256 = r.map_err(|_| 0).unwrap().unwrap();

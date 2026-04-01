@@ -14,6 +14,7 @@ pub struct Contract {
 pub enum ContractKey {
     DomainContract,     // Address and wasm hash of the SorobanDomain contract
     CollateralContract, // Collateral asset contract address
+    NqgContract,        // Neural Quorum Governance contract address
 }
 
 #[contracttype]
@@ -22,6 +23,7 @@ pub enum DataKey {
     Paused,          // Contract pause state
     UpgradeProposal, // Pending upgrade proposal
     AdminsConfig,    // Admin configuration for upgrades and other admin operations
+    NqgProjectKey,   // project_key using NQG based system
 }
 
 #[contracttype]
