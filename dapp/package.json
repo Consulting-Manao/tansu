@@ -2,7 +2,7 @@
   "dependencies": {
     "@astrojs/check": "^0.9.8",
     "@astrojs/netlify": "^7.0.4",
-    "@astrojs/react": "^5.0.1",
+    "@astrojs/react": "^5.0.2",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.0.1",
     "@creit.tech/sorobandomains-sdk": "^0.1.6",
     "@ipld/dag-ucan": "^3.4.5",
