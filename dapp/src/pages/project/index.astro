@@ -51,14 +51,13 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
         const project = await getProjectFromName(projectName);
         if (project && project.name && project.config && project.maintainers) {
           setProject(project);
-          setConfigData(extractConfigData({}, project));
-          projectInfoLoaded.set(true);
 
           (async () => {
             const [tomlResult, hashResult] = await Promise.allSettled([
               fetchTomlFromIpfs(project.config.ipfs),
               getProjectHash(),
             ]);
+
             let configData: any = extractConfigData({}, project);
             if (tomlResult.status === "fulfilled" && tomlResult.value) {
               configData = extractConfigData(tomlResult.value, project);
@@ -66,16 +65,28 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
 
             // For non-software projects, fetch README from IPFS
             if (configData.projectType !== "SOFTWARE" && project.config.ipfs) {
-              const readme = await fetchTextFromIpfs(
-                project.config.ipfs,
-                "/README.md",
-              );
-              if (readme) {
-                configData = { ...configData, readmeContent: readme };
+              try {
+                const readme = await fetchTextFromIpfs(
+                  project.config.ipfs,
+                  "/README.md",
+                );
+                // README must come from /README.md file ONLY
+                configData = {
+                  ...configData,
+                  readmeContent:
+                    readme || "No README available for this project.",
+                };
+              } catch (e) {
+                console.error("Failed to fetch README.md:", e);
+                configData = {
+                  ...configData,
+                  readmeContent: "No README available for this project.",
+                };
               }
             }
 
             setConfigData(configData);
+            projectInfoLoaded.set(true);
 
             // Only set GitHub repo info for SOFTWARE projects
             const isSoftwareProject = configData.projectType === "SOFTWARE";

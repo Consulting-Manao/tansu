@@ -5,8 +5,8 @@ import {
   setConfigData,
   setProject,
 } from "@service/StateService";
-import { projectInfoLoaded } from "utils/store";
-import { useEffect, useState } from "react";
+import { projectInfoLoaded, configData as configDataStore } from "utils/store";
+import { useEffect, useState, useRef } from "react";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
@@ -20,7 +20,11 @@ import {
 import { updateConfigFlow } from "@service/FlowService";
 import { toast, extractConfigData } from "utils/utils";
 import { getProject } from "@service/ReadContractService";
-import { calculateDirectoryCid } from "utils/ipfsFunctions";
+import {
+  calculateDirectoryCid,
+  getIpfsBasicLink,
+  fetchTextFromIpfs,
+} from "utils/ipfsFunctions";
 import toml from "toml";
 
 // Validate DBA (Project Full Name): ASCII-only, max 100 chars
@@ -38,18 +42,185 @@ const validateDbaField = (value: string): string | null => {
   return null;
 };
 
+/**
+ * Fetch and parse the existing tansu.toml from IPFS.
+ * Returns the raw parsed object (any shape), or null on failure.
+ */
+async function fetchExistingToml(
+  ipfsCid: string,
+): Promise<Record<string, any> | null> {
+  try {
+    const url = `${getIpfsBasicLink(ipfsCid)}/tansu.toml`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const text = await res.text();
+    return toml.parse(text) as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Merge form-managed fields into the existing parsed TOML object,
+ * preserving every field we don't explicitly manage (e.g. PROJECT_TYPE).
+ *
+ * TOML structure we manage:
+ *   VERSION
+ *   ACCOUNTS = [...]
+ *   [DOCUMENTATION]
+ *     ORG_DBA, ORG_NAME, ORG_URL, ORG_LOGO, ORG_DESCRIPTION, ORG_GITHUB
+ *   [[PRINCIPALS]]
+ *     github = "..."
+ */
+function mergeTomlData(
+  existing: Record<string, any>,
+  fields: {
+    maintainerAddresses: string[];
+    maintainerGithubs: string[];
+    projectFullName: string;
+    orgName: string;
+    orgUrl: string;
+    orgLogo: string;
+    orgDescription: string;
+    githubRepoUrl: string;
+    isSoftwareProject: boolean;
+  },
+): Record<string, any> {
+  const merged = { ...existing };
+
+  // Always bump / set version
+  merged["VERSION"] = "2.0.0";
+
+  // Overwrite only the accounts array
+  merged["ACCOUNTS"] = fields.maintainerAddresses;
+
+  // Merge DOCUMENTATION sub-table — preserve unknown keys inside it
+  const existingDoc: Record<string, any> =
+    typeof existing["DOCUMENTATION"] === "object" &&
+    existing["DOCUMENTATION"] !== null
+      ? { ...existing["DOCUMENTATION"] }
+      : {};
+
+  existingDoc["ORG_DBA"] = fields.projectFullName.trim();
+  existingDoc["ORG_NAME"] = fields.orgName;
+  existingDoc["ORG_URL"] = fields.orgUrl;
+  existingDoc["ORG_LOGO"] = fields.orgLogo;
+  existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
+  existingDoc["ORG_GITHUB"] =
+    fields.githubRepoUrl.split("https://github.com/")[1] || "";
+
+  // README is now only stored as a separate file, so we explicitly remove it
+  // from the TOML if it was previously there to enforce a single source of truth.
+  delete existingDoc["README"];
+
+  merged["DOCUMENTATION"] = existingDoc;
+
+  // Replace PRINCIPALS array entirely (only field we manage there is github)
+  merged["PRINCIPALS"] = fields.maintainerGithubs.map((gh) => ({ github: gh }));
+
+  return merged;
+}
+
+/**
+ * Serialize a merged TOML object back to a TOML string.
+ *
+ * We do this manually so we keep the same key ordering the contract expects
+ * and handle the array-of-tables ([[PRINCIPALS]]) syntax correctly.
+ * Unknown top-level scalar/string keys (like PROJECT_TYPE) are emitted first.
+ */
+function serializeToml(data: Record<string, any>): string {
+  const lines: string[] = [];
+
+  // 1. Known scalar keys first
+  const knownTopLevelKeys = new Set([
+    "VERSION",
+    "ACCOUNTS",
+    "DOCUMENTATION",
+    "PRINCIPALS",
+  ]);
+
+  // Emit VERSION
+  if (data["VERSION"] !== undefined) {
+    lines.push(`VERSION="${data["VERSION"]}"`);
+  }
+
+  // Emit unknown top-level scalars/strings (e.g. PROJECT_TYPE) — preserve them
+  for (const key of Object.keys(data)) {
+    if (knownTopLevelKeys.has(key)) continue;
+    const val = data[key];
+    if (typeof val === "string") {
+      lines.push(`${key}="${val}"`);
+    } else if (typeof val === "number" || typeof val === "boolean") {
+      lines.push(`${key}=${val}`);
+    }
+    // arrays/objects that are not in our known set: skip (rare edge case)
+  }
+
+  lines.push("");
+
+  // 2. ACCOUNTS array
+  if (Array.isArray(data["ACCOUNTS"])) {
+    const accounts = (data["ACCOUNTS"] as string[])
+      .map((a) => `    "${a}"`)
+      .join(",\n");
+    lines.push(`ACCOUNTS=[\n${accounts}\n]`);
+  }
+
+  lines.push("");
+
+  // 3. [DOCUMENTATION] table
+  if (data["DOCUMENTATION"] && typeof data["DOCUMENTATION"] === "object") {
+    lines.push("[DOCUMENTATION]");
+    const doc = data["DOCUMENTATION"] as Record<string, any>;
+    for (const key of Object.keys(doc)) {
+      const val = doc[key];
+      if (typeof val === "string") {
+        lines.push(`${key}="${val}"`);
+      } else if (typeof val === "number" || typeof val === "boolean") {
+        lines.push(`${key}=${val}`);
+      }
+    }
+  }
+
+  lines.push("");
+
+  // 4. [[PRINCIPALS]] array of tables
+  if (Array.isArray(data["PRINCIPALS"])) {
+    for (const principal of data["PRINCIPALS"] as Record<string, any>[]) {
+      lines.push("[[PRINCIPALS]]");
+      for (const key of Object.keys(principal)) {
+        const val = principal[key];
+        if (typeof val === "string") {
+          lines.push(`${key}="${val}"`);
+        }
+      }
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
 const UpdateConfigModal = () => {
   const infoLoaded = useStore(projectInfoLoaded);
+  // Subscribe to configData store so the component re-renders when config arrives
+  const storeConfigData = useStore(configDataStore);
+
   const [showButton, setShowButton] = useState(false);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [updateSuccessful, setUpdateSuccessful] = useState(false);
 
   // Flow state management
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Holds the raw parsed existing TOML so we can merge into it on submit
+  const existingTomlRef = useRef<Record<string, any> | null>(null);
+
+  // Derived directly from the reactive store value — no separate useState needed
+  const isSoftwareProject = storeConfigData?.projectType === "SOFTWARE";
 
   // fields
   const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
@@ -63,6 +234,7 @@ const UpdateConfigModal = () => {
   const [orgUrl, setOrgUrl] = useState("");
   const [orgLogo, setOrgLogo] = useState("");
   const [orgDescription, setOrgDescription] = useState("");
+  const [readmeContent, setReadmeContent] = useState("");
 
   // errors
   const [addrErrors, setAddrErrors] = useState<(string | null)[]>([null]);
@@ -72,7 +244,7 @@ const UpdateConfigModal = () => {
     string | null
   >(null);
 
-  // pre-fill from current config and gate by maintainer status
+  // Pre-fill all fields whenever projectInfo OR configData becomes available
   useEffect(() => {
     if (!infoLoaded) return;
     const projectInfo = loadProjectInfo();
@@ -87,7 +259,7 @@ const UpdateConfigModal = () => {
     setMaintainerGithubs(
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
-    setGithubRepoUrl(projectInfo.config.url);
+    setGithubRepoUrl(projectInfo.config.url || "");
     setProjectName(projectInfo.name || "");
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");
     setOrgName(cfg?.organizationName || "");
@@ -107,14 +279,46 @@ const UpdateConfigModal = () => {
         );
       })
       .catch(() => setShowButton(false));
-  }, [infoLoaded]);
+  }, [infoLoaded, storeConfigData]);
+
+  /**
+   * When the modal opens, fetch the existing tansu.toml from IPFS so we can
+   * merge into it rather than overwrite it.
+   *
+   * We also sync README.md from the file on IPFS as the source of truth.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const projectInfo = loadProjectInfo();
+    const ipfsCid = projectInfo?.config?.ipfs;
+    if (!ipfsCid) {
+      existingTomlRef.current = null;
+      return;
+    }
+
+    // Parallel fetch of TOML and README
+    Promise.all([
+      fetchExistingToml(ipfsCid),
+      !isSoftwareProject ? fetchTextFromIpfs(ipfsCid, "/README.md") : null,
+    ]).then(([parsedToml, readme]) => {
+      existingTomlRef.current = parsedToml;
+
+      // Use the README from IPFS as the source of truth so the form is
+      // always in sync with what will be preserved.
+      if (!isSoftwareProject && readme !== null) {
+        setReadmeContent(readme);
+      }
+    });
+  }, [open, isSoftwareProject]);
 
   const handleClose = () => {
+    const wasSuccessful = isSuccessful;
     setOpen(false);
-    setUpdateSuccessful(false);
-    // Reload page if update was successful to show fresh data
-    if (updateSuccessful) {
+    setIsSuccessful(false);
+    if (wasSuccessful) {
       window.location.reload();
+      window.location.reload(); // double reload to ensure we bypass any stale cache and fetch the latest config from IPFS on load
     }
   };
 
@@ -149,37 +353,81 @@ const UpdateConfigModal = () => {
     return e === null;
   };
 
-  // Validate the DBA field and set error state; returns true if valid
   const validateProjectFullName = (): boolean => {
     const dbaError = validateDbaField(projectFullName);
     setProjectFullNameError(dbaError);
     return dbaError === null;
   };
 
-  // build TOML
+  /**
+   * Build the TOML string by:
+   * 1. Starting from the existing parsed TOML (preserves PROJECT_TYPE etc.)
+   * 2. Merging only the fields managed by this form
+   * 3. Serializing back to TOML
+   *
+   * Falls back to a blank base object if the existing file couldn't be fetched.
+   */
   const buildToml = (): string => {
-    return `VERSION="2.0.0"
-\nACCOUNTS=[\n${maintainerAddresses.map((a) => `    "${a}"`).join(",\n")}\n]\n\n[DOCUMENTATION]\nORG_DBA="${projectFullName.trim()}"\nORG_NAME="${orgName}"\nORG_URL="${orgUrl}"\nORG_LOGO="${orgLogo}"\nORG_DESCRIPTION="${orgDescription}"\nORG_GITHUB="${githubRepoUrl.split("https://github.com/")[1] || ""}"\n\n${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}\n`;
+    const base: Record<string, any> = existingTomlRef.current ?? {};
+
+    // Critical fix: ensure PROJECT_TYPE is preserved even if existingTomlRef is empty
+    if (!base["PROJECT_TYPE"] && storeConfigData?.projectType) {
+      base["PROJECT_TYPE"] = storeConfigData.projectType;
+    }
+
+    const merged = mergeTomlData(base, {
+      maintainerAddresses,
+      maintainerGithubs,
+      projectFullName,
+      orgName,
+      orgUrl,
+      orgLogo,
+      orgDescription,
+      githubRepoUrl,
+      isSoftwareProject,
+    });
+
+    return serializeToml(merged);
   };
 
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
+      const projectInfo = loadProjectInfo();
+      const ipfsCid = projectInfo?.config?.ipfs;
+
+      // Double-check: if readmeContent is empty and we have an existing CID,
+      // try one last time to fetch it to prevent accidental overwrites if
+      // the initial fetch on mount was slow/failed.
+      let finalReadme = readmeContent;
+      if (!isSoftwareProject && !finalReadme && ipfsCid) {
+        const existing = await fetchTextFromIpfs(ipfsCid, "/README.md");
+        if (existing) finalReadme = existing;
+      }
+
       const tomlContent = buildToml();
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
       });
+
+      const additionalFiles: File[] = [];
+      if (!isSoftwareProject) {
+        additionalFiles.push(
+          new File([finalReadme || ""], "README.md", { type: "text/markdown" }),
+        );
+      }
+
       await updateConfigFlow({
         tomlFile,
         githubRepoUrl,
         maintainers: maintainerAddresses,
         onProgress: setStep,
+        additionalFiles,
       });
-      // refresh state
       const p = await getProject();
       if (p) {
         setProject(p);
-        await calculateDirectoryCid([tomlFile]);
+        await calculateDirectoryCid([tomlFile, ...additionalFiles]);
         const parsedToml = toml.parse(tomlContent) as Parameters<
           typeof extractConfigData
         >[0];
@@ -190,8 +438,7 @@ const UpdateConfigModal = () => {
         "Config updated",
         "Project configuration updated successfully.",
       );
-      setUpdateSuccessful(true);
-      // Don't close modal immediately - let user close it manually
+      setIsSuccessful(true);
     } catch (e: any) {
       toast.error("Update config", e.message);
     } finally {
@@ -199,7 +446,16 @@ const UpdateConfigModal = () => {
     }
   };
 
-  // render
+  const handleNextFromStep2 = () => {
+    const isDbaValid = validateProjectFullName();
+    if (isSoftwareProject) {
+      const isRepoValid = validateRepo();
+      if (isRepoValid && isDbaValid) setStep(3);
+    } else {
+      if (isDbaValid) setStep(3);
+    }
+  };
+
   if (!showButton) return null;
   return (
     <>
@@ -215,10 +471,7 @@ const UpdateConfigModal = () => {
         <FlowProgressModal
           isOpen={open}
           onClose={handleClose}
-          onSuccess={() => {
-            handleClose();
-            window.location.reload();
-          }}
+          onSuccess={handleClose}
           step={step}
           setStep={setStep}
           isLoading={isLoading}
@@ -318,7 +571,6 @@ const UpdateConfigModal = () => {
                       placeholder="My Awesome Project"
                       value={projectFullName}
                       onChange={(e) => {
-                        // Printable ASCII-only sanitization; enforce max 100 chars
                         const sanitized = e.target.value.replace(
                           /[^\x20-\x7E]/g,
                           "",
@@ -351,29 +603,33 @@ const UpdateConfigModal = () => {
                       onChange={(e) => setOrgDescription(e.target.value)}
                     />
 
-                    <Input
-                      label="GitHub repository URL"
-                      value={githubRepoUrl}
-                      onChange={(e) => {
-                        setGithubRepoUrl(e.target.value);
-                        setRepoError(null);
-                      }}
-                      error={repoError || undefined}
-                    />
+                    {isSoftwareProject && (
+                      <Input
+                        label="GitHub repository URL"
+                        value={githubRepoUrl}
+                        onChange={(e) => {
+                          setGithubRepoUrl(e.target.value);
+                          setRepoError(null);
+                        }}
+                        error={repoError || undefined}
+                      />
+                    )}
+                    {!isSoftwareProject && (
+                      <Textarea
+                        label="README"
+                        value={readmeContent}
+                        onChange={(e) => {
+                          setReadmeContent(e.target.value);
+                        }}
+                        description="Project README content (Markdown)"
+                      />
+                    )}
 
                     <div className="flex justify-between mt-4">
                       <Button type="secondary" onClick={() => setStep(1)}>
                         Back
                       </Button>
-                      <Button
-                        onClick={() => {
-                          const isRepoValid = validateRepo();
-                          const isDbaValid = validateProjectFullName();
-                          if (isRepoValid && isDbaValid) setStep(3);
-                        }}
-                      >
-                        Next
-                      </Button>
+                      <Button onClick={handleNextFromStep2}>Next</Button>
                     </div>
                   </div>
                 </div>

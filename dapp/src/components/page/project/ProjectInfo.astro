@@ -35,8 +35,15 @@ import Button from "components/utils/Button";
                   class="text-base sm:text-lg text-secondary"
                 >
                 </p>
+                <div id="project-sync-status" class="flex items-center gap-3">
+                </div>
               </div>
-              <div data-component="LatestCommit">
+              <!-- Hidden by default; shown only for SOFTWARE projects once config loads -->
+              <div
+                id="latest-commit-wrapper"
+                data-component="LatestCommit"
+                style="display:none"
+              >
                 <LatestCommit client:only />
               </div>
             </div>
@@ -64,24 +71,38 @@ import Button from "components/utils/Button";
             Support
           </Button>
         </DonateModal>
-        <Button
-          id="read-more-button"
-          icon="/icons/book.svg"
-          size="xl"
-          type="secondary"
-          className="w-full sm:w-auto"
+        <!-- Hidden by default; shown only for SOFTWARE projects once config loads -->
+        <div
+          id="read-more-button-wrapper"
+          style="display:none"
+          class="contents"
         >
-          Read More
-        </Button>
-        <Button
-          id="last-hash-button"
-          icon="/icons/eye.svg"
-          size="xl"
-          type="secondary"
-          className="w-full sm:w-auto"
+          <Button
+            id="read-more-button"
+            icon="/icons/book.svg"
+            size="xl"
+            type="secondary"
+            className="w-full sm:w-auto"
+          >
+            Read More
+          </Button>
+        </div>
+        <!-- Hidden by default; shown only for SOFTWARE projects once config loads -->
+        <div
+          id="last-hash-button-wrapper"
+          style="display:none"
+          class="contents"
         >
-          Last Hash
-        </Button>
+          <Button
+            id="last-hash-button"
+            icon="/icons/eye.svg"
+            size="xl"
+            type="secondary"
+            className="w-full sm:w-auto"
+          >
+            Last Hash
+          </Button>
+        </div>
       </div>
     </div>
     <div
@@ -239,6 +260,7 @@ import Button from "components/utils/Button";
 
     // Initial render
     renderModals();
+
     const updateConfigButton = document.querySelector("[data-update-config]");
     const udpateConfigModal = document.getElementById(
       "update-config-modal",
@@ -276,19 +298,22 @@ import Button from "components/utils/Button";
         const viewAllButtonContainer =
           maintainersList.querySelector(".view-all");
         if (viewAllButtonContainer) viewAllButtonContainer.replaceChildren();
+
         const viewAllButton = document.createElement("button");
         viewAllButton.className =
           "leading-[18px] text-lg font-[450] text-primary underline";
         viewAllButton.textContent = viewAll ? "Less" : "View All";
+
         if (viewAll) {
           viewAllButton.addEventListener("click", () =>
             updateMaintainerList(projectInfo, configData, !viewAll),
           );
         }
+
         const ul = maintainersList.querySelector("ul");
         if (ul) {
           ul.replaceChildren();
-          // Prefer the order straight from tansu.toml (guaranteed 1-1)
+
           const hasMapping =
             configData &&
             Array.isArray(configData.maintainersAddresses) &&
@@ -296,7 +321,6 @@ import Button from "components/utils/Button";
             configData.maintainersAddresses.length ===
               configData.authorGithubNames.length;
 
-          // Build address→handle map (order-independent)
           let addrToHandle: Record<string, string> = {};
           if (hasMapping && configData) {
             for (let i = 0; i < configData.maintainersAddresses.length; i++) {
@@ -305,7 +329,6 @@ import Button from "components/utils/Button";
             }
           }
 
-          // Use on-chain list for authoritative membership
           const addrArr = projectInfo.maintainers;
 
           for (let idx = 0; idx < addrArr.length; idx++) {
@@ -324,20 +347,20 @@ import Button from "components/utils/Button";
               li.appendChild(nameP);
             }
 
-            // always show address (with tooltip if no displayName)
             const addrP = document.createElement("p");
             addrP.className = displayName
               ? "leading-[14px] text-sm text-secondary cursor-pointer underline"
               : "leading-6 text-xl text-primary truncate cursor-pointer underline";
+
             addrP.textContent = displayName
               ? `(${maintainer.length > 16 ? maintainer.slice(0, 16) + "..." : maintainer})`
               : maintainer.length > 20
                 ? maintainer.slice(0, 20) + "..."
                 : maintainer;
+
             li.appendChild(addrP);
 
             if (!displayName) {
-              // no mapping, show address only with tooltip
               const popup = document.createElement("p");
               popup.className =
                 "absolute left-0 bottom-full mb-1 p-1 bg-black text-center text-xs text-white rounded hidden max-w-[240px] sm:max-w-[320px] md:max-w-none break-words";
@@ -360,7 +383,6 @@ import Button from "components/utils/Button";
             ul.appendChild(li);
           }
 
-          // view-all display logic
           if (viewAllButtonContainer && addrArr.length > 5) {
             viewAllButtonContainer.append(viewAllButton);
           }
@@ -381,6 +403,30 @@ import Button from "components/utils/Button";
         }
 
         const configData = loadConfigData();
+        const isSoftwareProject = configData?.projectType === "SOFTWARE";
+
+        // Show Read More + Last Hash buttons only for SOFTWARE projects
+        const readMoreWrapper = document.getElementById(
+          "read-more-button-wrapper",
+        );
+        const lastHashWrapper = document.getElementById(
+          "last-hash-button-wrapper",
+        );
+
+        if (readMoreWrapper) {
+          readMoreWrapper.style.display = isSoftwareProject ? "" : "none";
+        }
+        if (lastHashWrapper) {
+          lastHashWrapper.style.display = isSoftwareProject ? "" : "none";
+        }
+
+        // Show LatestCommit only for SOFTWARE projects
+        const latestCommitWrapper = document.getElementById(
+          "latest-commit-wrapper",
+        );
+        if (latestCommitWrapper) {
+          latestCommitWrapper.style.display = isSoftwareProject ? "" : "none";
+        }
 
         const projectNameElement = document.getElementById("project-name");
         if (projectNameElement) {
@@ -391,6 +437,7 @@ import Button from "components/utils/Button";
         const projectThumbnail = document.getElementById(
           "project-thumbnail",
         ) as HTMLImageElement;
+
         const projectDescription = document.getElementById(
           "project-description",
         );
@@ -444,12 +491,10 @@ import Button from "components/utils/Button";
           }
         }
 
-        //Support modal content
         const loadedName = loadProjectName();
         if (loadedName) {
           const projectNameSpan = document.getElementById("contribute-text");
           if (projectNameSpan) {
-            // Safe DOM manipulation instead of innerHTML
             projectNameSpan.textContent = "";
             projectNameSpan.appendChild(
               document.createTextNode("Contribute to "),
@@ -460,20 +505,6 @@ import Button from "components/utils/Button";
             projectNameSpan.appendChild(nameSpan);
             projectNameSpan.appendChild(document.createTextNode(".xlm"));
           }
-
-          const donateTipPopup = document.getElementById("donate-tip-popup");
-          if (donateTipPopup) {
-            donateTipPopup.replaceChildren();
-            donateTipPopup.appendChild(
-              document.createTextNode(
-                "Help us run the Tansu platform sustainability",
-              ),
-            );
-            const triangle = document.createElement("div");
-            triangle.className =
-              "absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-800";
-            donateTipPopup.appendChild(triangle);
-          }
         }
 
         const syncStatusContainer = document.getElementById(
@@ -481,87 +512,87 @@ import Button from "components/utils/Button";
         );
         if (syncStatusContainer) {
           syncStatusContainer.replaceChildren();
-          syncStatusContainer.appendChild(createTansuTomlLink(projectInfo));
 
-          // Add commit badge - only for SOFTWARE projects
-          const isSoftwareProject = configData?.projectType === "SOFTWARE";
-          if (isSoftwareProject) {
-            const latestSha = loadProjectLatestSha();
-            const commitComponent = document.createElement("div");
-            commitComponent.className =
-              "flex items-center space-x-2 rounded-full relative group";
+          if (!isSoftwareProject) {
+            syncStatusContainer.appendChild(createTansuTomlLink(projectInfo));
+          }
+        }
 
-            const commitIcon = document.createElement("img");
-            commitIcon.className = "w-5 h-5";
+        if (syncStatusContainer && isSoftwareProject) {
+          const latestSha = loadProjectLatestSha();
+          const commitComponent = document.createElement("div");
+          commitComponent.className =
+            "flex items-center space-x-2 rounded-full relative group";
 
-            const commitText = document.createElement("span");
-            commitText.className = "text-sm sm:text-base";
-            commitText.textContent = "Commit";
+          const commitIcon = document.createElement("img");
+          commitIcon.className = "w-5 h-5";
 
-            const commitPopup = document.createElement("div");
-            commitPopup.className =
-              "absolute bottom-full left-1/2 sm:left-1/4 transform -translate-x-1/2 mb-2 p-2 bg-black text-white rounded hidden group-hover:inline";
+          const commitText = document.createElement("span");
+          commitText.className = "text-sm sm:text-base";
+          commitText.textContent = "Commit";
 
-            const commitTriangle = document.createElement("div");
-            commitTriangle.className =
-              "absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-black";
+          const commitPopup = document.createElement("div");
+          commitPopup.className =
+            "absolute bottom-full left-1/2 sm:left-1/4 transform -translate-x-1/2 mb-2 p-2 bg-black text-white rounded hidden group-hover:inline";
 
-            try {
-              if (projectInfo.config.url && latestSha) {
-                const latestCommit = await getLatestCommitData(
-                  projectInfo.config.url,
-                  latestSha,
-                );
+          const commitTriangle = document.createElement("div");
+          commitTriangle.className =
+            "absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-black";
 
-                if (
-                  latestCommit &&
-                  latestCommit.sha &&
-                  latestCommit.sha === latestSha
-                ) {
-                  commitIcon.src = "/icons/check.svg";
-                  commitIcon.alt = "Check";
-                  commitPopup.replaceChildren();
-                  const p1 = document.createElement("p");
-                  p1.className = "text-sm w-36 sm:w-max";
-                  p1.textContent = "Commit SHA on-chain exists on GitHub";
-                  commitPopup.appendChild(p1);
-                } else {
-                  commitIcon.src = "/icons/check.svg";
-                  commitIcon.alt = "Failed";
-                  commitPopup.replaceChildren();
-                  const p2 = document.createElement("p");
-                  p2.className = "text-sm w-36 sm:w-max";
-                  p2.textContent =
-                    "Commit SHA on-chain cannot be found on GitHub";
-                  commitPopup.appendChild(p2);
-                }
+          try {
+            if (projectInfo.config.url && latestSha) {
+              const latestCommit = await getLatestCommitData(
+                projectInfo.config.url,
+                latestSha,
+              );
+
+              if (
+                latestCommit &&
+                latestCommit.sha &&
+                latestCommit.sha === latestSha
+              ) {
+                commitIcon.src = "/icons/check.svg";
+                commitIcon.alt = "Check";
+                commitPopup.replaceChildren();
+                const p1 = document.createElement("p");
+                p1.className = "text-sm w-36 sm:w-max";
+                p1.textContent = "Commit SHA on-chain exists on GitHub";
+                commitPopup.appendChild(p1);
               } else {
-                commitIcon.src = "/icons/failed.svg";
+                commitIcon.src = "/icons/check.svg";
                 commitIcon.alt = "Failed";
                 commitPopup.replaceChildren();
-                const p3 = document.createElement("p");
-                p3.className = "text-sm w-36 sm:w-max";
-                p3.textContent = "No commit SHA on-chain yet";
-                commitPopup.appendChild(p3);
+                const p2 = document.createElement("p");
+                p2.className = "text-sm w-36 sm:w-max";
+                p2.textContent =
+                  "Commit SHA on-chain cannot be found on GitHub";
+                commitPopup.appendChild(p2);
               }
-            } catch (error) {
+            } else {
               commitIcon.src = "/icons/failed.svg";
               commitIcon.alt = "Failed";
               commitPopup.replaceChildren();
-              const p4 = document.createElement("p");
-              p4.className = "text-sm w-36 sm:w-max";
-              p4.textContent =
-                "No commit SHA can be found on-chain or on GitHub";
-              commitPopup.appendChild(p4);
+              const p3 = document.createElement("p");
+              p3.className = "text-sm w-36 sm:w-max";
+              p3.textContent = "No commit SHA on-chain yet";
+              commitPopup.appendChild(p3);
             }
-
-            commitPopup.appendChild(commitTriangle);
-            commitComponent.appendChild(commitIcon);
-            commitComponent.appendChild(commitText);
-            commitComponent.appendChild(commitPopup);
-
-            syncStatusContainer.appendChild(commitComponent);
+          } catch (error) {
+            commitIcon.src = "/icons/failed.svg";
+            commitIcon.alt = "Failed";
+            commitPopup.replaceChildren();
+            const p4 = document.createElement("p");
+            p4.className = "text-sm w-36 sm:w-max";
+            p4.textContent = "No commit SHA can be found on-chain or on GitHub";
+            commitPopup.appendChild(p4);
           }
+
+          commitPopup.appendChild(commitTriangle);
+          commitComponent.appendChild(commitIcon);
+          commitComponent.appendChild(commitText);
+          commitComponent.appendChild(commitPopup);
+
+          syncStatusContainer.appendChild(commitComponent);
         }
 
         // Set up project data for ReadMoreModal
@@ -577,8 +608,6 @@ import Button from "components/utils/Button";
           websiteUrl: configData?.officials?.websiteLink,
         };
 
-        // Set up commit data for LastHashModal - only for a SOFTWARE project
-        const isSoftwareProject = configData?.projectType === "SOFTWARE";
         if (isSoftwareProject) {
           const latestSha = loadProjectLatestSha();
           if (latestSha) {
@@ -603,7 +632,6 @@ import Button from "components/utils/Button";
             }
           }
 
-          // Render ContributionMetrics - only for SOFTWARE projects
           if (projectInfo?.name && projectInfo?.config?.url) {
             const { username, repoName } = getAuthorRepo(
               projectInfo.config.url,
@@ -620,17 +648,8 @@ import Button from "components/utils/Button";
           }
         }
 
-        // Hide Git-specific UI components for non-software projects
+        // Hide contribution metrics for non-software projects
         if (!isSoftwareProject) {
-          // Hide LatestCommit component
-          const latestCommitEl = document.querySelector(
-            '[data-component="LatestCommit"]',
-          );
-          if (latestCommitEl) {
-            (latestCommitEl as HTMLElement).style.display = "none";
-          }
-
-          // Hide contribution metrics section
           const contributionMetricsEl = document.getElementById(
             "contribution-metrics-section",
           );
@@ -639,25 +658,31 @@ import Button from "components/utils/Button";
           }
         }
 
-        // Re-render modals with the updated data
         renderModals();
       }
     }
 
-    projectInfoLoaded.subscribe((loaded) => {
-      if (loaded) {
+    // UPDATED BLOCK (as requested)
+    const tryUpdateProjectInfo = () => {
+      if (projectInfoLoaded.get() && configDataStore.get()) {
         updateProjectInfo();
       }
+    };
+
+    projectInfoLoaded.subscribe((loaded) => {
+      if (loaded) tryUpdateProjectInfo();
     });
 
     configDataStore.subscribe((config) => {
-      if (projectInfoLoaded.get() && config) {
-        updateProjectInfo();
-      }
+      if (config) tryUpdateProjectInfo();
     });
 
     projectHasSubProjects.subscribe((hasSubProjects) => {
       if (!hasSubProjects) return;
+
+      const configData = loadConfigData();
+      if (configData?.projectType === "SOFTWARE") return;
+
       const syncStatusContainer = document.getElementById(
         "project-sync-status",
       );
@@ -775,17 +800,14 @@ import Button from "components/utils/Button";
       }
     };
 
-    // initial community load
     updateCommunityList();
 
     window.addEventListener("badgesUpdated", updateCommunityList);
 
-    // refresh community list when project info finished loading
     projectInfoLoaded.subscribe((loaded) => {
       if (loaded) updateCommunityList();
     });
 
-    // Helper to open member profile modal; attached globally for click handlers
     async function openProfileModal(address: any) {
       try {
         const memberData = await getMember(address);
@@ -807,7 +829,6 @@ import Button from "components/utils/Button";
           document.body.removeChild(container);
         };
 
-        // Use setTimeout to ensure the modal is opened after the current click event completes
         setTimeout(() => {
           root.render(
             React.createElement(MemberProfileModal, {
@@ -818,7 +839,6 @@ import Button from "components/utils/Button";
           );
         }, 0);
       } catch (e) {
-        // Show the member not registered modal instead of an error toast
         const container = document.createElement("div");
         document.body.appendChild(container);
 
@@ -836,7 +856,6 @@ import Button from "components/utils/Button";
           document.body.removeChild(container);
         };
 
-        // Use setTimeout to ensure the modal is opened after the current click event completes
         setTimeout(() => {
           root.render(
             React.createElement(MemberProfileModal, {

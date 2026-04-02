@@ -25,7 +25,6 @@ const { title, page } = Astro.props;
   document.addEventListener("astro:page-load", () => {
     document.addEventListener("show-create-project-modal", async () => {
       // ProjectList handles the modal on the dashboard page — avoid double-mounting
-      if (document.querySelector(".project-list-container")) return;
       try {
         await mountModal(
           `project-modal-container ${MODAL_CLASS}`,
@@ -128,7 +127,6 @@ const { title, page } = Astro.props;
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 
     <!-- Preload critical resources -->
-    <link rel="preload" as="image" href="/logo-background.png" />
     <link rel="preload" as="image" href="/logo.svg" />
 
     <!-- Load fonts with font-display swap for performance -->
@@ -147,7 +145,7 @@ const { title, page } = Astro.props;
         basic: {
           title: title,
           type: "website",
-          image: "https://app.tansu.dev/logo-background.png",
+          image: "https://app.tansu.dev/social-card.png",
           url: `https://app.tansu.dev${Astro.url.pathname}`,
         },
         optional: {
@@ -159,7 +157,7 @@ const { title, page } = Astro.props;
       twitter={{
         creator: "@PamphileRoy",
         card: "summary_large_image",
-        image: "https://app.tansu.dev/logo-background.png",
+        image: "https://app.tansu.dev/social-card.png",
         title: title,
         description:
           "Bringing open source software development onto the Stellar blockchain",
@@ -217,15 +215,6 @@ const { title, page } = Astro.props;
     </script>
   </head>
   <body class="font-firacode min-h-screen flex flex-col">
-    <img
-      src="/logo-background.png"
-      alt="Tansu background decoration"
-      class="background-image hidden md:block"
-      loading="lazy"
-      decoding="async"
-      width="1200"
-      height="800"
-    />
     <Navbar page={page} />
     <slot />
     <Footer />

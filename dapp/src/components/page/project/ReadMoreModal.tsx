@@ -103,7 +103,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
         <img
           className="w-[90px] h-[90px] sm:w-[110px] sm:h-[110px] lg:w-[150px] lg:h-[150px] object-contain"
           alt="Project thumbnail"
-          src={projectData?.logoImageLink || ""}
+          src={projectData?.logoImageLink || "/fallback-image.jpg"}
         />
         <div className="flex flex-col gap-3 sm:gap-4 w-full">
           <div className="flex flex-col gap-2 sm:gap-3">
@@ -179,7 +179,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
               </div>
               <div className="markdown-body border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
                 <Markdown options={{ overrides: markdownOverrides }}>
-                  {readmeContent}
+                  {readmeContent || projectData?.description || ""}
                 </Markdown>
               </div>
             </div>

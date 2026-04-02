@@ -65,14 +65,13 @@ import NavbarSearch from "../NavbarSearch.tsx";
     if ((window as any)[GLOBAL_KEY]) return;
     (window as any)[GLOBAL_KEY] = true;
 
-    const createProjectEvent = new CustomEvent("create-project-global");
-
     document.addEventListener("show-create-project-modal", () => {
       if (window.location.pathname !== "/") {
         sessionStorage.setItem("openCreateProjectModal", "true");
         window.location.href = "/";
       } else {
-        document.dispatchEvent(createProjectEvent);
+        // Dispatch fresh event each time — avoids stale references
+        document.dispatchEvent(new CustomEvent("create-project-global"));
       }
     });
 

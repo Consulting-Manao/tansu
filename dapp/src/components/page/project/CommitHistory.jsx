@@ -101,7 +101,7 @@ const CommitHistory = () => {
       <div className="px-[16px] lg:px-[72px] flex flex-col gap-12">
         <div className="flex flex-col gap-[18px]">
           <p className="leading-6 text-2xl font-medium text-primary">
-            {isSoftwareProject ? "Commit History" : "Project Activity"}
+            {isSoftwareProject ? "Commit History" : "README"}
           </p>
           <div className="border-t border-[#EEEEEE]" />
         </div>

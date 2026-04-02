@@ -80,43 +80,89 @@ Why this change is necessary for the project's governance.
 - **Threshold:** [Percentage]% majority required`,
   },
   {
-    id: "grant-request",
-    name: "Grant Funding",
-    description:
-      "For requesting development grants, bounties, or ecosystem funding with transparent milestones",
-    content: `# Grant Request: [Project Name]
+    id: "pg-award-request",
+    name: "Public Goods Award",
+    description: "Stellar Community Fund Public Goods Award - Submission Form",
+    content: `# SCF Public Goods Award: [Project Name]
 
-## Applicant Information
-- **Developer Address:** [Stellar address]
-- **Soroban Domain:** [Optional domain name]
-- **Previous Contributions:** [Links to prior work]
+#SCF Public Goods Award - Submission Form
 
-## Project Scope
-Detailed description of what will be built or improved.
+Is this your first time submitting to the SCF Public Goods Award?
 
-## Deliverables & Milestones
-### Milestone 1: [Name]
-- [ ] Deliverable 1
-- [ ] Deliverable 2
-- [ ] Estimated completion: [Date]
+[Yes, it's my first time submitting for the Public Goods Award]
+[Yes, it's my first time submitting to this Award, but I've received SDF Infrastructure Grants before.]
+[No, I've submitted before to this award]
 
-### Milestone 2: [Name]
-- [ ] Deliverable 3
-- [ ] Deliverable 4
-- [ ] Estimated completion: [Date]
+## Project Information
+### Project Category
 
-## Budget Request
-- **Total Amount:** [X] XLM
-- **Breakdown:**
-  - Development: [Amount]
-  - Testing/Audit: [Amount]
-  - Documentation: [Amount]
+> Take a look at the SCF handbook to learn more.
 
-## Success Metrics
-How success will be measured and verified on-chain.
+SDKs
+Data Support
+Wallet Support
+Developer Experience
+Ecosystem Visibility
+Infrastructure Monitoring
+Governance Tools
+Security & Auditing Tools
+Compliance & Identity Tooling
+Other
 
-## IPFS Storage
-All deliverables will be stored on IPFS with on-chain verification.`,
+## Project Description
+> Use max 300 characters
+
+[...]
+
+## Website
+
+[...]
+
+## Github
+
+[...]
+
+## Does your project have a revenue model?
+
+[Yes/No]
+
+## Why does your project qualify as a public good?
+> What makes it critical to the ecosystem and non-commercial?
+
+[...]
+
+## Describe your team and your team’s experience with the Stellar ecosystem
+> E.g., previous SCF participation, ecosystem contributions, projects built on Stellar.
+
+[...]
+
+## Previous Three Months Deliverables & Impact
+
+### What’s your project’s retroactive impact over the last three months?
+> For new and renewal proposals. Be specific, and include usage stats, ecosystem integrations, etc.
+
+[...]
+
+### Please list your deliverables of the last three months including proof of completion.
+> If this is your first time applying for the SCF Public Goods Award and you haven’t received an Infrastructure Grant before, enter “N/A”.
+N/A
+
+[...]
+
+## Upcoming Three Months Deliverables & Impact
+### What’s are your project’s goals for impact for the upcoming three months?
+> How will this benefit the Stellar ecosystem? Be specific, and include evidence of continued usage, relevance, and ecosystem demand, etc.
+
+[...]
+
+### Please list your deliverables you’re aiming to create in the next three months and explain their ecosystem value.
+> Make your deliverables SMART (Specific, Measurable, Achievable, Relevant, and Time-bound) with reasonable and justifiable budget allocations that will bring significant ecosystem value.
+
+[...]
+
+## Budget Requested
+> Max. $50,000 in XLM. Budget needs to be reasonable based on retroactive impact and planned deliverables for the next three months.
+$[...] in XLM`,
   },
   {
     id: "membership-change",

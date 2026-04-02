@@ -5,7 +5,7 @@ import type { OutcomeContract } from "../types/proposal";
 
 //
 import Tansu from "../contracts/soroban_tansu";
-import { loadedPublicKey } from "./walletService";
+import { connectedPublicKey } from "../utils/store";
 import { loadedProjectId } from "./StateService";
 import { deriveProjectKey } from "../utils/projectKey";
 //
@@ -32,6 +32,12 @@ interface CreateProposalFlowParams {
 }
 
 interface JoinCommunityFlowParams {
+  memberAddress: string;
+  profileFiles: File[];
+  onProgress?: (step: number) => void;
+}
+
+interface UpdateMemberFlowParams {
   memberAddress: string;
   profileFiles: File[];
   onProgress?: (step: number) => void;
@@ -122,7 +128,7 @@ async function createSignedProposalTransaction(
   outcomeContracts?: OutcomeContract[],
   tokenContract?: string,
 ): Promise<string> {
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
@@ -152,7 +158,7 @@ async function createSignedAddMemberTransaction(
   memberAddress: string,
   meta: string,
 ): Promise<string> {
-  const address = memberAddress || loadedPublicKey();
+  const address = memberAddress || connectedPublicKey.get();
   if (!address) throw new Error("Please connect your wallet first");
 
   // Validate meta parameter - ensure it's not just whitespace
@@ -289,25 +295,87 @@ export async function joinCommunityFlow({
   if (profileFiles.length > 0) {
     // Step 3: Upload to IPFS using the signed transaction as authentication
     onProgress?.(8); // uploading step indicator (offset -5 → shows Uploading)
-    try {
-      const uploadedCid = await uploadWithDelegation({
-        files: profileFiles,
-        signedTxXdr,
-        did,
-      });
+    const uploadedCid = await uploadWithDelegation({
+      files: profileFiles,
+      signedTxXdr,
+      did,
+    });
 
-      // Step 4: Verify CID matches
-      if (uploadedCid !== cid) {
-        throw new Error(`CID mismatch: expected ${cid}, got ${uploadedCid}`);
-      }
-    } catch (error) {
-      console.error("IPFS upload error:", error);
-      throw error;
+    // Step 4: Verify CID matches
+    if (uploadedCid !== cid) {
+      throw new Error(`CID mismatch: expected ${cid}, got ${uploadedCid}`);
     }
   }
 
   // Step 5: Send the signed transaction
   onProgress?.(9); // sending step indicator (offset -5 → shows Sending)
+  await sendSignedTransactionLocal(signedTxXdr);
+  return true;
+}
+
+/**
+ * Create and sign an update member transaction
+ */
+async function createSignedUpdateMemberTransaction(
+  memberAddress: string,
+  meta: string,
+): Promise<string> {
+  const address = memberAddress || connectedPublicKey.get();
+  if (!address) throw new Error("Please connect your wallet first");
+
+  Tansu.options.publicKey = address;
+
+  const tx = await Tansu.update_member({
+    member_address: address,
+    meta: meta,
+  });
+
+  checkSimulationError(tx as any);
+
+  return await signAssembledTransaction(tx);
+}
+
+/**
+ * Execute the flow for updating member profile – mirrors joinCommunityFlow:
+ * 1. If profile data is provided, calculate CID locally
+ * 2. Create and sign the update_member transaction with the CID
+ * 3. If profile data exists, upload to IPFS and verify CID
+ * 4. Send the pre-signed transaction to the network
+ */
+export async function updateMemberFlow({
+  memberAddress,
+  profileFiles,
+  onProgress,
+}: UpdateMemberFlowParams): Promise<boolean> {
+  let cid = "";
+
+  if (profileFiles.length > 0) {
+    cid = await calculateDirectoryCid(profileFiles);
+  }
+
+  const client = await create();
+  const did = client.agent.did();
+
+  onProgress?.(7);
+  const signedTxXdr = await createSignedUpdateMemberTransaction(
+    memberAddress,
+    cid,
+  );
+
+  if (profileFiles.length > 0) {
+    onProgress?.(8);
+    const uploadedCid = await uploadWithDelegation({
+      files: profileFiles,
+      signedTxXdr,
+      did,
+    });
+
+    if (uploadedCid !== cid) {
+      throw new Error(`CID mismatch: expected ${cid}, got ${uploadedCid}`);
+    }
+  }
+
+  onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
   return true;
 }
@@ -339,7 +407,7 @@ export async function createProjectFlow({
   // Step 2 – Create & sign register transaction
   onProgress?.(7); // signing step indicator (offset -4 → shows Sign)
 
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
@@ -386,7 +454,7 @@ async function createSignedUpdateConfigTransaction(
   configUrl: string,
   cid: string,
 ): Promise<string> {
-  const publicKey = loadedPublicKey();
+  const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
@@ -418,13 +486,16 @@ export async function updateConfigFlow({
   githubRepoUrl,
   maintainers,
   onProgress,
+  additionalFiles,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
   maintainers: string[];
   onProgress?: (step: number) => void;
+  additionalFiles?: File[];
 }): Promise<boolean> {
-  const expectedCid = await calculateDirectoryCid([tomlFile]);
+  const filesToUpload = [tomlFile, ...(additionalFiles || [])];
+  const expectedCid = await calculateDirectoryCid(filesToUpload);
 
   const client = await create();
   const did = client.agent.did();
@@ -440,7 +511,7 @@ export async function updateConfigFlow({
   // upload
   onProgress?.(8); // UI offset -4 → shows "Uploading"
   const cidUploaded = await uploadWithDelegation({
-    files: [tomlFile],
+    files: filesToUpload,
     signedTxXdr,
     did,
   });
