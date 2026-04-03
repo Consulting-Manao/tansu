@@ -139,6 +139,56 @@ fn proposal_flow() {
 }
 
 #[test]
+fn scf_voting() {
+    let setup = create_test_data();
+    init_contract(&setup);
+
+    // Stellarpg project for SCF voting
+    let name = String::from_str(&setup.env, "stellarpg");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+    let id = setup
+        .contract
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+
+    let title = String::from_str(&setup.env, "A SCF proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 10,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
 fn dao_basic_functionality() {
     let setup = create_test_data();
     let id = init_contract(&setup);
