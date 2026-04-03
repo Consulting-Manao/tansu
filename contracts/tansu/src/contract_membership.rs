@@ -245,7 +245,7 @@ impl MembershipTrait for Tansu {
             .storage()
             .instance()
             .get(&types::DataKey::NqgProjectKey)
-            .unwrap();
+            .expect("NQG project key exists");
         if project_key == key {
             return get_nqg(&env, member_address);
         }
