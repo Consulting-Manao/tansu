@@ -32,13 +32,13 @@ The dApp will automatically render this information in the **Member profile** mo
 
 Maintainers can assign one or several badges to a member for a given project. Badges are stored on-chain and influence the maximum weight a member's vote can carry.
 
-| Badge | Weight | Typical use-case |
-| --- | --- | --- |
-| Developer | 10 000 000 | Core code contributors |
-| Triage | 5 000 000 | Issue triage & review |
-| Community | 1 000 000 | Active community member |
-| Verified | 500 000 | Owns a [Soroban Domain](https://sorobandomains.org/) |
-| Default | 1 | Anyone else |
+| Badge     | Weight     | Typical use-case                |
+|-----------|------------|---------------------------------|
+| Developer | 10 000 000 | Core code contributors          |
+| Triage    | 5 000 000  | Issue triage & review           |
+| Community | 1 000 000  | Active community member         |
+| Verified  | 500 000    | A member which has been KYC/KYB |
+| Default   | 1          | Anyone else                     |
 
 > The weight column reflects the numeric values found in the `Badge` enum of the contract (see source code). When several badges are present their weights are **summed** to obtain the member's total voting power.
 

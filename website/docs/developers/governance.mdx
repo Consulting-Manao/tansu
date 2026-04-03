@@ -344,30 +344,6 @@ To prevent spam and ensure serious participation, Tansu requires collateral depo
 - Proposer gets collateral back even if rejected
 - Exception: **Revoked proposals** forfeit collateral (malicious/spam deterrent)
 
-See `contract_dao.rs` lines 10-11 for constant definitions.
-
-## Error Handling
-
-Common errors when interacting with governance functions:
-
-| Error | When it occurs | Solution |
-| --- | --- | --- |
-| `ProposalInputValidation` | Invalid title length, voting period, or IPFS CID | Check: title 10-256 chars, voting 1-30 days, IPFS 32-64 chars |
-| `ProposalVotingTime` | Voting before period starts or after it ends | Wait for voting period or execute after deadline |
-| `AlreadyVoted` | Member tries to vote twice on same proposal | Each member can only vote once |
-| `UnknownMember` | Voter not registered as member | Call `add_member` first |
-| `VoterWeight` | Vote weight exceeds member's maximum | Check `get_max_weight`, vote with valid weight |
-| `WrongVoteType` | Public vote on anonymous proposal (or vice versa) | Match vote type to proposal configuration |
-| `BadCommitment` | Invalid BLS12-381 commitment structure | Ensure 3 valid G1 points (96 bytes each) |
-| `TallySeedError` | Missing/invalid tallies or seeds for anonymous vote | Provide valid 3-element vectors |
-| `InvalidProof` | Commitment verification failed | Check decryption, weights, and tally computation |
-| `CollateralError` | Insufficient balance for collateral | Ensure sufficient XLM balance |
-| `VoteLimitExceeded` | More than 1000 votes on proposal | DoS protection, proposal closed to new votes |
-| `NoAnonymousVotingConfig` | Anonymous voting not set up for project | Run `anonymous_voting_setup` first |
-| `OutcomeError` | Outcome contract invocation failed during execution | Check the outcome contract address, function name, and arguments |
-
-See `contracts/tansu/src/errors.rs` for complete error definitions.
-
 ## DoS Protection & Limits
 
 The contract enforces several limits to prevent abuse:
@@ -399,6 +375,8 @@ See `contract_dao.rs` lines 10-17 for constant definitions.
 
 The effective weight of a vote is given by [`get_max_weight`](./membership.mdx). The contract implements a **supermajority governance model** that requires broad consensus before approving any proposal.
 
+The Stellar Public Good project is a special case. Neural Quorum Governance score of the voter is pulled from the NQG contract.
+
 ### Voting Decision Logic
 
 The contract considers the weighted tallies using supermajority rules:
@@ -418,6 +396,8 @@ Custom quorum logic (percentage, thresholds…) can be built off-chain before de
 **Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge). Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. The collateral deposit (10 XLM) serves as the economic barrier to spam. See [Membership & Badges](./membership.mdx) for details on how badges increase voting power.
 
 **Token-based proposals:** Any address holding the proposal's token can vote. The vote weight equals the number of tokens locked as collateral. Badge validation is skipped.
+
+**NQG-based proposals:** Stellar Community Fund participants with a NQG score can vote. The weight is the NQG score. For non-participants, the weight is null.
 
 All voters must:
 

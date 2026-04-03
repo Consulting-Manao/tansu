@@ -473,6 +473,11 @@ impl DaoTrait for Tansu {
             }
         }
 
+        // null votes are not registered as not providing signal
+        if vote_weight == &0u32 {
+            panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
+        }
+
         // Lock collateral: tokens or xlm
         let (token_address, amount) = match &proposal.vote_data.token_contract {
             Some(token_contract) => (token_contract.clone(), *vote_weight as i128),
