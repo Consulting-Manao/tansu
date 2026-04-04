@@ -4,20 +4,34 @@ use crate::{SCFMembership, SCFMembershipClient, errors, types};
 
 mod nqg {
     use super::*;
-    use soroban_sdk::{I256, contract, contractimpl};
+    use soroban_sdk::{I256, contract, contractimpl, contracttype};
+
+    #[contracttype]
+    pub enum DataKey {
+        Pilot,
+    }
 
     #[contract]
     pub struct Mock;
     #[contractimpl]
     impl Mock {
-        pub fn get_voting_power_for_user(e: &Env, _user: String) -> I256 {
-            I256::from_i32(e, 10)
+        pub fn __constructor(e: &Env, pilot: String) {
+            e.storage().instance().set(&DataKey::Pilot, &pilot);
+        }
+
+        pub fn get_voting_power_for_user(e: &Env, user: String) -> I256 {
+            let pilot: String = e.storage().instance().get(&DataKey::Pilot).unwrap();
+            if user == pilot {
+                I256::from_i32(e, 10)
+            } else {
+                I256::from_i32(e, 1)
+            }
         }
     }
 }
 
 fn create_client<'a>(e: &Env, admin: &Address) -> SCFMembershipClient<'a> {
-    let nqg_id = e.register(nqg::Mock, ());
+    let nqg_id = e.register(nqg::Mock, (admin.to_string(),));
 
     let address = e.register(
         SCFMembership,
@@ -93,18 +107,29 @@ fn test_governance() {
     let member = Address::generate(&e);
     let client = create_client(&e, &admin);
 
-    let token_id = client.mint(&member);
-
     let role_key = String::from_str(&e, "role");
     let nqg_key = String::from_str(&e, "nqg");
+    let trait_keys = vec![&e, role_key.clone(), nqg_key];
 
-    let trait_keys = vec![&e, role_key, nqg_key];
+    let token_id = client.mint(&member);
     let governance = client.trait_values(&token_id, &trait_keys);
 
     assert_eq!(
         governance,
         types::Governance {
             role: types::Role::Verified,
+            nqg: 1
+        }
+    );
+
+    let token_id = client.mint(&admin);
+    client.set_trait(&token_id, &role_key, &3);
+    let governance = client.trait_values(&token_id, &trait_keys);
+
+    assert_eq!(
+        governance,
+        types::Governance {
+            role: types::Role::Pilot,
             nqg: 10
         }
     );

@@ -51,13 +51,17 @@ impl SCFGovernanceTrait for SCFMembership {
             panic_with_error!(e, errors::NonFungibleTokenError::TraitUnSettable);
         }
 
-        if !(0..=4).contains(&new_value) {
-            panic_with_error!(&e, errors::NonFungibleTokenError::TraitUnSettable)
-        }
+        let new_role = match new_value {
+            3 => types::Role::Pilot,
+            2 => types::Role::Navigator,
+            1 => types::Role::Pathfinder,
+            0 => types::Role::Verified,
+            _ => panic_with_error!(&e, errors::NonFungibleTokenError::NonExistentToken),
+        };
 
         e.storage()
             .persistent()
-            .set(&types::NFTStorageKey::Role(token_id), &new_value);
+            .set(&types::NFTStorageKey::Role(token_id), &new_role);
     }
 
     fn trait_metadata_uri(e: &Env) -> String {
