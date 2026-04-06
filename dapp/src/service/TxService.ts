@@ -17,8 +17,9 @@ const {
  */
 async function signWithActiveWallet(xdr: string): Promise<string> {
   try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
+    const { StellarWalletsKit } = await import(
+      "../components/stellar-wallets-kit"
+    );
     const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
       networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     });
@@ -152,8 +153,9 @@ export async function sendXLM(
     let senderPublicKey: string | undefined;
 
     try {
-      const { StellarWalletsKit } =
-        await import("../components/stellar-wallets-kit");
+      const { StellarWalletsKit } = await import(
+        "../components/stellar-wallets-kit"
+      );
       const { address } = await StellarWalletsKit.getAddress();
       senderPublicKey = address;
     } catch {

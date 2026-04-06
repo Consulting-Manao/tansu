@@ -214,5 +214,21 @@ pub trait SCFGovernanceTrait {
     /// The URI of the specification.
     fn trait_metadata_uri(e: &Env) -> String;
 
+    /// Returns the Governance trait values of a token.
+    ///
+    /// NQG is 0 for members without NQG score.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    /// * `token_id` - Token id as a number.
+    ///
+    /// # Returns
+    ///
+    /// The Governance traits value.
+    ///
+    /// # Panics
+    ///
+    /// * If the token does not exist.
     fn governance(e: &Env, token_id: u32) -> types::Governance;
 }
