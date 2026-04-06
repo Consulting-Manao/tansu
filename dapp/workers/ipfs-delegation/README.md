@@ -26,17 +26,21 @@ POST /
   }
 }
 ```
+
 - If both providers fail, success is false and the HTTP status is 502.
 - If one provider fails, the response still returns success: true but includes which provider failed.
+
 ## Development
 
 Add your environment variables (create .env):
+
 ```bash
 PUBLIC_DELEGATION_API_URL=""
 FILEBASE_TOKEN=<filebase_api_token>
 PINATA_JWT=<pinata_jwt>
 ALLOWED_ORIGINS=*
 ```
+
 ### Start the Worker
 
 ```bash
@@ -98,4 +102,3 @@ bunx wrangler deploy --env production
 ```
 
 Deploys to `https://ipfs.tansu.dev`
-
