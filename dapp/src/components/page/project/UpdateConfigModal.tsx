@@ -21,7 +21,7 @@ import { updateConfigFlow } from "@service/FlowService";
 import { toast, extractConfigData } from "utils/utils";
 import { getProject } from "@service/ReadContractService";
 import {
-  calculateDirectoryCid,
+  packFilesToCar,
   getIpfsBasicLink,
   fetchTextFromIpfs,
 } from "utils/ipfsFunctions";
@@ -427,7 +427,7 @@ const UpdateConfigModal = () => {
       const p = await getProject();
       if (p) {
         setProject(p);
-        await calculateDirectoryCid([tomlFile, ...additionalFiles]);
+        await packFilesToCar([tomlFile, ...additionalFiles]);
         const parsedToml = toml.parse(tomlContent) as Parameters<
           typeof extractConfigData
         >[0];

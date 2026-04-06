@@ -393,9 +393,10 @@ const CreateProposalModal = () => {
       setProposalId(proposalId);
 
       // 3️⃣  Compute IPFS link for UI reference
-      const { calculateDirectoryCid } = await import("utils/ipfsFunctions");
-      const cid = await calculateDirectoryCid(files);
+      const { packFilesToCar } = await import("utils/ipfsFunctions");
+      const { cid } = await packFilesToCar(files);
       setIpfsLink(getIpfsBasicLink(cid));
+
 
       // Success
       setIsSuccessful(true);

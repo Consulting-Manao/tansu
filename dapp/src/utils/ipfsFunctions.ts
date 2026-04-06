@@ -30,14 +30,14 @@ const GATEWAYS: ReadonlyArray<{
     buildUrl: (cid, path) => `https://ipfs.filebase.io/ipfs/${cid}${path}`,
   },
   {
-    name: "storacha",
-    buildUrl: (cid, path) => `https://${cid}.ipfs.storacha.link${path}`,
+    name: "pinata",
+    buildUrl: (cid, path) => `https://gateway.pinata.cloud/ipfs/${cid}${path}`,
   },
 ];
 
-const CACHE_KEY_PREFIX = "ipfs:v3:";
-const DEFAULT_IPFS_TIMEOUT_MS = 8000;
-const PER_ATTEMPT_MS = 2000;
+const CACHE_KEY_PREFIX = "ipfs:v4:"; // Updated version prefix
+const DEFAULT_IPFS_TIMEOUT_MS = 10000;
+const PER_ATTEMPT_MS = 3000;
 
 export type FetchFromIpfsOptions = {
   timeoutMs?: number;
@@ -73,8 +73,7 @@ async function fetchOne(
 }
 
 /**
- * Core IPFS fetch: CID + path. Checks cache; on miss tries gateway 1 then gateway 2.
- * All retrieval in the app goes through this or a wrapper that calls it.
+ * Core IPFS fetch: CID + path. Checks cache; on miss tries gateways in order.
  */
 export async function fetchFromIpfs(
   cid: string,
@@ -104,7 +103,7 @@ export async function fetchFromIpfs(
         attemptMs,
       );
       if (!res.ok) {
-        lastError = new Error(`HTTP ${res.status}`);
+        lastError = new Error(`HTTP ${res.status} from ${gateway.name}`);
         continue;
       }
       // Only accept when the final response body is readable (outcome of redirect), not just status
@@ -120,17 +119,13 @@ export async function fetchFromIpfs(
     } catch (err) {
       lastError = err;
     }
-    const next = GATEWAYS[i + 1];
-    if (import.meta.env?.DEV && next) {
-      console.warn(`[IPFS] ${gateway.name} failed, trying ${next.name}`);
-    }
   }
 
-  throw lastError ?? new Error("IPFS fetch failed");
+  throw lastError ?? new Error("IPFS fetch failed from all gateways");
 }
 
 /**
- * Fetch IPFS content as text (e.g. markdown). Uses core fetch; no separate text cache.
+ * Fetch IPFS content as text (e.g. markdown).
  */
 export async function fetchTextFromIpfs(
   cid: string,
@@ -147,7 +142,7 @@ export async function fetchTextFromIpfs(
 }
 
 /**
- * Fetch IPFS content as JSON. Uses core fetch; caches parsed JSON by (cid, path).
+ * Fetch IPFS content as JSON.
  */
 export async function fetchJsonFromIpfs(
   cid: string,
@@ -175,7 +170,7 @@ export async function fetchJsonFromIpfs(
 const TANSU_TOML_PATH = "/tansu.toml";
 
 /**
- * Fetch and parse project tansu.toml from IPFS. Caches parsed result by CID.
+ * Fetch and parse project tansu.toml from IPFS.
  */
 export async function fetchTomlFromIpfs(
   cid: string,
@@ -230,30 +225,44 @@ export const getProposalLinkFromIpfs = (cid: string): string =>
 export const getOutcomeLinkFromIpfs = (cid: string): string =>
   getIpfsUrl(cid, "/outcomes.json");
 
-export const calculateDirectoryCid = async (files: File[]): Promise<string> => {
+export interface CarPackResult {
+  cid: string;
+  carBlob: Blob;
+}
+
+/**
+ * Packs files into a CAR and calculates root CID deterministically.
+ */
+export async function packFilesToCar(files: File[]): Promise<CarPackResult> {
   const { createDirectoryEncoderStream, CAREncoderStream } =
     await import("ipfs-car");
 
-  let rootCID: { toString(): string } | undefined;
-
   const stream = createDirectoryEncoderStream(files);
+  const carEncoder = new CAREncoderStream();
+  let rootCID: string | undefined;
 
   const captureRoot = new TransformStream({
     transform(block: any, controller) {
-      rootCID = block.cid;
+      if (!rootCID) rootCID = block.cid.toString();
       controller.enqueue(block);
     },
   });
 
-  const discard = new WritableStream({
-    write() {},
+  const chunks: any[] = [];
+  const collectStream = new WritableStream({
+    write(chunk) {
+      chunks.push(chunk);
+    },
   });
 
   await stream
     .pipeThrough(captureRoot)
-    .pipeThrough(new CAREncoderStream())
-    .pipeTo(discard);
+    .pipeThrough(carEncoder)
+    .pipeTo(collectStream);
 
-  if (!rootCID) throw new Error("Failed to compute CID: no root block found");
-  return rootCID.toString();
-};
+  if (!rootCID) throw new Error("Failed to generate CID");
+  return {
+    cid: rootCID,
+    carBlob: new Blob(chunks, { type: "application/vnd.ipld.car" }),
+  };
+}

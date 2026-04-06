@@ -5,7 +5,7 @@ const requiredEnv = [
   "PUBLIC_TANSU_CONTRACT_ID",
   "PUBLIC_TANSU_OWNER_ID",
   "PUBLIC_SOROBAN_DOMAIN_CONTRACT_ID",
-  "PUBLIC_DELEGATION_API_URL",
+  "PUBLIC_IPFS_PROXY_URL",
 ];
 
 export function assertEnv(): void {

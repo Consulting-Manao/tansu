@@ -1,17 +1,23 @@
-name = "ipfs-delegation"
+name = "ipfs-proxy"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-04-05"
 compatibility_flags = ["nodejs_compat"]
+[env.production]
+[[env.production.routes]]
+pattern = "ipfs.tansu.dev"
+custom_domain = true
 
 [env.testnet]
 [[env.testnet.routes]]
 pattern = "ipfs-testnet.tansu.dev"
 custom_domain = true
 
-[env.production]
-[[env.production.routes]]
-pattern = "ipfs.tansu.dev"
-custom_domain = true
-
 [observability]
 enabled = true
+
+[vars]
+# ALLOWED_ORIGINS = "https://your-dapp-domain.com"
+
+# Secrets (set via CLI)
+# wrangler secret put FILEBASE_TOKEN
+# wrangler secret put PINATA_JWT

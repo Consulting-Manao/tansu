@@ -1,8 +1,5 @@
-import { calculateDirectoryCid } from "../utils/ipfsFunctions";
-import { create } from "@storacha/client";
-import * as Delegation from "@ucanto/core/delegation";
+import { packFilesToCar } from "../utils/ipfsFunctions";
 import type { OutcomeContract } from "../types/proposal";
-import { pinToFilebase } from "../utils/dualPin";
 
 //
 import Tansu from "../contracts/soroban_tansu";
@@ -15,11 +12,6 @@ import { deriveProjectKey } from "../utils/projectKey";
 import { sendSignedTransaction, signAssembledTransaction } from "./TxService";
 import { checkSimulationError } from "../utils/contractErrors";
 import { Buffer } from "buffer";
-interface UploadWithDelegationParams {
-  files: File[];
-  signedTxXdr: string; // The signed contract transaction
-  did: string;
-}
 
 interface CreateProposalFlowParams {
   projectName: string;
@@ -54,29 +46,30 @@ interface CreateProjectFlowParams {
 }
 
 /**
- * Upload files to IPFS using delegation
+ * Upload files to IPFS using the Proxy Worker.
+ * Accepts pre-calculated CID and CAR blob to ensure absolute consistency.
  */
-export async function uploadWithDelegation({
-  files,
-  signedTxXdr,
-  did,
-}: UploadWithDelegationParams): Promise<string> {
-  // Request delegation from the backend
-  const response = await fetch(import.meta.env.PUBLIC_DELEGATION_API_URL, {
+export async function uploadToIpfsProxy(
+  cid: string,
+  carBlob: Blob,
+): Promise<string> {
+  const response = await fetch(import.meta.env.PUBLIC_IPFS_PROXY_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ signedTxXdr, did }),
-    signal: AbortSignal.timeout(15000),
+    headers: {
+      "x-expected-cid": cid,
+      "Content-Type": "application/vnd.ipld.car",
+    },
+    body: carBlob,
+    signal: AbortSignal.timeout(60000), // Increased to 60s for production reliability
   });
 
   if (!response.ok) {
     const contentType = response.headers.get("content-type");
-
-    let errorMessage = "Unknown error";
+    let errorMessage = "IPFS Proxy upload failed";
     try {
       if (contentType?.includes("application/json")) {
         const data = await response.json();
-        errorMessage = data.error || errorMessage;
+        errorMessage = data.error || data.message || errorMessage;
       } else {
         const text = await response.text();
         errorMessage = text || errorMessage;
@@ -84,45 +77,32 @@ export async function uploadWithDelegation({
     } catch (parseError) {
       console.error("Failed to parse error response:", parseError);
     }
-
-    throw new Error(errorMessage);
+    throw new Error(`${errorMessage} (${response.status})`);
   }
 
-  const delegationArchive = await response.arrayBuffer();
-  const uint8 = new Uint8Array(delegationArchive);
-  const extracted = await Delegation.extract(uint8);
-
-  let delegation;
-  if ("ok" in extracted) {
-    delegation = extracted.ok;
-  } else if (Array.isArray(extracted)) {
-    delegation = extracted[0];
+  const result = await response.json();
+  
+  if (!result.success) {
+    const errorMsg = result.error || "Both IPFS providers failed to pin the content";
+    throw new Error(errorMsg);
   }
 
-  if (!delegation) {
-    throw new Error("Failed to extract a valid delegation from archive");
+  // Handle partial success: log warnings for observability
+  if (!result.filebase) {
+    console.warn("[IPFS] Primary provider (Filebase) failed to pin CID:", result.cid);
+  }
+  if (!result.pinata) {
+    console.warn("[IPFS] Backup provider (Pinata) failed to pin CID:", result.cid);
   }
 
-  // Create Storacha client
-  const client = await create();
+  // Final validation of returned CID
+  if (!result.cid) {
+    throw new Error("IPFS Proxy response missing CID");
+  }
 
-  // Create a new space for uploading files
-  const space = await client.addSpace(delegation);
-  await client.setCurrentSpace(space.did());
-
-  // Upload files to IPFS
-  const directoryCid = await client.uploadDirectory(files);
-  if (!directoryCid) throw new Error("Failed to upload to IPFS");
-
-  const cid = directoryCid.toString();
-
-  // Dual pin: backup to Filebase in background (fire-and-forget)
-  pinToFilebase(cid).catch((err) => {
-    console.warn("[DualPin] Filebase backup pin failed:", err.message);
-  });
-
-  return cid;
+  return result.cid;
 }
+
 
 /**
  * Create and sign a proposal transaction
@@ -149,7 +129,7 @@ async function createSignedProposalTransaction(
     ipfs: ipfs,
     voting_ends_at: BigInt(votingEndsAt),
     public_voting: publicVoting,
-    outcome_contracts: outcomeContracts || null,
+    outcome_contracts: outcomeContracts || undefined,
     token_contract: tokenContract,
   });
 
@@ -218,43 +198,32 @@ export async function createProposalFlow({
   tokenContract,
   onProgress,
 }: CreateProposalFlowParams): Promise<number> {
-  // Step 1: Calculate the CID
-  const expectedCid = await calculateDirectoryCid(proposalFiles);
+  // Step 1: Calculate CID and Pack CAR once
+  const { cid, carBlob } = await packFilesToCar(proposalFiles);
 
-  // Create the W3UP client to get the DID
-  const client = await create();
-  const did = client.agent.did();
-
-  // Step 2: Create and sign the smart contract transaction with the CID
+  // Step 2: Create and sign the smart contract transaction with the pre-calculated CID
   onProgress?.(7); // Signing proposal transaction (UI index 2)
   const signedTxXdr = await createSignedProposalTransaction(
     projectName,
     proposalName,
-    expectedCid,
+    cid,
     votingEndsAt,
     publicVoting,
     outcomeContracts,
     tokenContract,
   );
 
-  // Step 3: Upload to IPFS using the signed transaction as authentication
+  // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
   onProgress?.(8); // Uploading to IPFS (UI index 3)
-
-  const uploadedCid = await uploadWithDelegation({
-    files: proposalFiles,
-    signedTxXdr,
-    did,
-  });
+  const uploadedCid = await uploadToIpfsProxy(cid, carBlob);
 
   // Step 4: Verify CID matches
-  if (uploadedCid !== expectedCid) {
-    throw new Error(
-      `CID mismatch: expected ${expectedCid}, got ${uploadedCid}`,
-    );
+  if (uploadedCid !== cid) {
+    throw new Error(`Critical CID mismatch: expected ${cid}, got ${uploadedCid}`);
   }
 
   // Step 5: Send the signed transaction
-  onProgress?.(9); // Sending transaction (align with ProgressStep step 4)
+  onProgress?.(9); // Sending transaction
   const result = await sendSignedTransactionLocal(signedTxXdr);
 
   // The result should be the proposal ID
@@ -266,60 +235,47 @@ export async function createProposalFlow({
 
 /**
  * Execute the new Flow 2 for joining the community
- *
- * This flow reduces user interactions from 2 signatures to 1:
- * 1. If profile data is provided, calculate CID locally
- * 2. Create and sign the add_member transaction with the CID (or empty)
- * 3. If profile data exists, upload to IPFS and verify CID
- * 4. Send the pre-signed transaction to the network
- *
- * @param params - The member registration parameters
- * @returns true if successful
- * @throws Error if any step fails
  */
 export async function joinCommunityFlow({
   memberAddress,
   profileFiles,
   onProgress,
 }: JoinCommunityFlowParams): Promise<boolean> {
-  let cid = ""; // Default for no profile - use empty string instead of single space
+  let cid = "";
+  let carBlob: Blob | undefined;
 
   if (profileFiles.length > 0) {
-    // Step 1: Calculate the CID
-    cid = await calculateDirectoryCid(profileFiles);
+    // Step 1: Calculate CID and Pack CAR once
+    const result = await packFilesToCar(profileFiles);
+    cid = result.cid;
+    carBlob = result.carBlob;
   }
 
-  // Create the W3UP client to get the DID
-  const client = await create();
-  const did = client.agent.did();
-
   // Step 2: Create and sign the smart contract transaction with the CID
-  onProgress?.(7); // signing step indicator (offset -5 → shows Sign)
+  onProgress?.(7);
   const signedTxXdr = await createSignedAddMemberTransaction(
     memberAddress,
     cid,
   );
 
-  if (profileFiles.length > 0) {
-    // Step 3: Upload to IPFS using the signed transaction as authentication
-    onProgress?.(8); // uploading step indicator (offset -5 → shows Uploading)
-    const uploadedCid = await uploadWithDelegation({
-      files: profileFiles,
-      signedTxXdr,
-      did,
-    });
+  if (profileFiles.length > 0 && carBlob) {
+    // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
+    onProgress?.(8);
+    const uploadedCid = await uploadToIpfsProxy(cid, carBlob);
 
     // Step 4: Verify CID matches
     if (uploadedCid !== cid) {
-      throw new Error(`CID mismatch: expected ${cid}, got ${uploadedCid}`);
+      throw new Error(`Critical CID mismatch: expected ${cid}, got ${uploadedCid}`);
     }
   }
 
   // Step 5: Send the signed transaction
-  onProgress?.(9); // sending step indicator (offset -5 → shows Sending)
+  onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
   return true;
 }
+
+
 
 /**
  * Create and sign an update member transaction
@@ -356,13 +312,13 @@ export async function updateMemberFlow({
   onProgress,
 }: UpdateMemberFlowParams): Promise<boolean> {
   let cid = "";
+  let carBlob: Blob | undefined;
 
   if (profileFiles.length > 0) {
-    cid = await calculateDirectoryCid(profileFiles);
+    const result = await packFilesToCar(profileFiles);
+    cid = result.cid;
+    carBlob = result.carBlob;
   }
-
-  const client = await create();
-  const did = client.agent.did();
 
   onProgress?.(7);
   const signedTxXdr = await createSignedUpdateMemberTransaction(
@@ -370,16 +326,12 @@ export async function updateMemberFlow({
     cid,
   );
 
-  if (profileFiles.length > 0) {
+  if (profileFiles.length > 0 && carBlob) {
     onProgress?.(8);
-    const uploadedCid = await uploadWithDelegation({
-      files: profileFiles,
-      signedTxXdr,
-      did,
-    });
+    const uploadedCid = await uploadToIpfsProxy(cid, carBlob);
 
     if (uploadedCid !== cid) {
-      throw new Error(`CID mismatch: expected ${cid}, got ${uploadedCid}`);
+      throw new Error(`Critical CID mismatch: expected ${cid}, got ${uploadedCid}`);
     }
   }
 
@@ -389,12 +341,7 @@ export async function updateMemberFlow({
 }
 
 /**
- * Execute Flow 2 for creating a project – mirrors proposal flow steps:
- * 1. Calculate CID locally
- * 2. Create & sign register transaction embedding CID
- * 3. Upload to IPFS using the signed tx for delegation
- * 4. Verify CID matches
- * 5. Send signed transaction
+ * Execute Flow 2 for creating a project
  */
 export async function createProjectFlow({
   projectName,
@@ -404,16 +351,12 @@ export async function createProjectFlow({
   onProgress,
   additionalFiles,
 }: CreateProjectFlowParams): Promise<boolean> {
-  // Step 1 – Calculate CID
+  // Step 1 – Calculate CID and Pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
-  const expectedCid = await calculateDirectoryCid(filesToUpload);
-
-  // Create W3UP client for DID retrieval
-  const client = await create();
-  const did = client.agent.did();
+  const { cid, carBlob } = await packFilesToCar(filesToUpload);
 
   // Step 2 – Create & sign register transaction
-  onProgress?.(7); // signing step indicator (offset -4 → shows Sign)
+  onProgress?.(7);
 
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
@@ -425,7 +368,7 @@ export async function createProjectFlow({
     name: projectName,
     maintainers,
     url: githubRepoUrl,
-    ipfs: expectedCid,
+    ipfs: cid,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -433,24 +376,17 @@ export async function createProjectFlow({
 
   const signedTxXdr = await signAssembledTransaction(tx);
 
-  // Step 3 – Upload to IPFS with delegation
-  onProgress?.(8); // uploading step indicator (offset -4 → shows Uploading)
-
-  const cidUploaded = await uploadWithDelegation({
-    files: filesToUpload,
-    signedTxXdr,
-    did,
-  });
+  // Step 3 – Upload the pre-calculated CAR to IPFS using the Proxy
+  onProgress?.(8);
+  const uploadedCid = await uploadToIpfsProxy(cid, carBlob);
 
   // Step 4 – Verify CID matches
-  if (cidUploaded !== expectedCid) {
-    throw new Error(
-      `CID mismatch: expected ${expectedCid}, got ${cidUploaded}`,
-    );
+  if (uploadedCid !== cid) {
+    throw new Error(`Critical CID mismatch: expected ${cid}, got ${uploadedCid}`);
   }
 
   // Step 5 – Send signed transaction
-  onProgress?.(9); // sending step indicator (offset -4 → shows Sending)
+  onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
 
   return true;
@@ -502,35 +438,29 @@ export async function updateConfigFlow({
   onProgress?: (step: number) => void;
   additionalFiles?: File[];
 }): Promise<boolean> {
+  // Step 1 – Calculate CID and Pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
-  const expectedCid = await calculateDirectoryCid(filesToUpload);
+  const { cid, carBlob } = await packFilesToCar(filesToUpload);
 
-  const client = await create();
-  const did = client.agent.did();
-
-  // sign tx
-  onProgress?.(7); // UI offset -4 → shows "Sign"
+  // Step 2 – sign tx
+  onProgress?.(7);
   const signedTxXdr = await createSignedUpdateConfigTransaction(
     maintainers,
     githubRepoUrl,
-    expectedCid,
+    cid,
   );
 
-  // upload
-  onProgress?.(8); // UI offset -4 → shows "Uploading"
-  const cidUploaded = await uploadWithDelegation({
-    files: filesToUpload,
-    signedTxXdr,
-    did,
-  });
+  // Step 3 – upload
+  onProgress?.(8);
+  const uploadedCid = await uploadToIpfsProxy(cid, carBlob);
 
-  if (cidUploaded !== expectedCid) {
-    throw new Error(
-      `CID mismatch: expected ${expectedCid}, got ${cidUploaded}`,
-    );
+  if (uploadedCid !== cid) {
+    throw new Error(`Critical CID mismatch: expected ${cid}, got ${uploadedCid}`);
   }
 
-  onProgress?.(9); // UI offset -4 → shows "Sending"
+  onProgress?.(9);
   await sendSignedTransaction(signedTxXdr);
   return true;
 }
+
+
