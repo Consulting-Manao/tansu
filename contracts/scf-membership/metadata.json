@@ -1,0 +1,25 @@
+{
+  "traits": {
+    "role": {
+      "displayName": "Role",
+      "dataType": {
+        "type": "string"
+      },
+      "valueMappings": {
+        "0": "Verified",
+        "1": "Pathfinder",
+        "2": "Navigator",
+        "3": "Pilot"
+      },
+      "tokenOwnerCanUpdateValue": true
+    },
+    "nqg": {
+      "displayName": "Neural Quorum Governance Score",
+      "dataType": {
+        "type": "decimal",
+        "signed": false,
+        "decimals": 15
+      }
+    }
+  }
+}

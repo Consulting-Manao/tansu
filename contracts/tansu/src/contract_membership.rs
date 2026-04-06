@@ -1,6 +1,8 @@
-use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error};
-
 use crate::{MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, errors, events, types};
+use soroban_sdk::{
+    Address, Bytes, Env, I256, InvokeError, String, Symbol, Vec, contractimpl, panic_with_error,
+    vec,
+};
 
 #[contractimpl]
 impl MembershipTrait for Tansu {
@@ -239,6 +241,15 @@ impl MembershipTrait for Tansu {
     fn get_max_weight(env: Env, project_key: Bytes, member_address: Address) -> u32 {
         let member_key = types::DataKey::Member(member_address.clone());
 
+        let key = env
+            .storage()
+            .instance()
+            .get(&types::DataKey::NqgProjectKey)
+            .expect("NQG project key exists");
+        if project_key == key {
+            return get_nqg(&env, member_address);
+        }
+
         if let Some(member) = env
             .storage()
             .persistent()
@@ -266,4 +277,16 @@ impl MembershipTrait for Tansu {
             types::Badge::Default as u32
         }
     }
+}
+
+pub fn get_nqg(e: &Env, user: Address) -> u32 {
+    let nqg_contract_address = crate::retrieve_contract(e, types::ContractKey::Nqg);
+
+    let r = e.try_invoke_contract::<I256, InvokeError>(
+        &nqg_contract_address.address,
+        &Symbol::new(e, "get_voting_power_for_user"),
+        vec![e, user.to_string().to_val()],
+    );
+    let nqg: I256 = r.map_err(|_| 0).unwrap().unwrap();
+    nqg.to_i128().unwrap() as u32
 }

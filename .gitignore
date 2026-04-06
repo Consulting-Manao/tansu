@@ -1,7 +1,7 @@
 # Soroban
 target
 contract/target
-contracts/tansu/test_snapshots
+**/test_snapshots
 .stellar/identity
 .stellar/network
 mutants*

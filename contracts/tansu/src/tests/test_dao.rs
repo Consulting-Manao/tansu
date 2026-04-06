@@ -114,7 +114,7 @@ fn proposal_flow() {
     let event = ProposalExecuted {
         project_key: id.clone(),
         proposal_id,
-        status: String::from_str(&setup.env, "Cancelled"),
+        status: String::from_str(&setup.env, "Approved"),
         maintainer: setup.mando.clone(),
     };
 
@@ -129,13 +129,63 @@ fn proposal_flow() {
         [event.to_xdr(&setup.env, &setup.contract_id)]
     );
 
-    assert_eq!(result, ProposalStatus::Cancelled);
+    assert_eq!(result, ProposalStatus::Approved);
 
     let balance_proposer_ = setup.token_stellar.balance(&setup.grogu);
     assert_eq!(balance_proposer_init, balance_proposer_);
 
     let balance_voter_ = setup.token_stellar.balance(&setup.mando);
     assert_eq!(balance_voter_init, balance_voter_);
+}
+
+#[test]
+fn scf_voting() {
+    let setup = create_test_data();
+    init_contract(&setup);
+
+    // Stellarpg project for SCF voting
+    let name = String::from_str(&setup.env, "stellarpg");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+    let id = setup
+        .contract
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+
+    let title = String::from_str(&setup.env, "A SCF proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 10,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+
+    assert_eq!(result, ProposalStatus::Approved);
 }
 
 #[test]
@@ -182,7 +232,7 @@ fn dao_basic_functionality() {
             &setup.env,
             Vote::PublicVote(PublicVote {
                 address: setup.grogu.clone(),
-                weight: Badge::Verified as u32,
+                weight: 0u32,
                 vote_choice: VoteChoice::Abstain
             })
         ]
@@ -250,7 +300,7 @@ fn dao_anonymous() {
     // test build_commitments_from_votes and abstain
     let abstain_vote = Vote::AnonymousVote(AnonymousVote {
         address: setup.grogu.clone(),
-        weight: Badge::Verified as u32,
+        weight: 0u32,
         encrypted_seeds: vec![
             &setup.env,
             String::from_str(&setup.env, "0"),
@@ -304,11 +354,11 @@ fn dao_anonymous() {
         &setup.grogu,
         &id,
         &proposal_id,
-        &Some(vec![&setup.env, 9u128, 3u128, 500003u128]),
+        &Some(vec![&setup.env, 9u128, 3u128, 3u128]),
         &Some(vec![&setup.env, 15u128, 12u128, 18u128]),
     );
 
-    assert_eq!(vote_result, ProposalStatus::Cancelled);
+    assert_eq!(vote_result, ProposalStatus::Approved);
 }
 
 #[test]
@@ -412,7 +462,7 @@ fn voting_errors() {
             &proposal_id_anonymous,
             &Vote::AnonymousVote(AnonymousVote {
                 address: setup.mando.clone(),
-                weight: Badge::Verified as u32,
+                weight: 0u32,
                 encrypted_seeds: vec![&setup.env, String::from_str(&setup.env, "abcd")],
                 encrypted_votes: vec![&setup.env, String::from_str(&setup.env, "fsfds")],
                 commitments: vec![

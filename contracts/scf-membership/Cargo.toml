@@ -1,0 +1,18 @@
+[package]
+name = "scf-membership"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+version = "1.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils", "experimental_spec_shaking_v2"] }
+

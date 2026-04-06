@@ -1,5 +1,5 @@
 use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, events, types, validate_contract};
-use soroban_sdk::{Address, BytesN, Env, String, contractimpl, panic_with_error, vec};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String, contractimpl, panic_with_error, vec};
 
 #[contractimpl]
 impl TansuTrait for Tansu {
@@ -98,7 +98,7 @@ impl TansuTrait for Tansu {
 
         env.storage()
             .instance()
-            .set(&types::ContractKey::DomainContract, &domain_contract);
+            .set(&types::ContractKey::Domain, &domain_contract);
 
         events::ContractUpdated {
             admin,
@@ -120,16 +120,46 @@ impl TansuTrait for Tansu {
 
         validate_contract(&env, &collateral_contract);
 
-        env.storage().instance().set(
-            &types::ContractKey::CollateralContract,
-            &collateral_contract,
-        );
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Collateral, &collateral_contract);
 
         events::ContractUpdated {
             admin,
             contract_key: String::from_str(&env, "collateral"),
             address: collateral_contract.address,
             wasm_hash: collateral_contract.wasm_hash,
+        }
+        .publish(&env);
+    }
+
+    /// Set the Neural Quorum Governance contract.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `admin` - The admin address
+    /// * `nqg_contract` - The new NQG contract
+    fn set_nqg_contract(env: Env, admin: Address, nqg_contract: types::Contract, project: String) {
+        auth_admin(&env, &admin);
+
+        validate_contract(&env, &nqg_contract);
+
+        let project_b = project.to_bytes();
+        let key: Bytes = env.crypto().keccak256(&project_b).into();
+
+        env.storage()
+            .instance()
+            .set(&types::DataKey::NqgProjectKey, &key);
+
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Nqg, &nqg_contract);
+
+        events::ContractUpdated {
+            admin,
+            contract_key: String::from_str(&env, "nqg"),
+            address: nqg_contract.address,
+            wasm_hash: nqg_contract.wasm_hash,
         }
         .publish(&env);
     }

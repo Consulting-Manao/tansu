@@ -19,6 +19,20 @@ pub fn create_env() -> Env {
     env
 }
 
+mod nqg {
+    use super::*;
+    use soroban_sdk::{I256, contract, contractimpl};
+
+    #[contract]
+    pub struct Mock;
+    #[contractimpl]
+    impl Mock {
+        pub fn get_voting_power_for_user(e: &Env, _user: String) -> I256 {
+            I256::from_i32(e, 10)
+        }
+    }
+}
+
 pub fn create_test_data() -> TestSetup {
     let env = create_env();
 
@@ -73,6 +87,21 @@ pub fn create_test_data() -> TestSetup {
         wasm_hash: None,
     };
     contract.set_collateral_contract(&contract_admin, &new_collateral);
+
+    let nqg_id = env.register(nqg::Mock, ());
+    let wasm_hash = match nqg_id.executable().unwrap() {
+        Executable::Wasm(wasm) => wasm,
+        _ => panic!(),
+    };
+    let nqg_contract = types::Contract {
+        address: nqg_id.clone(),
+        wasm_hash: Some(wasm_hash.clone()),
+    };
+    contract.set_nqg_contract(
+        &contract_admin,
+        &nqg_contract,
+        &String::from_str(&env, "stellarpg"),
+    );
 
     let grogu = Address::generate(&env);
     let mando = Address::generate(&env);
