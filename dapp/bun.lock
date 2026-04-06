@@ -71,11 +71,22 @@
         "zod": "^4.3.6",
       },
     },
+    "packages/scf-membership": {
+      "name": "scf-membership",
+      "version": "0.0.0",
+      "dependencies": {
+        "@stellar/stellar-sdk": "^14.5.0",
+        "buffer": "6.0.3",
+      },
+      "devDependencies": {
+        "typescript": "^5.6.2",
+      },
+    },
     "packages/tansu": {
       "name": "tansu",
       "version": "0.0.0",
       "dependencies": {
-        "@stellar/stellar-sdk": "^14.1.1",
+        "@stellar/stellar-sdk": "^14.5.0",
         "buffer": "6.0.3",
       },
       "devDependencies": {
@@ -3005,6 +3016,8 @@
     "sass-formatter": ["sass-formatter@0.7.9", "", { "dependencies": { "suf-log": "^2.5.3" } }, "sha512-CWZ8XiSim+fJVG0cFLStwDvft1VI7uvXdCNJYXhDvowiv+DsbD1nXLiQ4zrE5UBvj5DWZJ93cwN0NX5PMsr1Pw=="],
 
     "sax": ["sax@1.4.4", "", {}, "sha512-1n3r/tGXO6b6VXMdFT54SHzT9ytu9yr7TaELowdYpMqY/Ao7EnlQGmAQ1+RatX7Tkkdm6hONI2owqNx2aZj5Sw=="],
+
+    "scf-membership": ["scf-membership@workspace:packages/scf-membership"],
 
     "scheduler": ["scheduler@0.27.0", "", {}, "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="],
 

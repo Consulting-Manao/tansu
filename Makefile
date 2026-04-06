@@ -11,7 +11,11 @@ ifndef admin
 endif
 
 ifndef wasm
-	override wasm = target/wasm32v1-none/release/tansu.optimized.wasm
+	override wasm = target/wasm32v1-none/release/tansu.wasm
+endif
+
+ifndef wasm-scf_membership
+	override wasm-scf_membership = target/wasm32v1-none/release/scf_membership.wasm
 endif
 
 override tansu_id = $(shell cat .stellar/tansu_id-$(network))
@@ -98,6 +102,15 @@ contract_bindings: contract_build  ## Create bindings
 		--output-dir dapp/packages/tansu \
 		--overwrite && \
 	cd dapp/packages/tansu && \
+	bun install --latest && \
+	bun run build && \
+	cd ../../.. && \
+	stellar contract bindings typescript \
+		--network $(network) \
+		--wasm $(wasm-scf_membership) \
+		--output-dir dapp/packages/scf-membership \
+		--overwrite && \
+	cd dapp/packages/scf-membership && \
 	bun install --latest && \
 	bun run build && \
 	cd ../.. && \

@@ -497,8 +497,9 @@ const CreateProposalModal = () => {
     if (!projectName) return;
 
     try {
-      const { hasAnonymousVotingConfig } =
-        await import("@service/ReadContractService");
+      const { hasAnonymousVotingConfig } = await import(
+        "@service/ReadContractService"
+      );
 
       const exists = await hasAnonymousVotingConfig(projectName);
 

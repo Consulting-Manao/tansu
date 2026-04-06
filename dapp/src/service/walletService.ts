@@ -67,8 +67,9 @@ async function initializeConnection(): Promise<void> {
   }
 
   try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
+    const { StellarWalletsKit } = await import(
+      "../components/stellar-wallets-kit"
+    );
     const { address } = await StellarWalletsKit.getAddress();
 
     if (address && address !== storedPublicKey) {
