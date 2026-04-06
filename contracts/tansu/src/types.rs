@@ -12,9 +12,9 @@ pub struct Contract {
 
 #[contracttype]
 pub enum ContractKey {
-    DomainContract,     // Address and wasm hash of the SorobanDomain contract
-    CollateralContract, // Collateral asset contract address
-    NqgContract,        // Neural Quorum Governance contract address
+    Domain,     // Address and wasm hash of the SorobanDomain contract
+    Collateral, // Collateral asset contract address
+    Nqg,        // Neural Quorum Governance contract address
 }
 
 #[contracttype]

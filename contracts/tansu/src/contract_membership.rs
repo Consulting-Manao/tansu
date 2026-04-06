@@ -280,7 +280,7 @@ impl MembershipTrait for Tansu {
 }
 
 pub fn get_nqg(e: &Env, user: Address) -> u32 {
-    let nqg_contract_address = crate::retrieve_contract(e, types::ContractKey::NqgContract);
+    let nqg_contract_address = crate::retrieve_contract(e, types::ContractKey::Nqg);
 
     let r = e.try_invoke_contract::<I256, InvokeError>(
         &nqg_contract_address.address,

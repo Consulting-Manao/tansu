@@ -98,7 +98,7 @@ impl TansuTrait for Tansu {
 
         env.storage()
             .instance()
-            .set(&types::ContractKey::DomainContract, &domain_contract);
+            .set(&types::ContractKey::Domain, &domain_contract);
 
         events::ContractUpdated {
             admin,
@@ -120,10 +120,9 @@ impl TansuTrait for Tansu {
 
         validate_contract(&env, &collateral_contract);
 
-        env.storage().instance().set(
-            &types::ContractKey::CollateralContract,
-            &collateral_contract,
-        );
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Collateral, &collateral_contract);
 
         events::ContractUpdated {
             admin,
@@ -154,7 +153,7 @@ impl TansuTrait for Tansu {
 
         env.storage()
             .instance()
-            .set(&types::ContractKey::NqgContract, &nqg_contract);
+            .set(&types::ContractKey::Nqg, &nqg_contract);
 
         events::ContractUpdated {
             admin,

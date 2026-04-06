@@ -197,7 +197,7 @@ impl DaoTrait for Tansu {
 
         // proposers deposit a collateral
         proposer.require_auth();
-        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::CollateralContract);
+        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
         let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
 
         // Token-based: proposer only pays PROPOSAL_COLLATERAL
@@ -482,8 +482,7 @@ impl DaoTrait for Tansu {
         let (token_address, amount) = match &proposal.vote_data.token_contract {
             Some(token_contract) => (token_contract.clone(), *vote_weight as i128),
             None => {
-                let sac_contract =
-                    crate::retrieve_contract(&env, types::ContractKey::CollateralContract);
+                let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
                 (sac_contract.address, VOTE_COLLATERAL)
             }
         };
@@ -571,7 +570,7 @@ impl DaoTrait for Tansu {
         }
 
         // Return proposal collateral to proposer
-        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::CollateralContract);
+        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
         let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
         match token_stellar.try_transfer(
             &env.current_contract_address(),

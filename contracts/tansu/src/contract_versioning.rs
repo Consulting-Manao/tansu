@@ -74,8 +74,7 @@ impl VersioningTrait for Tansu {
                 panic_with_error!(&env, &errors::ContractErrors::UnauthorizedSigner);
             }
 
-            let domain_contract =
-                crate::retrieve_contract(&env, types::ContractKey::DomainContract);
+            let domain_contract = crate::retrieve_contract(&env, types::ContractKey::Domain);
 
             let node = domain_node(&env, &key);
             let record_keys = domain_contract::RecordKeys::Record(node);
