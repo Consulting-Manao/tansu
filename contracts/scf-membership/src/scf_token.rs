@@ -65,10 +65,9 @@ impl SCFTokenTrait for SCFMembership {
             &(to_balance + 1),
         );
 
-        e.storage().persistent().set(
-            &types::NFTStorageKey::Role(token_id),
-            &types::Role::Verified,
-        );
+        e.storage()
+            .persistent()
+            .set(&types::NFTStorageKey::Role(token_id), &0i128);
 
         events::Mint { to, token_id }.publish(e);
 

@@ -179,7 +179,7 @@ pub trait SCFGovernanceTrait {
     ///
     /// * If the token does not exist.
     /// * If one of the trait does not exist.
-    fn trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> types::Governance;
+    fn trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> Vec<i128>;
 
     /// Set the trait value of a token.
     ///
@@ -213,4 +213,6 @@ pub trait SCFGovernanceTrait {
     ///
     /// The URI of the specification.
     fn trait_metadata_uri(e: &Env) -> String;
+
+    fn governance(e: &Env, token_id: u32) -> types::Governance;
 }

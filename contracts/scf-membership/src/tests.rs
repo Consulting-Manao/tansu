@@ -109,23 +109,26 @@ fn test_governance() {
 
     let role_key = String::from_str(&e, "role");
     let nqg_key = String::from_str(&e, "nqg");
-    let trait_keys = vec![&e, role_key.clone(), nqg_key];
+    let trait_keys = vec![&e, role_key.clone(), nqg_key.clone()];
 
     let token_id = client.mint(&member);
-    let governance = client.trait_values(&token_id, &trait_keys);
 
-    assert_eq!(
-        governance,
-        types::Governance {
-            role: types::Role::Verified,
-            nqg: 1
-        }
-    );
+    let governance = client.trait_values(&token_id, &trait_keys);
+    assert_eq!(governance, vec![&e, 0, 1]);
 
     let token_id = client.mint(&admin);
     client.set_trait(&token_id, &role_key, &3);
-    let governance = client.trait_values(&token_id, &trait_keys);
 
+    let role = client.trait_value(&token_id, &role_key);
+    assert_eq!(role, 3);
+
+    let nqg = client.trait_value(&token_id, &nqg_key);
+    assert_eq!(nqg, 10);
+
+    let governance = client.trait_values(&token_id, &trait_keys);
+    assert_eq!(governance, vec![&e, 3, 10]);
+
+    let governance = client.governance(&token_id);
     assert_eq!(
         governance,
         types::Governance {

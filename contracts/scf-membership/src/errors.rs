@@ -10,5 +10,6 @@ pub enum NonFungibleTokenError {
     TraitDoesNotExist = 202,
     /// Indicates that `trait_key` cannot be set.
     TraitUnSettable = 203,
-    NqgContractError = 204,
+    RoleDoesNotExist = 204,
+    NqgContractError = 205,
 }

@@ -26,23 +26,12 @@ impl SCFGovernanceTrait for SCFMembership {
         }
     }
 
-    fn trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> types::Governance {
+    fn trait_values(e: &Env, token_id: u32, trait_keys: Vec<String>) -> Vec<i128> {
+        let mut values = Vec::new(e);
         for trait_key in trait_keys.iter() {
-            validate_trait_key(e, &trait_key);
+            values.push_back(Self::trait_value(e, token_id, trait_key));
         }
-
-        let role: types::Role = e
-            .storage()
-            .persistent()
-            .get(&types::NFTStorageKey::Role(token_id))
-            .unwrap_or_else(|| {
-                panic_with_error!(&e, errors::NonFungibleTokenError::NonExistentToken)
-            });
-
-        types::Governance {
-            role,
-            nqg: get_nqg(e, token_id),
-        }
+        values
     }
 
     fn set_trait(e: &Env, token_id: u32, trait_key: String, new_value: i128) {
@@ -51,17 +40,13 @@ impl SCFGovernanceTrait for SCFMembership {
             panic_with_error!(e, errors::NonFungibleTokenError::TraitUnSettable);
         }
 
-        let new_role = match new_value {
-            3 => types::Role::Pilot,
-            2 => types::Role::Navigator,
-            1 => types::Role::Pathfinder,
-            0 => types::Role::Verified,
-            _ => panic_with_error!(&e, errors::NonFungibleTokenError::NonExistentToken),
-        };
+        if !(0..=4).contains(&new_value) {
+            panic_with_error!(&e, errors::NonFungibleTokenError::RoleDoesNotExist)
+        }
 
         e.storage()
             .persistent()
-            .set(&types::NFTStorageKey::Role(token_id), &new_role);
+            .set(&types::NFTStorageKey::Role(token_id), &new_value);
     }
 
     fn trait_metadata_uri(e: &Env) -> String {
@@ -69,6 +54,21 @@ impl SCFGovernanceTrait for SCFMembership {
             .instance()
             .get(&types::DataKey::UriTrait)
             .unwrap()
+    }
+
+    fn governance(e: &Env, token_id: u32) -> types::Governance {
+        let role = match Self::trait_value(e, token_id, String::from_str(e, "role")) {
+            3 => types::Role::Pilot,
+            2 => types::Role::Navigator,
+            1 => types::Role::Pathfinder,
+            0 => types::Role::Verified,
+            _ => panic_with_error!(&e, errors::NonFungibleTokenError::RoleDoesNotExist),
+        };
+
+        types::Governance {
+            role,
+            nqg: Self::trait_value(e, token_id, String::from_str(e, "nqg")),
+        }
     }
 }
 
