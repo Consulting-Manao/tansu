@@ -2,6 +2,7 @@ import { calculateDirectoryCid } from "../utils/ipfsFunctions";
 import { create } from "@storacha/client";
 import * as Delegation from "@ucanto/core/delegation";
 import type { OutcomeContract } from "../types/proposal";
+import { pinToFilebase } from "../utils/dualPin";
 
 //
 import Tansu from "../contracts/soroban_tansu";
@@ -113,7 +114,14 @@ export async function uploadWithDelegation({
   const directoryCid = await client.uploadDirectory(files);
   if (!directoryCid) throw new Error("Failed to upload to IPFS");
 
-  return directoryCid.toString();
+  const cid = directoryCid.toString();
+
+  // Dual pin: backup to Filebase in background (fire-and-forget)
+  pinToFilebase(cid).catch((err) => {
+    console.warn("[DualPin] Filebase backup pin failed:", err.message);
+  });
+
+  return cid;
 }
 
 /**
