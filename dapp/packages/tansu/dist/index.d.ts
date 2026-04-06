@@ -42,6 +42,27 @@ export interface Member {
   meta: string;
   projects: Array<ProjectBadges>;
 }
+export type DataKey =
+  | {
+      tag: "Member";
+      values: readonly [string];
+    }
+  | {
+      tag: "Paused";
+      values: void;
+    }
+  | {
+      tag: "UpgradeProposal";
+      values: void;
+    }
+  | {
+      tag: "AdminsConfig";
+      values: void;
+    }
+  | {
+      tag: "NqgProjectKey";
+      values: void;
+    };
 export interface Project {
   config: Config;
   maintainers: Array<string>;
@@ -67,6 +88,39 @@ export interface VoteData {
   votes: Array<Vote>;
   voting_ends_at: u64;
 }
+export type ProjectKey =
+  | {
+      tag: "Key";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "Badges";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "LastHash";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "Dao";
+      values: readonly [Buffer, u32];
+    }
+  | {
+      tag: "DaoTotalProposals";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "AnonymousVoteConfig";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "ProjectKeys";
+      values: readonly [u32];
+    }
+  | {
+      tag: "TotalProjects";
+      values: void;
+    };
 export interface PublicVote {
   address: string;
   vote_choice: VoteChoice;
@@ -83,6 +137,19 @@ export type VoteChoice =
     }
   | {
       tag: "Abstain";
+      values: void;
+    };
+export type ContractKey =
+  | {
+      tag: "Domain";
+      values: void;
+    }
+  | {
+      tag: "Collateral";
+      values: void;
+    }
+  | {
+      tag: "Nqg";
       values: void;
     };
 export interface AdminsConfig {
@@ -137,6 +204,95 @@ export interface AnonymousVoteConfig {
   seed_generator_point: Buffer;
   vote_generator_point: Buffer;
 }
+export declare const ContractErrors: {
+  0: {
+    message: string;
+  };
+  100: {
+    message: string;
+  };
+  101: {
+    message: string;
+  };
+  102: {
+    message: string;
+  };
+  200: {
+    message: string;
+  };
+  201: {
+    message: string;
+  };
+  202: {
+    message: string;
+  };
+  203: {
+    message: string;
+  };
+  204: {
+    message: string;
+  };
+  205: {
+    message: string;
+  };
+  206: {
+    message: string;
+  };
+  207: {
+    message: string;
+  };
+  208: {
+    message: string;
+  };
+  209: {
+    message: string;
+  };
+  210: {
+    message: string;
+  };
+  300: {
+    message: string;
+  };
+  301: {
+    message: string;
+  };
+  302: {
+    message: string;
+  };
+  303: {
+    message: string;
+  };
+  400: {
+    message: string;
+  };
+  401: {
+    message: string;
+  };
+  402: {
+    message: string;
+  };
+  403: {
+    message: string;
+  };
+  500: {
+    message: string;
+  };
+  501: {
+    message: string;
+  };
+  600: {
+    message: string;
+  };
+  601: {
+    message: string;
+  };
+  602: {
+    message: string;
+  };
+  603: {
+    message: string;
+  };
+};
 export interface Client {
   /**
    * Construct and simulate a vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.

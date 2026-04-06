@@ -37,10 +37,41 @@ export enum Role {
   Verified = 0,
 }
 
+export type DataKey =
+  | { tag: "Admin"; values: void }
+  | { tag: "NextTokenId"; values: void }
+  | { tag: "Name"; values: void }
+  | { tag: "Symbol"; values: void }
+  | { tag: "Uri"; values: void }
+  | { tag: "UriTrait"; values: void }
+  | { tag: "NqgContract"; values: void };
+
 export interface Governance {
   nqg: i128;
   role: Role;
 }
+
+export type NFTStorageKey =
+  | { tag: "Owner"; values: readonly [u32] }
+  | { tag: "Balance"; values: readonly [string] }
+  | { tag: "Role"; values: readonly [u32] };
+
+export const NonFungibleTokenError = {
+  /**
+   * Indicates a non-existent `token_id`.
+   */
+  201: { message: "NonExistentToken" },
+  /**
+   * Indicates a non-existent `trait_key`.
+   */
+  202: { message: "TraitDoesNotExist" },
+  /**
+   * Indicates that `trait_key` cannot be set.
+   */
+  203: { message: "TraitUnSettable" },
+  204: { message: "RoleDoesNotExist" },
+  205: { message: "NqgContractError" },
+};
 
 export interface Client {
   /**
@@ -187,7 +218,10 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAMdHJhaXRfdmFsdWVzAAAAAgAAAAAAAAAIdG9rZW5faWQAAAAEAAAAAAAAAAp0cmFpdF9rZXlzAAAAAAPqAAAAEAAAAAEAAAPqAAAACw==",
         "AAAAAAAAAAAAAAASdHJhaXRfbWV0YWRhdGFfdXJpAAAAAAAAAAAAAQAAABA=",
         "AAAAAwAAAAAAAAAAAAAABFJvbGUAAAAEAAAAAAAAAAVQaWxvdAAAAAAAAAMAAAAAAAAACU5hdmlnYXRvcgAAAAAAAAIAAAAAAAAAClBhdGhmaW5kZXIAAAAAAAEAAAAAAAAACFZlcmlmaWVkAAAAAA==",
+        "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAABwAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAALTmV4dFRva2VuSWQAAAAAAAAAAAAAAAAETmFtZQAAAAAAAAAAAAAABlN5bWJvbAAAAAAAAAAAAAAAAAADVXJpAAAAAAAAAAAAAAAACFVyaVRyYWl0AAAAAAAAAAAAAAALTnFnQ29udHJhY3QA",
         "AAAAAQAAAAAAAAAAAAAACkdvdmVybmFuY2UAAAAAAAIAAAAAAAAAA25xZwAAAAALAAAAAAAAAARyb2xlAAAH0AAAAARSb2xl",
+        "AAAAAgAAAAAAAAAAAAAADU5GVFN0b3JhZ2VLZXkAAAAAAAADAAAAAQAAAAAAAAAFT3duZXIAAAAAAAABAAAABAAAAAEAAAAAAAAAB0JhbGFuY2UAAAAAAQAAABMAAAABAAAAAAAAAARSb2xlAAAAAQAAAAQ=",
+        "AAAABAAAAAAAAAAAAAAAFU5vbkZ1bmdpYmxlVG9rZW5FcnJvcgAAAAAAAAUAAAAkSW5kaWNhdGVzIGEgbm9uLWV4aXN0ZW50IGB0b2tlbl9pZGAuAAAAEE5vbkV4aXN0ZW50VG9rZW4AAADJAAAAJUluZGljYXRlcyBhIG5vbi1leGlzdGVudCBgdHJhaXRfa2V5YC4AAAAAAAARVHJhaXREb2VzTm90RXhpc3QAAAAAAADKAAAAKUluZGljYXRlcyB0aGF0IGB0cmFpdF9rZXlgIGNhbm5vdCBiZSBzZXQuAAAAAAAAD1RyYWl0VW5TZXR0YWJsZQAAAADLAAAAAAAAABBSb2xlRG9lc05vdEV4aXN0AAAAzAAAAAAAAAAQTnFnQ29udHJhY3RFcnJvcgAAAM0=",
         "AAAABQAAAAAAAAAAAAAABE1pbnQAAAABAAAABG1pbnQAAAACAAAAAAAAAAJ0bwAAAAAAEwAAAAEAAAAAAAAACHRva2VuX2lkAAAABAAAAAAAAAAC",
         "AAAAAAAAAAAAAAAEbWludAAAAAEAAAAAAAAAAnRvAAAAAAATAAAAAQAAAAQ=",
         "AAAAAAAAAAAAAAAEbmFtZQAAAAAAAAABAAAAEA==",

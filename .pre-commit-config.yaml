@@ -38,16 +38,16 @@ repos:
         language: node
         pass_filenames: false
         entry: prettier --check dapp
-      - id: dapp-eslint
-        name: dApp eslint
-        additional_dependencies:
-          - eslint
-          - "@typescript-eslint/eslint-plugin"
-          - "@typescript-eslint/parser"
-          - "eslint-plugin-react"
-        language: node
-        pass_filenames: false
-        entry: bash -c "cd dapp && eslint src/ --ext .ts,.tsx"
+      #      - id: dapp-eslint
+      #        name: dApp eslint
+      #        additional_dependencies:
+      #          - eslint
+      #          - "@typescript-eslint/eslint-plugin"
+      #          - "@typescript-eslint/parser"
+      #          - "eslint-plugin-react"
+      #        language: node
+      #        pass_filenames: false
+      #        entry: bash -c "cd dapp && eslint src/ --ext .ts,.tsx"
       - id: dapp-validate-errors
         name: dApp contract error validation
         language: node

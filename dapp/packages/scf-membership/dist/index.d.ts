@@ -15,10 +15,78 @@ export declare enum Role {
   Pathfinder = 1,
   Verified = 0,
 }
+export type DataKey =
+  | {
+      tag: "Admin";
+      values: void;
+    }
+  | {
+      tag: "NextTokenId";
+      values: void;
+    }
+  | {
+      tag: "Name";
+      values: void;
+    }
+  | {
+      tag: "Symbol";
+      values: void;
+    }
+  | {
+      tag: "Uri";
+      values: void;
+    }
+  | {
+      tag: "UriTrait";
+      values: void;
+    }
+  | {
+      tag: "NqgContract";
+      values: void;
+    };
 export interface Governance {
   nqg: i128;
   role: Role;
 }
+export type NFTStorageKey =
+  | {
+      tag: "Owner";
+      values: readonly [u32];
+    }
+  | {
+      tag: "Balance";
+      values: readonly [string];
+    }
+  | {
+      tag: "Role";
+      values: readonly [u32];
+    };
+export declare const NonFungibleTokenError: {
+  /**
+   * Indicates a non-existent `token_id`.
+   */
+  201: {
+    message: string;
+  };
+  /**
+   * Indicates a non-existent `trait_key`.
+   */
+  202: {
+    message: string;
+  };
+  /**
+   * Indicates that `trait_key` cannot be set.
+   */
+  203: {
+    message: string;
+  };
+  204: {
+    message: string;
+  };
+  205: {
+    message: string;
+  };
+};
 export interface Client {
   /**
    * Construct and simulate a set_trait transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
