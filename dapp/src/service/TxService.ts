@@ -8,76 +8,69 @@ import freighterPkg from "@stellar/freighter-api";
 const {
   isConnected,
   requestAccess,
-  signMessage: freighterSignMessage,
   signTransaction: freighterSign,
 } = freighterPkg;
+
+const NETWORK_PASSPHRASE = import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE;
+
+async function withActiveWallet<T>({
+  kitAction,
+  freighterAction,
+  fallbackErrorMessage,
+}: {
+  kitAction: (StellarWalletsKit: any) => Promise<T>;
+  freighterAction: () => Promise<T>;
+  fallbackErrorMessage: string;
+}): Promise<T> {
+  try {
+    const { StellarWalletsKit } =
+      await import("../components/stellar-wallets-kit");
+    return await kitAction(StellarWalletsKit);
+  } catch (kitErr: any) {
+    const errMsg = kitErr?.message || "";
+    if (errMsg.includes("no wallet") || errMsg.includes("wallet not set")) {
+      try {
+        return await freighterAction();
+      } catch (freighterErr) {
+        throw new Error(fallbackErrorMessage, {
+          cause: freighterErr ?? kitErr,
+        });
+      }
+    }
+    throw kitErr;
+  }
+}
 
 /**
  * Sign a transaction XDR using whichever wallet is currently active in the kit.
  * Falls back to Freighter's direct API only if the kit has no active wallet set.
  */
 async function signWithActiveWallet(xdr: string): Promise<string> {
-  try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
-    const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
-      networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-    });
-    return signedTxXdr;
-  } catch (kitErr: any) {
-    const errMsg = kitErr?.message || "";
-    if (errMsg.includes("no wallet") || errMsg.includes("wallet not set")) {
-      const signedResp = await freighterSign(xdr, {
-        networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+  return withActiveWallet<string>({
+    kitAction: async (StellarWalletsKit) => {
+      const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
-      const signedTx =
+      if (!signedTxXdr) {
+        throw new Error("signedTxXdr returned from wallet is undefined.");
+      }
+      return signedTxXdr;
+    },
+    freighterAction: async () => {
+      const signedResp = await freighterSign(xdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
+      });
+      const signedTxXdr =
         typeof signedResp === "string"
           ? signedResp
           : ((signedResp as any)?.signedTxXdr ?? (signedResp as any)?.xdr);
-      if (!signedTx)
-        throw new Error("Failed to get signed transaction XDR", {
-          cause: kitErr,
-        });
-      return signedTx;
-    }
-    throw kitErr;
-  }
-}
-
-export async function signMessageWithActiveWallet(
-  message: string,
-): Promise<{ signedMessage: string; signerAddress?: string }> {
-  try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
-    return await StellarWalletsKit.signMessage(message, {
-      networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-    });
-  } catch (kitErr: any) {
-    const errMsg = kitErr?.message || "";
-    if (errMsg.includes("no wallet") || errMsg.includes("wallet not set")) {
-      const signedResp = await freighterSignMessage(message, {
-        networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-      });
-
-      const signedMessage =
-        typeof signedResp?.signedMessage === "string"
-          ? signedResp.signedMessage
-          : undefined;
-
-      if (!signedMessage) {
-        throw new Error("Failed to get signed message from wallet", {
-          cause: kitErr,
-        });
+      if (!signedTxXdr) {
+        throw new Error("signedTxXdr returned from wallet is undefined.");
       }
-
-      return {
-        signedMessage,
-        signerAddress: signedResp.signerAddress,
-      };
-    }
-    throw kitErr;
-  }
+      return signedTxXdr;
+    },
+    fallbackErrorMessage: "Failed to get signed transaction XDR",
+  });
 }
 
 /**

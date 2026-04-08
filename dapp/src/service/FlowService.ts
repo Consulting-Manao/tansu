@@ -1,4 +1,4 @@
-import { packFilesToCar } from "../utils/ipfsFunctions";
+import { calculateDirectoryCid } from "../utils/ipfsFunctions";
 import { uploadWithDelegation } from "../utils/dualPin";
 import type { OutcomeContract } from "../types/proposal";
 
@@ -140,8 +140,8 @@ export async function createProposalFlow({
   tokenContract,
   onProgress,
 }: CreateProposalFlowParams): Promise<number> {
-  // Step 1: Calculate CID and Pack CAR once
-  const { cid, carBlob } = await packFilesToCar(proposalFiles);
+  // Step 1: Calculate CID once
+  const cid = await calculateDirectoryCid(proposalFiles);
 
   // Step 2: Create and sign the smart contract transaction with the pre-calculated CID
   onProgress?.(7); // Signing proposal transaction (UI index 2)
@@ -155,9 +155,13 @@ export async function createProposalFlow({
     tokenContract,
   );
 
-  // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
+  // Step 3: Upload the files to IPFS using the Proxy
   onProgress?.(8); // Uploading to IPFS (UI index 3)
-  const uploadedCid = await uploadWithDelegation({ cid, carBlob });
+  const uploadedCid = await uploadWithDelegation({
+    cid,
+    files: proposalFiles,
+    signedTxXdr,
+  });
 
   // Step 4: Verify CID matches
   if (uploadedCid !== cid) {
@@ -186,13 +190,10 @@ export async function joinCommunityFlow({
   onProgress,
 }: JoinCommunityFlowParams): Promise<boolean> {
   let cid = "";
-  let carBlob: Blob | undefined;
 
   if (profileFiles.length > 0) {
-    // Step 1: Calculate CID and Pack CAR once
-    const result = await packFilesToCar(profileFiles);
-    cid = result.cid;
-    carBlob = result.carBlob;
+    // Step 1: Calculate CID once
+    cid = await calculateDirectoryCid(profileFiles);
   }
 
   // Step 2: Create and sign the smart contract transaction with the CID
@@ -202,10 +203,14 @@ export async function joinCommunityFlow({
     cid,
   );
 
-  if (profileFiles.length > 0 && carBlob) {
-    // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
+  if (profileFiles.length > 0) {
+    // Step 3: Upload the files to IPFS using the Proxy
     onProgress?.(8);
-    const uploadedCid = await uploadWithDelegation({ cid, carBlob });
+    const uploadedCid = await uploadWithDelegation({
+      cid,
+      files: profileFiles,
+      signedTxXdr,
+    });
 
     // Step 4: Verify CID matches
     if (uploadedCid !== cid) {
@@ -256,12 +261,9 @@ export async function updateMemberFlow({
   onProgress,
 }: UpdateMemberFlowParams): Promise<boolean> {
   let cid = "";
-  let carBlob: Blob | undefined;
 
   if (profileFiles.length > 0) {
-    const result = await packFilesToCar(profileFiles);
-    cid = result.cid;
-    carBlob = result.carBlob;
+    cid = await calculateDirectoryCid(profileFiles);
   }
 
   onProgress?.(7);
@@ -270,9 +272,13 @@ export async function updateMemberFlow({
     cid,
   );
 
-  if (profileFiles.length > 0 && carBlob) {
+  if (profileFiles.length > 0) {
     onProgress?.(8);
-    const uploadedCid = await uploadWithDelegation({ cid, carBlob });
+    const uploadedCid = await uploadWithDelegation({
+      cid,
+      files: profileFiles,
+      signedTxXdr,
+    });
 
     if (uploadedCid !== cid) {
       throw new Error(
@@ -297,9 +303,9 @@ export async function createProjectFlow({
   onProgress,
   additionalFiles,
 }: CreateProjectFlowParams): Promise<boolean> {
-  // Step 1 – Calculate CID and Pack CAR once
+  // Step 1 – Calculate CID once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
-  const { cid, carBlob } = await packFilesToCar(filesToUpload);
+  const cid = await calculateDirectoryCid(filesToUpload);
 
   // Step 2 – Create & sign register transaction
   onProgress?.(7);
@@ -322,9 +328,13 @@ export async function createProjectFlow({
 
   const signedTxXdr = await signAssembledTransaction(tx);
 
-  // Step 3 – Upload the pre-calculated CAR to IPFS using the Proxy
+  // Step 3 – Upload the files to IPFS using the Proxy
   onProgress?.(8);
-  const uploadedCid = await uploadWithDelegation({ cid, carBlob });
+  const uploadedCid = await uploadWithDelegation({
+    cid,
+    files: filesToUpload,
+    signedTxXdr,
+  });
 
   // Step 4 – Verify CID matches
   if (uploadedCid !== cid) {
@@ -386,9 +396,9 @@ export async function updateConfigFlow({
   onProgress?: (step: number) => void;
   additionalFiles?: File[];
 }): Promise<boolean> {
-  // Step 1 – Calculate CID and Pack CAR once
+  // Step 1 – Calculate CID once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
-  const { cid, carBlob } = await packFilesToCar(filesToUpload);
+  const cid = await calculateDirectoryCid(filesToUpload);
 
   // Step 2 – sign tx
   onProgress?.(7);
@@ -400,7 +410,11 @@ export async function updateConfigFlow({
 
   // Step 3 – upload
   onProgress?.(8);
-  const uploadedCid = await uploadWithDelegation({ cid, carBlob });
+  const uploadedCid = await uploadWithDelegation({
+    cid,
+    files: filesToUpload,
+    signedTxXdr,
+  });
 
   if (uploadedCid !== cid) {
     throw new Error(

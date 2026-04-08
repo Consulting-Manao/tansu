@@ -1,8 +1,8 @@
 # IPFS Delegation Worker
 
-Cloudflare Worker that verifies a signed upload authorization and then uploads
-the CAR file to Filebase. Once Filebase succeeds, it pins the resulting CID on
-Pinata in the background when Pinata pinning is enabled.
+Cloudflare Worker that verifies a signed transaction and then uploads the raw
+files to Filebase. Once Filebase succeeds, it pins the resulting CID on Pinata
+in the background when Pinata pinning is enabled.
 
 ## API
 
@@ -10,19 +10,22 @@ Pinata in the background when Pinata pinning is enabled.
 POST /
 {
   "cid": "<expected-root-cid>",
-  "message": "CID: <expected-root-cid>",
-  "signature": "<base64-signature>",
-  "signerAddress": "G...",
-  "car": "<base64-car-bytes>"
+  "signedTxXdr": "<signed transaction xdr>",
+  "files": [
+    {
+      "name": "proposal.md",
+      "type": "text/markdown",
+      "content": "<base64-file-bytes>"
+    }
+  ]
 }
 ```
 
-The worker verifies the signature according to SEP-53:
+The worker verifies the upload request by:
 
-- it hashes `Stellar Signed Message:\n` + `message`
-- it verifies the signature against `signerAddress`
-- it checks the signed message contains the CID
-- it recalculates the root CID from the uploaded CAR and checks it matches
+- it verifies the Stellar transaction signature from `signedTxXdr`
+- it checks the transaction has at least one operation
+- it recalculates the root CID from the uploaded files and checks it matches
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
 
@@ -78,10 +81,11 @@ ENV=DEV bun run test  # Use testnet environment
 ENV=PROD bun run test # Use production environment
 ```
 
-The test script generates a CAR, signs the CID with a local Stellar key, and
-submits the same JSON payload the dapp sends. A successful local test confirms
-the blocking Filebase upload path. When Pinata pinning is enabled, that step
-runs asynchronously after the response is returned.
+The test script generates a test file, calculates its directory CID locally,
+signs a local Stellar test transaction, and submits the same JSON payload the
+dapp sends. A successful local test confirms the blocking Filebase upload path.
+When Pinata pinning is enabled, that step runs asynchronously after the
+response is returned.
 
 ## Deployment
 

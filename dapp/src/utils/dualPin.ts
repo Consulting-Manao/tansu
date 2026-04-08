@@ -3,11 +3,8 @@
  *
  * The browser never uses FILEBASE_TOKEN or PINATA_JWT directly.
  * Those credentials stay on the delegation worker, and this module
- * sends the CAR payload plus a signed authorization message to that worker.
+ * sends the raw files plus the already-signed transaction to that worker.
  */
-
-import { connectedPublicKey } from "./store";
-import { signMessageWithActiveWallet } from "../service/TxService";
 
 const DUAL_PIN_TIMEOUT_MS = 120_000;
 const WORKER_RETRY_DELAY_MS = 1_000;
@@ -26,138 +23,120 @@ export interface DualUploadResult {
 
 interface UploadWithDelegationParams {
   cid: string;
-  carBlob: Blob;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary);
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  return arrayBufferToBase64(await blob.arrayBuffer());
-}
-
-export function buildUploadAuthorizationMessage(cid: string): string {
-  return `CID: ${cid}`;
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  const contentType = response.headers.get("content-type") ?? "";
-
-  try {
-    if (contentType.includes("application/json")) {
-      const data = (await response.json()) as DualUploadApiResponse;
-      return data.error ?? "IPFS upload failed";
-    }
-
-    const text = await response.text();
-    return text || "IPFS upload failed";
-  } catch {
-    return "IPFS upload failed";
-  }
-}
-
-function normalizeResult(
-  expectedCid: string,
-  result: DualUploadApiResponse,
-): DualUploadResult {
-  const cid = result.cid;
-
-  if (!cid) {
-    throw new Error("Dual upload response missing CID");
-  }
-
-  if (cid !== expectedCid) {
-    throw new Error(
-      `Critical CID mismatch: expected ${expectedCid}, got ${cid}`,
-    );
-  }
-
-  if (!result.success) {
-    throw new Error(result.error ?? "IPFS upload failed");
-  }
-
-  const normalized: DualUploadResult = {
-    cid,
-    success: true,
-    error: result.error,
-  };
-
-  if (normalized.error) {
-    console.warn("[IPFS] Upload partially succeeded:", normalized.error);
-  }
-
-  return normalized;
+  files: File[];
+  signedTxXdr: string;
 }
 
 async function wait(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function uploadOnce(
-  cid: string,
-  carBlob: Blob,
-  signerAddress: string,
-): Promise<DualUploadResult> {
-  const message = buildUploadAuthorizationMessage(cid);
-  const { signedMessage, signerAddress: returnedSignerAddress } =
-    await signMessageWithActiveWallet(message);
+function toBase64(buffer: ArrayBuffer): string {
+  let binary = "";
+  for (const byte of new Uint8Array(buffer)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
 
+interface UploadFilePayload {
+  name: string;
+  type: string;
+  content: string;
+}
+
+async function serializeFiles(files: File[]): Promise<UploadFilePayload[]> {
+  return await Promise.all(
+    files.map(async (file) => ({
+      name: file.name,
+      type: file.type,
+      content: toBase64(await file.arrayBuffer()),
+    })),
+  );
+}
+
+async function postUploadRequest(
+  cid: string,
+  signedTxXdr: string,
+  files: UploadFilePayload[],
+): Promise<DualUploadResult> {
   const response = await fetch(import.meta.env.PUBLIC_DELEGATION_API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       cid,
-      message,
-      signature: signedMessage,
-      signerAddress: returnedSignerAddress ?? signerAddress,
-      car: await blobToBase64(carBlob),
+      signedTxXdr,
+      files,
     }),
     signal: AbortSignal.timeout(DUAL_PIN_TIMEOUT_MS),
   });
 
   if (!response.ok) {
-    const errorMessage = await readErrorMessage(response);
+    let errorMessage = "IPFS upload failed";
+    try {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = (await response.json()) as DualUploadApiResponse;
+        errorMessage = data.error ?? errorMessage;
+      } else {
+        errorMessage = (await response.text()) || errorMessage;
+      }
+    } catch {
+      // keep the default message
+    }
     throw new Error(`${errorMessage} (${response.status})`);
   }
 
   const result = (await response.json()) as DualUploadApiResponse;
-  return normalizeResult(cid, result);
+  if (!result.cid) {
+    throw new Error("Dual upload response missing CID");
+  }
+  if (result.cid !== cid) {
+    throw new Error(
+      `Critical CID mismatch: expected ${cid}, got ${result.cid}`,
+    );
+  }
+  if (!result.success) {
+    throw new Error(result.error ?? "IPFS upload failed");
+  }
+
+  if (result.error) {
+    console.warn("[IPFS] Upload partially succeeded:", result.error);
+  }
+
+  return {
+    cid: result.cid,
+    success: true,
+    error: result.error,
+  };
 }
 
-export async function uploadViaWorker({
+async function uploadWithDelegationResult({
   cid,
-  carBlob,
+  files,
+  signedTxXdr,
 }: UploadWithDelegationParams): Promise<DualUploadResult> {
   if (!cid) {
     throw new Error("Missing expected CID for dual upload");
   }
 
-  if (!(carBlob instanceof Blob) || carBlob.size === 0) {
-    throw new Error("Invalid CAR blob for dual upload");
+  if (!signedTxXdr) {
+    throw new Error("Missing signed transaction for dual upload");
   }
 
-  const signerAddress = connectedPublicKey.get();
-  if (!signerAddress) {
-    throw new Error("Please connect your wallet first");
+  if (!files.length) {
+    throw new Error("Missing files for IPFS upload");
   }
+
+  const serializedFiles = await serializeFiles(files);
 
   try {
-    return await uploadOnce(cid, carBlob, signerAddress);
+    return await postUploadRequest(cid, signedTxXdr, serializedFiles);
   } catch (firstError) {
     await wait(WORKER_RETRY_DELAY_MS);
 
     try {
-      return await uploadOnce(cid, carBlob, signerAddress);
+      return await postUploadRequest(cid, signedTxXdr, serializedFiles);
     } catch {
       throw firstError;
     }
@@ -171,6 +150,6 @@ export async function uploadViaWorker({
 export async function uploadWithDelegation(
   params: UploadWithDelegationParams,
 ): Promise<string> {
-  const result = await uploadViaWorker(params);
+  const result = await uploadWithDelegationResult(params);
   return result.cid;
 }

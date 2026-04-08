@@ -1,15 +1,13 @@
 /**
  * Cloudflare Worker for delegated IPFS uploads.
  *
- * The dapp sends a signed message authorizing the expected CID plus the CAR
- * content to upload. The worker verifies the signature, uploads the CAR to
- * Filebase, then pins the resulting CID on Pinata in the background.
+ * The dapp sends the raw files plus the already-signed transaction that will
+ * later be submitted on-chain. The worker verifies the transaction signature,
+ * uploads the files to Filebase, then optionally pins the resulting CID on
+ * Pinata in the background.
  */
 
-import { Keypair } from "@stellar/stellar-sdk";
-import { Buffer } from "buffer";
-import { createHash } from "node:crypto";
-import { CarReader } from "@ipld/car";
+import { Keypair, Networks, Transaction } from "@stellar/stellar-sdk";
 
 export interface Env {
   FILEBASE_TOKEN: string;
@@ -20,10 +18,14 @@ export interface Env {
 
 interface UploadRequest {
   cid: string;
-  message: string;
-  signature: string;
-  signerAddress: string;
-  car: string;
+  signedTxXdr: string;
+  files: UploadFile[];
+}
+
+interface UploadFile {
+  name: string;
+  type?: string;
+  content: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -64,66 +66,79 @@ function decodeBase64(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
-function buildUploadBlob(base64Car: string): Blob {
-  return new Blob([decodeBase64(base64Car)], {
-    type: "application/vnd.ipld.car",
-  });
-}
-
-function hashSep53Message(message: string): Buffer {
-  return createHash("sha256")
-    .update(`Stellar Signed Message:\n${message}`, "utf8")
-    .digest();
+function buildUploadFiles(files: UploadFile[]): File[] {
+  return files.map(
+    (file) =>
+      new File([decodeBase64(file.content)], file.name, {
+        type: file.type || "application/octet-stream",
+      }),
+  );
 }
 
 function validateUploadRequest(body: UploadRequest): void {
-  const { cid, message, signature, signerAddress, car } = body;
+  const { cid, signedTxXdr, files } = body;
 
-  if (!cid || !message || !signature || !signerAddress || !car) {
-    throw new Error(
-      "Missing required fields: cid, message, signature, signerAddress and car",
-    );
-  }
-
-  if (!message.startsWith("CID: ")) {
-    throw new Error("Signed message must follow the expected CID format");
-  }
-
-  if (!message.includes(`CID: ${cid}`)) {
-    throw new Error("Signed message does not contain the expected CID");
-  }
-
-  const verified = Keypair.fromPublicKey(signerAddress).verify(
-    hashSep53Message(message),
-    Buffer.from(decodeBase64(signature)),
-  );
-
-  if (!verified) {
-    throw new Error("Message signature is invalid for the signer address");
+  if (!cid || !signedTxXdr || !files?.length) {
+    throw new Error("Missing required fields: cid, signedTxXdr and files");
   }
 }
 
-async function calculateCidFromCar(carBlob: Blob): Promise<string> {
-  const reader = await CarReader.fromBytes(
-    new Uint8Array(await carBlob.arrayBuffer()),
+function validateSignedTransaction(signedTxXdr: string): void {
+  const passphrases = [Networks.TESTNET, Networks.PUBLIC];
+  let verifiedTransaction: Transaction | null = null;
+
+  for (const passphrase of passphrases) {
+    try {
+      const tx = new Transaction(signedTxXdr, passphrase);
+      if (!tx.signatures?.length || !tx.source) {
+        continue;
+      }
+
+      const sourceKeypair = Keypair.fromPublicKey(tx.source);
+      const txHash = tx.hash();
+
+      for (const signature of tx.signatures) {
+        if (sourceKeypair.verify(txHash, signature.signature())) {
+          verifiedTransaction = tx;
+          break;
+        }
+      }
+
+      if (verifiedTransaction) {
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (!verifiedTransaction) {
+    throw new Error("Transaction signature is invalid for the source account");
+  }
+
+  if (!verifiedTransaction.operations?.length) {
+    throw new Error("Transaction must have at least one operation");
+  }
+}
+
+async function calculateCidFromFiles(files: File[]): Promise<string> {
+  const { createDirectoryEncoderStream } = await import("ipfs-car");
+  const stream = createDirectoryEncoderStream(files);
+  let rootCid: string | undefined;
+
+  await stream.pipeTo(
+    new WritableStream({
+      write(block) {
+        rootCid = block.cid.toString();
+      },
+    }),
   );
-  const roots = await reader.getRoots();
-  const root = roots[0];
 
-  if (root) {
-    return root.toString();
+  if (!rootCid) {
+    throw new Error("Failed to calculate CID from uploaded files");
   }
 
-  let lastCid: string | undefined;
-  for await (const block of reader.blocks()) {
-    lastCid = block.cid.toString();
-  }
-
-  if (!lastCid) {
-    throw new Error("CAR file does not contain a root CID");
-  }
-
-  return lastCid;
+  return rootCid;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -148,6 +163,26 @@ async function withExponentialBackoff<T>(
   }
 
   throw lastError;
+}
+
+function extractFinalHash(addResponseText: string): string | undefined {
+  const lines = addResponseText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      const parsed = JSON.parse(lines[index]!) as { Hash?: string };
+      if (parsed.Hash) {
+        return parsed.Hash;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 export default {
@@ -184,6 +219,7 @@ export default {
     try {
       body = (await request.json()) as UploadRequest;
       validateUploadRequest(body);
+      validateSignedTransaction(body.signedTxXdr);
     } catch (error: any) {
       return new Response(
         JSON.stringify({
@@ -200,10 +236,10 @@ export default {
       );
     }
 
-    const carBlob = buildUploadBlob(body.car);
-    if (carBlob.size === 0) {
+    const uploadFiles = buildUploadFiles(body.files);
+    if (!uploadFiles.length || uploadFiles.some((file) => file.size === 0)) {
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid CAR body" }),
+        JSON.stringify({ success: false, error: "Invalid upload files" }),
         {
           status: 400,
           headers: {
@@ -216,12 +252,12 @@ export default {
 
     let calculatedCid: string;
     try {
-      calculatedCid = await calculateCidFromCar(carBlob);
+      calculatedCid = await calculateCidFromFiles(uploadFiles);
     } catch (error: any) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: error?.message ?? "Failed to calculate CID from CAR",
+          error: error?.message ?? "Failed to calculate CID from files",
         }),
         {
           status: 400,
@@ -252,23 +288,34 @@ export default {
     async function uploadToFilebase(): Promise<void> {
       await withExponentialBackoff(async () => {
         const formData = new FormData();
-        formData.append("file", carBlob, `${body.cid}.car`);
+        for (const file of uploadFiles) {
+          formData.append("file", file, file.name);
+        }
 
-        const res = await fetch("https://rpc.filebase.io/api/v0/dag/import", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${env.FILEBASE_TOKEN}`,
+        const res = await fetch(
+          "https://rpc.filebase.io/api/v0/add?wrap-with-directory=true&cid-version=1&raw-leaves=true",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${env.FILEBASE_TOKEN}`,
+            },
+            body: formData,
           },
-          body: formData,
-        });
+        );
 
         if (!res.ok) {
           throw new Error(`Filebase HTTP ${res.status}`);
         }
 
         const text = await res.text();
-        if (text && !text.includes(body.cid)) {
-          throw new Error("Filebase CID mismatch");
+        const finalHash = extractFinalHash(text);
+        if (!finalHash) {
+          throw new Error("Filebase add response did not include a root CID");
+        }
+        if (finalHash !== body.cid) {
+          throw new Error(
+            `Filebase CID mismatch: expected ${body.cid}, got ${finalHash}`,
+          );
         }
       }, FILEBASE_MAX_ATTEMPTS);
     }
@@ -281,7 +328,7 @@ export default {
       await withExponentialBackoff(async () => {
         const payload: Record<string, unknown> = {
           cid: body.cid,
-          name: `${body.cid}.car`,
+          name: body.cid,
         };
 
         if (env.PINATA_GROUP_ID) {

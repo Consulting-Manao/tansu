@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import "dotenv/config";
-import { Keypair } from "@stellar/stellar-sdk";
-import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
-import { createHash } from "crypto";
+import {
+  Account,
+  Keypair,
+  Networks,
+  Operation,
+  TransactionBuilder,
+} from "@stellar/stellar-sdk";
+import { createDirectoryEncoderStream } from "ipfs-car";
 
 const DEV_URL = "https://ipfs-testnet.tansu.dev";
 const PROD_URL = "https://ipfs.tansu.dev";
@@ -25,15 +30,13 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-async function packFilesToCar(files) {
+async function calculateDirectoryCid(files) {
   const stream = createDirectoryEncoderStream(files);
   let rootCID;
-  const blocks = [];
 
   await stream.pipeTo(
     new WritableStream({
       write(block) {
-        blocks.push(block);
         rootCID = block.cid.toString();
       },
     }),
@@ -42,31 +45,26 @@ async function packFilesToCar(files) {
   if (!rootCID) {
     throw new Error("Failed to compute test CID");
   }
+  return rootCID;
+}
 
-  const carEncoder = new CAREncoderStream([blocks[blocks.length - 1].cid]);
-  const chunks = [];
-  await new ReadableStream({
-    pull(controller) {
-      if (blocks.length > 0) {
-        controller.enqueue(blocks.shift());
-      } else {
-        controller.close();
-      }
-    },
+function buildSignedTestTransaction(signer) {
+  const account = new Account(signer.publicKey(), "0");
+  const transaction = new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: Networks.TESTNET,
   })
-    .pipeThrough(carEncoder)
-    .pipeTo(
-      new WritableStream({
-        write(chunk) {
-          chunks.push(chunk);
-        },
+    .addOperation(
+      Operation.manageData({
+        name: "ipfs-test",
+        value: "ok",
       }),
-    );
+    )
+    .setTimeout(60)
+    .build();
 
-  return {
-    cid: rootCID,
-    car: new Blob(chunks, { type: "application/vnd.ipld.car" }),
-  };
+  transaction.sign(signer);
+  return transaction.toXDR();
 }
 
 async function test() {
@@ -77,16 +75,13 @@ async function test() {
     "test.txt",
     { type: "text/plain" },
   );
-  const { cid, car } = await packFilesToCar([testFile]);
+  const files = [testFile];
+  const cid = await calculateDirectoryCid(files);
 
   const signer = process.env.TEST_SIGNER_SECRET
     ? Keypair.fromSecret(process.env.TEST_SIGNER_SECRET)
     : Keypair.random();
-  const message = `CID: ${cid}`;
-  const messageHash = createHash("sha256")
-    .update(`Stellar Signed Message:\n${message}`, "utf8")
-    .digest();
-  const signature = signer.sign(messageHash);
+  const signedTxXdr = buildSignedTestTransaction(signer);
 
   try {
     const res = await fetch(WORKER_URL, {
@@ -96,10 +91,14 @@ async function test() {
       },
       body: JSON.stringify({
         cid,
-        message,
-        signature: arrayBufferToBase64(signature),
-        signerAddress: signer.publicKey(),
-        car: arrayBufferToBase64(await car.arrayBuffer()),
+        signedTxXdr,
+        files: await Promise.all(
+          files.map(async (file) => ({
+            name: file.name,
+            type: file.type,
+            content: arrayBufferToBase64(await file.arrayBuffer()),
+          })),
+        ),
       }),
     });
 

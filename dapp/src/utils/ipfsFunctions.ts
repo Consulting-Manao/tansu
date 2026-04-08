@@ -225,60 +225,20 @@ export const getProposalLinkFromIpfs = (cid: string): string =>
 export const getOutcomeLinkFromIpfs = (cid: string): string =>
   getIpfsUrl(cid, "/outcomes.json");
 
-export interface CarPackResult {
-  cid: string;
-  carBlob: Blob;
-}
-
 export async function calculateDirectoryCid(files: File[]): Promise<string> {
-  const { cid } = await packFilesToCar(files);
-  return cid;
-}
-
-/**
- * Packs files into a CAR and calculates root CID deterministically.
- */
-export async function packFilesToCar(files: File[]): Promise<CarPackResult> {
-  const { createDirectoryEncoderStream, CAREncoderStream } =
-    await import("ipfs-car");
+  const { createDirectoryEncoderStream } = await import("ipfs-car");
 
   const stream = createDirectoryEncoderStream(files);
   let rootCID: string | undefined;
-  const blocks: any[] = [];
 
   await stream.pipeTo(
     new WritableStream({
       write(block) {
-        blocks.push(block);
         rootCID = block.cid.toString();
       },
     }),
   );
 
   if (!rootCID) throw new Error("Failed to generate CID");
-
-  const carEncoder = new CAREncoderStream([blocks[blocks.length - 1]!.cid]);
-  const chunks: Uint8Array[] = [];
-  await new ReadableStream({
-    pull(controller) {
-      if (blocks.length > 0) {
-        controller.enqueue(blocks.shift());
-      } else {
-        controller.close();
-      }
-    },
-  })
-    .pipeThrough(carEncoder)
-    .pipeTo(
-      new WritableStream({
-        write(chunk) {
-          chunks.push(chunk);
-        },
-      }),
-    );
-
-  return {
-    cid: rootCID,
-    carBlob: new Blob(chunks, { type: "application/vnd.ipld.car" }),
-  };
+  return rootCID;
 }
