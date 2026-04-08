@@ -329,7 +329,7 @@ nqg:
 
 # --------- NFT --------- #
 
-contract_deploy_nft:  ## Deploy NFT contract
+contract_deploy_nft: contract_build  ## Deploy NFT contract
 	stellar contract deploy \
   		--wasm $(wasm-scf_membership) \
   		--source-account $(admin) \
@@ -340,7 +340,7 @@ contract_deploy_nft:  ## Deploy NFT contract
   		-- \
   		--admin $(shell stellar keys address $(admin)) \
   		--name "SCF Membership" --symbol scf \
-  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
+  		--uri https://ipfs.io/ipfs/QmVTqJ4EzJThVWobgyaWCetcrXCjftQhgi24E4giJ5EgXr \
   		--uri_trait https://ipfs.io/ipfs/Qmddf2UgGTQ3z2SZfg2ziZJzDJDRS3Dk7Z3phZ76fMzdLf \
   		--nqg_contract $(nqg_contract_id) \
   		> .stellar/scf_membership_id-$(network) && \
@@ -382,4 +382,23 @@ contract_nft_governance:
 	  --id $(scf_membership_id) \
 	  -- \
 	  governance \
-	  --token_id 1
+	  --token_id 0
+
+contract_nft_uri:
+	stellar contract invoke \
+	  --source-account $(admin) \
+	  --network testnet \
+	  --id $(scf_membership_id) \
+	  -- \
+	  token_uri \
+	  --token_id 0
+
+contract_nft_trait_value:
+	stellar contract invoke \
+	  --source-account $(admin) \
+	  --network testnet \
+	  --id $(scf_membership_id) \
+	  -- \
+	  trait_value \
+	  --token_id 0 \
+	  --trait_key role

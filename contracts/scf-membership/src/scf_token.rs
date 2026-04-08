@@ -1,7 +1,8 @@
 //! SCF Membership NFT
 
 use crate::{
-    SCFMembership, SCFMembershipArgs, SCFMembershipClient, SCFTokenTrait, errors, events, types,
+    SCFGovernanceTrait, SCFMembership, SCFMembershipArgs, SCFMembershipClient, SCFTokenTrait,
+    errors, events, types,
 };
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, contractimpl, panic_with_error};
 
@@ -121,11 +122,13 @@ impl SCFTokenTrait for SCFMembership {
     fn token_uri(e: &Env, token_id: u32) -> String {
         let base_uri: String = e.storage().instance().get(&types::DataKey::Uri).unwrap();
 
-        // Construct Uri: {base_uri}/{token_id}
+        let role = SCFMembership::trait_value(e, token_id, String::from_str(e, "role"));
+
+        // Construct Uri: {base_uri}/{role}
         let mut uri_bytes = Bytes::new(e);
         uri_bytes.append(&Bytes::from(base_uri));
         uri_bytes.append(&Bytes::from_slice(e, b"/"));
-        uri_bytes.append(&u32_to_decimal_bytes(e, token_id));
+        uri_bytes.append(&u32_to_decimal_bytes(e, role as u32));
 
         String::from(uri_bytes)
     }

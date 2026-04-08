@@ -119,6 +119,9 @@ fn test_governance() {
     let token_id = client.mint(&admin);
     client.set_trait(&token_id, &role_key, &3);
 
+    let token_uri = client.token_uri(&token_id);
+    assert_eq!(token_uri, String::from_str(&e, "ipfs://abcd/3"));
+
     let role = client.trait_value(&token_id, &role_key);
     assert_eq!(role, 3);
 
