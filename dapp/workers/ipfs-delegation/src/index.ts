@@ -61,7 +61,7 @@ function decodeBase64(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
-function buildUploadBlob(base64Car: string): Blob {
+export function buildUploadBlob(base64Car: string): Blob {
   return new Blob([decodeBase64(base64Car)], {
     type: "application/vnd.ipld.car",
   });
@@ -75,7 +75,7 @@ function validateUploadRequest(body: UploadRequest): void {
   }
 }
 
-function validateSignedTransaction(signedTxXdr: string): void {
+export function validateSignedTransaction(signedTxXdr: string): void {
   const passphrases = [Networks.TESTNET, Networks.PUBLIC];
   let verifiedTransaction: Transaction | null = null;
 
@@ -113,27 +113,15 @@ function validateSignedTransaction(signedTxXdr: string): void {
   }
 }
 
-async function calculateCidFromCar(carBlob: Blob): Promise<string> {
+export async function calculateCidFromCar(carBlob: Blob): Promise<string> {
   const reader = await CarReader.fromBytes(
     new Uint8Array(await carBlob.arrayBuffer()),
   );
   const roots = await reader.getRoots();
-  const root = roots[0];
-
-  if (root) {
-    return root.toString();
+  if (!roots[0]) {
+    throw new Error("CAR file has no declared root");
   }
-
-  let lastCid: string | undefined;
-  for await (const block of reader.blocks()) {
-    lastCid = block.cid.toString();
-  }
-
-  if (!lastCid) {
-    throw new Error("CAR file does not contain a root CID");
-  }
-
-  return lastCid;
+  return roots[0].toString();
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -278,8 +266,17 @@ export default {
         }
 
         const text = await res.text();
-        if (text && !text.includes(body.cid)) {
-          throw new Error("Filebase CID mismatch");
+        try {
+          const json = JSON.parse(text);
+          const returnedCid =
+            json?.Cid?.["/"] ?? json?.Root?.Cid?.["/"] ?? null;
+          if (returnedCid && returnedCid !== body.cid) {
+            throw new Error("Filebase CID mismatch");
+          }
+        } catch {
+          if (text && !text.includes(body.cid)) {
+            throw new Error("Filebase response does not confirm expected CID");
+          }
         }
       }, FILEBASE_MAX_ATTEMPTS);
     }

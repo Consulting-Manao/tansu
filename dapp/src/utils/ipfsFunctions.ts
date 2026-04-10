@@ -309,9 +309,10 @@ export async function uploadToIpfsProxy(params: {
     throw new Error("Invalid CAR blob for IPFS upload");
   }
 
+  const bytes = new Uint8Array(await carBlob.arrayBuffer());
   let binary = "";
-  for (const byte of new Uint8Array(await carBlob.arrayBuffer())) {
-    binary += String.fromCharCode(byte);
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
   }
   const car = btoa(binary);
 
