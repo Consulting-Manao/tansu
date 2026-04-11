@@ -1,8 +1,8 @@
 {
   "dependencies": {
     "@astrojs/check": "^0.9.8",
-    "@astrojs/netlify": "7.0.5",
-    "@astrojs/react": "5.0.2",
+    "@astrojs/netlify": "^7.0.6",
+    "@astrojs/react": "^5.0.3",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.1.0",
     "@creit.tech/sorobandomains-sdk": "^0.1.6",
     "@nanostores/react": "^1.1.0",
@@ -10,9 +10,9 @@
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "14.6.1",
     "@stellar/stellar-xdr-json": "^23.0.0",
-    "astro": "6.1.2",
+    "astro": "^6.1.5",
     "astro-seo": "1.1.0",
-    "axios": "1.14.0",
+    "axios": "^1.15.0",
     "buffer": "^6.0.3",
     "classnames": "^2.5.1",
     "d3-array": "^3.2.4",
@@ -30,7 +30,7 @@
     "ipfs-car": "^3.1.0",
     "js-sha3": "^0.9.3",
     "lossless-json": "^4.3.0",
-    "markdown-to-jsx": "9.7.13",
+    "markdown-to-jsx": "^9.7.15",
     "multiformats": "^13.4.2",
     "nanostores": "^1.2.0",
     "react": "^19.2.5",
@@ -38,7 +38,7 @@
     "react18-json-view": "0.2.10",
     "recharts": "3.8.1",
     "toml": "^3.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
