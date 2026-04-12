@@ -107,10 +107,9 @@ function mergeTomlData(
   existingDoc["ORG_URL"] = fields.orgUrl;
   existingDoc["ORG_LOGO"] = fields.orgLogo;
   existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
-  existingDoc["ORG_GITHUB"] =
-    fields.isSoftwareProject
-      ? getRepositoryProjectPath(fields.githubRepoUrl)
-      : "";
+  existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
+    ? getRepositoryProjectPath(fields.githubRepoUrl)
+    : "";
 
   // README is now only stored as a separate file, so we explicitly remove it
   // from the TOML if it was previously there to enforce a single source of truth.
