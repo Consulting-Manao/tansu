@@ -1,6 +1,10 @@
-use soroban_sdk::{Address, Env, String, testutils::Address as _, vec};
+use soroban_sdk::{
+    Address, Env, Event, String,
+    testutils::{Address as _, Events},
+    vec,
+};
 
-use crate::{SCFMembership, SCFMembershipClient, errors, types};
+use crate::{SCFMembership, SCFMembershipClient, errors, events, types};
 
 mod nqg {
     use super::*;
@@ -80,6 +84,15 @@ fn test_lifecycle() {
     let token_id = client.mint(&member);
     assert_eq!(token_id, 0u32);
 
+    let event = events::Mint {
+        to: member.clone(),
+        token_id,
+    };
+    assert_eq!(
+        e.events().all().filter_by_contract(&client.address),
+        [event.to_xdr(&e, &client.address)]
+    );
+
     // Verify ownership
     let owner = client.owner_of(&token_id);
     assert_eq!(owner, member);
@@ -118,6 +131,16 @@ fn test_governance() {
 
     let token_id = client.mint(&admin);
     client.set_trait(&token_id, &role_key, &3);
+
+    let event = events::SetTrait {
+        trait_key: role_key.clone(),
+        token_id,
+        new_value: 3,
+    };
+    assert_eq!(
+        e.events().all().filter_by_contract(&client.address),
+        [event.to_xdr(&e, &client.address)]
+    );
 
     let token_uri = client.token_uri(&token_id);
     assert_eq!(token_uri, String::from_str(&e, "ipfs://abcd/3"));
