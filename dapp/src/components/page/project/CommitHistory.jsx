@@ -1,10 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { useEffect, useState } from "react";
 import { getCommitHistory } from "../../../service/GithubService.ts";
-import {
-  loadConfigData,
-  loadProjectRepoInfo,
-} from "../../../service/StateService.ts";
+import { loadProjectRepoInfo } from "../../../service/StateService.ts";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
 import {
   configData as configDataStore,
@@ -61,7 +58,6 @@ const CommitHistory = () => {
 
   const addMaintainerBadge = () => {
     try {
-      const cfg = loadConfigData();
       if (
         configData &&
         configData.authorGithubNames &&

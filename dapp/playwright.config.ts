@@ -14,14 +14,12 @@ export default defineConfig({
   // Performance optimizations
   timeout: 30000,
   expect: { timeout: 5000 },
-  actionTimeout: 5000,
-  navigationTimeout: 10000,
 
   // Fast execution settings
   fullyParallel: true,
   retries: 0,
   // Use more workers locally for speed; keep single worker on CI for stability
-  workers: process.env.CI ? 1 : undefined,
+  ...(process.env.CI ? { workers: 1 } : {}),
 
   // Minimal reporting for speed
   reporter: [["line"]],
@@ -31,6 +29,8 @@ export default defineConfig({
     trace: "off",
     screenshot: "off",
     video: "off",
+    actionTimeout: 5000,
+    navigationTimeout: 10000,
     channel: "chrome",
     ...devices["Desktop Chrome"],
     // Fast Chrome settings

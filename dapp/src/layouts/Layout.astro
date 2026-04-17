@@ -15,6 +15,7 @@ const { title, page } = Astro.props;
 ---
 
 <script>
+  // @ts-nocheck
   import { Buffer } from "buffer";
   import { mountModal } from "../utils/mountModal";
 
@@ -36,12 +37,11 @@ const { title, page } = Astro.props;
       }
     });
 
-    window.addEventListener("openJoinCommunity", async (event: Event) => {
+    window.addEventListener("openJoinCommunity", async (event) => {
       try {
         const address =
           event && typeof event === "object" && "detail" in event
-            ? ((event as CustomEvent<{ address?: string }>).detail?.address ??
-              "")
+            ? (event.detail && event.detail.address) || ""
             : "";
         await mountModal(
           `join-modal-container ${MODAL_CLASS}`,

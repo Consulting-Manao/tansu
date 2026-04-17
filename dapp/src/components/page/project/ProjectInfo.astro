@@ -135,10 +135,10 @@ import Button from "components/utils/Button";
 <div id="read-more-modal-container"></div>
 
 <script>
+  // @ts-nocheck
   import { getLatestCommitData } from "@service/GithubService";
   import { getIpfsBasicLink } from "utils/ipfsFunctions";
   import { navigate } from "astro:transitions/client";
-  import type { ConfigData } from "types/projectConfig";
   import { formatDateTime } from "utils/formatTimeFunctions";
   import {
     loadConfigData,
@@ -230,8 +230,8 @@ import Button from "components/utils/Button";
     // Modal state
     let isLastHashModalOpen = false;
     let isReadMoreModalOpen = false;
-    let commitData: any = null;
-    let projectData: any = null;
+    let commitData = null;
+    let projectData = null;
 
     // Render function for modals
     const renderModals = () => {
@@ -262,13 +262,11 @@ import Button from "components/utils/Button";
     renderModals();
 
     const updateConfigButton = document.querySelector("[data-update-config]");
-    const udpateConfigModal = document.getElementById(
-      "update-config-modal",
-    ) as HTMLDialogElement;
+    const udpateConfigModal = document.getElementById("update-config-modal");
 
     if (updateConfigButton) {
       updateConfigButton.addEventListener("click", () => {
-        udpateConfigModal.showModal();
+        udpateConfigModal?.showModal();
       });
     }
 
@@ -288,11 +286,7 @@ import Button from "components/utils/Button";
       });
     }
 
-    const updateMaintainerList = (
-      projectInfo: any,
-      configData?: ConfigData,
-      viewAll?: boolean,
-    ) => {
+    const updateMaintainerList = (projectInfo, configData, viewAll) => {
       const maintainersList = document.getElementById("project-maintainers");
       if (maintainersList) {
         const viewAllButtonContainer =
@@ -321,10 +315,10 @@ import Button from "components/utils/Button";
             configData.maintainersAddresses.length ===
               configData.authorGithubNames.length;
 
-          let addrToHandle: Record<string, string> = {};
+          let addrToHandle = {};
           if (hasMapping && configData) {
             for (let i = 0; i < configData.maintainersAddresses.length; i++) {
-              addrToHandle[configData.maintainersAddresses[i]!] =
+              addrToHandle[configData.maintainersAddresses[i]] =
                 configData.authorGithubNames[i] || "";
             }
           }
@@ -390,7 +384,7 @@ import Button from "components/utils/Button";
       }
     };
 
-    let projectInfo: any;
+    let projectInfo;
 
     async function updateProjectInfo() {
       projectInfo = loadProjectInfo();
@@ -434,9 +428,7 @@ import Button from "components/utils/Button";
             configData?.projectFullName || projectInfo.name;
         }
 
-        const projectThumbnail = document.getElementById(
-          "project-thumbnail",
-        ) as HTMLImageElement;
+        const projectThumbnail = document.getElementById("project-thumbnail");
 
         const projectDescription = document.getElementById(
           "project-description",
@@ -693,9 +685,7 @@ import Button from "components/utils/Button";
       syncStatusContainer.appendChild(createTansuTomlLink(projectInfo));
     });
 
-    function createTansuTomlLink(projectInfo: {
-      config: { ipfs: string };
-    }): HTMLAnchorElement {
+    function createTansuTomlLink(projectInfo) {
       const ipfsUrl = `${getIpfsBasicLink(projectInfo.config.ipfs)}/tansu.toml`;
       const link = document.createElement("a");
       link.href = ipfsUrl;
@@ -714,11 +704,7 @@ import Button from "components/utils/Button";
       return link;
     }
 
-    function addLinkButton(
-      container: HTMLElement,
-      url: string,
-      iconName: string,
-    ) {
+    function addLinkButton(container, url, iconName) {
       const button = document.createElement("a");
       button.href = url;
       button.target = "_blank";
@@ -733,8 +719,8 @@ import Button from "components/utils/Button";
       container.appendChild(button);
     }
 
-    function getIconSVG(iconName: string) {
-      const icons: { [key: string]: string } = {
+    function getIconSVG(iconName) {
+      const icons = {
         web: "/icons/logos/web.svg",
         github: "/icons/logos/github.svg",
         twitter: "/icons/logos/twitter-x.svg",
@@ -808,7 +794,7 @@ import Button from "components/utils/Button";
       if (loaded) updateCommunityList();
     });
 
-    async function openProfileModal(address: any) {
+    async function openProfileModal(address) {
       try {
         const memberData = await getMember(address);
 

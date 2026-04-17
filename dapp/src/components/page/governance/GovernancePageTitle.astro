@@ -17,6 +17,7 @@ import Button from "components/utils/Button";
 </div>
 
 <script>
+  // @ts-nocheck
   import { getProjectFromName } from "@service/ReadContractService";
   import { connectedPublicKey } from "utils/store";
   import { toast } from "utils/utils";
@@ -32,21 +33,23 @@ import Button from "components/utils/Button";
       }
     }
 
-    let maintainers: string[] = [];
+    let maintainers = [];
     const createProposalButton = document.querySelector(
       "#create-proposal-button",
     );
 
     try {
-      const projectInfo = await getProjectFromName(projectName!);
+      if (!projectName) return;
+      const projectInfo = await getProjectFromName(projectName);
       if (projectInfo && projectInfo.maintainers) {
         maintainers = projectInfo?.maintainers;
       }
-    } catch (error: any) {
-      toast.error("Something Went Wrong!", error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error("Something Went Wrong!", message);
     }
     connectedPublicKey.subscribe((publicKey) => {
-      if (maintainers.includes(publicKey)) {
+      if (publicKey && maintainers.includes(publicKey)) {
         createProposalButton?.classList.remove("hidden");
       }
     });

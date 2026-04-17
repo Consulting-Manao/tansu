@@ -68,6 +68,25 @@ export interface AnonymousVotingData {
   proofErrorMessage?: string | null; // contract error when proof fails
 }
 
+function extractAddress(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const maybeAddress = (value as { address?: unknown }).address;
+    if (typeof maybeAddress === "string") {
+      return maybeAddress;
+    }
+
+    const maybeValue = (value as { value?: unknown }).value;
+    if (typeof maybeValue === "string") {
+      return maybeValue;
+    }
+  }
+
+  return "";
+}
+
 // Regex helper reused across components
 const isPlainNumber = (s: string | undefined) => !!s && /^\d+$/.test(s);
 
@@ -94,11 +113,7 @@ export async function computeAnonymousVotingData(
   const votes: any[] = rawProposal?.vote_data?.votes ?? [];
 
   // Extract proposer address (normalize to string for comparison)
-  const proposerRaw = rawProposal?.proposer;
-  const proposerAddr: string =
-    typeof proposerRaw === "string"
-      ? proposerRaw
-      : (proposerRaw?.address ?? proposerRaw?.value ?? "");
+  const proposerAddr = extractAddress(rawProposal?.proposer);
 
   // Normalize vote to { tag, data } (SDK may return [tag, data] or { tag, values: [data] })
   function getVoteTagAndData(vote: any): { tag: string; data: any } {
@@ -260,6 +275,6 @@ export async function computeAnonymousVotingData(
     voteStatus,
     decodedVotes: decodedPerVoter,
     proofOk,
-    proofErrorMessage: proofErrorMessage ?? undefined,
+    proofErrorMessage,
   };
 }

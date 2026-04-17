@@ -11,15 +11,47 @@ interface TermsAcceptanceModalProps {
   onDecline: () => void;
 }
 
+interface TermsSummarySectionItem {
+  title: string;
+  content: string;
+}
+
+interface ServiceModificationsSection {
+  description: string;
+  administrativeRights: string;
+}
+
+interface ContactInformationSection {
+  company: string;
+  details: string;
+  address: string;
+  email: string;
+  website: string;
+}
+
+interface TermsSummarySections {
+  keyPoints?: TermsSummarySectionItem[];
+  importantRisks?: TermsSummarySectionItem[];
+  yourResponsibilities?: string[];
+  serviceModifications?: ServiceModificationsSection;
+  limitationsOfLiability?: string[];
+  contactInformation?: ContactInformationSection;
+}
+
+interface TermsSummary {
+  introduction: string;
+  sections: TermsSummarySections;
+}
+
 async function fetchText(path: string): Promise<string> {
   const res = await fetch(path);
   if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
   return res.text();
 }
 
-async function fetchJson(path: string): Promise<Record<string, unknown>> {
+async function fetchJson(path: string): Promise<TermsSummary> {
   const text = await fetchText(path);
-  return JSON.parse(text) as Record<string, unknown>;
+  return JSON.parse(text) as TermsSummary;
 }
 
 const markdownOverrides = {
@@ -53,7 +85,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [view, setView] = useState<LegalView>("summary");
-  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
+  const [summary, setSummary] = useState<TermsSummary | null>(null);
   const [fullTerms, setFullTerms] = useState<string | null>(null);
   const [privacy, setPrivacy] = useState<string | null>(null);
 
@@ -102,8 +134,11 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
     onAccept();
   };
 
-  const s = summary ?? { introduction: "Terms of Service", sections: {} };
-  const sections = (s.sections as Record<string, unknown>) ?? {};
+  const s: TermsSummary = summary ?? {
+    introduction: "Terms of Service",
+    sections: {},
+  };
+  const sections = s.sections;
 
   if (!isVisible) return null;
 
@@ -194,7 +229,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
               </div>
               <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
                 <p className="text-secondary leading-relaxed">
-                  {(s.introduction as string) ||
+                  {s.introduction ||
                     "Tansu is a decentralized governance platform operated by Consulting Manao GmbH, located in Austria. By using our dApp, you agree to be bound by these Terms of Service."}
                 </p>
               </div>
@@ -207,9 +242,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(
-                      sections.keyPoints as { title: string; content: string }[]
-                    ).map((item, i) => (
+                    {sections.keyPoints.map((item, i) => (
                       <div key={i} className="bg-gray-50 rounded-lg p-3">
                         <h3 className="font-semibold text-primary mb-1">
                           {item.title}
@@ -229,12 +262,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(
-                      sections.importantRisks as {
-                        title: string;
-                        content: string;
-                      }[]
-                    ).map((item, i) => (
+                    {sections.importantRisks.map((item, i) => (
                       <div key={i} className="bg-red-50 rounded-lg p-3">
                         <h4 className="font-semibold text-red-800 mb-1">
                           {item.title}
@@ -254,15 +282,13 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(sections.yourResponsibilities as string[]).map(
-                      (item, i) => (
-                        <div key={i} className="bg-blue-50 rounded-lg p-3">
-                          <p className="text-blue-700 text-sm font-medium">
-                            {item}
-                          </p>
-                        </div>
-                      ),
-                    )}
+                    {sections.yourResponsibilities.map((item, i) => (
+                      <div key={i} className="bg-blue-50 rounded-lg p-3">
+                        <p className="text-blue-700 text-sm font-medium">
+                          {item}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -276,28 +302,14 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                   </div>
                   <div className="space-y-3">
                     <p className="text-secondary text-sm mb-3">
-                      {
-                        (
-                          sections.serviceModifications as {
-                            description: string;
-                            administrativeRights: string;
-                          }
-                        ).description
-                      }
+                      {sections.serviceModifications.description}
                     </p>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                       <h4 className="font-semibold text-yellow-800 mb-1">
                         Administrative Rights
                       </h4>
                       <p className="text-yellow-700 text-sm">
-                        {
-                          (
-                            sections.serviceModifications as {
-                              description: string;
-                              administrativeRights: string;
-                            }
-                          ).administrativeRights
-                        }
+                        {sections.serviceModifications.administrativeRights}
                       </p>
                     </div>
                   </div>
@@ -312,15 +324,13 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(sections.limitationsOfLiability as string[]).map(
-                      (item, i) => (
-                        <div key={i} className="bg-yellow-50 rounded-lg p-3">
-                          <p className="text-yellow-700 text-sm font-medium">
-                            {item}
-                          </p>
-                        </div>
-                      ),
-                    )}
+                    {sections.limitationsOfLiability.map((item, i) => (
+                      <div key={i} className="bg-yellow-50 rounded-lg p-3">
+                        <p className="text-yellow-700 text-sm font-medium">
+                          {item}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -335,30 +345,10 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                   <div className="space-y-3">
                     <div>
                       <h4 className="font-semibold text-primary mb-1">
-                        {
-                          (
-                            sections.contactInformation as {
-                              company: string;
-                              details: string;
-                              address: string;
-                              email: string;
-                              website: string;
-                            }
-                          ).company
-                        }
+                        {sections.contactInformation.company}
                       </h4>
                       <p className="text-secondary text-sm whitespace-pre-line">
-                        {
-                          (
-                            sections.contactInformation as {
-                              company: string;
-                              details: string;
-                              address: string;
-                              email: string;
-                              website: string;
-                            }
-                          ).details
-                        }
+                        {sections.contactInformation.details}
                       </p>
                     </div>
                     <div>
@@ -366,33 +356,13 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                         Address:
                       </span>
                       <p className="text-secondary text-sm">
-                        {
-                          (
-                            sections.contactInformation as {
-                              company: string;
-                              details: string;
-                              address: string;
-                              email: string;
-                              website: string;
-                            }
-                          ).address
-                        }
+                        {sections.contactInformation.address}
                       </p>
                     </div>
                     <div>
                       <span className="font-semibold text-primary">Email:</span>
                       <p className="text-secondary text-sm">
-                        {
-                          (
-                            sections.contactInformation as {
-                              company: string;
-                              details: string;
-                              address: string;
-                              email: string;
-                              website: string;
-                            }
-                          ).email
-                        }
+                        {sections.contactInformation.email}
                       </p>
                     </div>
                     <div>
@@ -400,17 +370,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                         Website:
                       </span>
                       <p className="text-secondary text-sm">
-                        {
-                          (
-                            sections.contactInformation as {
-                              company: string;
-                              details: string;
-                              address: string;
-                              email: string;
-                              website: string;
-                            }
-                          ).website
-                        }
+                        {sections.contactInformation.website}
                       </p>
                     </div>
                   </div>

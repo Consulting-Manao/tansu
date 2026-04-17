@@ -145,7 +145,7 @@ const CreateProposalModal = () => {
 
   useEffect(() => {
     const unsubscribe = connectedPublicKey.subscribe((publicKey) =>
-      setConnectedAddress(publicKey),
+      setConnectedAddress(publicKey ?? null),
     );
     const name = new URLSearchParams(window.location.search).get("name");
     setProjectName(name);
@@ -402,45 +402,6 @@ const CreateProposalModal = () => {
     const error = validateTextContent(mdText, 10, "Proposal description");
     setDescriptionError(error);
     return error === null;
-  };
-
-  const validateApproveOutcome = (isFinalSubmission = false): boolean => {
-    const descError = validateTextContent(
-      approveDescription,
-      3,
-      "Approved outcome description",
-    );
-
-    setApproveDescriptionError(descError);
-    setApproveXdrError(null);
-    setApproveContractError(null);
-
-    // For step navigation, only validate description
-    if (!isFinalSubmission) {
-      return descError === null;
-    }
-
-    // For final submission, validate based on mode
-    if (approveMode === "contract") {
-      // If contract address is provided but function is not selected, that's okay for submission
-      // The user can submit with a contract address but no function selected
-      // Only validate that if both address and function are provided, args should be valid
-      if (
-        approveContract?.address?.trim() &&
-        approveContract?.execute_fn?.trim() &&
-        approveContract.args &&
-        approveContract.args.length === 0
-      ) {
-        // If function is selected but no args, that's potentially an issue
-        // But we'll allow it for now as the contract might not need args
-      }
-    } else if (approveMode === "xdr") {
-      // XDR mode doesn't require validation - empty XDR is fine
-    } else if (approveMode === "none") {
-      // No additional validation needed - description only
-    }
-
-    return descError === null;
   };
 
   // Automatically donwload keys on first checking of anonymous voting check

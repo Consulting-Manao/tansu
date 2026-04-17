@@ -17,6 +17,10 @@ export interface Env {
   ENABLE_PINATA_PINNING?: string;
 }
 
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 interface UploadRequest {
   cid: string;
   signedTxXdr: string;
@@ -62,9 +66,18 @@ function decodeBase64(base64: string): Uint8Array {
 }
 
 export function buildUploadBlob(base64Car: string): Blob {
-  return new Blob([decodeBase64(base64Car)], {
-    type: "application/vnd.ipld.car",
-  });
+  const bytes = decodeBase64(base64Car);
+  return new Blob(
+    [
+      bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer,
+    ],
+    {
+      type: "application/vnd.ipld.car",
+    },
+  );
 }
 
 function validateUploadRequest(body: UploadRequest): void {

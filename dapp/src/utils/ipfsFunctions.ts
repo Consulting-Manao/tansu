@@ -280,7 +280,16 @@ export async function packFilesToCar(files: File[]): Promise<CarPackResult> {
 
   return {
     cid: rootCID,
-    carBlob: new Blob(chunks, { type: "application/vnd.ipld.car" }),
+    carBlob: new Blob(
+      chunks.map(
+        (chunk) =>
+          chunk.buffer.slice(
+            chunk.byteOffset,
+            chunk.byteOffset + chunk.byteLength,
+          ) as ArrayBuffer,
+      ),
+      { type: "application/vnd.ipld.car" },
+    ),
   };
 }
 
