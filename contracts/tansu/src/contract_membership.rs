@@ -296,5 +296,7 @@ fn get_nqg(e: &Env, user: Address) -> u32 {
         _ => I256::from_i128(e, 0),
     };
     let scaled = nqg.div(&I256::from_i128(e, 10_i128.pow(12)));
-    scaled.to_i128().unwrap() as u32
+    let nqg = scaled.to_i128().unwrap() as u32;
+    // limit to pilots who have at least 4M
+    if nqg > 4_000_000 { nqg } else { 0 }
 }

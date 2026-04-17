@@ -309,6 +309,16 @@ contract_get_commit:
     	get_commit \
     	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156
 
+contract_get_max_weight:
+	stellar contract invoke \
+    	--source-account $(admin) \
+    	--network $(network) \
+    	--id $(tansu_id) \
+    	-- \
+    	get_max_weight \
+    	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
+    	--member_address $(admin)
+
 # --------- Hook --------- #
 
 pre_push_hook:
