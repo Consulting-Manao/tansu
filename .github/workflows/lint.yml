@@ -95,5 +95,8 @@ jobs:
       - name: Lint dApp
         run: cd dapp && bun run lint
 
+      - name: Check dApp types
+        run: cd dapp && bun run check
+
       - name: Build app (static for lighthouse)
         run: cd dapp && bun run build:lighthouse
