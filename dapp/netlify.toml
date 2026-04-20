@@ -1,5 +1,0 @@
-[build]
-  # In this monorepo, build from the dapp directory.
-  base = "dapp"
-  command = "bun run build"
-  publish = "dist"

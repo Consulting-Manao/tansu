@@ -159,7 +159,7 @@ Netlify UI settings required for cloud builds (both projects):
 - Base directory: `dapp`
 - Build command: `bun run build`
 - Publish directory: `dist`
-- Configuration file path: `dapp/netlify.toml`
+- Configuration file path: `netlify.toml` (repo root)
 
 Once on Netlify on production, the dApp can be deployed on IPFS:
 

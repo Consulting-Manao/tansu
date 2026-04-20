@@ -1,0 +1,6 @@
+[build]
+  # Run commands from the current app directory context.
+  # In Netlify UI, keep Base directory set to `dapp`.
+  base = "."
+  command = "bun run build"
+  publish = "dist"
