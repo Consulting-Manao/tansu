@@ -869,45 +869,6 @@ impl DaoTrait for Tansu {
         proposal
     }
 
-    fn migrate_proposal_votes(env: Env, admin: Address, project_key: Bytes, proposal_id: u32) {
-        crate::contract_tansu::auth_admin(&env, &admin);
-
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let mut proposal = match dao_page.proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
-
-        let mut voters = get_voters(&env, &project_key, proposal_id);
-        for vote_ in proposal.vote_data.votes.iter() {
-            let voter_address = match &vote_ {
-                types::Vote::PublicVote(vote_choice) => vote_choice.address.clone(),
-                types::Vote::AnonymousVote(vote_choice) => vote_choice.address.clone(),
-            };
-
-            let vote_key =
-                types::ProjectKey::Vote(project_key.clone(), proposal_id, voter_address.clone());
-            if !env.storage().persistent().has(&vote_key) {
-                env.storage().persistent().set(&vote_key, &vote_);
-            }
-            if !voters.contains(voter_address.clone()) {
-                voters.push_back(voter_address);
-            }
-        }
-
-        env.storage().persistent().set(
-            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
-            &voters,
-        );
-
-        proposal.vote_data.votes = Vec::new(&env);
-        dao_page.proposals.set(sub_id, proposal);
-        env.storage()
-            .persistent()
-            .set(&types::ProjectKey::Dao(project_key, page), &dao_page);
-    }
 }
 
 fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {

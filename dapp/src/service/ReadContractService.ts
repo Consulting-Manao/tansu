@@ -13,6 +13,15 @@ const proposalHydrationCache = new Map<string, Proposal>();
 const proposalCacheKey = (project_name: string, proposal_id: number) =>
   `${project_name}:${proposal_id}`;
 
+const invalidateProposalHydrationCache = (project_name: string) => {
+  const prefix = `${project_name}:`;
+  for (const key of proposalHydrationCache.keys()) {
+    if (key.startsWith(prefix)) {
+      proposalHydrationCache.delete(key);
+    }
+  }
+};
+
 async function hydrateProposalFromDaoItem(
   project_name: string,
   project_key: Buffer,
@@ -190,6 +199,9 @@ async function getProposals(
 ): Promise<ModifiedProposal[] | null> {
   const project_key = deriveProjectKey(project_name);
   try {
+    // Invalidate project cache before list hydration to avoid stale list states.
+    invalidateProposalHydrationCache(project_name);
+
     const res = await Tansu.get_dao({
       project_key: project_key,
       page: page,
