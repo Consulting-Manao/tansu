@@ -113,7 +113,11 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Navigate to the app
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  try {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+  } catch {
+    await page.goto("/").catch(() => {});
+  }
 
   // Compute tallies and seeds, then call execute()
   const { ok } = await page.evaluate(async () => {

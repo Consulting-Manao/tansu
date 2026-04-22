@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { FC } from "react";
 import Modal from "components/utils/Modal";
-import { fetchReadmeContentFromConfigUrl } from "../../../service/GithubService";
+import { fetchReadmeContentFromConfigUrl } from "../../../service/RepositoryMetadataService";
 import Markdown from "markdown-to-jsx";
 
 import CopyButton from "components/utils/CopyButton";

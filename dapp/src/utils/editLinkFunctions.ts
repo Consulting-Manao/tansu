@@ -13,6 +13,14 @@ export function convertGitHubLink(link: string | null | undefined): string {
   }
 }
 
+const SUPPORTED_REPOSITORY_HOSTS = new Set([
+  "github.com",
+  "gitlab.com",
+  "bitbucket.org",
+  "codeberg.org",
+  "gitea.com",
+]);
+
 interface ParsedRepositoryUrl {
   host: string;
   normalizedUrl: string;
@@ -80,6 +88,21 @@ export function parseRepositoryUrl(
   }
 }
 
+export function isSupportedRepositoryUrl(
+  repoUrl: string | null | undefined,
+): boolean {
+  if (repoUrl == null || typeof repoUrl !== "string") {
+    return false;
+  }
+
+  if (!repoUrl.startsWith("https://") && !repoUrl.startsWith("git@")) {
+    return false;
+  }
+
+  const parsed = parseRepositoryUrl(repoUrl);
+  return parsed ? SUPPORTED_REPOSITORY_HOSTS.has(parsed.host) : false;
+}
+
 export function getRepositoryProjectPath(
   repoUrl: string | null | undefined,
 ): string {
@@ -98,7 +121,7 @@ export function getRepositoryReleasesUrl(
     return `${parsed.normalizedUrl}/releases`;
   }
 
-  if (parsed.host === "gitlab.com" || parsed.host.includes("gitlab.")) {
+  if (parsed.host === "gitlab.com") {
     return `${parsed.normalizedUrl}/-/releases`;
   }
 

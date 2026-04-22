@@ -59,39 +59,19 @@ See the [contributing guide](../CONTRIBUTING.md) for details about IPFS.
 
 5. **Open your browser**: Navigate to `http://localhost:4321`
 
-## Git Backends
+## Git Metadata Providers
 
-The dapp now supports two interchangeable repository metadata backends.
+The dapp fetches repository metadata directly from provider APIs in the browser.
 
-### 1. Provider API mode via Cloudflare Worker
-
-Use this when you want a pure Cloudflare deployment and your repositories live on supported providers.
-
-- Set `PUBLIC_GIT_PROXY_URL` to your deployed worker URL.
-- The worker currently supports GitHub, GitLab, Bitbucket, Codeberg, and Gitea.
-- Provider tokens are optional but recommended to avoid low anonymous rate limits.
-- Worker setup and token configuration are documented in [workers/git-proxy/README.md](./workers/git-proxy/README.md).
-
-### 2. Local or container-backed git mode
-
-If `PUBLIC_GIT_PROXY_URL` is unset, the frontend calls the Astro endpoint at `/api/git`.
-
-- This mode shells out to the local `git` binary.
-- It supports public `http://` and `https://` repositories, including hosts outside the built-in provider list.
-- SSH repositories remain restricted to known hosts plus any hosts listed in `GIT_ALLOWED_HOSTS`.
-- The endpoint rejects localhost, private IP space, and non-standard HTTP(S) ports to avoid turning the server into a private-network proxy.
-
-### Choosing a mode
-
-- Use the worker mode if you want a single Cloudflare deployment with provider APIs.
-- Use the local/container mode if you need arbitrary public HTTP(S) git hosting.
+- Supported public providers are GitHub, GitLab, Bitbucket, Codeberg, and Gitea.
+- Repository metadata features are intentionally limited to those provider APIs.
+- Access is unauthenticated only, so metadata is limited to public repositories and subject to provider CORS and rate limits.
 
 ## Validation
 
 Verified in this workspace:
 
-- `npx vitest run src/pages/api/git.test.ts src/utils/contractErrors.test.ts src/utils/errorHandler.test.ts src/utils/extractConfigData.test.ts`
-- `npm test && npm run check` in [workers/git-proxy](./workers/git-proxy)
+- `bunx vitest run src/schemas/validation.test.ts src/utils/contractErrors.test.ts src/utils/errorHandler.test.ts src/utils/extractConfigData.test.ts`
 
 ### Technology Stack
 

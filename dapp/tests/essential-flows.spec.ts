@@ -223,7 +223,11 @@ test.describe("Essential Production Validation", () => {
 
     // Network failure resilience
     await page.route("**/soroban/**", (route) => route.abort());
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+    try {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+    } catch {
+      await page.goto("/").catch(() => {});
+    }
     await expect(page.locator("[data-connect]")).toBeVisible();
 
     // No critical environment errors

@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { useEffect, useState } from "react";
-import { getCommitHistory } from "../../../service/GithubService.ts";
+import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts";
 import {
   loadConfigData,
   loadProjectRepoUrl,

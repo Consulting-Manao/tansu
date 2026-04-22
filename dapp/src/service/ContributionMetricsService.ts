@@ -1,5 +1,5 @@
 import { GitLogService } from "./GitLogService";
-import { getCommitHistory } from "./GithubService";
+import { getCommitHistory } from "./RepositoryMetadataService";
 import type { ContributionMetrics } from "../types/contributionMetrics";
 import type { FormattedCommit } from "../types/github";
 
