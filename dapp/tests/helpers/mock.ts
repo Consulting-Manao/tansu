@@ -113,9 +113,156 @@ url = "${MOCK_PROJECT.config_url}"
   });
 }
 
+export async function stubProviderApis(page) {
+  const sha = "6663520bd9e6ede248fef8157b2af0b6b6b41046";
+  const repoUrl = MOCK_PROJECT.config_url;
+
+  await page.route("https://api.github.com/repos/**", async (route) => {
+    const url = route.request().url();
+
+    if (url.endsWith("/readme")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/plain; charset=utf-8",
+        body: "# Mock README\nTest",
+      });
+      return;
+    }
+
+    if (url.includes(`/commits/${sha}`)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          sha,
+          html_url: `${repoUrl}/commit/${sha}`,
+          commit: {
+            message: "Mock commit",
+            author: {
+              name: "Mock Maintainer",
+              email: "mock@example.com",
+              date: "2026-03-16T00:00:00Z",
+            },
+            committer: {
+              name: "Mock Maintainer",
+              email: "mock@example.com",
+              date: "2026-03-16T00:00:00Z",
+            },
+          },
+          author: {
+            html_url: "https://github.com/mock-maintainer",
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/commits")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            sha,
+            html_url: `${repoUrl}/commit/${sha}`,
+            commit: {
+              message: "Mock commit",
+              author: {
+                name: "Mock Maintainer",
+                date: "2026-03-16T00:00:00Z",
+              },
+            },
+            author: {
+              html_url: "https://github.com/mock-maintainer",
+            },
+          },
+        ]),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Not found" }),
+    });
+  });
+}
+
+export async function stubReadContractService(page) {
+  const body = `
+    export async function getProjectFromName(name) {
+      return {
+        name: name || "demo",
+        maintainers: ["${WALLET_PK}", "G".padEnd(56, "A")],
+        config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" },
+      };
+    }
+
+    export async function getProjectFromId(id) {
+      return getProjectFromName(id || "demo");
+    }
+
+    export async function getProject(projectKey) {
+      return getProjectFromName(projectKey || "demo");
+    }
+
+    export async function getProjectHash() {
+      return "6663520bd9e6ede248fef8157b2af0b6b6b41046";
+    }
+
+    export async function getProposalPages() {
+      return 1;
+    }
+
+    export async function getProposals() {
+      return [${JSON.stringify(MOCK_PROPOSAL)}];
+    }
+
+    export async function getProposal() {
+      return ${JSON.stringify(MOCK_PROPOSAL)};
+    }
+
+    export async function getMember(address) {
+      return address ? ${JSON.stringify(MOCK_MEMBER)} : null;
+    }
+
+    export async function getBadges() {
+      return {
+        community: false,
+        developer: false,
+        triage: false,
+        verified: false,
+      };
+    }
+
+    export async function hasAnonymousVotingConfig() {
+      return false;
+    }
+  `;
+
+  await page.route("**/service/ReadContractService*", (route) => {
+    route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/javascript" },
+      body,
+    });
+  });
+
+  await page.route("**/@service/ReadContractService*", (route) => {
+    route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/javascript" },
+      body,
+    });
+  });
+}
+
 export async function applyAllMocks(page) {
   // Allow everything by default, we only override selected external calls
   await page.route("**", (route) => route.continue());
+
+  await stubProviderApis(page);
 
   // ──────────────────────────────────────────────
   // Mock ReadContractService functions
@@ -787,6 +934,9 @@ export async function applyMinimalMocks(page) {
   // Allow everything by default
   await page.route("**", (route) => route.continue());
 
+  await stubProviderApis(page);
+  await stubReadContractService(page);
+
   // Only mock external services, not internal contract logic
   await page.route("https://raw.githubusercontent.com/**", (route) => {
     route.fulfill({ status: 200, body: "# Mock README\nTest" });
@@ -845,6 +995,9 @@ export async function applyDiagnosticMocks(page) {
     }
     route.continue();
   });
+
+  await stubProviderApis(page);
+  await stubReadContractService(page);
 
   // Mock with logging
   await page.route("https://raw.githubusercontent.com/**", (route) => {

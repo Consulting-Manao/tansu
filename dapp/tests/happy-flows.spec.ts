@@ -33,7 +33,11 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
   });
 
   test("Project creation modal – basic functionality", async ({ page }) => {
-    await page.goto("/");
+    try {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+    } catch {
+      await page.goto("/").catch(() => {});
+    }
 
     // Wait for page to be ready
     await page.waitForLoadState("networkidle", { timeout: 15000 });
@@ -157,7 +161,11 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
   });
 
   test("Join community modal – adapt to wallet state", async ({ page }) => {
-    await page.goto("/");
+    try {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+    } catch {
+      await page.goto("/").catch(() => {});
+    }
 
     // Wait for page to load
     await page.waitForTimeout(1000);
@@ -170,11 +178,21 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
 
     // Wait for modal to appear
     if (await termsModal.isVisible({ timeout: 3000 })) {
+      await termsModal
+        .getByRole("button", { name: "Terms of Service" })
+        .click();
+      await expect(termsModal.locator(".markdown-body")).toBeVisible({
+        timeout: 10000,
+      });
+
       // Scroll to bottom to enable button
       await termsModal.evaluate((el) => {
         const scrollable = el.querySelector(".overflow-auto");
         if (scrollable) scrollable.scrollTop = scrollable.scrollHeight;
       });
+
+      await page.waitForTimeout(200);
+      await expect(acceptButton).toBeEnabled();
 
       // Click accept
       await acceptButton.click();

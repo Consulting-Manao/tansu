@@ -47,17 +47,13 @@ const { title, page } = Astro.props;
   };
 
   const initCreateProjectModalListener = () => {
-    if (
-      (window as Window & Record<symbol, unknown>)[
-        GLOBAL_CREATE_PROJECT_MODAL_KEY
-      ]
-    ) {
+    const modalWindow = window as unknown as Window & Record<symbol, unknown>;
+
+    if (modalWindow[GLOBAL_CREATE_PROJECT_MODAL_KEY]) {
       return;
     }
 
-    (window as Window & Record<symbol, unknown>)[
-      GLOBAL_CREATE_PROJECT_MODAL_KEY
-    ] = true;
+    modalWindow[GLOBAL_CREATE_PROJECT_MODAL_KEY] = true;
 
     document.addEventListener("show-create-project-modal", async () => {
       if (document.querySelector(".project-modal-container")) {

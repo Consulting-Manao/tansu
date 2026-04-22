@@ -1,7 +1,7 @@
 import { useStore } from "@nanostores/react";
 import Markdown from "markdown-to-jsx";
 import { useEffect, useState } from "react";
-import { fetchReadmeContentFromConfigUrl } from "../../../service/GithubService";
+import { fetchReadmeContentFromConfigUrl } from "../../../service/RepositoryMetadataService";
 import { loadProjectInfo, loadConfigData } from "../../../service/StateService";
 import {
   configData as configDataStore,
