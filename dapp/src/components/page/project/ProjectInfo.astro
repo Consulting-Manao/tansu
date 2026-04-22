@@ -106,6 +106,34 @@ import Button from "components/utils/Button";
       </div>
     </div>
     <div
+      id="project-chain-info"
+      class="p-[15px_16px] lg:p-[30px_72px] bg-white flex flex-col gap-5"
+    >
+      <p class="leading-4 text-base text-secondary">On-chain Information</p>
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <p class="text-xs text-secondary uppercase tracking-wide">Project Name</p>
+          <p id="chain-project-name" class="text-base text-primary font-mono"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+          <p class="text-xs text-secondary uppercase tracking-wide">Project Key</p>
+          <div class="flex items-center gap-2">
+            <code
+              id="chain-project-key"
+              class="text-sm text-primary font-mono bg-gray-50 px-2 py-1 rounded break-all leading-relaxed"
+            ></code>
+            <button
+              id="copy-project-key"
+              class="shrink-0 p-1 rounded hover:bg-gray-100 transition-colors"
+              title="Copy project key"
+            >
+              <img src="/icons/clipboard.svg" alt="Copy" class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
       id="project-maintainers"
       class="p-[15px_16px] lg:p-[30px_72px] bg-white flex flex-col gap-5"
     >
@@ -154,6 +182,7 @@ import Button from "components/utils/Button";
     configData as configDataStore,
     projectHasSubProjects,
     projectInfoLoaded,
+    projectState as projectStateStore,
   } from "../../../utils/store";
   import { getBadges, getMember } from "@service/ReadContractService";
 
@@ -260,6 +289,23 @@ import Button from "components/utils/Button";
 
     // Initial render
     renderModals();
+
+    const copyKeyButton = document.getElementById("copy-project-key");
+    if (copyKeyButton) {
+      copyKeyButton.addEventListener("click", () => {
+        const keyEl = document.getElementById("chain-project-key");
+        const key = keyEl?.textContent?.trim();
+        if (key) {
+          navigator.clipboard.writeText(key).then(() => {
+            const img = copyKeyButton.querySelector("img");
+            if (img) {
+              img.src = "/icons/check.svg";
+              setTimeout(() => { img.src = "/icons/clipboard.svg"; }, 1500);
+            }
+          });
+        }
+      });
+    }
 
     const updateConfigButton = document.querySelector("[data-update-config]");
     const udpateConfigModal = document.getElementById(
@@ -404,6 +450,22 @@ import Button from "components/utils/Button";
 
         const configData = loadConfigData();
         const isSoftwareProject = configData?.projectType === "SOFTWARE";
+
+        // On-chain name
+        const chainNameEl = document.getElementById("chain-project-name");
+        if (chainNameEl) {
+          chainNameEl.textContent = projectInfo.name;
+        }
+
+        // On-chain project key (hex)
+        const chainKeyEl = document.getElementById("chain-project-key");
+        const stateRaw = projectStateStore.get();
+        if (chainKeyEl && stateRaw) {
+          try {
+            const parsed = JSON.parse(stateRaw);
+            chainKeyEl.textContent = parsed.project_id || "";
+          } catch {}
+        }
 
         // Show Read More + Last Hash buttons only for SOFTWARE projects
         const readMoreWrapper = document.getElementById(
