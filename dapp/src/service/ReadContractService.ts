@@ -7,6 +7,36 @@ import type { Project, Proposal, Member, Badges } from "../../packages/tansu";
 import type { Proposal as ModifiedProposal } from "types/proposal";
 import { checkSimulationError } from "utils/contractErrors";
 
+// Lightweight session cache to avoid rehydrating the same proposal repeatedly.
+const proposalHydrationCache = new Map<string, Proposal>();
+
+const proposalCacheKey = (project_name: string, proposal_id: number) =>
+  `${project_name}:${proposal_id}`;
+
+async function hydrateProposalFromDaoItem(
+  project_name: string,
+  project_key: Buffer,
+  daoProposal: Proposal,
+): Promise<Proposal> {
+  const cacheKey = proposalCacheKey(project_name, Number(daoProposal.id));
+  const cached = proposalHydrationCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const proposalRes = await Tansu.get_proposal({
+      project_key,
+      proposal_id: Number(daoProposal.id),
+    });
+    checkSimulationError(proposalRes);
+    const hydratedProposal: Proposal = proposalRes.result;
+    proposalHydrationCache.set(cacheKey, hydratedProposal);
+    return hydratedProposal;
+  } catch {
+    // Keep list rendering resilient when a single hydration fails.
+    return daoProposal;
+  }
+}
+
 async function getProjectHash(): Promise<string | null> {
   const projectId = loadedProjectId();
 
@@ -168,10 +198,14 @@ async function getProposals(
     // Check for simulation errors
     checkSimulationError(res);
 
-    const proposals: ModifiedProposal[] = res.result.proposals.map(
-      (proposal: Proposal) => {
-        return modifyProposalFromContract(proposal);
-      },
+    const hydratedProposals = await Promise.all(
+      (res.result.proposals as Proposal[]).map((proposal) =>
+        hydrateProposalFromDaoItem(project_name, project_key, proposal),
+      ),
+    );
+
+    const proposals: ModifiedProposal[] = hydratedProposals.map((proposal) =>
+      modifyProposalFromContract(proposal),
     );
     return proposals;
   } catch {

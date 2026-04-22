@@ -256,12 +256,11 @@ impl DaoTrait for Tansu {
             }),
         };
 
-        let votes = vec![&env, vote_];
         let vote_data = types::VoteData {
             voting_ends_at,
             public_voting,
             token_contract: token_contract.clone(),
-            votes,
+            votes: Vec::new(&env),
         };
         let proposal = types::Proposal {
             id: proposal_id,
@@ -292,6 +291,16 @@ impl DaoTrait for Tansu {
         env.storage().persistent().set(
             &types::ProjectKey::Dao(project_key.clone(), page),
             &dao_page,
+        );
+
+        env.storage().persistent().set(
+            &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
+            &vote_,
+        );
+        let voters = vec![&env, proposer.clone()];
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
         );
 
         events::ProposalCreated {
@@ -397,8 +406,8 @@ impl DaoTrait for Tansu {
 
         let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
         let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let mut proposal = match dao_page.proposals.try_get(sub_id) {
+        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
+        let proposal = match dao_page.proposals.try_get(sub_id) {
             Ok(Some(proposal)) => proposal,
             _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
         };
@@ -412,13 +421,16 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
+        let all_votes = get_all_votes(&env, &project_key, proposal_id);
+        let mut voters = get_voters(&env, &project_key, proposal_id);
+
         // Check vote limits for DoS protection
-        if proposal.vote_data.votes.len() >= MAX_VOTES_PER_PROPOSAL {
+        if all_votes.len() >= MAX_VOTES_PER_PROPOSAL {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
         }
 
         // only allow to vote once per voter
-        let has_already_voted = proposal.vote_data.votes.iter().any(|vote_| match vote_ {
+        let has_already_voted = all_votes.iter().any(|vote_| match vote_ {
             types::Vote::PublicVote(vote_choice) => vote_choice.address == voter,
             types::Vote::AnonymousVote(vote_choice) => vote_choice.address == voter,
         });
@@ -437,6 +449,9 @@ impl DaoTrait for Tansu {
         // For anonymous votes, validate commitment structure
         if !is_public_vote && let types::Vote::AnonymousVote(vote_choice) = &vote {
             if vote_choice.commitments.len() != 3 {
+                panic_with_error!(&env, &errors::ContractErrors::BadCommitment)
+            }
+            if vote_choice.encrypted_votes.len() != 3 || vote_choice.encrypted_seeds.len() != 3 {
                 panic_with_error!(&env, &errors::ContractErrors::BadCommitment)
             }
             for commitment in &vote_choice.commitments {
@@ -496,14 +511,15 @@ impl DaoTrait for Tansu {
             _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
         }
 
-        // Record the vote
-        proposal.vote_data.votes.push_back(vote.clone());
-
-        dao_page.proposals.set(sub_id, proposal);
-
+        // Record the vote in keyed storage
         env.storage().persistent().set(
-            &types::ProjectKey::Dao(project_key.clone(), page),
-            &dao_page,
+            &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone()),
+            &vote.clone(),
+        );
+        voters.push_back(voter.clone());
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
         );
 
         events::VoteCast {
@@ -569,6 +585,8 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
+        let all_votes = get_all_votes(&env, &project_key, proposal_id);
+
         // Return proposal collateral to proposer
         let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
         let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
@@ -582,7 +600,7 @@ impl DaoTrait for Tansu {
         }
 
         // Return voting collateral to all voters
-        for vote_ in &proposal.vote_data.votes {
+        for vote_ in &all_votes {
             let (vote_address, vote_weight) = match &vote_ {
                 types::Vote::PublicVote(vote_choice) => (&vote_choice.address, vote_choice.weight),
                 types::Vote::AnonymousVote(vote_choice) => {
@@ -611,7 +629,9 @@ impl DaoTrait for Tansu {
                 if tallies.is_some() || seeds.is_some() {
                     panic_with_error!(&env, &errors::ContractErrors::TallySeedError);
                 }
-                public_execute(&proposal)
+                let mut proposal_for_tally = proposal.clone();
+                proposal_for_tally.vote_data.votes = all_votes.clone();
+                public_execute(&proposal_for_tally)
             }
             false => {
                 let (tallies_, seeds_) = match (tallies, seeds) {
@@ -728,7 +748,7 @@ impl DaoTrait for Tansu {
         let vote_config: types::AnonymousVoteConfig = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::AnonymousVoteConfig(project_key))
+            .get(&types::ProjectKey::AnonymousVoteConfig(project_key.clone()))
             .unwrap_or_else(|| {
                 panic_with_error!(&env, &errors::ContractErrors::NoAnonymousVotingConfig);
             });
@@ -759,7 +779,8 @@ impl DaoTrait for Tansu {
             tally_commitment_init_.clone(),
         ];
 
-        for vote_ in proposal.vote_data.votes.iter() {
+        let all_votes = get_all_votes(&env, &project_key, proposal.id);
+        for vote_ in all_votes.iter() {
             if let types::Vote::AnonymousVote(anonymous_vote) = &vote_ {
                 let weight_: U256 = U256::from_u32(&env, anonymous_vote.weight);
                 for (commitment, tally_commitment) in anonymous_vote
@@ -838,13 +859,79 @@ impl DaoTrait for Tansu {
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal {
         let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
         let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let dao_page = Self::get_dao(env.clone(), project_key, page);
+        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
         let proposals = dao_page.proposals;
-        match proposals.try_get(sub_id) {
+        let mut proposal = match proposals.try_get(sub_id) {
             Ok(Some(proposal)) => proposal,
             _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
+        };
+        proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
+        proposal
+    }
+
+    fn migrate_proposal_votes(env: Env, admin: Address, project_key: Bytes, proposal_id: u32) {
+        crate::contract_tansu::auth_admin(&env, &admin);
+
+        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
+        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
+        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
+        let mut proposal = match dao_page.proposals.try_get(sub_id) {
+            Ok(Some(proposal)) => proposal,
+            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
+        };
+
+        let mut voters = get_voters(&env, &project_key, proposal_id);
+        for vote_ in proposal.vote_data.votes.iter() {
+            let voter_address = match &vote_ {
+                types::Vote::PublicVote(vote_choice) => vote_choice.address.clone(),
+                types::Vote::AnonymousVote(vote_choice) => vote_choice.address.clone(),
+            };
+
+            let vote_key =
+                types::ProjectKey::Vote(project_key.clone(), proposal_id, voter_address.clone());
+            if !env.storage().persistent().has(&vote_key) {
+                env.storage().persistent().set(&vote_key, &vote_);
+            }
+            if !voters.contains(voter_address.clone()) {
+                voters.push_back(voter_address);
+            }
+        }
+
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
+        );
+
+        proposal.vote_data.votes = Vec::new(&env);
+        dao_page.proposals.set(sub_id, proposal);
+        env.storage()
+            .persistent()
+            .set(&types::ProjectKey::Dao(project_key, page), &dao_page);
+    }
+}
+
+fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
+        .unwrap_or(Vec::new(env))
+}
+
+fn get_all_votes(
+    env: &Env,
+    project_key: &Bytes,
+    proposal_id: u32,
+) -> Vec<types::Vote> {
+    let mut votes = Vec::new(env);
+    let voters = get_voters(env, project_key, proposal_id);
+    for voter in voters.iter() {
+        if let Some(vote_) = env.storage().persistent().get::<types::ProjectKey, types::Vote>(
+            &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter),
+        ) {
+            votes.push_back(vote_);
         }
     }
+    votes
 }
 
 /// Execute a public voting proposal.

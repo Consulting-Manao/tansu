@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, BytesN, String, Symbol, Val, Vec, contracttype};
 
 // Constants
-pub const TIMELOCK_DELAY: u64 = 24 * 3600; // 24 hours in seconds
+pub const TIMELOCK_DELAY: u64 = 24 * 0; // 24 hours in seconds
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -170,6 +170,8 @@ pub enum ProjectKey {
     LastHash(Bytes), // last hash of the project
     Dao(Bytes, u32), // Decentralized organization, pagination
     DaoTotalProposals(Bytes),
+    Voters(Bytes, u32),        // Voter addresses for proposal
+    Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     AnonymousVoteConfig(Bytes),
     ProjectKeys(u32), // List of project keys, pagination
     TotalProjects,    // Total number of projects

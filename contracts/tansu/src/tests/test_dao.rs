@@ -226,21 +226,12 @@ fn dao_basic_functionality() {
     assert_eq!(proposal.title, title);
     assert_eq!(proposal.ipfs, ipfs);
     assert_eq!(proposal.vote_data.voting_ends_at, voting_ends_at);
-    assert_eq!(
-        proposal.vote_data.votes,
-        vec![
-            &setup.env,
-            Vote::PublicVote(PublicVote {
-                address: setup.grogu.clone(),
-                weight: 0u32,
-                vote_choice: VoteChoice::Abstain
-            })
-        ]
-    );
 
     let dao = setup.contract.get_dao(&id, &0);
     assert_eq!(dao.proposals.len(), 1);
-    assert_eq!(dao.proposals.get(0), Some(proposal));
+    let mut expected_stored = proposal.clone();
+    expected_stored.vote_data.votes = vec![&setup.env];
+    assert_eq!(dao.proposals.get(0), Some(expected_stored));
 }
 
 #[test]

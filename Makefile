@@ -243,6 +243,18 @@ contract_set_nqg_contract:  ## Set the NQG contract address and project using it
 		--nqg_contract '{"address":"$(nqg_contract_id)","wasm_hash":"$(nqg_wasm_hash)"}' \
 		--project stellarpg
 
+contract_migrate:
+	stellar contract invoke \
+    	--source-account $(admin) \
+    	--network $(network) \
+    	--id $(tansu_id) \
+    	-- \
+    	migrate_proposal_votes \
+    	--admin $(shell stellar keys address $(admin)) \
+    	--project_key 682138d90ce10c7a6a28d194b222390598157be44c434c4b23b7d7bf6b4364cd \
+    	--proposal_id 15
+
+
 # --------- Testnet --------- #
 
 testnet_reset:  ## Playbook for testnet reset
