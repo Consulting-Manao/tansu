@@ -19,6 +19,7 @@ import {
 } from "utils/validations";
 import { updateConfigFlow } from "@service/FlowService";
 import { toast, extractConfigData } from "utils/utils";
+import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import { getProject } from "@service/ReadContractService";
 import {
   calculateDirectoryCid,
@@ -236,6 +237,11 @@ const UpdateConfigModal = () => {
   const [orgDescription, setOrgDescription] = useState("");
   const [readmeContent, setReadmeContent] = useState("");
 
+  // Local image handling for Markdown content
+  type ProjectImage = { localUrl: string; publicUrl: string; source: File };
+  const [imageFiles, setImageFiles] = useState<ProjectImage[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
+
   // errors
   const [addrErrors, setAddrErrors] = useState<(string | null)[]>([null]);
   const [ghErrors, setGhErrors] = useState<(string | null)[]>([null]);
@@ -412,9 +418,24 @@ const UpdateConfigModal = () => {
 
       const additionalFiles: File[] = [];
       if (!isSoftwareProject) {
+        let content = finalReadme || "";
+
+        // Handle images for the description
+        const imageFilesToPush: File[] = [];
+        imageFiles.forEach((image) => {
+          if (content.includes(image.localUrl)) {
+            content = content.replace(
+              new RegExp(image.localUrl, "g"),
+              image.publicUrl,
+            );
+            imageFilesToPush.push(new File([image.source], image.publicUrl));
+          }
+        });
+
         additionalFiles.push(
-          new File([finalReadme || ""], "README.md", { type: "text/markdown" }),
+          new File([content], "README.md", { type: "text/markdown" }),
         );
+        additionalFiles.push(...imageFilesToPush);
       }
 
       await updateConfigFlow({
@@ -615,14 +636,136 @@ const UpdateConfigModal = () => {
                       />
                     )}
                     {!isSoftwareProject && (
-                      <Textarea
-                        label="README"
-                        value={readmeContent}
-                        onChange={(e) => {
-                          setReadmeContent(e.target.value);
-                        }}
-                        description="Project README content (Markdown)"
-                      />
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <Label label="README" />
+                          <span className="text-[10px] text-secondary">
+                            Supports Markdown formatting
+                          </span>
+                        </div>
+                        <div className="rounded-md border border-zinc-700 overflow-hidden">
+                          <SimpleMarkdownEditor
+                            value={readmeContent}
+                            onChange={(value) => setReadmeContent(value)}
+                            placeholder="Write your project README in markdown format..."
+                          />
+                        </div>
+                        <p className="text-[10px] text-secondary -mt-2">
+                          Project README content (Markdown)
+                        </p>
+
+                        {/* Image upload controls */}
+                        <div className="space-y-3 pt-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-md">
+                            <div className="flex-1">
+                              <p className="text-[10px] text-secondary">
+                                Optionally attach images and insert them into
+                                your README. Max 5MB each.
+                              </p>
+                            </div>
+                            <label className="cursor-pointer bg-primary text-white px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors text-[10px] font-medium whitespace-nowrap">
+                              Add Image
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/gif"
+                                className="hidden"
+                                onChange={(e) => {
+                                  setImageError(null);
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const allowedTypes = [
+                                    "image/png",
+                                    "image/jpeg",
+                                    "image/jpg",
+                                    "image/svg+xml",
+                                    "image/gif",
+                                  ];
+                                  if (!allowedTypes.includes(file.type)) {
+                                    setImageError(
+                                      "Unsupported image type. Allowed: png, jpg, jpeg, svg, gif",
+                                    );
+                                    return;
+                                  }
+                                  const maxBytes = 5 * 1024 * 1024; // 5MB
+                                  if (file.size > maxBytes) {
+                                    setImageError(
+                                      "Please upload an image smaller than 5MB",
+                                    );
+                                    return;
+                                  }
+                                  const localUrl = URL.createObjectURL(file);
+                                  const publicUrl = `images/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+                                  setImageFiles((prev) => [
+                                    ...prev,
+                                    { localUrl, publicUrl, source: file },
+                                  ]);
+                                  setReadmeContent(
+                                    (prev) =>
+                                      `${prev}${prev && !prev.endsWith("\n") ? "\n\n" : ""}![](${localUrl})\n`,
+                                  );
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {imageError && (
+                            <p className="text-red-500 text-[10px]">
+                              {imageError}
+                            </p>
+                          )}
+
+                          {imageFiles.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-medium text-primary">
+                                Attached Images ({imageFiles.length})
+                              </p>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {imageFiles.map((img, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="border border-gray-200 p-2 flex flex-col gap-2 rounded-lg bg-white"
+                                  >
+                                    <img
+                                      src={img.localUrl}
+                                      alt={`attachment-${idx}`}
+                                      className="w-full h-12 object-contain rounded"
+                                    />
+                                    <div className="flex justify-between items-center gap-1">
+                                      <button
+                                        type="button"
+                                        className="text-blue-600 hover:text-blue-800 underline text-[9px]"
+                                        onClick={() =>
+                                          setReadmeContent(
+                                            (prev) =>
+                                              `${prev}${prev && !prev.endsWith("\n") ? "\n\n" : ""}![](${img.localUrl})\n`,
+                                          )
+                                        }
+                                      >
+                                        Insert
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="text-red-600 hover:text-red-800 underline text-[9px]"
+                                        onClick={() => {
+                                          URL.revokeObjectURL(img.localUrl);
+                                          setImageFiles((prev) =>
+                                            prev.filter((_, i) => i !== idx),
+                                          );
+                                          setReadmeContent((prev) =>
+                                            prev.replaceAll(img.localUrl, ""),
+                                          );
+                                        }}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     <div className="flex justify-between mt-4">
