@@ -10,6 +10,8 @@ export function badgeName(code: BadgeCode): string {
       return "Community";
     case 500000:
       return "Verified";
+    case 100000:
+      return "Maintainer";
     case 1:
       return "Default";
     default:

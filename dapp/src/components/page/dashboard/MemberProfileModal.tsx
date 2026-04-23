@@ -33,6 +33,7 @@ interface ProjectWithName {
   name: string;
   badges: Array<Badge>;
   projectId: Buffer;
+  isMaintainer?: boolean;
 }
 
 const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
@@ -145,16 +146,28 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
       const projectsWithNamesPromises = member.projects.map(async (proj) => {
         try {
           const projectData = await getProjectFromId(proj.project);
+          const isMaintainer =
+            projectData?.maintainers?.includes(memberAddress) || false;
+
+          // Add maintainer badge if user is a maintainer (100000 is the Maintainer badge value)
+          let badges = [...proj.badges];
+          const maintainerBadge = 100000 as Badge;
+          if (isMaintainer && !badges.includes(maintainerBadge)) {
+            badges.push(maintainerBadge);
+          }
+
           return {
             name: projectData?.name || "Unknown Project",
-            badges: proj.badges,
+            badges: badges,
             projectId: proj.project,
+            isMaintainer,
           };
         } catch {
           return {
             name: "Unknown Project",
             badges: proj.badges,
             projectId: proj.project,
+            isMaintainer: false,
           };
         }
       });
