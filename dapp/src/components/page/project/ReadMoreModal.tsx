@@ -5,7 +5,10 @@ import { fetchReadmeContentFromConfigUrl } from "../../../service/RepositoryMeta
 import Markdown from "markdown-to-jsx";
 
 import CopyButton from "components/utils/CopyButton";
-import { getRepositoryReleasesUrl } from "../../../utils/editLinkFunctions";
+import {
+  getRepositoryIconInfo,
+  getRepositoryReleasesUrl,
+} from "../../../utils/editLinkFunctions";
 
 interface ReadMoreModalProps {
   isOpen: boolean;
@@ -59,6 +62,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   projectData,
 }) => {
   const [readmeContent, setReadmeContent] = useState("");
+  const repositoryIcon = getRepositoryIconInfo(projectData?.githubUrl);
   const releasesUrl = getRepositoryReleasesUrl(projectData?.githubUrl);
 
   useEffect(() => {
@@ -123,8 +127,8 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                     rel="noopener noreferrer"
                   >
                     <img
-                      src="/icons/git.svg"
-                      alt="Repository"
+                      src={repositoryIcon.src}
+                      alt={repositoryIcon.label}
                       className="w-4 h-4"
                     />
                   </a>

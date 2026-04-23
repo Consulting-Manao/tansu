@@ -21,6 +21,67 @@ const SUPPORTED_REPOSITORY_HOSTS = new Set([
   "gitea.com",
 ]);
 
+export type RepositoryProvider =
+  | "github"
+  | "gitlab"
+  | "bitbucket"
+  | "codeberg"
+  | "gitea";
+
+export const SUPPORTED_REPOSITORY_PROVIDERS: RepositoryProvider[] = [
+  "github",
+  "gitlab",
+  "bitbucket",
+  "codeberg",
+  "gitea",
+];
+
+const REPOSITORY_PROVIDER_BY_HOST: Record<string, RepositoryProvider> = {
+  "github.com": "github",
+  "gitlab.com": "gitlab",
+  "bitbucket.org": "bitbucket",
+  "codeberg.org": "codeberg",
+  "gitea.com": "gitea",
+};
+
+const REPOSITORY_PROVIDER_ICON_PATHS: Record<RepositoryProvider, string> = {
+  github: "/icons/logos/github.svg",
+  gitlab: "/icons/logos/gitlab.svg",
+  bitbucket: "/icons/logos/bitbucket.svg",
+  codeberg: "/icons/logos/codeberg.svg",
+  gitea: "/icons/logos/gitea.svg",
+};
+
+const REPOSITORY_PROVIDER_LABELS: Record<RepositoryProvider, string> = {
+  github: "GitHub",
+  gitlab: "GitLab",
+  bitbucket: "Bitbucket",
+  codeberg: "Codeberg",
+  gitea: "Gitea",
+};
+
+const REPOSITORY_PROVIDER_REPO_PLACEHOLDERS: Record<
+  RepositoryProvider,
+  string
+> = {
+  github: "https://github.com/owner/repo",
+  gitlab: "https://gitlab.com/group/project",
+  bitbucket: "https://bitbucket.org/workspace/repo",
+  codeberg: "https://codeberg.org/owner/repo",
+  gitea: "https://gitea.com/owner/repo",
+};
+
+const REPOSITORY_PROVIDER_HANDLE_PLACEHOLDERS: Record<
+  RepositoryProvider,
+  string
+> = {
+  github: "username",
+  gitlab: "username",
+  bitbucket: "workspace-or-user",
+  codeberg: "username",
+  gitea: "username",
+};
+
 interface ParsedRepositoryUrl {
   host: string;
   normalizedUrl: string;
@@ -101,6 +162,67 @@ export function isSupportedRepositoryUrl(
 
   const parsed = parseRepositoryUrl(repoUrl);
   return parsed ? SUPPORTED_REPOSITORY_HOSTS.has(parsed.host) : false;
+}
+
+export function getRepositoryProvider(
+  repoUrl: string | null | undefined,
+): RepositoryProvider | undefined {
+  const parsed = parseRepositoryUrl(repoUrl);
+  if (!parsed) {
+    return undefined;
+  }
+
+  return REPOSITORY_PROVIDER_BY_HOST[parsed.host];
+}
+
+export function getRepositoryIconInfo(repoUrl: string | null | undefined): {
+  provider?: RepositoryProvider;
+  src: string;
+  label: string;
+} {
+  const provider = getRepositoryProvider(repoUrl);
+  if (!provider) {
+    return {
+      src: "/icons/git.svg",
+      label: "Repository",
+    };
+  }
+
+  return {
+    provider,
+    src: REPOSITORY_PROVIDER_ICON_PATHS[provider],
+    label: REPOSITORY_PROVIDER_LABELS[provider],
+  };
+}
+
+export function getRepositoryProviderLabel(
+  provider: RepositoryProvider | undefined,
+): string {
+  return provider ? REPOSITORY_PROVIDER_LABELS[provider] : "Repository";
+}
+
+export function getRepositoryHandleLabel(
+  provider: RepositoryProvider | undefined,
+): string {
+  return provider
+    ? `${getRepositoryProviderLabel(provider)} Handle`
+    : "Maintainer Handle";
+}
+
+export function getRepositoryHandlePlaceholder(
+  provider: RepositoryProvider | undefined,
+): string {
+  return provider
+    ? REPOSITORY_PROVIDER_HANDLE_PLACEHOLDERS[provider]
+    : "username";
+}
+
+export function getRepositoryUrlPlaceholder(
+  provider: RepositoryProvider | undefined,
+): string {
+  return provider
+    ? REPOSITORY_PROVIDER_REPO_PLACEHOLDERS[provider]
+    : "https://provider.example/owner/repo";
 }
 
 export function getRepositoryProjectPath(

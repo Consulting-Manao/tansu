@@ -517,6 +517,8 @@ export async function applyAllMocks(page) {
       'export const getProposalLinkFromIpfs = (cid) => (cid ? getIpfsBasicLink(cid) + "/proposal.md" : "");\n' +
       'export const getOutcomeLinkFromIpfs = (cid) => (cid ? getIpfsBasicLink(cid) + "/outcomes.json" : "");\n' +
       'export const calculateDirectoryCid = async () => "bafytestcidmock";\n' +
+      'export const packFilesToCar = async () => ({ cid: "bafytestcidmock", carBlob: new Blob(["mock-car"], { type: "application/vnd.ipld.car" }) });\n' +
+      'export const uploadToIpfsProxy = async ({ cid }) => cid || "bafytestcidmock";\n' +
       "export const fetchFromIpfs = async () => ({ ok: true, text: () => Promise.resolve(''), json: () => Promise.resolve(null), clone: () => ({ ok: true, text: () => Promise.resolve(''), json: () => Promise.resolve(null) }) });\n" +
       "export const fetchTextFromIpfs = async () => null;\n" +
       "export const fetchJsonFromIpfs = async () => null;\n" +
