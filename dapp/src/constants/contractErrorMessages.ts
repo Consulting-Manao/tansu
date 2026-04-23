@@ -33,6 +33,7 @@ export const contractErrorMessages = {
   208: "Bad commitment.",
   209: "Invalid voter weight calculation.",
   210: "Too many voters already.",
+  211: "Your address has a declared conflict of interest for this proposal.",
 
   // State (300-399)
   300: "No hash was found.",
