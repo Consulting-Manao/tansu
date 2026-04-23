@@ -46,6 +46,7 @@ const ProjectList = () => {
   const [hasNextPage, setHasNextPage] = useState(true);
 
   const searchTimeoutRef = useRef(null);
+  const modalSyncSkipRef = useRef(true);
 
   // Modal handlers
   const handleCreateProjectModal = useCallback(() => {
@@ -58,6 +59,8 @@ const ProjectList = () => {
 
   // Initial fetch + URL search handling
   useEffect(() => {
+    projectCardModalOpen.set(false);
+
     const fetchProjects = async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const data = getFeaturedProjectsConfigData();
@@ -151,6 +154,10 @@ const ProjectList = () => {
   }, [handleCreateProjectModal]);
 
   useEffect(() => {
+    if (modalSyncSkipRef.current) {
+      modalSyncSkipRef.current = false;
+      return;
+    }
     setShowProjectInfoModal(isProjectInfoModalOpen);
   }, [isProjectInfoModalOpen]);
 

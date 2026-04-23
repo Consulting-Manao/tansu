@@ -86,7 +86,7 @@ const NavbarSearch = () => {
       window.location.pathname === HOME_PATH &&
       window.location.search
     ) {
-      window.history.pushState({}, "", HOME_PATH);
+      window.history.replaceState({}, "", HOME_PATH);
     }
   };
 
@@ -111,7 +111,7 @@ const NavbarSearch = () => {
         const url = new URL(window.location.href);
         url.searchParams.set("search", searchTerm);
         url.searchParams.set("member", "true");
-        window.history.pushState({}, "", url.toString());
+        window.history.replaceState({}, "", url.toString());
         window.dispatchEvent(
           new CustomEvent("search-member", { detail: searchTerm }),
         );
@@ -125,7 +125,7 @@ const NavbarSearch = () => {
         const url = new URL(window.location.href);
         url.searchParams.set("search", searchTerm);
         url.searchParams.delete("member");
-        window.history.pushState({}, "", url.toString());
+        window.history.replaceState({}, "", url.toString());
         window.dispatchEvent(
           new CustomEvent("search-projects", { detail: searchTerm }),
         );
