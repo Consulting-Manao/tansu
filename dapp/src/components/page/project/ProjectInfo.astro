@@ -112,11 +112,16 @@ import Button from "components/utils/Button";
       <p class="leading-4 text-base text-secondary">On-chain Information</p>
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
-          <p class="text-xs text-secondary uppercase tracking-wide">Project Name</p>
-          <p id="chain-project-name" class="text-base text-primary font-mono"></p>
+          <p class="text-xs text-secondary uppercase tracking-wide">
+            Project Name
+          </p>
+          <p id="chain-project-name" class="text-base text-primary font-mono">
+          </p>
         </div>
         <div class="flex flex-col gap-1">
-          <p class="text-xs text-secondary uppercase tracking-wide">Project Key</p>
+          <p class="text-xs text-secondary uppercase tracking-wide">
+            Project Key
+          </p>
           <div class="flex items-center gap-2">
             <code
               id="chain-project-key"
@@ -300,7 +305,9 @@ import Button from "components/utils/Button";
             const img = copyKeyButton.querySelector("img");
             if (img) {
               img.src = "/icons/check.svg";
-              setTimeout(() => { img.src = "/icons/clipboard.svg"; }, 1500);
+              setTimeout(() => {
+                img.src = "/icons/clipboard.svg";
+              }, 1500);
             }
           });
         }
