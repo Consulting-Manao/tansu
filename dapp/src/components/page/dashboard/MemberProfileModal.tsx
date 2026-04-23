@@ -9,7 +9,7 @@ import { getIpfsBasicLink, fetchJsonFromIpfs } from "utils/ipfsFunctions";
 import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
 import { refreshLocalStorage } from "@service/StateService";
-import { getProjectFromId } from "../../../service/ReadContractService";
+import { getProjectFromId, getProjectsPage } from "../../../service/ReadContractService";
 import { navigate } from "astro:transitions/client";
 import { Buffer } from "buffer";
 import OnChainActions from "./OnChainActions";
@@ -33,6 +33,7 @@ interface ProjectWithName {
   name: string;
   badges: Array<Badge>;
   projectId: Buffer;
+  isMaintainer?: boolean;
 }
 
 const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
@@ -138,29 +139,67 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
     };
 
     const fetchProjectNames = async () => {
-      if (!member || !member.projects || member.projects.length === 0) {
-        return;
+      const allProjects: ProjectWithName[] = [];
+      
+      // First, add projects from member.projects (where user has badges)
+      if (member && member.projects && member.projects.length > 0) {
+        const memberProjectsPromises = member.projects.map(async (proj) => {
+          try {
+            const projectData = await getProjectFromId(proj.project);
+            const isMaintainer = projectData?.maintainers?.includes(memberAddress) || false;
+            
+            return {
+              name: projectData?.name || "Unknown Project",
+              badges: proj.badges,
+              projectId: proj.project,
+              isMaintainer,
+            };
+          } catch {
+            return {
+              name: "Unknown Project",
+              badges: proj.badges,
+              projectId: proj.project,
+              isMaintainer: false,
+            };
+          }
+        });
+        
+        const memberProjects = await Promise.all(memberProjectsPromises);
+        allProjects.push(...memberProjects);
       }
-
-      const projectsWithNamesPromises = member.projects.map(async (proj) => {
+      
+      // Then, check if user is a maintainer of any other projects (not already in member.projects)
+      if (memberAddress) {
         try {
-          const projectData = await getProjectFromId(proj.project);
-          return {
-            name: projectData?.name || "Unknown Project",
-            badges: proj.badges,
-            projectId: proj.project,
-          };
-        } catch {
-          return {
-            name: "Unknown Project",
-            badges: proj.badges,
-            projectId: proj.project,
-          };
+          // Get first page of projects (we might need to paginate through all pages in a real implementation)
+          const projects = await getProjectsPage(0);
+          const existingProjectIds = new Set(allProjects.map(p => Buffer.from(p.projectId).toString('hex')));
+          
+          const maintainerProjectsPromises = projects
+            .filter(project => 
+              project.maintainers.includes(memberAddress) && 
+              !existingProjectIds.has(Buffer.from(project.name).toString('hex')) // Avoid duplicates
+            )
+            .map(async (project) => {
+              // Create a project key from the project name to get the project ID
+              const projectKey = Buffer.from(project.name); // This might need proper key derivation
+              
+              return {
+                name: project.name,
+                badges: [] as Badge[], // No badges, just maintainer status
+                projectId: projectKey,
+                isMaintainer: true,
+              };
+            });
+          
+          const maintainerProjects = await Promise.all(maintainerProjectsPromises);
+          allProjects.push(...maintainerProjects);
+        } catch (error) {
+          console.log("Could not fetch additional maintainer projects:", error);
         }
-      });
-
-      const projects = await Promise.all(projectsWithNamesPromises);
-      setProjectsWithNames(projects);
+      }
+      
+      setProjectsWithNames(allProjects);
     };
 
     if (member) {
@@ -251,7 +290,8 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   }
 
   // If member exists, proceed with normal rendering
-  const noBadges = member.projects.every((p) => p.badges.length === 0);
+  const noBadges = projectsWithNames.length === 0 || 
+    projectsWithNames.every((p) => p.badges.length === 0 && !p.isMaintainer);
 
   return (
     <>
@@ -426,6 +466,13 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
                               {badgeName(b)}
                             </span>
                           ))}
+                          {proj.isMaintainer && (
+                            <span
+                              className="px-2 py-0.5 sm:px-3 sm:py-1 bg-green-600 text-white text-xs sm:text-sm rounded font-medium"
+                            >
+                              Maintainer
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
