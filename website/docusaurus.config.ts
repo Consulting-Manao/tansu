@@ -78,18 +78,24 @@ const config: Config = {
   themeConfig: {
     image: "img/social-card.png",
     metadata: [
-      { name: "x:creator", content: "@PamphileRoy" },
-      { name: "x:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:creator", content: "@PamphileRoy" },
+      { name: "twitter:title", content: "Tansu - Decentralized project governance on Stellar" },
       {
-        name: "x:image",
-        content: "https://tansu.dev/img/social-card.png",
-      },
-      { name: "x:title", content: "Tansu" },
-      {
-        name: "x:description",
+        name: "twitter:description",
         content:
-          "Bringing open source software development onto the Stellar blockchain",
+          "Tansu provides cryptographic proof of code integrity and transparent governance for open-source projects. Built on the Stellar smart contract platform, it offers immutable commit tracking, community-driven proposals, and privacy-preserving voting mechanisms.",
       },
+      { name: "twitter:image", content: "https://tansu.dev/img/social-card.png" },
+      { property: "og:title", content: "Tansu - Decentralized project governance on Stellar" },
+      {
+        property: "og:description",
+        content:
+          "Tansu provides cryptographic proof of code integrity and transparent governance for open-source projects. Built on the Stellar smart contract platform, it offers immutable commit tracking, community-driven proposals, and privacy-preserving voting mechanisms.",
+      },
+      { property: "og:image", content: "https://tansu.dev/img/social-card.png" },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Tansu" },
     ],
     navbar: {
       title: "Tansu",
