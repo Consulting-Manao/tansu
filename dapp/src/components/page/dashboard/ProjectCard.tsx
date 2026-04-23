@@ -11,7 +11,10 @@ import {
   setProjectLatestSha,
   setProjectRepoUrl,
 } from "../../../service/StateService";
-import { convertGitHubLink } from "../../../utils/editLinkFunctions";
+import {
+  convertGitHubLink,
+  getRepositoryIconInfo,
+} from "../../../utils/editLinkFunctions";
 import { projectCardModalOpen } from "../../../utils/store";
 import { extractConfigData, toast } from "../../../utils/utils";
 
@@ -29,6 +32,8 @@ interface ProjectConfig {
 }
 
 const ProjectCard = ({ config }: { config: ProjectConfig }) => {
+  const repositoryIcon = getRepositoryIconInfo(config.officials.githubLink);
+
   const handleCardClick = async () => {
     refreshLocalStorage();
     try {
@@ -133,10 +138,11 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
                 className="hover:opacity-80 transition-opacity"
               >
                 <img
-                  src="/icons/git.svg"
+                  src={repositoryIcon.src}
                   width={24}
                   height={24}
-                  className="icon-github"
+                  alt={repositoryIcon.label}
+                  className="icon-repository"
                 />
               </a>
             )}

@@ -33,6 +33,11 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
   });
 
   test("Project creation modal – basic functionality", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("tansu_tos_accepted", "true");
+      localStorage.setItem("publicKey", `G${"A".repeat(55)}`);
+    });
+
     try {
       await page.goto("/", { waitUntil: "domcontentloaded" });
     } catch {
@@ -42,62 +47,17 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
     // Wait for page to be ready
     await page.waitForLoadState("networkidle", { timeout: 15000 });
 
-    // Debug: Check what's on the page
-    const pageContent = await page.locator("body").textContent();
-    console.log("Page content length:", pageContent?.length || 0);
-    console.log(
-      "Page contains 'Add Project':",
-      pageContent?.includes("Add Project") || false,
-    );
-
-    // Try to open the modal via the button first
     const addProjectBtn = page
-      .locator("button", { hasText: "Add Project" })
+      .locator("button:visible")
+      .filter({ hasText: "Add Project" })
       .first();
-    console.log("Add Project button count:", await addProjectBtn.count());
 
-    try {
-      await addProjectBtn.click();
-      console.log("Clicked Add Project button");
-    } catch (e) {
-      console.log("Button click failed, trying event approach");
-      // If button not found, try the event approach
-      await page.evaluate(() => {
-        document.dispatchEvent(new CustomEvent("show-create-project-modal"));
-      });
-      console.log("Dispatched show-create-project-modal event");
-    }
+    await expect(addProjectBtn).toBeVisible();
+    await addProjectBtn.click();
 
-    // Wait for modal to be created and rendered
     await page.waitForSelector(".project-modal-container", { timeout: 10000 });
-
-    // Wait for modal to be fully visible and rendered
     await expect(page.locator(".project-modal-container")).toBeVisible();
 
-    // Wait for the modal content to be fully loaded
-    await page.waitForTimeout(1000);
-
-    // Debug: Check what's actually in the modal
-    const modalContent = await page
-      .locator(".project-modal-container")
-      .textContent();
-    console.log("Modal content length:", modalContent?.length || 0);
-    console.log(
-      "Modal content:",
-      modalContent?.substring(0, 200) || "no content",
-    );
-
-    // Check for any inputs in the modal
-    const inputCount = await page
-      .locator(".project-modal-container input")
-      .count();
-    console.log("Input count in modal:", inputCount);
-
-    // Check for any text elements in the modal
-    const textElements = await page.locator(".project-modal-container *").all();
-    console.log("Total elements in modal:", textElements.length);
-
-    // Wait for the first step to be fully rendered
     await expect(
       page.locator(
         ".project-modal-container input[placeholder='Write the project name (e.g., myproject)']",

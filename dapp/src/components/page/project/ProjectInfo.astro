@@ -146,7 +146,10 @@ import Button from "components/utils/Button";
     loadProjectLatestSha,
     loadProjectName,
   } from "../../../service/StateService";
-  import { convertGitHubLink } from "../../../utils/editLinkFunctions";
+  import {
+    convertGitHubLink,
+    getRepositoryIconInfo,
+  } from "../../../utils/editLinkFunctions";
   import {
     configData as configDataStore,
     projectHasSubProjects,
@@ -718,8 +721,15 @@ import Button from "components/utils/Button";
       button.rel = "noopener noreferrer";
 
       const icon = document.createElement("img");
-      icon.src = getIconSVG(iconName);
-      icon.alt = iconName;
+      const iconInfo =
+        iconName === "git"
+          ? getRepositoryIconInfo(url)
+          : {
+              src: getIconSVG(iconName),
+              label: iconName,
+            };
+      icon.src = iconInfo.src;
+      icon.alt = iconInfo.label;
       icon.className = "w-4 h-4";
 
       button.appendChild(icon);
@@ -730,7 +740,6 @@ import Button from "components/utils/Button";
       const icons: { [key: string]: string } = {
         web: "/icons/logos/web.svg",
         github: "/icons/logos/github.svg",
-        git: "/icons/git.svg",
         twitter: "/icons/logos/twitter-x.svg",
         telegram: "/icons/logos/telegram.svg",
         discord: "/icons/logos/discord.svg",

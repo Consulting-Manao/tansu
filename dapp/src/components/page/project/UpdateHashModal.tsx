@@ -7,6 +7,7 @@ import { commitHash } from "@service/ContractService";
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import { useEffect, useState } from "react";
+import { getRepositoryIconInfo } from "utils/editLinkFunctions";
 import { projectInfoLoaded } from "utils/store";
 import { toast } from "utils/utils";
 
@@ -17,6 +18,9 @@ const UpdateHashModal = () => {
   const [latestHash, setLatestHash] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [updateSuccessful, setUpdateSuccessful] = useState(false);
+  const projectInfo = isProjectInfoLoaded ? loadProjectInfo() : null;
+  const repositoryIcon = getRepositoryIconInfo(projectInfo?.config?.url);
+
   useEffect(() => {
     if (isProjectInfoLoaded) {
       const projectInfo = loadProjectInfo();
@@ -90,7 +94,11 @@ const UpdateHashModal = () => {
           className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
           onClick={() => setIsOpen(true)}
         >
-          <img src="/icons/git.svg" className="w-5 h-5 flex-shrink-0" alt="" />
+          <img
+            src={repositoryIcon.src}
+            className="w-5 h-5 flex-shrink-0"
+            alt={repositoryIcon.label}
+          />
           <span>Update Hash</span>
         </button>
       )}
