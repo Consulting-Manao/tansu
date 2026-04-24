@@ -1,5 +1,7 @@
 use super::test_utils::{create_test_data, init_contract};
-use crate::events::{AnonymousVotingSetup, ProposalCreated, ProposalExecuted, VoteCast};
+use crate::events::{
+    AnonymousVotingSetup, ProposalCreated, ProposalExecuted, VoteCast, VoteRemoved,
+};
 use crate::{
     errors::ContractErrors,
     types::{
@@ -1013,4 +1015,191 @@ fn badge_based_get_max_weight_still_works() {
 
     // Should return default badge weight (1) since no badges assigned
     assert_eq!(max_weight, 1);
+}
+
+#[test]
+fn remove_vote_slashes_collateral() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let title = String::from_str(&setup.env, "Test remove vote");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    let balance_voter_before = setup.token_stellar.balance(&setup.mando);
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Collateral was locked on vote
+    let balance_voter_after_vote = setup.token_stellar.balance(&setup.mando);
+    assert!(balance_voter_before > balance_voter_after_vote);
+
+    // Maintainer removes the vote
+    setup
+        .contract
+        .remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
+
+    // Verify VoteRemoved event emitted
+    let event = VoteRemoved {
+        project_key: id.clone(),
+        proposal_id,
+        voter: setup.mando.clone(),
+        maintainer: setup.grogu.clone(),
+    };
+    let contract_events = setup
+        .env
+        .events()
+        .all()
+        .filter_by_contract(&setup.contract_id);
+    assert_eq!(
+        contract_events,
+        [event.to_xdr(&setup.env, &setup.contract_id)]
+    );
+
+    // Collateral is NOT returned — it was slashed
+    let balance_voter_after_removal = setup.token_stellar.balance(&setup.mando);
+    assert_eq!(balance_voter_after_vote, balance_voter_after_removal);
+
+    // Proposal can still execute; the removed vote is not counted
+    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    let result = setup
+        .contract
+        .execute(&setup.grogu, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Cancelled);
+}
+
+#[test]
+fn remove_vote_fails_for_non_maintainer() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let title = String::from_str(&setup.env, "Test remove vote auth");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    let outsider = Address::generate(&setup.env);
+    let result = setup
+        .contract
+        .try_remove_vote(&outsider, &id, &proposal_id, &setup.mando);
+    assert_eq!(result, Err(Ok(ContractErrors::UnauthorizedSigner.into())));
+}
+
+#[test]
+fn remove_vote_fails_when_vote_not_found() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let title = String::from_str(&setup.env, "Test remove missing vote");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    let non_voter = Address::generate(&setup.env);
+    let result = setup
+        .contract
+        .try_remove_vote(&setup.grogu, &id, &proposal_id, &non_voter);
+    assert_eq!(result, Err(Ok(ContractErrors::VoteNotFound.into())));
+}
+
+#[test]
+fn remove_vote_fails_after_voting_period() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let title = String::from_str(&setup.env, "Test remove after deadline");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+
+    let result = setup
+        .contract
+        .try_remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
+    assert_eq!(result, Err(Ok(ContractErrors::ProposalVotingTime.into())));
 }

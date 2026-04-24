@@ -317,6 +317,78 @@ impl DaoTrait for Tansu {
         proposal_id
     }
 
+    /// Remove a malicious or non-compliant vote from a proposal.
+    ///
+    /// Only a project maintainer can call this. The voter's collateral is slashed
+    /// (kept by the contract) as a penalty. The vote must be cast on an active
+    /// proposal that is still within its voting period.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - Address of the maintainer removing the vote
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    /// * `voter` - The address of the voter whose vote is being removed
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the proposal is not active or voting period has ended
+    /// * If no vote from the given voter exists
+    fn remove_vote(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        voter: Address,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
+        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
+        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
+        let proposal = match dao_page.proposals.try_get(sub_id) {
+            Ok(Some(proposal)) => proposal,
+            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
+        };
+
+        if proposal.status != types::ProposalStatus::Active {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
+        }
+        if env.ledger().timestamp() >= proposal.vote_data.voting_ends_at {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
+        }
+
+        let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
+        if !env.storage().persistent().has(&vote_key) {
+            panic_with_error!(&env, &errors::ContractErrors::VoteNotFound);
+        }
+
+        // Remove the vote entry
+        env.storage().persistent().remove(&vote_key);
+
+        // Remove voter from the voters list
+        let mut voters = get_voters(&env, &project_key, proposal_id);
+        if let Some(pos) = voters.iter().position(|v| v == voter) {
+            voters.remove(pos as u32);
+        }
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
+        );
+
+        // Collateral is intentionally NOT returned — slashed as penalty for malicious voting.
+
+        events::VoteRemoved {
+            project_key,
+            proposal_id,
+            voter,
+            maintainer,
+        }
+        .publish(&env);
+    }
+
     /// Revoke a proposal.
     ///
     /// Useful if there was some spam or bad intent. That will prevent the
@@ -868,7 +940,6 @@ impl DaoTrait for Tansu {
         proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
         proposal
     }
-
 }
 
 fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
@@ -878,17 +949,19 @@ fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> 
         .unwrap_or(Vec::new(env))
 }
 
-fn get_all_votes(
-    env: &Env,
-    project_key: &Bytes,
-    proposal_id: u32,
-) -> Vec<types::Vote> {
+fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
     let mut votes = Vec::new(env);
     let voters = get_voters(env, project_key, proposal_id);
     for voter in voters.iter() {
-        if let Some(vote_) = env.storage().persistent().get::<types::ProjectKey, types::Vote>(
-            &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter),
-        ) {
+        if let Some(vote_) = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::Vote>(&types::ProjectKey::Vote(
+                project_key.clone(),
+                proposal_id,
+                voter,
+            ))
+        {
             votes.push_back(vote_);
         }
     }

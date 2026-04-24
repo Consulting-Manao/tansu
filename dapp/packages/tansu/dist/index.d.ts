@@ -558,6 +558,38 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
+   * Construct and simulate a remove_vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Remove a malicious or non-compliant vote from a proposal.
+   *
+   * Only a project maintainer can call this. The voter's collateral is slashed
+   * as a penalty. The vote must be on an active proposal within its voting period.
+   *
+   * # Arguments
+   * * `maintainer` - Address of the maintainer removing the vote
+   * * `project_key` - The project key identifier
+   * * `proposal_id` - The ID of the proposal
+   * * `voter` - The address of the voter whose vote is being removed
+   *
+   * # Panics
+   * * If the maintainer is not authorized
+   * * If the proposal is not active or voting period has ended
+   * * If no vote from the given voter exists
+   */
+  remove_vote: (
+    {
+      maintainer,
+      project_key,
+      proposal_id,
+      voter,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      proposal_id: u32;
+      voter: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
    * Construct and simulate a anonymous_voting_setup transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Setup anonymous voting for a project.
    *
@@ -1256,6 +1288,7 @@ export declare class Client extends ContractClient {
     get_proposal: (json: string) => AssembledTransaction<Proposal>;
     create_proposal: (json: string) => AssembledTransaction<number>;
     revoke_proposal: (json: string) => AssembledTransaction<null>;
+    remove_vote: (json: string) => AssembledTransaction<null>;
     anonymous_voting_setup: (json: string) => AssembledTransaction<null>;
     get_anonymous_voting_config: (
       json: string,

@@ -446,6 +446,39 @@ export interface Client {
   ) => Promise<AssembledTransaction<null>>;
 
   /**
+   * Construct and simulate a remove_vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Remove a malicious or non-compliant vote from a proposal.
+   *
+   * Only a project maintainer can call this. The voter's collateral is slashed
+   * as a penalty. The vote must be on an active proposal within its voting period.
+   *
+   * # Arguments
+   * * `maintainer` - Address of the maintainer removing the vote
+   * * `project_key` - The project key identifier
+   * * `proposal_id` - The ID of the proposal
+   * * `voter` - The address of the voter whose vote is being removed
+   *
+   * # Panics
+   * * If the maintainer is not authorized
+   * * If the proposal is not active or voting period has ended
+   * * If no vote from the given voter exists
+   */
+  remove_vote: (
+    {
+      maintainer,
+      project_key,
+      proposal_id,
+      voter,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      proposal_id: u32;
+      voter: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+
+  /**
    * Construct and simulate a anonymous_voting_setup transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Setup anonymous voting for a project.
    *
@@ -1156,6 +1189,7 @@ export class Client extends ContractClient {
     get_proposal: this.txFromJSON<Proposal>,
     create_proposal: this.txFromJSON<u32>,
     revoke_proposal: this.txFromJSON<null>,
+    remove_vote: this.txFromJSON<null>,
     anonymous_voting_setup: this.txFromJSON<null>,
     get_anonymous_voting_config: this.txFromJSON<AnonymousVoteConfig>,
     build_commitments_from_votes: this.txFromJSON<Array<Buffer>>,

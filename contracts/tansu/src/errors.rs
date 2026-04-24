@@ -36,6 +36,7 @@ pub enum ContractErrors {
     ProposalVotingTime = 401,
     ProposalActive = 402,
     OutcomeError = 403,
+    VoteNotFound = 404,
 
     // Voting/Cryptographic (500-599)
     TallySeedError = 500,
