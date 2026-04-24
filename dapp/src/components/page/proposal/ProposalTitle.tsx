@@ -173,6 +173,7 @@ const ProposalTitle: React.FC<Props> = ({
       {showVotingResultModal && proposal?.voteStatus && (
         <VotingResultModal
           voteStatus={proposal?.voteStatus}
+          status={proposal?.status}
           projectMaintainers={maintainers}
           onClose={() => setShowVotingResultModal(false)}
         />

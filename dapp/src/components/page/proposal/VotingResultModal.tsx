@@ -10,11 +10,13 @@ import { loadConfigData } from "@service/StateService";
 
 interface VotingResultModal extends ModalProps {
   voteStatus?: VoteStatus;
+  status?: string;
   projectMaintainers: string[];
 }
 
 const VotingResultModal: React.FC<VotingResultModal> = ({
   voteStatus,
+  status,
   projectMaintainers,
   onClose,
 }) => {
@@ -36,7 +38,11 @@ const VotingResultModal: React.FC<VotingResultModal> = ({
             </p>
           </div>
 
-          <VotingResult voteStatus={voteStatus} withDetail />
+          <VotingResult
+            voteStatus={voteStatus}
+            {...(status !== undefined && { status })}
+            withDetail
+          />
 
           <Voters
             voteStatus={voteStatus}
