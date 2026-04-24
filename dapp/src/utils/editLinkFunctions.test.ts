@@ -48,6 +48,32 @@ describe("parseRepositoryUrl", () => {
     });
   });
 
+  it("normalizes GitHub tree URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl("https://github.com/example/project/tree/main"),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("normalizes GitHub blob URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://github.com/example/project/blob/main/src/index.ts",
+      ),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
   it("parses https repository URLs and preserves encoded segments", () => {
     expect(
       parseRepositoryUrl("https://gitlab.com/group/subgroup/hello%20world"),
@@ -60,6 +86,34 @@ describe("parseRepositoryUrl", () => {
     });
   });
 
+  it("normalizes GitLab tree URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://gitlab.com/group/subgroup/project/-/tree/main",
+      ),
+    ).toMatchObject({
+      host: "gitlab.com",
+      normalizedUrl: "https://gitlab.com/group/subgroup/project",
+      projectPath: "group/subgroup/project",
+      owner: "subgroup",
+      repoName: "project",
+    });
+  });
+
+  it("normalizes GitLab blob URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://gitlab.com/group/subgroup/project/-/blob/main/README.md",
+      ),
+    ).toMatchObject({
+      host: "gitlab.com",
+      normalizedUrl: "https://gitlab.com/group/subgroup/project",
+      projectPath: "group/subgroup/project",
+      owner: "subgroup",
+      repoName: "project",
+    });
+  });
+
   it("parses unicode repository paths and normalizes them to encoded URLs", () => {
     expect(
       parseRepositoryUrl("https://codeberg.org/example/na%C3%AFve"),
@@ -69,6 +123,46 @@ describe("parseRepositoryUrl", () => {
       projectPath: "example/naïve",
       owner: "example",
       repoName: "naïve",
+    });
+  });
+
+  it("normalizes Bitbucket src URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://bitbucket.org/workspace/repo/src/main/file.ts",
+      ),
+    ).toMatchObject({
+      host: "bitbucket.org",
+      normalizedUrl: "https://bitbucket.org/workspace/repo",
+      projectPath: "workspace/repo",
+      owner: "workspace",
+      repoName: "repo",
+    });
+  });
+
+  it("normalizes Codeberg src URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://codeberg.org/example/project/src/branch/main",
+      ),
+    ).toMatchObject({
+      host: "codeberg.org",
+      normalizedUrl: "https://codeberg.org/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("normalizes Gitea src URLs to the repository root", () => {
+    expect(
+      parseRepositoryUrl("https://gitea.com/example/project/src/branch/main"),
+    ).toMatchObject({
+      host: "gitea.com",
+      normalizedUrl: "https://gitea.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
     });
   });
 
@@ -114,12 +208,6 @@ describe("parseRepositoryUrl", () => {
     ).toBeUndefined();
   });
 
-  it("rejects additional path segments for providers that require owner/repo only", () => {
-    expect(
-      parseRepositoryUrl("https://github.com/example/project/tree/main"),
-    ).toBeUndefined();
-  });
-
   it("accepts the default https port", () => {
     expect(
       parseRepositoryUrl("https://github.com:443/example/project"),
@@ -146,6 +234,27 @@ describe("repository URL validation", () => {
     expect(isSupportedRepositoryUrl("https://github.com/example/project")).toBe(
       true,
     );
+    expect(
+      isSupportedRepositoryUrl("https://github.com/example/project/tree/main"),
+    ).toBe(true);
+    expect(
+      isSupportedRepositoryUrl(
+        "https://gitlab.com/group/subgroup/project/-/tree/main",
+      ),
+    ).toBe(true);
+    expect(
+      isSupportedRepositoryUrl("https://bitbucket.org/workspace/repo/src/main"),
+    ).toBe(true);
+    expect(
+      isSupportedRepositoryUrl(
+        "https://codeberg.org/example/project/src/branch/main",
+      ),
+    ).toBe(true);
+    expect(
+      isSupportedRepositoryUrl(
+        "https://gitea.com/example/project/src/branch/main",
+      ),
+    ).toBe(true);
     expect(
       isSupportedRepositoryUrl("git@codeberg.org:example/project.git"),
     ).toBe(true);
@@ -177,9 +286,6 @@ describe("repository URL validation", () => {
 
   it("rejects malformed, incomplete, and empty inputs", () => {
     expect(isSupportedRepositoryUrl("https://github.com/example")).toBe(false);
-    expect(
-      isSupportedRepositoryUrl("https://github.com/example/project/tree/main"),
-    ).toBe(false);
     expect(isSupportedRepositoryUrl("")).toBe(false);
     expect(isSupportedRepositoryUrl(null)).toBe(false);
     expect(isSupportedRepositoryUrl(undefined)).toBe(false);

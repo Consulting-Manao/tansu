@@ -90,21 +90,6 @@ interface ParsedRepositoryUrl {
   owner: string;
 }
 
-function hasValidRepositoryPathSegments(
-  host: string,
-  segments: string[],
-): boolean {
-  if (host === "gitlab.com") {
-    return segments.length >= 2;
-  }
-
-  if (SUPPORTED_REPOSITORY_HOSTS.has(host)) {
-    return segments.length === 2;
-  }
-
-  return segments.length >= 2;
-}
-
 function decodeRepositoryPathSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
@@ -113,21 +98,49 @@ function decodeRepositoryPathSegment(segment: string): string {
   }
 }
 
+function getRepositoryRootSegmentsForHost(
+  host: string,
+  segments: string[],
+): string[] | undefined {
+  if (host === "gitlab.com") {
+    const subresourceIndex = segments.indexOf("-");
+    const repositorySegments =
+      subresourceIndex >= 0 ? segments.slice(0, subresourceIndex) : segments;
+    return repositorySegments.length >= 2 ? repositorySegments : undefined;
+  }
+
+  if (SUPPORTED_REPOSITORY_HOSTS.has(host)) {
+    return segments.length >= 2 ? segments.slice(0, 2) : undefined;
+  }
+
+  return segments.length >= 2 ? segments : undefined;
+}
+
 function normalizeRepositoryProjectPath(
+  host: string,
   projectPath: string | null | undefined,
 ): string | undefined {
   if (projectPath == null || typeof projectPath !== "string") {
     return undefined;
   }
 
-  const normalizedPath = projectPath
+  const decodedSegments = projectPath
     .replace(/\/+$/, "")
     .replace(/\.git$/, "")
     .replace(/^\/+/, "")
     .split("/")
     .filter(Boolean)
-    .map((segment) => decodeRepositoryPathSegment(segment))
-    .join("/");
+    .map((segment) => decodeRepositoryPathSegment(segment));
+
+  const repositorySegments = getRepositoryRootSegmentsForHost(
+    host,
+    decodedSegments,
+  );
+  if (!repositorySegments) {
+    return undefined;
+  }
+
+  const normalizedPath = repositorySegments.join("/");
 
   return normalizedPath || undefined;
 }
@@ -160,16 +173,12 @@ export function parseRepositoryUrl(
       }
 
       const host = match[1].toLowerCase();
-      const projectPath = normalizeRepositoryProjectPath(match[2]);
+      const projectPath = normalizeRepositoryProjectPath(host, match[2]);
       if (!projectPath) {
         return undefined;
       }
 
       const segments = projectPath.split("/").filter(Boolean);
-      if (!hasValidRepositoryPathSegments(host, segments)) {
-        return undefined;
-      }
-
       const repoName = segments[segments.length - 1] || "";
       const owner = segments[segments.length - 2] || "";
 
@@ -188,16 +197,15 @@ export function parseRepositoryUrl(
       return undefined;
     }
 
-    const projectPath = normalizeRepositoryProjectPath(parsedUrl.pathname);
+    const projectPath = normalizeRepositoryProjectPath(
+      host,
+      parsedUrl.pathname,
+    );
     if (!projectPath) {
       return undefined;
     }
 
     const segments = projectPath.split("/").filter(Boolean);
-    if (!hasValidRepositoryPathSegments(host, segments)) {
-      return undefined;
-    }
-
     const repoName = segments[segments.length - 1] || "";
     const owner = segments[segments.length - 2] || "";
 
@@ -305,7 +313,8 @@ export function buildRepositoryUrlFromProjectPath(
   }
 
   const normalizedOverride =
-    normalizeRepositoryProjectPath(projectPathOverride) || parsed.projectPath;
+    normalizeRepositoryProjectPath(parsed.host, projectPathOverride) ||
+    parsed.projectPath;
   return buildNormalizedRepositoryUrl(parsed.host, normalizedOverride);
 }
 
