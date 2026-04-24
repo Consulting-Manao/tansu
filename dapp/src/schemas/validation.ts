@@ -28,7 +28,7 @@ export const githubUrlSchema = z
   .min(1, "Repository URL is required")
   .refine(
     (value) => isSupportedRepositoryUrl(value),
-    "Repository URL must use HTTPS or SSH and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
+    "Repository URL must use HTTPS or SCP-style SSH (git@host:owner/repo) and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
   );
 
 export const githubHandleSchema = z

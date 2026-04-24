@@ -90,6 +90,61 @@ interface ParsedRepositoryUrl {
   owner: string;
 }
 
+function hasValidRepositoryPathSegments(
+  host: string,
+  segments: string[],
+): boolean {
+  if (host === "gitlab.com") {
+    return segments.length >= 2;
+  }
+
+  if (SUPPORTED_REPOSITORY_HOSTS.has(host)) {
+    return segments.length === 2;
+  }
+
+  return segments.length >= 2;
+}
+
+function decodeRepositoryPathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function normalizeRepositoryProjectPath(
+  projectPath: string | null | undefined,
+): string | undefined {
+  if (projectPath == null || typeof projectPath !== "string") {
+    return undefined;
+  }
+
+  const normalizedPath = projectPath
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeRepositoryPathSegment(segment))
+    .join("/");
+
+  return normalizedPath || undefined;
+}
+
+function buildNormalizedRepositoryUrl(
+  host: string,
+  projectPath: string,
+): string {
+  const encodedProjectPath = projectPath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return `https://${host}/${encodedProjectPath}`;
+}
+
 export function parseRepositoryUrl(
   repoUrl: string | null | undefined,
 ): ParsedRepositoryUrl | undefined {
@@ -105,9 +160,13 @@ export function parseRepositoryUrl(
       }
 
       const host = match[1].toLowerCase();
-      const projectPath = match[2].replace(/\.git$/, "").replace(/^\//, "");
+      const projectPath = normalizeRepositoryProjectPath(match[2]);
+      if (!projectPath) {
+        return undefined;
+      }
+
       const segments = projectPath.split("/").filter(Boolean);
-      if (segments.length < 2) {
+      if (!hasValidRepositoryPathSegments(host, segments)) {
         return undefined;
       }
 
@@ -116,7 +175,7 @@ export function parseRepositoryUrl(
 
       return {
         host,
-        normalizedUrl: `https://${host}/${projectPath}`,
+        normalizedUrl: buildNormalizedRepositoryUrl(host, projectPath),
         projectPath,
         repoName,
         owner,
@@ -125,12 +184,17 @@ export function parseRepositoryUrl(
 
     const parsedUrl = new URL(repoUrl);
     const host = parsedUrl.hostname.toLowerCase();
-    const projectPath = parsedUrl.pathname
-      .replace(/\.git$/, "")
-      .replace(/^\//, "")
-      .replace(/\/$/, "");
+    if (parsedUrl.port && parsedUrl.port !== "443") {
+      return undefined;
+    }
+
+    const projectPath = normalizeRepositoryProjectPath(parsedUrl.pathname);
+    if (!projectPath) {
+      return undefined;
+    }
+
     const segments = projectPath.split("/").filter(Boolean);
-    if (segments.length < 2) {
+    if (!hasValidRepositoryPathSegments(host, segments)) {
       return undefined;
     }
 
@@ -139,7 +203,7 @@ export function parseRepositoryUrl(
 
     return {
       host,
-      normalizedUrl: `${parsedUrl.protocol}//${host}/${projectPath}`,
+      normalizedUrl: buildNormalizedRepositoryUrl(host, projectPath),
       projectPath,
       repoName,
       owner,
@@ -231,6 +295,20 @@ export function getRepositoryProjectPath(
   return parseRepositoryUrl(repoUrl)?.projectPath || "";
 }
 
+export function buildRepositoryUrlFromProjectPath(
+  repoUrl: string | null | undefined,
+  projectPathOverride?: string | null,
+): string | undefined {
+  const parsed = parseRepositoryUrl(repoUrl);
+  if (!parsed) {
+    return undefined;
+  }
+
+  const normalizedOverride =
+    normalizeRepositoryProjectPath(projectPathOverride) || parsed.projectPath;
+  return buildNormalizedRepositoryUrl(parsed.host, normalizedOverride);
+}
+
 export function getRepositoryReleasesUrl(
   repoUrl: string | null | undefined,
 ): string | undefined {
@@ -252,15 +330,4 @@ export function getRepositoryReleasesUrl(
   }
 
   return undefined;
-}
-
-export function getAuthorRepo(repoUrl: string | null | undefined): {
-  username: string | undefined;
-  repoName: string | undefined;
-} {
-  const parsed = parseRepositoryUrl(repoUrl);
-  return {
-    username: parsed?.owner,
-    repoName: parsed?.repoName,
-  };
 }
