@@ -11,6 +11,10 @@ import {
   type ProposalView,
   type ProposalViewStatus,
 } from "types/proposal";
+import {
+  buildRepositoryUrlFromProjectPath,
+  isSupportedRepositoryUrl,
+} from "./editLinkFunctions";
 
 export function truncateMiddle(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
@@ -28,6 +32,14 @@ export function truncateMiddle(str: string, maxLength: number): string {
 export function extractConfigData(tomlData: any, project: Project) {
   const fullName = tomlData.DOCUMENTATION?.ORG_DBA || project.name;
   const projectType = tomlData.PROJECT_TYPE || "SOFTWARE";
+  const canonicalRepositoryUrl = isSupportedRepositoryUrl(project.config.url)
+    ? project.config.url
+    : "";
+  const repositoryLink =
+    buildRepositoryUrlFromProjectPath(
+      canonicalRepositoryUrl,
+      tomlData.DOCUMENTATION?.ORG_GITHUB,
+    ) || canonicalRepositoryUrl;
 
   return {
     projectName: project.name,
@@ -39,9 +51,7 @@ export function extractConfigData(tomlData: any, project: Project) {
     organizationName: tomlData.DOCUMENTATION?.ORG_NAME || "",
     officials: {
       websiteLink: tomlData.DOCUMENTATION?.ORG_URL || "",
-      githubLink: tomlData.DOCUMENTATION?.ORG_GITHUB
-        ? `https://github.com/${tomlData.DOCUMENTATION.ORG_GITHUB}`
-        : project.config.url || "",
+      githubLink: repositoryLink,
     },
     socialLinks: {
       ...(tomlData.DOCUMENTATION?.ORG_TWITTER && {

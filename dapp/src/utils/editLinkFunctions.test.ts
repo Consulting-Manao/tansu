@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildRepositoryUrlFromProjectPath,
   getRepositoryIconInfo,
   getRepositoryProvider,
+  isSupportedRepositoryUrl,
+  parseRepositoryUrl,
 } from "./editLinkFunctions";
 
 describe("repository icon helpers", () => {
@@ -29,5 +32,171 @@ describe("repository icon helpers", () => {
       src: "/icons/git.svg",
       label: "Repository",
     });
+  });
+});
+
+describe("parseRepositoryUrl", () => {
+  it("parses supported https repository URLs", () => {
+    expect(
+      parseRepositoryUrl("https://github.com/example/project"),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("parses https repository URLs and preserves encoded segments", () => {
+    expect(
+      parseRepositoryUrl("https://gitlab.com/group/subgroup/hello%20world"),
+    ).toMatchObject({
+      host: "gitlab.com",
+      normalizedUrl: "https://gitlab.com/group/subgroup/hello%20world",
+      projectPath: "group/subgroup/hello world",
+      owner: "subgroup",
+      repoName: "hello world",
+    });
+  });
+
+  it("parses unicode repository paths and normalizes them to encoded URLs", () => {
+    expect(
+      parseRepositoryUrl("https://codeberg.org/example/na%C3%AFve"),
+    ).toMatchObject({
+      host: "codeberg.org",
+      normalizedUrl: "https://codeberg.org/example/na%C3%AFve",
+      projectPath: "example/naïve",
+      owner: "example",
+      repoName: "naïve",
+    });
+  });
+
+  it("parses SCP-style SSH repository URLs", () => {
+    expect(
+      parseRepositoryUrl("git@codeberg.org:example/project.git"),
+    ).toMatchObject({
+      host: "codeberg.org",
+      normalizedUrl: "https://codeberg.org/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("handles an https .git suffix", () => {
+    expect(
+      parseRepositoryUrl("https://github.com/example/project.git"),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("normalizes host casing", () => {
+    expect(
+      parseRepositoryUrl("https://GitHub.com/example/project"),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("rejects non-default https ports", () => {
+    expect(
+      parseRepositoryUrl("https://github.com:8443/example/project"),
+    ).toBeUndefined();
+  });
+
+  it("rejects additional path segments for providers that require owner/repo only", () => {
+    expect(
+      parseRepositoryUrl("https://github.com/example/project/tree/main"),
+    ).toBeUndefined();
+  });
+
+  it("accepts the default https port", () => {
+    expect(
+      parseRepositoryUrl("https://github.com:443/example/project"),
+    ).toMatchObject({
+      host: "github.com",
+      normalizedUrl: "https://github.com/example/project",
+      projectPath: "example/project",
+      owner: "example",
+      repoName: "project",
+    });
+  });
+
+  it("rejects malformed, incomplete, and empty inputs", () => {
+    expect(parseRepositoryUrl("https://github.com/example")).toBeUndefined();
+    expect(parseRepositoryUrl("not-a-url")).toBeUndefined();
+    expect(parseRepositoryUrl("")).toBeUndefined();
+    expect(parseRepositoryUrl(null)).toBeUndefined();
+    expect(parseRepositoryUrl(undefined)).toBeUndefined();
+  });
+});
+
+describe("repository URL validation", () => {
+  it("accepts supported https and SCP-style SSH repository URLs", () => {
+    expect(isSupportedRepositoryUrl("https://github.com/example/project")).toBe(
+      true,
+    );
+    expect(
+      isSupportedRepositoryUrl("git@codeberg.org:example/project.git"),
+    ).toBe(true);
+  });
+
+  it("rejects unsupported formats and hosts", () => {
+    expect(
+      isSupportedRepositoryUrl("ssh://git@github.com/example/project.git"),
+    ).toBe(false);
+    expect(
+      isSupportedRepositoryUrl("https://github.com:8443/example/project"),
+    ).toBe(false);
+    expect(
+      isSupportedRepositoryUrl("https://github.com:8080/example/project"),
+    ).toBe(false);
+    expect(
+      isSupportedRepositoryUrl("https://github.com:22/example/project"),
+    ).toBe(false);
+    expect(
+      isSupportedRepositoryUrl("https://example.org/example/project"),
+    ).toBe(false);
+    expect(isSupportedRepositoryUrl("https://127.0.0.1/example/project")).toBe(
+      false,
+    );
+    expect(isSupportedRepositoryUrl("https://10.0.0.12/example/project")).toBe(
+      false,
+    );
+  });
+
+  it("rejects malformed, incomplete, and empty inputs", () => {
+    expect(isSupportedRepositoryUrl("https://github.com/example")).toBe(false);
+    expect(
+      isSupportedRepositoryUrl("https://github.com/example/project/tree/main"),
+    ).toBe(false);
+    expect(isSupportedRepositoryUrl("")).toBe(false);
+    expect(isSupportedRepositoryUrl(null)).toBe(false);
+    expect(isSupportedRepositoryUrl(undefined)).toBe(false);
+  });
+});
+
+describe("buildRepositoryUrlFromProjectPath", () => {
+  it("uses the canonical repository host when ORG_GITHUB is present", () => {
+    expect(
+      buildRepositoryUrlFromProjectPath(
+        "https://gitlab.com/group/project",
+        "group/docs",
+      ),
+    ).toBe("https://gitlab.com/group/docs");
+  });
+
+  it("does not guess a provider when the canonical repository URL is missing", () => {
+    expect(buildRepositoryUrlFromProjectPath("", "group/docs")).toBeUndefined();
   });
 });

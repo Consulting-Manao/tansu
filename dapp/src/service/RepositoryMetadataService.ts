@@ -39,6 +39,15 @@ const README_CANDIDATES = [
   "readme.md",
 ];
 
+const REQUEST_CACHE_TTL_MS = 30_000;
+const MAX_RETRY_ATTEMPTS = 2;
+const INITIAL_RETRY_DELAY_MS = 250;
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const responseCache = new Map<
+  string,
+  { expiresAt: number; response: Response }
+>();
+
 function getRepositoryInfo(repoUrl: string): ParsedRepositoryInfo | undefined {
   const parsed = parseRepositoryUrl(repoUrl);
   if (!parsed) {
@@ -117,8 +126,107 @@ function formatCommits(commits: GitHistoryCommit[]) {
   }));
 }
 
+function getEncodedRepositorySegments(repo: ParsedRepositoryInfo) {
+  return {
+    owner: encodeURIComponent(repo.owner),
+    repoName: encodeURIComponent(repo.repoName),
+  };
+}
+
+function getRequestCacheKey(url: string, init?: RequestInit): string {
+  const method = (init?.method || "GET").toUpperCase();
+  const headers = new Headers(init?.headers);
+  const serializedHeaders = Array.from(headers.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${value}`)
+    .join("|");
+
+  return `${method}:${url}:${serializedHeaders}`;
+}
+
+function canCacheRequest(init?: RequestInit): boolean {
+  return !init?.method || init.method.toUpperCase() === "GET";
+}
+
+function getCachedResponse(key: string): Response | undefined {
+  const cached = responseCache.get(key);
+  if (!cached) {
+    return undefined;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    responseCache.delete(key);
+    return undefined;
+  }
+
+  return cached.response.clone();
+}
+
+function shouldRetryResponse(response: Response, attempt: number): boolean {
+  return (
+    attempt < MAX_RETRY_ATTEMPTS && RETRYABLE_STATUS_CODES.has(response.status)
+  );
+}
+
+function getRetryDelayMs(attempt: number): number {
+  return INITIAL_RETRY_DELAY_MS * 2 ** attempt;
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function fetchWithResilience(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const cacheKey = getRequestCacheKey(url, init);
+  if (canCacheRequest(init)) {
+    const cached = getCachedResponse(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok && canCacheRequest(init)) {
+        responseCache.set(cacheKey, {
+          expiresAt: Date.now() + REQUEST_CACHE_TTL_MS,
+          response: response.clone(),
+        });
+      }
+
+      if (!shouldRetryResponse(response, attempt)) {
+        return response;
+      }
+
+      lastError = new Error(
+        `${new URL(url).hostname} API request failed with status ${response.status}`,
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt >= MAX_RETRY_ATTEMPTS) {
+        break;
+      }
+    }
+
+    await sleep(getRetryDelayMs(attempt));
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error(`${new URL(url).hostname} API request failed`);
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetchWithResilience(url, init);
   if (!response.ok) {
     throw new Error(
       `${new URL(url).hostname} API request failed with status ${response.status}`,
@@ -132,7 +240,7 @@ async function fetchMaybeJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T | undefined> {
-  const response = await fetch(url, init);
+  const response = await fetchWithResilience(url, init);
   if (response.status === 404) {
     return undefined;
   }
@@ -205,8 +313,9 @@ async function getGithubHistory(
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const url = new URL(
-    `https://api.github.com/repos/${repo.owner}/${repo.repoName}/commits`,
+    `https://api.github.com/repos/${owner}/${repoName}/commits`,
   );
   url.searchParams.set("page", String(page));
   url.searchParams.set("per_page", String(perPage));
@@ -229,8 +338,9 @@ async function getGithubCommit(
   repo: ParsedRepositoryInfo,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const payload = await fetchMaybeJson<any>(
-    `https://api.github.com/repos/${repo.owner}/${repo.repoName}/commits/${encodeURIComponent(sha)}`,
+    `https://api.github.com/repos/${owner}/${repoName}/commits/${encodeURIComponent(sha)}`,
     {
       headers: { Accept: "application/vnd.github+json" },
     },
@@ -261,8 +371,9 @@ async function getGithubCommit(
 async function getGithubReadme(
   repo: ParsedRepositoryInfo,
 ): Promise<string | undefined> {
-  const response = await fetch(
-    `https://api.github.com/repos/${repo.owner}/${repo.repoName}/readme`,
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
+  const response = await fetchWithResilience(
+    `https://api.github.com/repos/${owner}/${repoName}/readme`,
     {
       headers: { Accept: "application/vnd.github.raw+json" },
     },
@@ -338,7 +449,7 @@ async function getGitlabReadme(
   const project = encodeURIComponent(repo.projectPath);
 
   for (const candidate of README_CANDIDATES) {
-    const response = await fetch(
+    const response = await fetchWithResilience(
       `https://gitlab.com/api/v4/projects/${project}/repository/files/${encodeURIComponent(candidate)}/raw?ref=HEAD`,
     );
     if (response.status === 404) {
@@ -362,8 +473,9 @@ async function getBitbucketHistory(
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const url = new URL(
-    `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repoName}/commits`,
+    `https://api.bitbucket.org/2.0/repositories/${owner}/${repoName}/commits`,
   );
   url.searchParams.set("page", String(page));
   url.searchParams.set("pagelen", String(perPage));
@@ -384,8 +496,9 @@ async function getBitbucketCommit(
   repo: ParsedRepositoryInfo,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const payload = await fetchMaybeJson<any>(
-    `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repoName}/commit/${encodeURIComponent(sha)}`,
+    `https://api.bitbucket.org/2.0/repositories/${owner}/${repoName}/commit/${encodeURIComponent(sha)}`,
   );
   if (!payload) {
     return undefined;
@@ -418,9 +531,10 @@ async function getBitbucketCommit(
 async function getBitbucketReadme(
   repo: ParsedRepositoryInfo,
 ): Promise<string | undefined> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
-    const response = await fetch(
-      `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repoName}/src/HEAD/${candidate}`,
+    const response = await fetchWithResilience(
+      `https://api.bitbucket.org/2.0/repositories/${owner}/${repoName}/src/HEAD/${encodeURIComponent(candidate)}`,
     );
     if (response.status === 404) {
       continue;
@@ -443,8 +557,9 @@ async function getGiteaHistory(
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const url = new URL(
-    `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repoName}/commits`,
+    `https://${repo.host}/api/v1/repos/${owner}/${repoName}/commits`,
   );
   url.searchParams.set("page", String(page));
   url.searchParams.set("limit", String(perPage));
@@ -464,8 +579,9 @@ async function getGiteaCommit(
   repo: ParsedRepositoryInfo,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   const payload = await fetchMaybeJson<any>(
-    `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repoName}/commits/${encodeURIComponent(sha)}`,
+    `https://${repo.host}/api/v1/repos/${owner}/${repoName}/commits/${encodeURIComponent(sha)}`,
   );
   if (!payload) {
     return undefined;
@@ -493,9 +609,10 @@ async function getGiteaCommit(
 async function getGiteaReadme(
   repo: ParsedRepositoryInfo,
 ): Promise<string | undefined> {
+  const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
     const payload = await fetchMaybeJson<any>(
-      `https://${repo.host}/api/v1/repos/${repo.owner}/${repo.repoName}/contents/${encodeURIComponent(candidate)}?ref=HEAD`,
+      `https://${repo.host}/api/v1/repos/${owner}/${repoName}/contents/${encodeURIComponent(candidate)}?ref=HEAD`,
     );
     if (!payload || typeof payload.content !== "string") {
       continue;

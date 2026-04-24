@@ -19,13 +19,19 @@ describe("repository URL validation", () => {
 
   it("rejects unsupported hosts", () => {
     expect(validateGithubUrl("https://example.org/team/project")).toBe(
-      "Repository URL must use HTTPS or SSH and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
+      "Repository URL must use HTTPS or SCP-style SSH (git@host:owner/repo) and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
     );
   });
 
   it("rejects non-https HTTP URLs", () => {
     expect(validateGithubUrl("http://github.com/example/project")).toBe(
-      "Repository URL must use HTTPS or SSH and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
+      "Repository URL must use HTTPS or SCP-style SSH (git@host:owner/repo) and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
+    );
+  });
+
+  it("rejects unsupported ssh URL variants", () => {
+    expect(validateGithubUrl("ssh://git@github.com/example/project.git")).toBe(
+      "Repository URL must use HTTPS or SCP-style SSH (git@host:owner/repo) and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
     );
   });
 });
