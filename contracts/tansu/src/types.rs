@@ -87,6 +87,13 @@ pub enum Vote {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub enum VoteTallies {
+    PublicVote(Vec<u128>),
+    AnonymousVote(Vec<BytesN<96>>),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VoteChoice {
     Approve,
     Reject,
@@ -172,6 +179,7 @@ pub enum ProjectKey {
     DaoTotalProposals(Bytes),
     Voters(Bytes, u32),        // Voter addresses for proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
+    ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),
     ProjectKeys(u32), // List of project keys, pagination
     TotalProjects,    // Total number of projects

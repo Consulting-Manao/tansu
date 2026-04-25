@@ -107,6 +107,7 @@ export type ProjectKey =
   | { tag: "DaoTotalProposals"; values: readonly [Buffer] }
   | { tag: "Voters"; values: readonly [Buffer, u32] }
   | { tag: "Vote"; values: readonly [Buffer, u32, string] }
+  | { tag: "ProposalTallies"; values: readonly [Buffer, u32] }
   | { tag: "AnonymousVoteConfig"; values: readonly [Buffer] }
   | { tag: "ProjectKeys"; values: readonly [u32] }
   | { tag: "TotalProjects"; values: void };
@@ -126,6 +127,10 @@ export type ContractKey =
   | { tag: "Domain"; values: void }
   | { tag: "Collateral"; values: void }
   | { tag: "Nqg"; values: void };
+
+export type VoteTallies =
+  | { tag: "PublicVote"; values: readonly [Array<u128>] }
+  | { tag: "AnonymousVote"; values: readonly [Array<Buffer>] };
 
 export interface AdminsConfig {
   admins: Array<string>;
@@ -552,6 +557,26 @@ export interface Client {
     }: { project_key: Buffer; votes: Array<u128>; seeds: Array<u128> },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Array<Buffer>>>;
+
+  /**
+   * Construct and simulate a migrate_stellarpga_vote_tallies transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Recompute and persist aggregate anonymous vote tallies for `stellarpga`.
+   *
+   * This migration is intentionally scoped to the `stellarpga` project only.
+   * Proposal IDs are `0..DaoTotalProposals` for that project. It is idempotent.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `admin` - Admin address authorized to run migrations
+   *
+   * # Panics
+   * * If `admin` is not authorized
+   * * If migration invariants are violated
+   */
+  migrate_stellarpga_vote_tallies: (
+    { admin }: { admin: string },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
 
   /**
    * Construct and simulate a pause transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -1112,6 +1137,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAZ9TZXR1cCBhbm9ueW1vdXMgdm90aW5nIGZvciBhIHByb2plY3QuCgpDb25maWd1cmVzIEJMUzEyLTM4MSBjcnlwdG9ncmFwaGljIHByaW1pdGl2ZXMgZm9yIGFub255bW91cyB2b3RpbmcuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBtYWludGFpbmVyYCAtIFRoZSBhZGRyZXNzIG9mIHRoZSBtYWludGFpbmVyIChtdXN0IGJlIGF1dGhvcml6ZWQpCiogYHByb2plY3Rfa2V5YCAtIFVuaXF1ZSBpZGVudGlmaWVyIGZvciB0aGUgcHJvamVjdAoqIGBwdWJsaWNfa2V5YCAtIEFzeW1tZXRyaWMgcHVibGljIGtleSB0byBiZSB1c2VkIGZvciB2b3RlIGVuY3J5cHRpb24KCiMgUGFuaWNzCiogSWYgdGhlIGNhbGxlciBpcyBub3QgYW4gYXV0aG9yaXplZCBtYWludGFpbmVyIG9mIHRoZSBwcm9qZWN0AAAAABZhbm9ueW1vdXNfdm90aW5nX3NldHVwAAAAAAADAAAAAAAAAAptYWludGFpbmVyAAAAAAATAAAAAAAAAAtwcm9qZWN0X2tleQAAAAAOAAAAAAAAAApwdWJsaWNfa2V5AAAAAAAQAAAAAA==",
         "AAAAAAAAASdHZXQgdGhlIGFub255bW91cyB2b3RpbmcgY29uZmlndXJhdGlvbiBmb3IgYSBwcm9qZWN0LgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBgcHJvamVjdF9rZXlgIC0gVGhlIHByb2plY3Qga2V5IGlkZW50aWZpZXIKCiMgUmV0dXJucwoqIGB0eXBlczo6QW5vbnltb3VzVm90ZUNvbmZpZ2AgLSBUaGUgYW5vbnltb3VzIHZvdGluZyBjb25maWd1cmF0aW9uCgojIFBhbmljcwoqIElmIG5vIGFub255bW91cyB2b3RpbmcgY29uZmlndXJhdGlvbiBleGlzdHMgZm9yIHRoZSBwcm9qZWN0AAAAABtnZXRfYW5vbnltb3VzX3ZvdGluZ19jb25maWcAAAAAAQAAAAAAAAALcHJvamVjdF9rZXkAAAAADgAAAAEAAAfQAAAAE0Fub255bW91c1ZvdGVDb25maWcA",
         "AAAAAAAAAxJCdWlsZCB2b3RlIGNvbW1pdG1lbnRzIGZyb20gdm90ZXMgYW5kIHNlZWRzIGZvciBhbm9ueW1vdXMgdm90aW5nLgoKQ3JlYXRlcyBCTFMxMi0zODEgY29tbWl0bWVudHMgZm9yIGVhY2ggdm90ZSB1c2luZyB0aGUgZm9ybXVsYToKQyA9IGfCt3ZvdGUgKyBowrdzZWVkIHdoZXJlIGcgYW5kIGggYXJlIGdlbmVyYXRvciBwb2ludHMgb24gQkxTMTItMzgxLgoKTm90ZTogVGhpcyBmdW5jdGlvbiBkb2VzIG5vdCBjb25zaWRlciB2b3Rpbmcgd2VpZ2h0cywgd2hpY2ggYXJlIGFwcGxpZWQKZHVyaW5nIHRoZSB0YWxseWluZyBwaGFzZS4gQ2FsbGluZyB0aGlzIG9uIHRoZSBzbWFydCBjb250cmFjdCB3b3VsZCByZXZlYWwKdGhlIHZvdGVzIGFuZCBzZWVkcywgc28gaXQgbXVzdCBiZSBydW4gZWl0aGVyIGluIHNpbXVsYXRpb24gb3IgY2xpZW50LXNpZGUuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBwcm9qZWN0X2tleWAgLSBVbmlxdWUgaWRlbnRpZmllciBmb3IgdGhlIHByb2plY3QKKiBgdm90ZXNgIC0gVmVjdG9yIG9mIHZvdGUgY2hvaWNlcyAoMD1hcHByb3ZlLCAxPXJlamVjdCwgMj1hYnN0YWluKQoqIGBzZWVkc2AgLSBWZWN0b3Igb2YgcmFuZG9tIHNlZWRzIGZvciBlYWNoIHZvdGUKCiMgUmV0dXJucwoqIGBWZWM8Qnl0ZXNOPDk2Pj5gIC0gVmVjdG9yIG9mIHZvdGUgY29tbWl0bWVudHMgKG9uZSBwZXIgdm90ZSkKCiMgUGFuaWNzCiogSWYgbm8gYW5vbnltb3VzIHZvdGluZyBjb25maWd1cmF0aW9uIGV4aXN0cyBmb3IgdGhlIHByb2plY3QAAAAAABxidWlsZF9jb21taXRtZW50c19mcm9tX3ZvdGVzAAAAAwAAAAAAAAALcHJvamVjdF9rZXkAAAAADgAAAAAAAAAFdm90ZXMAAAAAAAPqAAAACgAAAAAAAAAFc2VlZHMAAAAAAAPqAAAACgAAAAEAAAPqAAAD7gAAAGA=",
+        "AAAAAAAAAZNSZWNvbXB1dGUgYW5kIHBlcnNpc3QgYWdncmVnYXRlIGFub255bW91cyB2b3RlIHRhbGxpZXMgZm9yIGBzdGVsbGFycGdhYC4KClRoaXMgbWlncmF0aW9uIGlzIGludGVudGlvbmFsbHkgc2NvcGVkIHRvIHRoZSBgc3RlbGxhcnBnYWAgcHJvamVjdCBvbmx5LgpQcm9wb3NhbCBJRHMgYXJlIGAwLi5EYW9Ub3RhbFByb3Bvc2Fsc2AgZm9yIHRoYXQgcHJvamVjdC4gSXQgaXMgaWRlbXBvdGVudC4KCiMgQXJndW1lbnRzCiogYGVudmAgLSBUaGUgZW52aXJvbm1lbnQgb2JqZWN0CiogYGFkbWluYCAtIEFkbWluIGFkZHJlc3MgYXV0aG9yaXplZCB0byBydW4gbWlncmF0aW9ucwoKIyBQYW5pY3MKKiBJZiBgYWRtaW5gIGlzIG5vdCBhdXRob3JpemVkCiogSWYgbWlncmF0aW9uIGludmFyaWFudHMgYXJlIHZpb2xhdGVkAAAAAB9taWdyYXRlX3N0ZWxsYXJwZ2Ffdm90ZV90YWxsaWVzAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAA=",
         "AAAAAAAAAM1QYXVzZSBvciB1bnBhdXNlIHRoZSBjb250cmFjdCAoZW1lcmdlbmN5IHN0b3AuKQoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBgYWRtaW5gIC0gVGhlIGFkbWluIGFkZHJlc3MKKiBgcGF1c2VkYCAtIFBhdXNlIG9yIHVucGF1c2UgdGhlIGNvbnRyYWN0IG9wZXJhdGlvbnMgd2hpY2ggY2hhbmdlCmxlZGdlciBzdGF0ZXMuAAAAAAAABXBhdXNlAAAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAZwYXVzZWQAAAAAAAEAAAAA",
         "AAAAAAAAAFlHZXQgdGhlIGN1cnJlbnQgdmVyc2lvbiBvZiB0aGUgY29udHJhY3QuCgojIFJldHVybnMKKiBgdTMyYCAtIFRoZSBjb250cmFjdCB2ZXJzaW9uIG51bWJlcgAAAAAAAAd2ZXJzaW9uAAAAAAAAAAABAAAABA==",
         "AAAAAAAAAINJbml0aWFsaXplIHRoZSBUYW5zdSBjb250cmFjdCB3aXRoIGFkbWluIGNvbmZpZ3VyYXRpb24uCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBhZG1pbmAgLSBUaGUgYWRtaW4gYWRkcmVzcwAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAA=",
@@ -1150,10 +1176,11 @@ export class Client extends ContractClient {
         "AAAAAQAAAAAAAAAAAAAACENvbnRyYWN0AAAAAgAAAAAAAAAHYWRkcmVzcwAAAAATAAAAAAAAAAl3YXNtX2hhc2gAAAAAAAPoAAAD7gAAACA=",
         "AAAAAQAAAAAAAAAAAAAACFByb3Bvc2FsAAAABwAAAAAAAAACaWQAAAAAAAQAAAAAAAAABGlwZnMAAAAQAAAAAAAAABFvdXRjb21lX2NvbnRyYWN0cwAAAAAAA+gAAAPqAAAH0AAAAA9PdXRjb21lQ29udHJhY3QAAAAAAAAAAAhwcm9wb3NlcgAAABMAAAAAAAAABnN0YXR1cwAAAAAH0AAAAA5Qcm9wb3NhbFN0YXR1cwAAAAAAAAAAAAV0aXRsZQAAAAAAABAAAAAAAAAACXZvdGVfZGF0YQAAAAAAB9AAAAAIVm90ZURhdGE=",
         "AAAAAQAAAAAAAAAAAAAACFZvdGVEYXRhAAAABAAAAAAAAAANcHVibGljX3ZvdGluZwAAAAAAAAEAAAAAAAAADnRva2VuX2NvbnRyYWN0AAAAAAPoAAAAEwAAAAAAAAAFdm90ZXMAAAAAAAPqAAAH0AAAAARWb3RlAAAAAAAAAA52b3RpbmdfZW5kc19hdAAAAAAABg==",
-        "AAAAAgAAAAAAAAAAAAAAClByb2plY3RLZXkAAAAAAAoAAAABAAAAAAAAAANLZXkAAAAAAQAAAA4AAAABAAAAAAAAAAZCYWRnZXMAAAAAAAEAAAAOAAAAAQAAAAAAAAAITGFzdEhhc2gAAAABAAAADgAAAAEAAAAAAAAAA0RhbwAAAAACAAAADgAAAAQAAAABAAAAAAAAABFEYW9Ub3RhbFByb3Bvc2FscwAAAAAAAAEAAAAOAAAAAQAAAAAAAAAGVm90ZXJzAAAAAAACAAAADgAAAAQAAAABAAAAAAAAAARWb3RlAAAAAwAAAA4AAAAEAAAAEwAAAAEAAAAAAAAAE0Fub255bW91c1ZvdGVDb25maWcAAAAAAQAAAA4AAAABAAAAAAAAAAtQcm9qZWN0S2V5cwAAAAABAAAABAAAAAAAAAAAAAAADVRvdGFsUHJvamVjdHMAAAA=",
+        "AAAAAgAAAAAAAAAAAAAAClByb2plY3RLZXkAAAAAAAsAAAABAAAAAAAAAANLZXkAAAAAAQAAAA4AAAABAAAAAAAAAAZCYWRnZXMAAAAAAAEAAAAOAAAAAQAAAAAAAAAITGFzdEhhc2gAAAABAAAADgAAAAEAAAAAAAAAA0RhbwAAAAACAAAADgAAAAQAAAABAAAAAAAAABFEYW9Ub3RhbFByb3Bvc2FscwAAAAAAAAEAAAAOAAAAAQAAAAAAAAAGVm90ZXJzAAAAAAACAAAADgAAAAQAAAABAAAAAAAAAARWb3RlAAAAAwAAAA4AAAAEAAAAEwAAAAEAAAAAAAAAD1Byb3Bvc2FsVGFsbGllcwAAAAACAAAADgAAAAQAAAABAAAAAAAAABNBbm9ueW1vdXNWb3RlQ29uZmlnAAAAAAEAAAAOAAAAAQAAAAAAAAALUHJvamVjdEtleXMAAAAAAQAAAAQAAAAAAAAAAAAAAA1Ub3RhbFByb2plY3RzAAAA",
         "AAAAAQAAAAAAAAAAAAAAClB1YmxpY1ZvdGUAAAAAAAMAAAAAAAAAB2FkZHJlc3MAAAAAEwAAAAAAAAALdm90ZV9jaG9pY2UAAAAH0AAAAApWb3RlQ2hvaWNlAAAAAAAAAAAABndlaWdodAAAAAAABA==",
         "AAAAAgAAAAAAAAAAAAAAClZvdGVDaG9pY2UAAAAAAAMAAAAAAAAAAAAAAAdBcHByb3ZlAAAAAAAAAAAAAAAABlJlamVjdAAAAAAAAAAAAAAAAAAHQWJzdGFpbgA=",
         "AAAAAgAAAAAAAAAAAAAAC0NvbnRyYWN0S2V5AAAAAAMAAAAAAAAAAAAAAAZEb21haW4AAAAAAAAAAAAAAAAACkNvbGxhdGVyYWwAAAAAAAAAAAAAAAAAA05xZwA=",
+        "AAAAAgAAAAAAAAAAAAAAC1ZvdGVUYWxsaWVzAAAAAAIAAAABAAAAAAAAAApQdWJsaWNWb3RlAAAAAAABAAAD6gAAAAoAAAABAAAAAAAAAA1Bbm9ueW1vdXNWb3RlAAAAAAAAAQAAA+oAAAPuAAAAYA==",
         "AAAAAQAAAAAAAAAAAAAADEFkbWluc0NvbmZpZwAAAAIAAAAAAAAABmFkbWlucwAAAAAD6gAAABMAAAAAAAAACXRocmVzaG9sZAAAAAAAAAQ=",
         "AAAAAQAAAAAAAAAAAAAADUFub255bW91c1ZvdGUAAAAAAAAFAAAAAAAAAAdhZGRyZXNzAAAAABMAAAAAAAAAC2NvbW1pdG1lbnRzAAAAA+oAAAPuAAAAYAAAAAAAAAAPZW5jcnlwdGVkX3NlZWRzAAAAA+oAAAAQAAAAAAAAAA9lbmNyeXB0ZWRfdm90ZXMAAAAD6gAAABAAAAAAAAAABndlaWdodAAAAAAABA==",
         "AAAAAQAAAAAAAAAAAAAADVByb2plY3RCYWRnZXMAAAAAAAACAAAAAAAAAAZiYWRnZXMAAAAAA+oAAAfQAAAABUJhZGdlAAAAAAAAAAAAAAdwcm9qZWN0AAAAAA4=",
@@ -1193,6 +1220,7 @@ export class Client extends ContractClient {
     anonymous_voting_setup: this.txFromJSON<null>,
     get_anonymous_voting_config: this.txFromJSON<AnonymousVoteConfig>,
     build_commitments_from_votes: this.txFromJSON<Array<Buffer>>,
+    migrate_stellarpga_vote_tallies: this.txFromJSON<null>,
     pause: this.txFromJSON<null>,
     version: this.txFromJSON<u32>,
     approve_upgrade: this.txFromJSON<null>,

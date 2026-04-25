@@ -16,7 +16,7 @@ const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
 const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
-const MAX_VOTES_PER_PROPOSAL: u32 = 1000; // DoS protection
+const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
 
 #[contractimpl]
 impl DaoTrait for Tansu {
@@ -226,6 +226,17 @@ impl DaoTrait for Tansu {
         // proposer is automatically in the abstain group use 0
         // to not block a vote from proposer with a very high level of trust
         let abstain_weight = 0u32;
+        let zero_weight: U256 = U256::from_u32(&env, 0);
+        let anonymous_abstain_commitments = if public_voting {
+            None
+        } else {
+            Some(Self::build_commitments_from_votes(
+                env.clone(),
+                project_key.clone(),
+                vec![&env, 0u128, 0u128, 1u128],
+                vec![&env, 0u128, 0u128, 0u128],
+            ))
+        };
         let vote_ = match public_voting {
             true => types::Vote::PublicVote(types::PublicVote {
                 address: proposer.clone(),
@@ -247,12 +258,10 @@ impl DaoTrait for Tansu {
                     String::from_str(&env, "0"),
                     String::from_str(&env, "1"),
                 ],
-                commitments: Self::build_commitments_from_votes(
-                    env.clone(),
-                    project_key.clone(),
-                    vec![&env, 0u128, 0u128, 1u128],
-                    vec![&env, 0u128, 0u128, 0u128],
-                ),
+                commitments: anonymous_abstain_commitments
+                    .as_ref()
+                    .expect("anonymous commitments missing")
+                    .clone(),
             }),
         };
 
@@ -301,6 +310,30 @@ impl DaoTrait for Tansu {
         env.storage().persistent().set(
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
             &voters,
+        );
+
+        let proposal_tallies = if public_voting {
+            types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
+        } else {
+            let bls12_381 = env.crypto().bls12_381();
+            let mut aggregate = Vec::new(&env);
+            for commitment in anonymous_abstain_commitments
+                .as_ref()
+                .expect("anonymous commitments missing")
+                .iter()
+            {
+                let point = G1Affine::from_bytes(commitment);
+                aggregate.push_back(
+                    bls12_381
+                        .g1_mul(&point, &zero_weight.clone().into())
+                        .to_bytes(),
+                );
+            }
+            types::VoteTallies::AnonymousVote(aggregate)
+        };
+        env.storage().persistent().set(
+            &types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id),
+            &proposal_tallies,
         );
 
         events::ProposalCreated {
@@ -493,21 +526,20 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
-        let all_votes = get_all_votes(&env, &project_key, proposal_id);
-        let mut voters = get_voters(&env, &project_key, proposal_id);
+        let mut voters = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
+            .unwrap_or(Vec::new(&env));
 
         // Check vote limits for DoS protection
-        if all_votes.len() >= MAX_VOTES_PER_PROPOSAL {
+        if voters.len() >= MAX_VOTES_PER_PROPOSAL {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
         }
 
         // only allow to vote once per voter
-        let has_already_voted = all_votes.iter().any(|vote_| match vote_ {
-            types::Vote::PublicVote(vote_choice) => vote_choice.address == voter,
-            types::Vote::AnonymousVote(vote_choice) => vote_choice.address == voter,
-        });
-
-        if has_already_voted {
+        let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
+        if env.storage().persistent().has(&vote_key) {
             panic_with_error!(&env, &errors::ContractErrors::AlreadyVoted);
         }
 
@@ -584,15 +616,23 @@ impl DaoTrait for Tansu {
         }
 
         // Record the vote in keyed storage
-        env.storage().persistent().set(
-            &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone()),
-            &vote.clone(),
-        );
+        env.storage().persistent().set(&vote_key, &vote.clone());
         voters.push_back(voter.clone());
         env.storage().persistent().set(
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
             &voters,
         );
+
+        let tallies_key = types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id);
+        let mut proposal_tallies = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::VoteTallies>(&tallies_key)
+            .unwrap();
+        update_proposal_tallies(&env, &mut proposal_tallies, &vote);
+        env.storage()
+            .persistent()
+            .set(&tallies_key, &proposal_tallies);
 
         events::VoteCast {
             project_key,
@@ -657,8 +697,6 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
-        let all_votes = get_all_votes(&env, &project_key, proposal_id);
-
         // Return proposal collateral to proposer
         let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
         let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
@@ -672,6 +710,7 @@ impl DaoTrait for Tansu {
         }
 
         // Return voting collateral to all voters
+        let all_votes = get_all_votes(&env, &project_key, proposal_id);
         for vote_ in &all_votes {
             let (vote_address, vote_weight) = match &vote_ {
                 types::Vote::PublicVote(vote_choice) => (&vote_choice.address, vote_choice.weight),
@@ -701,9 +740,18 @@ impl DaoTrait for Tansu {
                 if tallies.is_some() || seeds.is_some() {
                     panic_with_error!(&env, &errors::ContractErrors::TallySeedError);
                 }
-                let mut proposal_for_tally = proposal.clone();
-                proposal_for_tally.vote_data.votes = all_votes.clone();
-                public_execute(&proposal_for_tally)
+                let public_tallies = match env
+                    .storage()
+                    .persistent()
+                    .get::<types::ProjectKey, types::VoteTallies>(
+                        &types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id),
+                    )
+                    .unwrap()
+                {
+                    types::VoteTallies::PublicVote(t) => t,
+                    types::VoteTallies::AnonymousVote(_) => unreachable!(),
+                };
+                public_execute(&public_tallies)
             }
             false => {
                 let (tallies_, seeds_) = match (tallies, seeds) {
@@ -716,13 +764,7 @@ impl DaoTrait for Tansu {
                     panic_with_error!(&env, &errors::ContractErrors::TallySeedError);
                 }
 
-                if !Self::proof(
-                    env.clone(),
-                    project_key.clone(),
-                    proposal.clone(),
-                    tallies_.clone(),
-                    seeds_,
-                ) {
+                if !proof_from_aggregates(&env, &project_key, proposal_id, &tallies_, &seeds_) {
                     panic_with_error!(&env, &errors::ContractErrors::InvalidProof)
                 }
                 anonymous_execute(&tallies_)
@@ -816,29 +858,8 @@ impl DaoTrait for Tansu {
         }
 
         let bls12_381 = env.crypto().bls12_381();
-
-        let vote_config: types::AnonymousVoteConfig = env
-            .storage()
-            .persistent()
-            .get(&types::ProjectKey::AnonymousVoteConfig(project_key.clone()))
-            .unwrap_or_else(|| {
-                panic_with_error!(&env, &errors::ContractErrors::NoAnonymousVotingConfig);
-            });
-
-        let seed_generator_point = G1Affine::from_bytes(vote_config.seed_generator_point);
-        let vote_generator_point = G1Affine::from_bytes(vote_config.vote_generator_point);
-
-        // calculate commitments from vote tally and seed tally
-        let mut commitment_checks = Vec::new(&env);
-        for it in tallies.iter().zip(seeds.iter()) {
-            let (tally_, seed_) = it;
-            let seed_: U256 = U256::from_u128(&env, seed_);
-            let tally_: U256 = U256::from_u128(&env, tally_);
-            let seed_point_ = bls12_381.g1_mul(&seed_generator_point, &seed_.into());
-            let tally_commitment_votes_ = bls12_381.g1_mul(&vote_generator_point, &tally_.into());
-            let commitment_check_ = bls12_381.g1_add(&tally_commitment_votes_, &seed_point_);
-            commitment_checks.push_back(commitment_check_);
-        }
+        let commitment_checks =
+            commitment_checks_from_tallies_and_seeds(&env, &project_key, &tallies, &seeds);
 
         // tally commitments from recorded votes (vote + seed)
         let mut g1_identity = [0u8; 96];
@@ -940,8 +961,63 @@ impl DaoTrait for Tansu {
         proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
         proposal
     }
+
+    /// Recompute and persist aggregate anonymous vote tallies for `stellarpga`.
+    ///
+    /// This migration is intentionally scoped to the `stellarpga` project only.
+    /// Proposal IDs are `0..DaoTotalProposals` for that project. It is idempotent.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `admin` - Admin address authorized to run migrations
+    ///
+    /// # Panics
+    /// * If `admin` is not authorized
+    /// * If migration invariants are violated
+    fn migrate_stellarpga_vote_tallies(env: Env, admin: Address) {
+        crate::contract_tansu::auth_admin(&env, &admin);
+
+        let project_name = String::from_str(&env, "stellarpga");
+        let project_key: Bytes = env.crypto().keccak256(&project_name.to_bytes()).into();
+
+        let total: u32 = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::DaoTotalProposals(project_key.clone()))
+            .unwrap_or(0);
+
+        let mut proposal_id: u32 = 0;
+        while proposal_id < total {
+            let all_votes = get_all_votes(&env, &project_key, proposal_id);
+            let mut rebuilt_tallies =
+                types::VoteTallies::AnonymousVote(Tansu::build_commitments_from_votes(
+                    env.clone(),
+                    project_key.clone(),
+                    vec![&env, 0u128, 0u128, 0u128],
+                    vec![&env, 0u128, 0u128, 0u128],
+                ));
+
+            for vote_ in all_votes.iter() {
+                update_proposal_tallies(&env, &mut rebuilt_tallies, &vote_);
+            }
+            env.storage().persistent().set(
+                &types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id),
+                &rebuilt_tallies,
+            );
+            proposal_id += 1;
+        }
+    }
 }
 
+/// Load all persisted votes for a proposal.
+///
+/// # Arguments
+/// * `env` - The environment object
+/// * `project_key` - The project key identifier
+/// * `proposal_id` - The ID of the proposal to load votes for
+///
+/// # Returns
+/// * `Vec<types::Vote>` - All votes of the proposal
 fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
     env.storage()
         .persistent()
@@ -968,6 +1044,130 @@ fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types:
     votes
 }
 
+/// Apply one vote to the in-memory tally accumulator.
+///
+/// # Arguments
+/// * `env` - The environment object
+/// * `tallies` - Mutable tally accumulator (public or anonymous)
+/// * `vote` - Vote to apply to the accumulator
+///
+/// # Panics
+/// * If tally and vote variants do not match
+fn update_proposal_tallies(env: &Env, tallies: &mut types::VoteTallies, vote: &types::Vote) {
+    match (tallies, vote) {
+        (types::VoteTallies::PublicVote(tallies), types::Vote::PublicVote(vote_choice)) => {
+            let vote_idx = match vote_choice.vote_choice {
+                types::VoteChoice::Approve => 0,
+                types::VoteChoice::Reject => 1,
+                types::VoteChoice::Abstain => 2,
+            };
+            let current = tallies.get(vote_idx).unwrap_or(0u128);
+            tallies.set(vote_idx, current + vote_choice.weight as u128);
+        }
+        (types::VoteTallies::AnonymousVote(aggregate), types::Vote::AnonymousVote(vote_choice)) => {
+            let bls12_381 = env.crypto().bls12_381();
+            let weight: U256 = U256::from_u32(env, vote_choice.weight);
+            for (idx, commitment) in vote_choice.commitments.iter().enumerate() {
+                let current = aggregate
+                    .get(idx as u32)
+                    .expect("missing aggregate commitment");
+                let current = G1Affine::from_bytes(current);
+                let commitment = G1Affine::from_bytes(commitment);
+                let weighted_commitment = bls12_381.g1_mul(&commitment, &weight.clone().into());
+                let updated = bls12_381.g1_add(&current, &weighted_commitment);
+                aggregate.set(idx as u32, updated.to_bytes());
+            }
+        }
+        _ => panic_with_error!(env, &errors::ContractErrors::WrongVoteType),
+    }
+}
+
+/// Build expected anonymous aggregate commitments from tallies and seeds.
+///
+/// For each index `i`, computes `C_i = g·tally_i + h·seed_i` where `g` and `h`
+/// are the project-configured BLS12-381 generator points.
+///
+/// # Arguments
+/// * `env` - The environment object
+/// * `project_key` - The project key identifier
+/// * `tallies` - Decoded tally values [approve, reject, abstain]
+/// * `seeds` - Decoded seed values [approve, reject, abstain]
+///
+/// # Returns
+/// * `Vec<G1Affine>` - Computed commitment points used for verification
+///
+/// # Panics
+/// * If no anonymous voting configuration exists for the project
+fn commitment_checks_from_tallies_and_seeds(
+    env: &Env,
+    project_key: &Bytes,
+    tallies: &Vec<u128>,
+    seeds: &Vec<u128>,
+) -> Vec<G1Affine> {
+    let vote_config = Tansu::get_anonymous_voting_config(env.clone(), project_key.clone());
+    let bls12_381 = env.crypto().bls12_381();
+    let seed_generator_point = G1Affine::from_bytes(vote_config.seed_generator_point);
+    let vote_generator_point = G1Affine::from_bytes(vote_config.vote_generator_point);
+    let mut commitment_checks = Vec::new(env);
+    for (tally_, seed_) in tallies.iter().zip(seeds.iter()) {
+        let seed_: U256 = U256::from_u128(env, seed_);
+        let tally_: U256 = U256::from_u128(env, tally_);
+        let seed_point_ = bls12_381.g1_mul(&seed_generator_point, &seed_.into());
+        let tally_commitment_votes_ = bls12_381.g1_mul(&vote_generator_point, &tally_.into());
+        let commitment_check_ = bls12_381.g1_add(&tally_commitment_votes_, &seed_point_);
+        commitment_checks.push_back(commitment_check_);
+    }
+    commitment_checks
+}
+
+/// Verify anonymous tally proof against persisted aggregate commitments.
+///
+/// # Arguments
+/// * `env` - The environment object
+/// * `project_key` - The project key identifier
+/// * `proposal_id` - The ID of the proposal to verify
+/// * `tallies` - Decoded tally values [approve, reject, abstain]
+/// * `seeds` - Decoded seed values [approve, reject, abstain]
+///
+/// # Returns
+/// * `bool` - True if computed commitments match persisted aggregates
+///
+/// # Panics
+/// * If proposal tallies are missing
+/// * If proposal tallies are not anonymous
+fn proof_from_aggregates(
+    env: &Env,
+    project_key: &Bytes,
+    proposal_id: u32,
+    tallies: &Vec<u128>,
+    seeds: &Vec<u128>,
+) -> bool {
+    let aggregate_commitments = match env
+        .storage()
+        .persistent()
+        .get::<types::ProjectKey, types::VoteTallies>(&types::ProjectKey::ProposalTallies(
+            project_key.clone(),
+            proposal_id,
+        ))
+        .unwrap()
+    {
+        types::VoteTallies::AnonymousVote(c) => c,
+        types::VoteTallies::PublicVote(_) => unreachable!(),
+    };
+
+    let commitment_checks =
+        commitment_checks_from_tallies_and_seeds(env, project_key, tallies, seeds);
+
+    for (commitment_check, aggregate) in commitment_checks.iter().zip(aggregate_commitments.iter())
+    {
+        if commitment_check != G1Affine::from_bytes(aggregate) {
+            return false;
+        }
+    }
+
+    true
+}
+
 /// Execute a public voting proposal.
 ///
 /// Helper function to determine the final status of a public voting proposal
@@ -979,21 +1179,14 @@ fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types:
 ///
 /// # Returns
 /// * `types::ProposalStatus` - The final status (Approved if approve > reject, Rejected if reject > approve, Cancelled if equal)
-pub fn public_execute(proposal: &types::Proposal) -> types::ProposalStatus {
-    // count votes
-    let mut voted_approve = 0;
-    let mut voted_reject = 0;
-    let mut voted_abstain = 0;
-    for vote_ in &proposal.vote_data.votes {
-        if let types::Vote::PublicVote(vote) = &vote_ {
-            match vote.vote_choice {
-                types::VoteChoice::Approve => voted_approve += vote.weight as u128,
-                types::VoteChoice::Reject => voted_reject += vote.weight as u128,
-                types::VoteChoice::Abstain => voted_abstain += vote.weight as u128,
-            };
-        }
-    }
-
+pub fn public_execute(tallies: &Vec<u128>) -> types::ProposalStatus {
+    let voted_approve = tallies
+        .get(0)
+        .expect("public_execute missing approve tally");
+    let voted_reject = tallies.get(1).expect("public_execute missing reject tally");
+    let voted_abstain = tallies
+        .get(2)
+        .expect("public_execute missing abstain tally");
     tallies_to_result(voted_approve, voted_reject, voted_abstain)
 }
 

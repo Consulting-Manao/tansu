@@ -173,6 +173,8 @@ pub trait DaoTrait {
     fn get_dao(env: Env, project_key: Bytes, page: u32) -> types::Dao;
 
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal;
+
+    fn migrate_stellarpga_vote_tallies(env: Env, admin: Address);
 }
 
 pub trait MigrationTrait {

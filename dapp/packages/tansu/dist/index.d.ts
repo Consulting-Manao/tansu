@@ -118,6 +118,10 @@ export type ProjectKey =
       values: readonly [Buffer, u32, string];
     }
   | {
+      tag: "ProposalTallies";
+      values: readonly [Buffer, u32];
+    }
+  | {
       tag: "AnonymousVoteConfig";
       values: readonly [Buffer];
     }
@@ -159,6 +163,15 @@ export type ContractKey =
   | {
       tag: "Nqg";
       values: void;
+    };
+export type VoteTallies =
+  | {
+      tag: "PublicVote";
+      values: readonly [Array<u128>];
+    }
+  | {
+      tag: "AnonymousVote";
+      values: readonly [Array<Buffer>];
     };
 export interface AdminsConfig {
   admins: Array<string>;
@@ -673,6 +686,29 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Array<Buffer>>>;
+  /**
+   * Construct and simulate a migrate_stellarpga_vote_tallies transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Recompute and persist aggregate anonymous vote tallies for `stellarpga`.
+   *
+   * This migration is intentionally scoped to the `stellarpga` project only.
+   * Proposal IDs are `0..DaoTotalProposals` for that project. It is idempotent.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `admin` - Admin address authorized to run migrations
+   *
+   * # Panics
+   * * If `admin` is not authorized
+   * * If migration invariants are violated
+   */
+  migrate_stellarpga_vote_tallies: (
+    {
+      admin,
+    }: {
+      admin: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a pause transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Pause or unpause the contract (emergency stop.)
@@ -1296,6 +1332,9 @@ export declare class Client extends ContractClient {
     build_commitments_from_votes: (
       json: string,
     ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
+    migrate_stellarpga_vote_tallies: (
+      json: string,
+    ) => AssembledTransaction<null>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
