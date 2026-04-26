@@ -20,6 +20,7 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
   import {
     fetchTomlFromIpfs,
     fetchTextFromIpfs,
+    getIpfsBasicLink,
   } from "../../utils/ipfsFunctions";
   import {
     getProjectFromName,
@@ -66,10 +67,20 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
             // For non-software projects, fetch README from IPFS
             if (configData.projectType !== "SOFTWARE" && project.config.ipfs) {
               try {
-                const readme = await fetchTextFromIpfs(
+                let readme = await fetchTextFromIpfs(
                   project.config.ipfs,
                   "/README.md",
                 );
+                // Rewrite relative image paths to absolute IPFS gateway URLs
+                if (readme) {
+                  const basicUrl = getIpfsBasicLink(project.config.ipfs);
+                  if (basicUrl) {
+                    readme = readme.replace(
+                      /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g,
+                      `![$1](${basicUrl}/$2)`,
+                    );
+                  }
+                }
                 // README must come from /README.md file ONLY
                 configData = {
                   ...configData,
