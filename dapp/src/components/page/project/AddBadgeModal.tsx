@@ -48,8 +48,8 @@ const AddBadgeModal = () => {
   };
 
   const handleAdd = async () => {
-    if (!memberAddress || selectedBadges.length === 0) {
-      toast.error("Add badge", "Address and badges are required");
+    if (!memberAddress) {
+      toast.error("Add badge", "Address is required");
       return;
     }
     setIsLoading(true);
