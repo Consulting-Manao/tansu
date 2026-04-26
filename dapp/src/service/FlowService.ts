@@ -2,7 +2,7 @@ import { calculateDirectoryCid } from "../utils/ipfsFunctions";
 import { create } from "@storacha/client";
 import * as Delegation from "@ucanto/core/delegation";
 import type { OutcomeContract } from "../types/proposal";
-import { pinToFilebase } from "../utils/dualPin";
+import { pinToBackups } from "../utils/dualPin";
 
 //
 import Tansu from "../contracts/soroban_tansu";
@@ -110,9 +110,9 @@ export async function uploadWithDelegation({
 
   const cid = directoryCid.toString();
 
-  // Dual pin: backup to Filebase in background (fire-and-forget)
-  pinToFilebase(cid).catch((err) => {
-    console.warn("[DualPin] Filebase backup pin failed:", err.message);
+  // Dual pin: backup to multiple providers in background (fire-and-forget)
+  pinToBackups(cid).catch((err) => {
+    console.warn("[MultiPin] Background backup pins failed:", err.message);
   });
 
   return cid;

@@ -1,14 +1,24 @@
 /**
- * Dual IPFS Pinning Utility
+ * Multi-Provider IPFS Pinning Utility
  *
- * Uploads data to both Storacha (primary) and Filebase (backup) to ensure
- * redundancy. If one provider fails, the other still serves as a backup.
+ * Ensures data availability by pinning CIDs to multiple providers:
+ * 1. Storacha (Primary - usually handled by the caller)
+ * 2. Filebase (Backup)
+ * 3. Pinata (Backup)
  *
- * Usage: wrap any upload call with `dualPin` to automatically pin to Filebase
- * after the primary Storacha upload succeeds.
+ * Includes automatic retries with exponential backoff for transient failures.
  */
 
 const FILEBASE_API_URL = "https://api.filebase.io/v1/ipfs";
+const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinByHash";
+
+/**
+ * Accessor for environment variables, separated for testability.
+ */
+export const pinConfig = {
+  getFilebaseKey: () => import.meta.env.FILEBASE_API_KEY,
+  getPinataJwt: () => import.meta.env.PINATA_JWT,
+};
 
 type PinResult = {
   cid: string;
@@ -18,19 +28,32 @@ type PinResult = {
 };
 
 /**
+ * Generic retry helper with exponential backoff.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (retries <= 0) throw err;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return withRetry(fn, retries - 1, delay * 2);
+  }
+}
+
+/**
  * Pin a CID to Filebase as backup.
- *
- * Requires FILEBASE_API_KEY env var to be set.
- * If the key is missing, this is a no-op (graceful degradation).
  */
 export async function pinToFilebase(cid: string): Promise<PinResult> {
-  const apiKey = import.meta.env.FILEBASE_API_KEY;
+  const apiKey = pinConfig.getFilebaseKey();
   if (!apiKey) {
-    console.warn("[DualPin] FILEBASE_API_KEY not set, skipping Filebase pin");
     return { cid, pinned: false, provider: "filebase", error: "API key not configured" };
   }
 
-  try {
+  const pinAction = async () => {
     const res = await fetch(`${FILEBASE_API_URL}/pins`, {
       method: "POST",
       headers: {
@@ -44,66 +67,99 @@ export async function pinToFilebase(cid: string): Promise<PinResult> {
       signal: AbortSignal.timeout(15000),
     });
 
-    if (res.ok) {
-      console.info(`[DualPin] Filebase pin succeeded for CID: ${cid}`);
-      return { cid, pinned: true, provider: "filebase" };
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
     }
+    return true;
+  };
 
-    const text = await res.text();
-    console.warn(`[DualPin] Filebase pin failed: ${res.status} ${text}`);
-    return { cid, pinned: false, provider: "filebase", error: `HTTP ${res.status}` };
+  try {
+    await withRetry(pinAction);
+    console.info(`[MultiPin] Filebase pin succeeded for CID: ${cid}`);
+    return { cid, pinned: true, provider: "filebase" };
   } catch (err: any) {
-    console.warn(`[DualPin] Filebase pin error: ${err.message}`);
+    console.warn(`[MultiPin] Filebase pin failed after retries: ${err.message}`);
     return { cid, pinned: false, provider: "filebase", error: err.message };
   }
 }
 
 /**
- * Check if a CID is pinned on Filebase.
+ * Pin a CID to Pinata as backup.
  */
-export async function checkFilebasePinStatus(cid: string): Promise<boolean> {
-  const apiKey = import.meta.env.FILEBASE_API_KEY;
-  if (!apiKey) return false;
+export async function pinToPinata(cid: string): Promise<PinResult> {
+  const jwt = pinConfig.getPinataJwt();
+  if (!jwt) {
+    return { cid, pinned: false, provider: "pinata", error: "JWT not configured" };
+  }
+
+  const pinAction = async () => {
+    const res = await fetch(PINATA_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hashToPin: cid,
+        pinataMetadata: {
+          name: `tansu-backup-${cid.slice(0, 12)}`,
+        },
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    return true;
+  };
 
   try {
-    const res = await fetch(`${FILEBASE_API_URL}/pins/${cid}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    return res.ok;
-  } catch {
-    return false;
+    await withRetry(pinAction);
+    console.info(`[MultiPin] Pinata pin succeeded for CID: ${cid}`);
+    return { cid, pinned: true, provider: "pinata" };
+  } catch (err: any) {
+    console.warn(`[MultiPin] Pinata pin failed after retries: ${err.message}`);
+    return { cid, pinned: false, provider: "pinata", error: err.message };
   }
 }
 
 /**
+ * Trigger concurrent pins to all backup providers.
+ */
+export async function pinToBackups(cid: string): Promise<PinResult[]> {
+  return await Promise.all([
+    pinToFilebase(cid),
+    pinToPinata(cid),
+  ]);
+}
+
+/**
  * Dual-pin wrapper: executes a primary upload function, then pins the
- * resulting CID to Filebase in the background.
- *
- * @param primaryUpload - The primary upload function (e.g., Storacha)
- * @returns The CID from the primary upload (unchanged)
+ * resulting CID to all backups in the background.
  */
 export async function dualPin(
   primaryUpload: () => Promise<string>,
 ): Promise<string> {
   const cid = await primaryUpload();
 
-  // Fire-and-forget Filebase pin (don't block the user flow)
-  pinToFilebase(cid).catch((err) => {
-    console.warn("[DualPin] Background Filebase pin failed:", err.message);
+  // Fire-and-forget backup pins
+  pinToBackups(cid).catch((err) => {
+    console.warn("[MultiPin] Background backup pins failed:", err.message);
   });
 
   return cid;
 }
 
 /**
- * Dual-pin with verification: waits for both uploads to complete.
- * Use this when you need guaranteed dual-pinning before proceeding.
+ * Dual-pin with verification: waits for all uploads and backups to complete.
  */
 export async function dualPinVerified(
   primaryUpload: () => Promise<string>,
-): Promise<{ cid: string; filebasePinned: boolean }> {
+): Promise<{ cid: string; backups: PinResult[] }> {
   const cid = await primaryUpload();
-  const filebaseResult = await pinToFilebase(cid);
-  return { cid, filebasePinned: filebaseResult.pinned };
+  const backups = await pinToBackups(cid);
+  return { cid, backups };
 }
