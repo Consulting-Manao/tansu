@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-labelledby="title">
+  <title>Codeberg</title>
+  <rect width="24" height="24" rx="6" fill="#2185D0"/>
+  <path d="M12 5a7 7 0 0 0-7 7c0 2.8 1.7 5.3 4.2 6.4l1.5-1.8A4.8 4.8 0 0 1 7.2 12 4.8 4.8 0 0 1 12 7.2c1.4 0 2.6.6 3.5 1.5l2.2-.5A7 7 0 0 0 12 5z" fill="#fff"/>
+  <path d="M17 9.1 10.2 19h4.1l4.7-6.8A6.9 6.9 0 0 0 17 9.1z" fill="#0B2F4A"/>
+</svg>

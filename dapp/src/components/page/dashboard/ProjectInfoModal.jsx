@@ -3,6 +3,7 @@ import { loadProjectName } from "@service/StateService";
 import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button";
 import Modal from "../../utils/Modal";
+import { getRepositoryIconInfo } from "../../../utils/editLinkFunctions";
 
 const ProjectInfoModal = ({ projectInfo, onClose }) => {
   const [projectName, setProjectName] = useState("");
@@ -59,18 +60,32 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <img
-                              src={
+                            {(() => {
+                              const repositoryIcon =
+                                getRepositoryIconInfo(link);
+                              const src =
                                 platform === "websiteLink"
                                   ? "/icons/logos/web.svg"
                                   : platform === "githubLink"
-                                    ? "/icons/logos/github.svg"
-                                    : ""
-                              }
-                              width={24}
-                              height={24}
-                              className={`icon-${platform}`}
-                            />
+                                    ? repositoryIcon.src
+                                    : "";
+                              const alt =
+                                platform === "websiteLink"
+                                  ? "Website"
+                                  : platform === "githubLink"
+                                    ? repositoryIcon.label
+                                    : platform;
+
+                              return (
+                                <img
+                                  src={src}
+                                  width={24}
+                                  height={24}
+                                  alt={alt}
+                                  className={`icon-${platform}`}
+                                />
+                              );
+                            })()}
                           </a>
                         ),
                     )}

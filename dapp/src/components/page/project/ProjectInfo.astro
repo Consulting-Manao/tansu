@@ -168,7 +168,7 @@ import Button from "components/utils/Button";
 <div id="read-more-modal-container"></div>
 
 <script>
-  import { getLatestCommitData } from "@service/GithubService";
+  import { getLatestCommitData } from "@service/RepositoryMetadataService";
   import { getIpfsBasicLink } from "utils/ipfsFunctions";
   import { navigate } from "astro:transitions/client";
   import type { ConfigData } from "types/projectConfig";
@@ -181,7 +181,7 @@ import Button from "components/utils/Button";
   } from "../../../service/StateService";
   import {
     convertGitHubLink,
-    getAuthorRepo,
+    getRepositoryIconInfo,
   } from "../../../utils/editLinkFunctions";
   import {
     configData as configDataStore,
@@ -545,7 +545,7 @@ import Button from "components/utils/Button";
               addLinkButton(
                 officialLinks,
                 configData.officials.githubLink,
-                "github",
+                "git",
               );
             }
             if (configData.officials.websiteLink) {
@@ -556,7 +556,7 @@ import Button from "components/utils/Button";
               );
             }
           } else {
-            addLinkButton(officialLinks, projectInfo.config.url, "github");
+            addLinkButton(officialLinks, projectInfo.config.url, "git");
           }
         }
 
@@ -625,16 +625,17 @@ import Button from "components/utils/Button";
                 commitPopup.replaceChildren();
                 const p1 = document.createElement("p");
                 p1.className = "text-sm w-36 sm:w-max";
-                p1.textContent = "Commit SHA on-chain exists on GitHub";
+                p1.textContent =
+                  "Commit SHA on-chain exists in repository history";
                 commitPopup.appendChild(p1);
               } else {
-                commitIcon.src = "/icons/check.svg";
+                commitIcon.src = "/icons/failed.svg";
                 commitIcon.alt = "Failed";
                 commitPopup.replaceChildren();
                 const p2 = document.createElement("p");
                 p2.className = "text-sm w-36 sm:w-max";
                 p2.textContent =
-                  "Commit SHA on-chain cannot be found on GitHub";
+                  "Commit SHA on-chain cannot be found in repository history";
                 commitPopup.appendChild(p2);
               }
             } else {
@@ -652,7 +653,8 @@ import Button from "components/utils/Button";
             commitPopup.replaceChildren();
             const p4 = document.createElement("p");
             p4.className = "text-sm w-36 sm:w-max";
-            p4.textContent = "No commit SHA can be found on-chain or on GitHub";
+            p4.textContent =
+              "No commit SHA can be found on-chain or in repository history";
             commitPopup.appendChild(p4);
           }
 
@@ -702,18 +704,12 @@ import Button from "components/utils/Button";
           }
 
           if (projectInfo?.name && projectInfo?.config?.url) {
-            const { username, repoName } = getAuthorRepo(
-              projectInfo.config.url,
+            contributionMetricsRoot.render(
+              React.createElement(ContributionMetrics, {
+                projectName: projectInfo.name,
+                repoUrl: projectInfo.config.url,
+              }),
             );
-            if (username && repoName) {
-              contributionMetricsRoot.render(
-                React.createElement(ContributionMetrics, {
-                  projectName: projectInfo.name,
-                  owner: username,
-                  repo: repoName,
-                }),
-              );
-            }
           }
         }
 
@@ -794,8 +790,15 @@ import Button from "components/utils/Button";
       button.rel = "noopener noreferrer";
 
       const icon = document.createElement("img");
-      icon.src = getIconSVG(iconName);
-      icon.alt = iconName;
+      const iconInfo =
+        iconName === "git"
+          ? getRepositoryIconInfo(url)
+          : {
+              src: getIconSVG(iconName),
+              label: iconName,
+            };
+      icon.src = iconInfo.src;
+      icon.alt = iconInfo.label;
       icon.className = "w-4 h-4";
 
       button.appendChild(icon);

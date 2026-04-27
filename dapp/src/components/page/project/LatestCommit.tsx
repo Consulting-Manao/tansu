@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { getLatestCommitData } from "@service/GithubService";
+import { getLatestCommitData } from "@service/RepositoryMetadataService";
 import { getProjectHash } from "@service/ReadContractService";
 import { loadProjectInfo } from "@service/StateService";
 import Tooltip from "components/utils/Tooltip";
@@ -139,15 +139,20 @@ const LatestCommit = () => {
               {commitData?.sha.slice(0, 9)}
             </p>
             <div className="flex gap-2">
-              <CopyButton textToCopy={commitData?.html_url || ""} size="sm" />
-              <a
-                href={commitData?.html_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:bg-gray-100 p-1 rounded transition-colors duration-200"
-              >
-                <img src="/icons/link.svg" alt="Open link" />
-              </a>
+              <CopyButton
+                textToCopy={commitData?.html_url || commitData?.sha || ""}
+                size="sm"
+              />
+              {commitData?.html_url ? (
+                <a
+                  href={commitData.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:bg-gray-100 p-1 rounded transition-colors duration-200"
+                >
+                  <img src="/icons/link.svg" alt="Open link" />
+                </a>
+              ) : null}
             </div>
           </div>
         )}

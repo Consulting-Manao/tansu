@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSupportedRepositoryUrl } from "../utils/editLinkFunctions";
 
 /**
  * Centralized validation schemas using Zod.
@@ -24,19 +25,11 @@ export const projectNameSchema = z
 
 export const githubUrlSchema = z
   .string()
-  .min(1, "GitHub URL is required")
-  .refine((url) => {
-    try {
-      const parsedUrl = new URL(url);
-      if (parsedUrl.hostname !== "github.com") {
-        return false;
-      }
-      const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
-      return pathParts.length === 2;
-    } catch {
-      return false;
-    }
-  }, "URL must be in format: https://github.com/username/repository");
+  .min(1, "Repository URL is required")
+  .refine(
+    (value) => isSupportedRepositoryUrl(value),
+    "Repository URL must use HTTPS or SCP-style SSH (git@host:owner/repo) and target GitHub, GitLab, Bitbucket, Codeberg, or Gitea",
+  );
 
 export const githubHandleSchema = z
   .string()

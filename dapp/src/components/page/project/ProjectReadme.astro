@@ -8,7 +8,7 @@ import ReadmeViewer from "./ReadmeViewer";
       <div id="copy-repo-container" class="w-full sm:w-auto"></div>
       <a
         id="move-to-releases"
-        class="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9] flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
+        class="hidden p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9] flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
       >
         <img src="/icons/link.svg" class="w-4 h-4 sm:w-auto sm:h-auto" />
         <span
@@ -26,6 +26,7 @@ import ReadmeViewer from "./ReadmeViewer";
 
 <script>
   import { loadProjectInfo } from "../../../service/StateService";
+  import { getRepositoryReleasesUrl } from "../../../utils/editLinkFunctions";
   import { projectInfoLoaded } from "../../../utils/store";
 
   document.addEventListener("astro:page-load", async () => {
@@ -60,9 +61,16 @@ import ReadmeViewer from "./ReadmeViewer";
 
         const moveToReleases = document.getElementById("move-to-releases");
         if (moveToReleases instanceof HTMLAnchorElement) {
-          moveToReleases.href = `${repositoryUrl}/releases`;
-          moveToReleases.target = "_blank";
-          moveToReleases.rel = "noopener noreferrer";
+          const releasesUrl = getRepositoryReleasesUrl(repositoryUrl);
+          if (releasesUrl) {
+            moveToReleases.href = releasesUrl;
+            moveToReleases.target = "_blank";
+            moveToReleases.rel = "noopener noreferrer";
+            moveToReleases.classList.remove("hidden");
+          } else {
+            moveToReleases.removeAttribute("href");
+            moveToReleases.classList.add("hidden");
+          }
         }
       }
     }

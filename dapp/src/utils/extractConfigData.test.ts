@@ -36,4 +36,40 @@ describe("extractConfigData", () => {
     expect(out.description).toBe("");
     expect(out.authorGithubNames).toEqual([]);
   });
+
+  it("keeps the canonical provider when ORG_GITHUB is set", () => {
+    const project = {
+      ...minimalProject,
+      config: { url: "https://gitlab.com/org/repo", ipfs: "bafy..." },
+    };
+
+    const out = extractConfigData(
+      {
+        DOCUMENTATION: {
+          ORG_GITHUB: "org/alt-repo",
+        },
+      },
+      project as any,
+    );
+
+    expect(out.officials.githubLink).toBe("https://gitlab.com/org/alt-repo");
+  });
+
+  it("ignores invalid canonical repository URLs", () => {
+    const project = {
+      ...minimalProject,
+      config: { url: "https://example.org/org/repo", ipfs: "bafy..." },
+    };
+
+    const out = extractConfigData(
+      {
+        DOCUMENTATION: {
+          ORG_GITHUB: "org/alt-repo",
+        },
+      },
+      project as any,
+    );
+
+    expect(out.officials.githubLink).toBe("");
+  });
 });

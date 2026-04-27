@@ -59,6 +59,20 @@ See the [contributing guide](../CONTRIBUTING.md) for details about IPFS.
 
 5. **Open your browser**: Navigate to `http://localhost:4321`
 
+## Git Metadata Providers
+
+The dapp fetches repository metadata directly from provider APIs in the browser.
+
+- Supported public providers are GitHub, GitLab, Bitbucket, Codeberg, and Gitea.
+- Repository metadata features are intentionally limited to those provider APIs.
+- Access is unauthenticated only, so metadata is limited to public repositories and subject to provider CORS and rate limits.
+
+## Validation
+
+Verified in this workspace:
+
+- `bunx vitest run src/schemas/validation.test.ts src/utils/contractErrors.test.ts src/utils/errorHandler.test.ts src/utils/extractConfigData.test.ts`
+
 ### Technology Stack
 
 - **Framework**: [Astro](https://astro.build/) - Static site generator

@@ -25,6 +25,16 @@ import {
   getIpfsBasicLink,
   fetchTextFromIpfs,
 } from "utils/ipfsFunctions";
+import {
+  getRepositoryHandleLabel,
+  getRepositoryHandlePlaceholder,
+  getRepositoryProjectPath,
+  getRepositoryProvider,
+  getRepositoryProviderLabel,
+  getRepositoryUrlPlaceholder,
+  SUPPORTED_REPOSITORY_PROVIDERS,
+  type RepositoryProvider,
+} from "utils/editLinkFunctions";
 import toml from "toml";
 
 // Validate DBA (Project Full Name): ASCII-only, max 100 chars
@@ -106,8 +116,9 @@ function mergeTomlData(
   existingDoc["ORG_URL"] = fields.orgUrl;
   existingDoc["ORG_LOGO"] = fields.orgLogo;
   existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
-  existingDoc["ORG_GITHUB"] =
-    fields.githubRepoUrl.split("https://github.com/")[1] || "";
+  existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
+    ? getRepositoryProjectPath(fields.githubRepoUrl)
+    : "";
 
   // README is now only stored as a separate file, so we explicitly remove it
   // from the TOML if it was previously there to enforce a single source of truth.
@@ -228,6 +239,8 @@ const UpdateConfigModal = () => {
   ]);
   const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [selectedRepositoryProvider, setSelectedRepositoryProvider] =
+    useState<RepositoryProvider>("github");
   const [projectFullName, setProjectFullName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [orgName, setOrgName] = useState("");
@@ -243,6 +256,22 @@ const UpdateConfigModal = () => {
   const [projectFullNameError, setProjectFullNameError] = useState<
     string | null
   >(null);
+  const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
+  const activeRepositoryProvider = isSoftwareProject
+    ? parsedRepositoryProvider || selectedRepositoryProvider
+    : undefined;
+  const repositoryProviderLabel = getRepositoryProviderLabel(
+    activeRepositoryProvider,
+  );
+  const repositoryHandleLabel = isSoftwareProject
+    ? getRepositoryHandleLabel(activeRepositoryProvider)
+    : "Maintainer Handle";
+  const repositoryHandlePlaceholder = getRepositoryHandlePlaceholder(
+    activeRepositoryProvider,
+  );
+  const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
+    activeRepositoryProvider,
+  );
 
   // Pre-fill all fields whenever projectInfo OR configData becomes available
   useEffect(() => {
@@ -260,6 +289,9 @@ const UpdateConfigModal = () => {
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
     setGithubRepoUrl(projectInfo.config.url || "");
+    setSelectedRepositoryProvider(
+      getRepositoryProvider(projectInfo.config.url || "") || "github",
+    );
     setProjectName(projectInfo.name || "");
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");
     setOrgName(cfg?.organizationName || "");
@@ -334,11 +366,11 @@ const UpdateConfigModal = () => {
     const newGhErr = maintainerGithubs.map((h) => {
       if (!h.trim()) {
         ok = false;
-        return "required";
+        return `${repositoryHandleLabel} is required`;
       }
       if (!ghRegex.test(h)) {
         ok = false;
-        return "invalid";
+        return `${repositoryHandleLabel} must use ASCII letters, digits, _ or -, and be 30 characters or fewer`;
       }
       return null;
     });
@@ -448,11 +480,15 @@ const UpdateConfigModal = () => {
 
   const handleNextFromStep2 = () => {
     const isDbaValid = validateProjectFullName();
-    if (isSoftwareProject) {
-      const isRepoValid = validateRepo();
-      if (isRepoValid && isDbaValid) setStep(3);
-    } else {
-      if (isDbaValid) setStep(3);
+    if (isDbaValid) setStep(3);
+  };
+
+  const handleNextFromStep1 = () => {
+    const maintainersAreValid = validateMaintainers();
+    const repoIsValid = isSoftwareProject ? validateRepo() : true;
+
+    if (maintainersAreValid && repoIsValid) {
+      setStep(2);
     }
   };
 
@@ -497,12 +533,69 @@ const UpdateConfigModal = () => {
                   <div className="flex flex-col gap-4 w-full md:w-2/3">
                     <Step step={1} totalSteps={3} />
                     <Title
-                      title="Maintainers"
-                      description="Edit maintainer addresses & GitHub handles"
+                      title={
+                        isSoftwareProject
+                          ? "Repository and Maintainers"
+                          : "Maintainers"
+                      }
+                      description={
+                        isSoftwareProject
+                          ? `Confirm the repository provider or URL first, then update maintainer wallet addresses and ${repositoryProviderLabel} handles.`
+                          : "Edit maintainer addresses and public handles"
+                      }
                     />
+                    {isSoftwareProject && (
+                      <div className="flex flex-col gap-4 mb-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="leading-4 text-base text-secondary">
+                            Repository Provider
+                          </div>
+                          <select
+                            value={
+                              activeRepositoryProvider ||
+                              selectedRepositoryProvider
+                            }
+                            onChange={(e) =>
+                              setSelectedRepositoryProvider(
+                                e.target.value as RepositoryProvider,
+                              )
+                            }
+                            className="p-[18px] border border-[#978AA1] outline-none bg-white"
+                          >
+                            {SUPPORTED_REPOSITORY_PROVIDERS.map((provider) => (
+                              <option key={provider} value={provider}>
+                                {getRepositoryProviderLabel(provider)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <Input
+                          label={`${repositoryProviderLabel} Repository URL`}
+                          placeholder={repositoryUrlPlaceholder}
+                          value={githubRepoUrl}
+                          onChange={(e) => {
+                            const nextValue = e.target.value;
+                            setGithubRepoUrl(nextValue);
+                            setRepoError(null);
+
+                            const parsedProvider =
+                              getRepositoryProvider(nextValue);
+                            if (parsedProvider) {
+                              setSelectedRepositoryProvider(parsedProvider);
+                            }
+                          }}
+                          description={`Paste an HTTPS or SSH URL for ${repositoryProviderLabel}. The provider selector updates automatically when the URL is recognized.`}
+                          error={repoError || undefined}
+                        />
+                      </div>
+                    )}
                     {maintainerAddresses.map((addr, i) => (
                       <div key={i} className="flex gap-3 mb-3">
                         <Input
+                          label={
+                            i === 0 ? "Maintainer Wallet Address" : undefined
+                          }
                           value={addr ?? ""}
                           error={addrErrors[i] || undefined}
                           onChange={(e) => {
@@ -512,6 +605,8 @@ const UpdateConfigModal = () => {
                           }}
                         />
                         <Input
+                          label={i === 0 ? repositoryHandleLabel : undefined}
+                          placeholder={repositoryHandlePlaceholder}
                           value={maintainerGithubs[i] ?? ""}
                           error={ghErrors[i] || undefined}
                           onChange={(e) => {
@@ -534,13 +629,7 @@ const UpdateConfigModal = () => {
                       Add Maintainer
                     </Button>
                     <div className="flex justify-end mt-4">
-                      <Button
-                        onClick={() => {
-                          if (validateMaintainers()) setStep(2);
-                        }}
-                      >
-                        Next
-                      </Button>
+                      <Button onClick={handleNextFromStep1}>Next</Button>
                     </div>
                   </div>
                 </div>
@@ -556,7 +645,11 @@ const UpdateConfigModal = () => {
                     <Step step={2} totalSteps={3} />
                     <Title
                       title="Project details"
-                      description="Project name, organisation & repository"
+                      description={
+                        isSoftwareProject
+                          ? "Review project naming, organization details, and supporting metadata. Repository details were handled in the previous step."
+                          : "Project name, organisation, and README details"
+                      }
                     />
 
                     <Input
@@ -603,17 +696,6 @@ const UpdateConfigModal = () => {
                       onChange={(e) => setOrgDescription(e.target.value)}
                     />
 
-                    {isSoftwareProject && (
-                      <Input
-                        label="GitHub repository URL"
-                        value={githubRepoUrl}
-                        onChange={(e) => {
-                          setGithubRepoUrl(e.target.value);
-                          setRepoError(null);
-                        }}
-                        error={repoError || undefined}
-                      />
-                    )}
                     {!isSoftwareProject && (
                       <Textarea
                         label="README"
