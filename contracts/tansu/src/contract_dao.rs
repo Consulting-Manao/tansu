@@ -394,9 +394,11 @@ impl DaoTrait for Tansu {
         }
 
         let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
-        if !env.storage().persistent().has(&vote_key) {
-            panic_with_error!(&env, &errors::ContractErrors::VoteNotFound);
-        }
+        let vote = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::Vote>(&vote_key)
+            .unwrap_or_else(|| panic_with_error!(&env, &errors::ContractErrors::VoteNotFound));
 
         // Remove the vote entry
         env.storage().persistent().remove(&vote_key);
@@ -410,6 +412,44 @@ impl DaoTrait for Tansu {
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
             &voters,
         );
+
+        // Reverse the removed vote's contribution from the aggregate tallies.
+        let tallies_key = types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id);
+        let mut proposal_tallies = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::VoteTallies>(&tallies_key)
+            .unwrap();
+        match (&mut proposal_tallies, &vote) {
+            (types::VoteTallies::PublicVote(tallies), types::Vote::PublicVote(vote_choice)) => {
+                let vote_idx = match vote_choice.vote_choice {
+                    types::VoteChoice::Approve => 0,
+                    types::VoteChoice::Reject => 1,
+                    types::VoteChoice::Abstain => 2,
+                };
+                let current = tallies.get(vote_idx).unwrap_or(0u128);
+                tallies.set(vote_idx, current.saturating_sub(vote_choice.weight as u128));
+            }
+            (types::VoteTallies::AnonymousVote(_), types::Vote::AnonymousVote(_)) => {
+                // Recompute aggregate from remaining voters (voter already removed above).
+                let remaining_votes = get_all_votes(&env, &project_key, proposal_id);
+                let zero_agg = Tansu::build_commitments_from_votes(
+                    env.clone(),
+                    project_key.clone(),
+                    vec![&env, 0u128, 0u128, 0u128],
+                    vec![&env, 0u128, 0u128, 0u128],
+                );
+                let mut rebuilt = types::VoteTallies::AnonymousVote(zero_agg);
+                for v in remaining_votes.iter() {
+                    update_proposal_tallies(&env, &mut rebuilt, &v);
+                }
+                proposal_tallies = rebuilt;
+            }
+            _ => panic_with_error!(&env, &errors::ContractErrors::WrongVoteType),
+        }
+        env.storage()
+            .persistent()
+            .set(&tallies_key, &proposal_tallies);
 
         // Collateral is intentionally NOT returned — slashed as penalty for malicious voting.
 
