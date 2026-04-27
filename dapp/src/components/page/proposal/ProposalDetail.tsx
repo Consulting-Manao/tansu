@@ -99,7 +99,20 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
         </div>
         <div className="markdown-body w-full px-4 sm:px-6 md:px-8 py-6">
           {description ? (
-            <Markdown>{description}</Markdown>
+            <Markdown
+              options={{
+                overrides: {
+                  a: {
+                    props: {
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                    },
+                  },
+                },
+              }}
+            >
+              {description}
+            </Markdown>
           ) : (
             <p className="text-gray-500 italic">
               No description available or IPFS content could not be loaded.
