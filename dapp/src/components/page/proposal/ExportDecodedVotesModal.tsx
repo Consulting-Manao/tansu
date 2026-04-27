@@ -40,10 +40,11 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
           <p className="font-medium text-red-700">Privacy warning</p>
           <p className="mt-2 leading-6">
             Decoded votes reveal who voted for what. If this file is shared
-            online, forwarded, or leaked, voter privacy is lost.
+            online, forwarded, or leaked, the voter privacy assumption is lost.
           </p>
           <p className="mt-2 leading-6">
-            Only export this file if you are sure it will stay private.
+            Only export this file if you can assume the responsibility
+            of keeping voters' information private.
           </p>
         </div>
 

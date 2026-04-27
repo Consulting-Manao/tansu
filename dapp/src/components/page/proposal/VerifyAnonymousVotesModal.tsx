@@ -122,7 +122,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             exportFileNameBase={`${projectName.replace(
               /[^a-z0-9_-]+/gi,
               "-",
-            )}-proposal-${proposalId}-decoded-votes`}
+            )}-proposal-${proposalId}-decoded-votes.csv`}
           />
 
           <div className="flex justify-center sm:justify-end">

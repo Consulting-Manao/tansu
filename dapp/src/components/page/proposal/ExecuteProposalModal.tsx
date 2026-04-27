@@ -289,7 +289,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                 exportFileNameBase={`${projectName.replace(
                   /[^a-z0-9_-]+/gi,
                   "-",
-                )}-proposal-${proposalId}-decoded-votes`}
+                )}-proposal-${proposalId}-decoded-votes.csv`}
               />
             </div>
           </div>
