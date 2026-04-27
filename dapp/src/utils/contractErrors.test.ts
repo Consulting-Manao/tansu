@@ -42,6 +42,15 @@ describe("parseContractError", () => {
     expect(msg).not.toContain("anonymous voting");
   });
 
+  it("returns a transfer-specific hint for invalid proposal outcome inputs", () => {
+    const msg = parseContractError({
+      message:
+        "HostError: Error(WasmVm, InvalidAction) topics:[fn_call,x,transfer]",
+    });
+    expect(msg).toContain("transfer()");
+    expect(msg).toContain("configured contract address and arguments");
+  });
+
   it("returns raw message for unknown format", () => {
     const msg = parseContractError({ message: "Network timeout" });
     expect(msg).toBe("Network timeout");

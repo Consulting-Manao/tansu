@@ -6,4 +6,9 @@ import netlify from "@astrojs/netlify";
 export default defineConfig({
   integrations: [react()],
   adapter: netlify(),
+  vite: {
+    optimizeDeps: {
+      include: ["ipfs-car"],
+    },
+  },
 });
