@@ -11,13 +11,14 @@ import { connectedPublicKey } from "../../../utils/store";
 import { refreshLocalStorage } from "@service/StateService";
 import {
   getProjectFromId,
-  getProjectsPage,
+  getAllProjects,
 } from "../../../service/ReadContractService";
 import { navigate } from "astro:transitions/client";
 import { Buffer } from "buffer";
 import OnChainActions from "./OnChainActions";
 import { badgeName } from "../../../utils/badges";
 import AddressDisplay from "../proposal/AddressDisplay"; // use existing component
+import { deriveProjectKey } from "../../../utils/projectKey";
 
 interface Props extends ModalProps {
   member: Member | null;
@@ -175,35 +176,29 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
       // Then, check if user is a maintainer of any other projects (not already in member.projects)
       if (memberAddress) {
         try {
-          // Get first page of projects (we might need to paginate through all pages in a real implementation)
-          const projects = await getProjectsPage(0);
+          const projects = await getAllProjects();
           const existingProjectIds = new Set(
             allProjects.map((p) => Buffer.from(p.projectId).toString("hex")),
           );
 
-          const maintainerProjectsPromises = projects
-            .filter(
-              (project) =>
-                project.maintainers.includes(memberAddress) &&
-                !existingProjectIds.has(
-                  Buffer.from(project.name).toString("hex"),
-                ), // Avoid duplicates
-            )
-            .map(async (project) => {
-              // Create a project key from the project name to get the project ID
-              const projectKey = Buffer.from(project.name); // This might need proper key derivation
+          const maintainerProjects = projects
+            .filter((project) => {
+              const projectKey = deriveProjectKey(project.name);
 
+              return (
+                project.maintainers.includes(memberAddress) &&
+                !existingProjectIds.has(projectKey.toString("hex"))
+              );
+            })
+            .map((project) => {
               return {
                 name: project.name,
                 badges: [] as Badge[], // No badges, just maintainer status
-                projectId: projectKey,
+                projectId: deriveProjectKey(project.name),
                 isMaintainer: true,
               };
             });
 
-          const maintainerProjects = await Promise.all(
-            maintainerProjectsPromises,
-          );
           allProjects.push(...maintainerProjects);
         } catch (error) {
           console.log("Could not fetch additional maintainer projects:", error);
@@ -219,7 +214,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
     } else {
       setIsLoading(false);
     }
-  }, [member]);
+  }, [member, memberAddress]);
 
   // Get the initial letter for the avatar
   const getInitialLetter = (name: string | undefined): string => {
