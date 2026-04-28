@@ -22,7 +22,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   onClose,
 }) => {
   const [tallies, setTallies] = useState<bigint[]>([]);
-  const [seeds, setSeeds] = useState<bigint[]>([]);
+const [seeds, setSeeds] = useState<bigint[]>([]);
   const [step, setStep] = useState(1);
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [voteStatus, setVoteStatus] = useState<VoteStatus | null>(null);
@@ -35,19 +35,17 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   const computeTalliesAndProof = async (privKey: string) => {
     try {
       const data = await computeAnonymousVotingData(
-        projectName,
+        projectName!,
         proposalId,
         privKey,
         true,
       );
-
       setTallies(data.tallies);
-      setSeeds(data.seeds);
+setSeeds(data.seeds);
       setVoteStatus(data.voteStatus);
       setProofOk(data.proofOk ?? null);
       setProofErrorMessage(data.proofErrorMessage ?? null);
       setDecodedVotes(data.decodedVotes);
-
       return data.decodedVotes.length;
     } catch (err: any) {
       setProcessingError(err.message || "Failed to process key file");
@@ -60,19 +58,14 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
     try {
       const fileList = e.target.files;
       if (!fileList || fileList.length === 0) return;
-
       const file = fileList.item(0);
       if (!file) return;
-
       const txt = await file.text();
       const parsed = JSON.parse(txt);
-
       if (!parsed.privateKey) throw new Error("Invalid key file");
-
-      await validateAnonymousKeyForProject(projectName, parsed.publicKey);
-
+      // Validate uploaded key against on-chain config (centralized helper)
+      await validateAnonymousKeyForProject(projectName!, parsed.publicKey);
       setProcessingError(null);
-
       const count = await computeTalliesAndProof(parsed.privateKey);
       if (count > 0) setStep(2);
     } catch (err: any) {
@@ -83,7 +76,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   return (
     <Modal onClose={onClose}>
       {step === 1 ? (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 sm:gap-[30px]">
           <Step step={1} totalSteps={2} />
 
           <Title
@@ -93,11 +86,12 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
 
           <div
             className={classNames(
-              "border rounded-md p-4",
+              "border rounded-md",
               processingError ? "border-red-500" : "border-zinc-700",
+              "p-3 sm:p-4 text-sm sm:text-base break-words",
             )}
           >
-            <label className="cursor-pointer text-primary underline">
+            <label className="cursor-pointer text-primary underline block text-center sm:text-left">
               Choose key file
               <input
                 type="file"
@@ -109,11 +103,13 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
           </div>
 
           {processingError && (
-            <p className="text-red-500 text-sm">{processingError}</p>
+            <p className="text-red-500 text-xs sm:text-sm break-words">
+              {processingError}
+            </p>
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 sm:gap-[30px]">
           <Step step={2} totalSteps={2} />
 
           <Title
@@ -121,16 +117,16 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             description="Below are the tallies computed from decrypted votes."
           />
 
-          <AnonymousTalliesDisplay
-            voteStatus={voteStatus || undefined}
-            decodedVotes={decodedVotes}
-            tallies={tallies}
-            seeds={seeds}
-            proofOk={proofOk}
-            proofErrorMessage={proofErrorMessage}
-          />
+         <AnonymousTalliesDisplay
+  voteStatus={voteStatus || undefined}
+  decodedVotes={decodedVotes}
+  tallies={tallies}        // ✅ ADD
+  seeds={seeds}            // ✅ ADD
+  proofOk={proofOk}
+  proofErrorMessage={proofErrorMessage}
+/>
 
-          <div className="flex justify-end">
+          <div className="flex justify-center sm:justify-end">
             <Button type="secondary" onClick={onClose}>
               Close
             </Button>
