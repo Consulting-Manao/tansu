@@ -119,6 +119,10 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             decodedVotes={decodedVotes}
             proofOk={proofOk}
             proofErrorMessage={proofErrorMessage}
+            exportFileNameBase={`${projectName.replace(
+              /[^a-z0-9_-]+/gi,
+              "-",
+            )}-proposal-${proposalId}-decoded-votes`}
           />
 
           <div className="flex justify-center sm:justify-end">
