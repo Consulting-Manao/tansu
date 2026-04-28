@@ -1061,18 +1061,42 @@ fn conflict_of_interest_flow() {
         .unwrap();
     assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
 
-    // Maintainer can add multiple addresses
-    let another = Address::generate(&setup.env);
+    // Maintainer adds 2 addresses first
+    let addr1 = outsider.clone();
+    let addr2 = Address::generate(&setup.env);
     setup.contract.add_conflict_of_interest(
         &setup.mando,
         &id,
         &proposal_id,
-        &vec![&setup.env, outsider.clone(), another.clone()],
+        &vec![&setup.env, addr1.clone(), addr2.clone()],
     );
     let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
     assert_eq!(list.len(), 2);
-    assert!(list.contains(&outsider));
-    assert!(list.contains(&another));
+
+    // Maintainer adds 3 more addresses, including a duplicate of addr1 which
+    // must be ignored to keep the list de-duplicated
+    let addr3 = Address::generate(&setup.env);
+    let addr4 = Address::generate(&setup.env);
+    let addr5 = Address::generate(&setup.env);
+    setup.contract.add_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![
+            &setup.env,
+            addr1.clone(),
+            addr3.clone(),
+            addr4.clone(),
+            addr5.clone(),
+        ],
+    );
+    let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
+    assert_eq!(list.len(), 5);
+    assert_eq!(list.get(0).unwrap(), addr1);
+    assert_eq!(list.get(1).unwrap(), addr2);
+    assert_eq!(list.get(2).unwrap(), addr3);
+    assert_eq!(list.get(3).unwrap(), addr4);
+    assert_eq!(list.get(4).unwrap(), addr5);
 
     // Conflicted voter is blocked
     let err = setup
@@ -1091,18 +1115,27 @@ fn conflict_of_interest_flow() {
         .unwrap();
     assert_eq!(err, ContractErrors::VoterConflicted.into());
 
-    // Maintainer can remove an address
+    // Maintainer removes the 2nd and 4th entries to exercise removal in the
+    // middle of the list while preserving the rest
     setup.contract.remove_conflict_of_interest(
         &setup.mando,
         &id,
         &proposal_id,
-        &vec![&setup.env, outsider.clone()],
+        &vec![&setup.env, addr2.clone(), addr4.clone()],
     );
     let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
-    assert_eq!(list.len(), 1);
-    assert!(!list.contains(&outsider));
+    assert_eq!(list.len(), 3);
+    assert_eq!(list.get(0).unwrap(), addr1);
+    assert_eq!(list.get(1).unwrap(), addr3);
+    assert_eq!(list.get(2).unwrap(), addr5);
 
-    // After removal, voter can vote
+    // Maintainer removes addr1 so the previously-blocked voter can vote
+    setup.contract.remove_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![&setup.env, addr1.clone()],
+    );
     setup.contract.vote(
         &outsider,
         &id,

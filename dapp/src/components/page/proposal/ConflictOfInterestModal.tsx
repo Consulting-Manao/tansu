@@ -32,8 +32,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   const [newAddress, setNewAddress] = useState<string>("");
   const [inputError, setInputError] = useState<string | null>(null);
 
-  const canEdit =
-    !!connectedAddress && maintainers.includes(connectedAddress);
+  const canEdit = !!connectedAddress && maintainers.includes(connectedAddress);
 
   const loadAddresses = async () => {
     setIsLoading(true);

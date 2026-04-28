@@ -472,14 +472,8 @@ impl DaoTrait for Tansu {
         }
 
         // Block voters on the conflict-of-interest list
-        let conflicts: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&types::ProjectKey::ConflictOfInterest(
-                project_key.clone(),
-                proposal_id,
-            ))
-            .unwrap_or(Vec::new(&env));
+        let conflicts =
+            Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
         if conflicts.contains(&voter) {
             panic_with_error!(&env, &errors::ContractErrors::VoterConflicted);
         }
@@ -951,8 +945,7 @@ impl DaoTrait for Tansu {
 
     /// Add addresses to the conflict-of-interest list of a proposal.
     ///
-    /// Addresses on the list cannot cast a vote on the proposal. Only
-    /// maintainers of the project can edit the list.
+    /// Addresses on the list cannot cast a vote on the proposal.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -979,19 +972,13 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
 
-        let mut list = env
-            .storage()
-            .persistent()
-            .get(&types::ProjectKey::ConflictOfInterest(
-                project_key.clone(),
-                proposal_id,
-            ))
-            .unwrap_or(Vec::new(&env));
-        let mut added: Vec<Address> = Vec::new(&env);
+        let mut list =
+            Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
+        let mut changed: Vec<Address> = Vec::new(&env);
         for addr in addresses.iter() {
             if !list.contains(&addr) {
                 list.push_back(addr.clone());
-                added.push_back(addr);
+                changed.push_back(addr);
             }
         }
 
@@ -1003,16 +990,13 @@ impl DaoTrait for Tansu {
         events::ConflictOfInterestUpdated {
             project_key,
             proposal_id,
-            caller: maintainer,
-            added,
-            removed: Vec::new(&env),
+            maintainer,
+            changed,
         }
         .publish(&env);
     }
 
     /// Remove addresses from the conflict-of-interest list of a proposal.
-    ///
-    /// Only maintainers of the project can edit the list.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -1039,19 +1023,12 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
 
-        let list: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&types::ProjectKey::ConflictOfInterest(
-                project_key.clone(),
-                proposal_id,
-            ))
-            .unwrap_or(Vec::new(&env));
+        let list = Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
         let mut new_list: Vec<Address> = Vec::new(&env);
-        let mut removed: Vec<Address> = Vec::new(&env);
+        let mut changed: Vec<Address> = Vec::new(&env);
         for addr in list.iter() {
             if addresses.contains(&addr) {
-                removed.push_back(addr);
+                changed.push_back(addr);
             } else {
                 new_list.push_back(addr);
             }
@@ -1065,9 +1042,8 @@ impl DaoTrait for Tansu {
         events::ConflictOfInterestUpdated {
             project_key,
             proposal_id,
-            caller: maintainer,
-            added: Vec::new(&env),
-            removed,
+            maintainer,
+            changed,
         }
         .publish(&env);
     }

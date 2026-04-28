@@ -137,7 +137,6 @@ pub struct ConflictOfInterestUpdated {
     #[topic]
     pub project_key: Bytes,
     pub proposal_id: u32,
-    pub caller: Address,
-    pub added: Vec<Address>,
-    pub removed: Vec<Address>,
+    pub maintainer: Address,
+    pub changed: Vec<Address>,
 }

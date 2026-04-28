@@ -152,16 +152,7 @@ const ProposalTitle: React.FC<Props> = ({
                   <Button
                     size="sm"
                     type="secondary"
-                    onClick={() => {
-                      if (!connectedAddress) {
-                        toast.error(
-                          "Connect Wallet",
-                          "Please connect your wallet first.",
-                        );
-                        return;
-                      }
-                      setShowConflictModal(true);
-                    }}
+                    onClick={() => setShowConflictModal(true)}
                   >
                     Conflict of Interest
                   </Button>
