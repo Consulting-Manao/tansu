@@ -1,9 +1,13 @@
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import Markdown from "markdown-to-jsx";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import JsonView from "react18-json-view";
-import type { ProposalOutcome, OutcomeContract } from "types/proposal";
+import type {
+  ProposalOutcome,
+  OutcomeContract,
+  VoteStatus,
+} from "types/proposal";
 import { parseToLosslessJson } from "utils/passToLosslessJson";
 import * as StellarXdr from "utils/stellarXdr";
 import { capitalizeFirstLetter } from "utils/utils";
@@ -33,14 +37,37 @@ interface ProposalDetailProps {
   ipfsLink: string | null;
   description: string;
   outcome: ProposalOutcome | null;
+  voteStatus?: VoteStatus | undefined;
+  status?: string;
 }
 
 const ProposalDetail: React.FC<ProposalDetailProps> = ({
   ipfsLink,
   description,
   outcome,
+  voteStatus,
+  status,
 }) => {
   const [isReady, setIsReady] = useState(false);
+
+  const executedType = useMemo(() => {
+    if (
+      status === "approved" ||
+      status === "rejected" ||
+      status === "cancelled"
+    ) {
+      return status;
+    }
+
+    if (!voteStatus) return null;
+
+    const { approve, abstain, reject } = voteStatus;
+
+    if (approve.score > abstain.score + reject.score) return "approved";
+    if (reject.score > approve.score + abstain.score) return "rejected";
+
+    return "cancelled";
+  }, [voteStatus, status]);
 
   useEffect(() => {
     const init = async () => {
@@ -50,6 +77,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
 
     init();
   }, []);
+  const canHighlightOutcome =
+    status === "approved" || status === "rejected" || status === "cancelled";
 
   return (
     <div className="flex flex-col gap-12">
@@ -70,7 +99,20 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
         </div>
         <div className="markdown-body w-full px-4 sm:px-6 md:px-8 py-6">
           {description ? (
-            <Markdown>{description}</Markdown>
+            <Markdown
+              options={{
+                overrides: {
+                  a: {
+                    props: {
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                    },
+                  },
+                },
+              }}
+            >
+              {description}
+            </Markdown>
           ) : (
             <p className="text-gray-500 italic">
               No description available or IPFS content could not be loaded.
@@ -97,6 +139,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
                     type={type}
                     detail={detail}
                     isXdrInit={isReady}
+                    isExecuted={canHighlightOutcome && executedType === type}
                   />
                 );
               }
@@ -122,7 +165,8 @@ export const OutcomeDetail: React.FC<{
   type: string;
   detail: { description: string; xdr?: string; contract?: OutcomeContract };
   isXdrInit: boolean;
-}> = ({ type, detail, isXdrInit }) => {
+  isExecuted?: boolean;
+}> = ({ type, detail, isXdrInit, isExecuted }) => {
   const [content, setContent] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
   const [paramNames, setParamNames] = useState<string[] | null>(null);
@@ -304,13 +348,39 @@ export const OutcomeDetail: React.FC<{
 
     return null;
   };
+  const borderClass = isExecuted
+    ? type === "approved"
+      ? "border-green-500 bg-green-50"
+      : type === "rejected"
+        ? "border-red-500 bg-red-50"
+        : "border-[#FFB21E] bg-[#FFB21E] text-white"
+    : "border border-gray-200";
 
   return (
-    <div className="p-[30px] flex justify-between items-center bg-white">
+    <div
+      className={`p-[30px] flex justify-between items-center bg-white rounded-md transition-all ${borderClass}`}
+    >
       <div className="flex flex-col gap-3">
-        <p className={`text-xl font-medium text-${type}`}>
-          {capitalizeFirstLetter(type || "")}
-        </p>
+        <div className="flex items-center gap-3">
+          <p
+            className={`text-xl font-medium ${
+              type === "approved"
+                ? "text-approved"
+                : type === "rejected"
+                  ? "text-rejected"
+                  : "text-cancelled"
+            }`}
+          >
+            {capitalizeFirstLetter(type || "")}
+          </p>
+          {isExecuted && (
+            <span
+              className={`px-3 py-1 text-xs font-bold uppercase border-[#FFB21E] bg-[#FFB21E] text-white border`}
+            >
+              Most Voted Outcome
+            </span>
+          )}
+        </div>
         <p className="text-base font-semibold text-primary">
           {detail.description}
         </p>

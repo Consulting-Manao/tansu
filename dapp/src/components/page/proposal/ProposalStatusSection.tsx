@@ -21,7 +21,7 @@ const ProposalStatusSection: React.FC<Props> = ({ proposal }) => {
       status === "cancelled"
     ) {
       voteResult = status as VoteResultType;
-    } else {
+    } else if (voteStatus) {
       const { approve, abstain, reject } = voteStatus;
       if (approve.score > abstain.score + reject.score) {
         voteResult = VoteResultType.APPROVE;

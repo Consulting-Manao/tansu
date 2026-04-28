@@ -108,7 +108,7 @@ const ProposalPage: React.FC = () => {
         <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <Loading />
         </div>
-      ) : (
+      ) : proposal ? (
         <div className="bg-[#FFFFFFB8] px-4 sm:px-6 md:px-[72px] py-6 sm:py-8 md:py-12 flex flex-col gap-6 sm:gap-8 md:gap-12">
           <ProposalTitle
             proposal={proposal}
@@ -120,6 +120,8 @@ const ProposalPage: React.FC = () => {
             ipfsLink={proposal?.ipfsLink || null}
             description={description}
             outcome={outcome}
+            voteStatus={proposal.voteStatus}
+            status={proposal.status}
           />
           {isVotingModalOpen && (
             <VotingModal
@@ -142,6 +144,8 @@ const ProposalPage: React.FC = () => {
             />
           )}
         </div>
+      ) : (
+        <div>Proposal not found</div>
       )}
     </>
   );

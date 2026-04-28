@@ -17,6 +17,7 @@ import {
   computeAnonymousVotingData,
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
+import type { DecodedVote } from "utils/anonymousVoting";
 import { loadedPublicKey } from "@service/walletService";
 import classNames from "classnames";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
@@ -46,7 +47,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const [tallies, setTallies] = useState<bigint[] | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [isMaintainer, setIsMaintainer] = useState(false);
-  const [decodedVotes, setDecodedVotes] = useState<any[]>([]);
+  const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
   const [proofOk, setProofOk] = useState<boolean | null>(null);
   const [proofErrorMessage, setProofErrorMessage] = useState<string | null>(
     null,
@@ -285,6 +286,10 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                 decodedVotes={decodedVotes}
                 proofOk={proofOk}
                 proofErrorMessage={proofErrorMessage}
+                exportFileNameBase={`${projectName.replace(
+                  /[^a-z0-9_-]+/gi,
+                  "-",
+                )}-proposal-${proposalId}-decoded-votes.csv`}
               />
             </div>
           </div>

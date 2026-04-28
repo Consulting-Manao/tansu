@@ -8,6 +8,7 @@ import {
   computeAnonymousVotingData,
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
+import type { DecodedVote } from "utils/anonymousVoting";
 import type { VoteStatus } from "types/proposal";
 import classNames from "classnames";
 
@@ -28,7 +29,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   const [proofErrorMessage, setProofErrorMessage] = useState<string | null>(
     null,
   );
-  const [decodedVotes, setDecodedVotes] = useState<any[]>([]);
+  const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
 
   const computeTalliesAndProof = async (privKey: string) => {
     try {
@@ -118,6 +119,10 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             decodedVotes={decodedVotes}
             proofOk={proofOk}
             proofErrorMessage={proofErrorMessage}
+            exportFileNameBase={`${projectName.replace(
+              /[^a-z0-9_-]+/gi,
+              "-",
+            )}-proposal-${proposalId}-decoded-votes`}
           />
 
           <div className="flex justify-center sm:justify-end">

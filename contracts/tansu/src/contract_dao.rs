@@ -628,7 +628,7 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if curr_timestamp < proposal.vote_data.voting_ends_at {
+        if curr_timestamp < proposal.vote_data.voting_ends_at + types::TIMELOCK_DELAY {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 

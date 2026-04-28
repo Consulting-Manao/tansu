@@ -42,6 +42,10 @@ export function parseContractError(error: any): string {
       return `Invalid input for contract execution${where}. For anonymous voting, ensure your key file matches this proposal and try again.`;
     }
 
+    if (hasInvalidInputPattern && fnName === "transfer") {
+      return `Invalid input for contract execution${where}. Check the configured contract address and arguments for this proposal outcome.`;
+    }
+
     if (hasInvalidInputPattern) {
       return `Invalid input for contract execution${where}. Please verify proposal inputs and try again.`;
     }
