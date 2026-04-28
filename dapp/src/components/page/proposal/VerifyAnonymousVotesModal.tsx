@@ -114,12 +114,12 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             description="Below are the tallies computed from decrypted votes."
           />
 
-                 <AnonymousTalliesDisplay
-  voteStatus={voteStatus || undefined}
-  decodedVotes={decodedVotes}
-  proofOk={proofOk}
-  proofErrorMessage={proofErrorMessage}
-/>
+          <AnonymousTalliesDisplay
+            voteStatus={voteStatus || undefined}
+            decodedVotes={decodedVotes}
+            proofOk={proofOk}
+            proofErrorMessage={proofErrorMessage}
+          />
 
           <div className="flex justify-center sm:justify-end">
             <Button type="secondary" onClick={onClose}>
