@@ -340,6 +340,58 @@ export async function setBadges(
 }
 
 /**
+ * Add addresses to the conflict of interest list for a proposal.
+ */
+export async function addConflictOfInterest(
+  project_name: string,
+  proposal_id: number,
+  addresses: string[],
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.add_conflict_of_interest({
+    maintainer,
+    project_key: projectKey,
+    proposal_id: Number(proposal_id),
+    addresses,
+  });
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  return true;
+}
+
+/**
+ * Remove addresses from the conflict of interest list for a proposal.
+ */
+export async function removeConflictOfInterest(
+  project_name: string,
+  proposal_id: number,
+  addresses: string[],
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.remove_conflict_of_interest({
+    maintainer,
+    project_key: projectKey,
+    proposal_id: Number(proposal_id),
+    addresses,
+  });
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  return true;
+}
+
+/**
  * Setup anonymous voting
  */
 export async function setupAnonymousVoting(

@@ -165,6 +165,24 @@ pub trait DaoTrait {
     fn get_dao(env: Env, project_key: Bytes, page: u32) -> types::Dao;
 
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal;
+
+    fn add_conflict_of_interest(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        addresses: Vec<Address>,
+    );
+
+    fn remove_conflict_of_interest(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        addresses: Vec<Address>,
+    );
+
+    fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address>;
 }
 
 pub trait MigrationTrait {

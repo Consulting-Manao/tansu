@@ -181,8 +181,9 @@ pub enum ProjectKey {
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),
-    ProjectKeys(u32), // List of project keys, pagination
-    TotalProjects,    // Total number of projects
+    ProjectKeys(u32),               // List of project keys, pagination
+    TotalProjects,                  // Total number of projects
+    ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
 }
 
 #[contracttype]

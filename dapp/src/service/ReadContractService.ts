@@ -324,6 +324,23 @@ export {
  * Check whether anonymous voting is configured for a given project name.
  * Returns true when configuration exists, false otherwise.
  */
+export async function getConflictOfInterest(
+  projectName: string,
+  proposalId: number,
+): Promise<string[]> {
+  try {
+    const project_key = deriveProjectKey(projectName);
+    const tx = await Tansu.get_conflict_of_interest({
+      project_key,
+      proposal_id: Number(proposalId),
+    });
+    checkSimulationError(tx);
+    return tx.result || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function hasAnonymousVotingConfig(
   projectName: string,
 ): Promise<boolean> {

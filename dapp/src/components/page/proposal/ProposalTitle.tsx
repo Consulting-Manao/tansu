@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { toast, truncateMiddle } from "utils/utils";
+import ConflictOfInterestModal from "./ConflictOfInterestModal";
 import ProposalStatusSection from "./ProposalStatusSection";
 import VoteStatusBar from "./VoteStatusBar";
 import VotingResultModal from "./VotingResultModal";
@@ -27,6 +28,7 @@ const ProposalTitle: React.FC<Props> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [showVotingResultModal, setShowVotingResultModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
 
   const checkIsConnected = () => {
     if (connectedAddress) {
@@ -145,7 +147,16 @@ const ProposalTitle: React.FC<Props> = ({
           <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:justify-between gap-4 sm:gap-0">
               <ProposalStatusSection proposal={proposal} />
-              <div className="flex gap-4 sm:gap-6">
+              <div className="flex flex-wrap gap-3 sm:gap-6">
+                {proposal?.status == "active" && (
+                  <Button
+                    size="sm"
+                    type="secondary"
+                    onClick={() => setShowConflictModal(true)}
+                  >
+                    Conflict of Interest
+                  </Button>
+                )}
                 {proposal?.status == "active" && (
                   <Button
                     size="sm"
@@ -183,6 +194,15 @@ const ProposalTitle: React.FC<Props> = ({
           projectName={proposal.projectName}
           proposalId={proposal.id}
           onClose={() => setShowVerifyModal(false)}
+        />
+      )}
+      {showConflictModal && proposal && (
+        <ConflictOfInterestModal
+          projectName={proposal.projectName}
+          proposalId={proposal.id}
+          maintainers={maintainers}
+          connectedAddress={connectedAddress ?? null}
+          onClose={() => setShowConflictModal(false)}
         />
       )}
     </>

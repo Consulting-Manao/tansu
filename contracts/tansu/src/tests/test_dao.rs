@@ -1014,3 +1014,155 @@ fn badge_based_get_max_weight_still_works() {
     // Should return default badge weight (1) since no badges assigned
     assert_eq!(max_weight, 1);
 }
+
+#[test]
+fn conflict_of_interest_flow() {
+    use soroban_sdk::testutils::Address as _;
+
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let outsider = Address::generate(&setup.env);
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&outsider, &genesis_amount);
+
+    let title = String::from_str(&setup.env, "Conflict Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Initially empty
+    let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
+    assert_eq!(list.len(), 0);
+
+    // Non-maintainer cannot edit the list
+    let err = setup
+        .contract
+        .try_add_conflict_of_interest(
+            &outsider,
+            &id,
+            &proposal_id,
+            &vec![&setup.env, outsider.clone()],
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+
+    // Maintainer adds 2 addresses first
+    let addr1 = outsider.clone();
+    let addr2 = Address::generate(&setup.env);
+    setup.contract.add_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![&setup.env, addr1.clone(), addr2.clone()],
+    );
+    let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
+    assert_eq!(list.len(), 2);
+
+    // Maintainer adds 3 more addresses, including a duplicate of addr1 which
+    // must be ignored to keep the list de-duplicated
+    let addr3 = Address::generate(&setup.env);
+    let addr4 = Address::generate(&setup.env);
+    let addr5 = Address::generate(&setup.env);
+    setup.contract.add_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![
+            &setup.env,
+            addr1.clone(),
+            addr3.clone(),
+            addr4.clone(),
+            addr5.clone(),
+        ],
+    );
+    let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
+    assert_eq!(list.len(), 5);
+    assert_eq!(list.get(0).unwrap(), addr1);
+    assert_eq!(list.get(1).unwrap(), addr2);
+    assert_eq!(list.get(2).unwrap(), addr3);
+    assert_eq!(list.get(3).unwrap(), addr4);
+    assert_eq!(list.get(4).unwrap(), addr5);
+
+    // Conflicted voter is blocked
+    let err = setup
+        .contract
+        .try_vote(
+            &outsider,
+            &id,
+            &proposal_id,
+            &Vote::PublicVote(PublicVote {
+                address: outsider.clone(),
+                weight: 1,
+                vote_choice: VoteChoice::Approve,
+            }),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::VoterConflicted.into());
+
+    // Maintainer removes the 2nd and 4th entries to exercise removal in the
+    // middle of the list while preserving the rest
+    setup.contract.remove_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![&setup.env, addr2.clone(), addr4.clone()],
+    );
+    let list = setup.contract.get_conflict_of_interest(&id, &proposal_id);
+    assert_eq!(list.len(), 3);
+    assert_eq!(list.get(0).unwrap(), addr1);
+    assert_eq!(list.get(1).unwrap(), addr3);
+    assert_eq!(list.get(2).unwrap(), addr5);
+
+    // Maintainer removes addr1 so the previously-blocked voter can vote
+    setup.contract.remove_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![&setup.env, addr1.clone()],
+    );
+    setup.contract.vote(
+        &outsider,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: outsider.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Non-maintainer cannot remove themselves
+    setup.contract.add_conflict_of_interest(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vec![&setup.env, outsider.clone()],
+    );
+    let err = setup
+        .contract
+        .try_remove_conflict_of_interest(
+            &outsider,
+            &id,
+            &proposal_id,
+            &vec![&setup.env, outsider.clone()],
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+}

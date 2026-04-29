@@ -130,3 +130,13 @@ pub struct SubProjectsUpdated {
     pub project_key: Bytes,
     pub sub_projects: Vec<Bytes>,
 }
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConflictOfInterestUpdated {
+    #[topic]
+    pub project_key: Bytes,
+    pub proposal_id: u32,
+    pub maintainer: Address,
+    pub changed: Vec<Address>,
+}

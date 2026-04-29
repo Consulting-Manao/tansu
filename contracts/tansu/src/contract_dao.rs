@@ -471,6 +471,13 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::AlreadyVoted);
         }
 
+        // Block voters on the conflict-of-interest list
+        let conflicts =
+            Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
+        if conflicts.contains(&voter) {
+            panic_with_error!(&env, &errors::ContractErrors::VoterConflicted);
+        }
+
         // proposals are either public or anonymous so only a single type of vote
         // can be registered for a given proposal
         let is_public_vote = matches!(vote, types::Vote::PublicVote(_));
@@ -888,6 +895,130 @@ impl DaoTrait for Tansu {
         };
         proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
         proposal
+    }
+
+    /// Add addresses to the conflict-of-interest list of a proposal.
+    ///
+    /// Addresses on the list cannot cast a vote on the proposal.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - A maintainer of the project (must authenticate)
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    /// * `addresses` - Addresses to add to the list
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the proposal is not active anymore
+    fn add_conflict_of_interest(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        addresses: Vec<Address>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let proposal = Self::get_proposal(env.clone(), project_key.clone(), proposal_id);
+        if proposal.status != types::ProposalStatus::Active {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
+        }
+
+        let mut list =
+            Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
+        let mut changed: Vec<Address> = Vec::new(&env);
+        for addr in addresses.iter() {
+            if !list.contains(&addr) {
+                list.push_back(addr.clone());
+                changed.push_back(addr);
+            }
+        }
+
+        env.storage().persistent().set(
+            &types::ProjectKey::ConflictOfInterest(project_key.clone(), proposal_id),
+            &list,
+        );
+
+        events::ConflictOfInterestUpdated {
+            project_key,
+            proposal_id,
+            maintainer,
+            changed,
+        }
+        .publish(&env);
+    }
+
+    /// Remove addresses from the conflict-of-interest list of a proposal.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - A maintainer of the project (must authenticate)
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    /// * `addresses` - Addresses to remove from the list
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the proposal is not active anymore
+    fn remove_conflict_of_interest(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        addresses: Vec<Address>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let proposal = Self::get_proposal(env.clone(), project_key.clone(), proposal_id);
+        if proposal.status != types::ProposalStatus::Active {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
+        }
+
+        let list = Self::get_conflict_of_interest(env.clone(), project_key.clone(), proposal_id);
+        let mut new_list: Vec<Address> = Vec::new(&env);
+        let mut changed: Vec<Address> = Vec::new(&env);
+        for addr in list.iter() {
+            if addresses.contains(&addr) {
+                changed.push_back(addr);
+            } else {
+                new_list.push_back(addr);
+            }
+        }
+
+        env.storage().persistent().set(
+            &types::ProjectKey::ConflictOfInterest(project_key.clone(), proposal_id),
+            &new_list,
+        );
+
+        events::ConflictOfInterestUpdated {
+            project_key,
+            proposal_id,
+            maintainer,
+            changed,
+        }
+        .publish(&env);
+    }
+
+    /// Get the conflict-of-interest list for a proposal.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    ///
+    /// # Returns
+    /// * `Vec<Address>` - Addresses barred from voting on the proposal
+    fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::ConflictOfInterest(
+                project_key.clone(),
+                proposal_id,
+            ))
+            .unwrap_or(Vec::new(&env))
     }
 }
 
