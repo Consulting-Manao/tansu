@@ -113,10 +113,10 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
             the proposal.
           </p>
           <p className="text-xs md:text-sm text-secondary max-w-prose">
-            Final outcomes are based on weighted vote tallies. For a proposal
-            to be accepted, the tally of approve votes must be higher than
-            the sum of the tallies of reject plus cancel votes. Same goes to
-            reject a proposal.
+            Final outcomes are based on weighted vote tallies. For a proposal to
+            be accepted, the tally of approve votes must be higher than the sum
+            of the tallies of reject plus cancel votes. Same goes to reject a
+            proposal.
           </p>
         </div>
       )}

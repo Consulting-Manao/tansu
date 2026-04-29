@@ -389,9 +389,6 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if env.ledger().timestamp() >= proposal.vote_data.voting_ends_at {
-            panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
-        }
 
         let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
         let vote = env
@@ -430,20 +427,30 @@ impl DaoTrait for Tansu {
                 let current = tallies.get(vote_idx).unwrap_or(0u128);
                 tallies.set(vote_idx, current.saturating_sub(vote_choice.weight as u128));
             }
-            (types::VoteTallies::AnonymousVote(_), types::Vote::AnonymousVote(_)) => {
-                // Recompute aggregate from remaining voters (voter already removed above).
-                let remaining_votes = get_all_votes(&env, &project_key, proposal_id);
-                let zero_agg = Tansu::build_commitments_from_votes(
-                    env.clone(),
-                    project_key.clone(),
-                    vec![&env, 0u128, 0u128, 0u128],
-                    vec![&env, 0u128, 0u128, 0u128],
+            (
+                types::VoteTallies::AnonymousVote(aggregate),
+                types::Vote::AnonymousVote(vote_choice),
+            ) => {
+                let bls12_381 = env.crypto().bls12_381();
+                // BLS12-381 scalar field order r. Multiplying by (r - weight) ≡ -weight (mod r).
+                let group_order = U256::from_parts(
+                    &env,
+                    0x73eda753299d7d48u64,
+                    0x3339d80809a1d805u64,
+                    0x53bda402fffe5bfeu64,
+                    0xffffffff00000001u64,
                 );
-                let mut rebuilt = types::VoteTallies::AnonymousVote(zero_agg);
-                for v in remaining_votes.iter() {
-                    update_proposal_tallies(&env, &mut rebuilt, &v);
+                let neg_weight = group_order.sub(&U256::from_u32(&env, vote_choice.weight));
+                for (idx, commitment) in vote_choice.commitments.iter().enumerate() {
+                    let current = aggregate
+                        .get(idx as u32)
+                        .expect("missing aggregate commitment");
+                    let current = G1Affine::from_bytes(current);
+                    let commitment = G1Affine::from_bytes(commitment);
+                    let neg_weighted = bls12_381.g1_mul(&commitment, &neg_weight.clone().into());
+                    let updated = bls12_381.g1_add(&current, &neg_weighted);
+                    aggregate.set(idx as u32, updated.to_bytes());
                 }
-                proposal_tallies = rebuilt;
             }
             _ => panic_with_error!(&env, &errors::ContractErrors::WrongVoteType),
         }

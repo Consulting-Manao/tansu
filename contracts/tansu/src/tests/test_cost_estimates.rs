@@ -1,5 +1,5 @@
 use super::test_utils::{create_test_data, init_contract};
-use crate::types::{Badge, PublicVote, Vote, VoteChoice};
+use crate::types::{Badge, PublicVote, TIMELOCK_DELAY, Vote, VoteChoice};
 use soroban_sdk::testutils::{Address as _, Ledger, arbitrary::std::println};
 use soroban_sdk::{Address, String, vec};
 
@@ -116,7 +116,10 @@ fn test_cost_execute_proposal() {
     );
 
     // Move past voting deadline
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     setup
         .contract
@@ -270,7 +273,10 @@ fn test_cost_comprehensive_dao_workflow() {
     );
 
     // Step 5: Execute proposal
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
     setup
         .contract
         .execute(&setup.mando, &project_id, &proposal_id, &None, &None);
