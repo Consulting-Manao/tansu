@@ -38,42 +38,42 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
         countsOverride={counts}
       />
       {tallies && seeds && (
-  <div className="mt-4 p-3 border border-zinc-300 rounded bg-zinc-50 text-sm md:text-base">
-    <p className="font-semibold mb-2">Diagnostics</p>
+        <div className="mt-4 p-3 border border-zinc-300 rounded bg-zinc-50 text-sm md:text-base">
+          <p className="font-semibold mb-2">Diagnostics</p>
 
-    <div className="flex justify-between">
-      <span>Approve Tally:</span>
-      <span className="font-mono">{tallies[0]?.toString()}</span>
-    </div>
+          <div className="flex justify-between">
+            <span>Approve Tally:</span>
+            <span className="font-mono">{tallies[0]?.toString()}</span>
+          </div>
 
-    <div className="flex justify-between">
-      <span>Reject Tally:</span>
-      <span className="font-mono">{tallies[1]?.toString()}</span>
-    </div>
+          <div className="flex justify-between">
+            <span>Reject Tally:</span>
+            <span className="font-mono">{tallies[1]?.toString()}</span>
+          </div>
 
-    <div className="flex justify-between">
-      <span>Abstain Tally:</span>
-      <span className="font-mono">{tallies[2]?.toString()}</span>
-    </div>
+          <div className="flex justify-between">
+            <span>Abstain Tally:</span>
+            <span className="font-mono">{tallies[2]?.toString()}</span>
+          </div>
 
-    <hr className="my-2" />
+          <hr className="my-2" />
 
-    <div className="flex justify-between">
-      <span>Approve Seeds:</span>
-      <span className="font-mono">{seeds[0]?.toString()}</span>
-    </div>
+          <div className="flex justify-between">
+            <span>Approve Seeds:</span>
+            <span className="font-mono">{seeds[0]?.toString()}</span>
+          </div>
 
-    <div className="flex justify-between">
-      <span>Reject Seeds:</span>
-      <span className="font-mono">{seeds[1]?.toString()}</span>
-    </div>
+          <div className="flex justify-between">
+            <span>Reject Seeds:</span>
+            <span className="font-mono">{seeds[1]?.toString()}</span>
+          </div>
 
-    <div className="flex justify-between">
-      <span>Abstain Seeds:</span>
-      <span className="font-mono">{seeds[2]?.toString()}</span>
-    </div>
-  </div>
-)}
+          <div className="flex justify-between">
+            <span>Abstain Seeds:</span>
+            <span className="font-mono">{seeds[2]?.toString()}</span>
+          </div>
+        </div>
+      )}
       {decodedVotes.length > 0 && (
         <details className="border border-zinc-300 rounded max-h-48 md:max-h-60 overflow-y-auto overflow-x-auto">
           <summary className="p-2 cursor-pointer text-sm md:text-base">
