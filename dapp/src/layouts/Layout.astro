@@ -12,6 +12,7 @@ interface Props {
 }
 
 const { title, page } = Astro.props;
+const siteOrigin = Astro.url.origin;
 ---
 
 <script>
@@ -149,13 +150,18 @@ const { title, page } = Astro.props;
     <SEO
       title={title}
       description="Bringing open source software development onto the Stellar blockchain. Tansu enables decentralized project governance, transparent funding, and collaborative development on Stellar."
-      canonical={`https://app.tansu.dev${Astro.url.pathname}`}
+      canonical={`${siteOrigin}${Astro.url.pathname}`}
       openGraph={{
         basic: {
           title: title,
           type: "website",
-          image: "https://app.tansu.dev/social-card.png",
-          url: `https://app.tansu.dev${Astro.url.pathname}`,
+          image: `${siteOrigin}/social-card.png`,
+          url: `${siteOrigin}${Astro.url.pathname}`,
+        },
+        image: {
+          width: 1000,
+          height: 563,
+          alt: "Tansu – Decentralized governance on Stellar",
         },
         optional: {
           description:
@@ -166,7 +172,8 @@ const { title, page } = Astro.props;
       twitter={{
         creator: "@PamphileRoy",
         card: "summary_large_image",
-        image: "https://app.tansu.dev/social-card.png",
+        image: `${siteOrigin}/social-card.png`,
+        imageAlt: "Tansu – Decentralized governance on Stellar",
         title: title,
         description:
           "Bringing open source software development onto the Stellar blockchain",
