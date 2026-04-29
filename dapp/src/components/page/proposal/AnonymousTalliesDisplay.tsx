@@ -59,17 +59,28 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {decodedVotes.map((v, i) => (
-                    <tr key={i} className="odd:bg-white even:bg-zinc-50">
-                      <td className="p-1">
-                        <AddressDisplay address={v.address} />
-                      </td>
-                      <td className="p-1">{v.vote}</td>
-                      <td className="p-1">{v.weight}</td>
-                      <td className="p-1">{v.maxWeight}</td>
-                      <td className="p-1">{v.seed}</td>
-                    </tr>
-                  ))}
+                  {decodedVotes.map((v, i) => {
+                    const maxWeightNum = Number(v.maxWeight);
+                    const isExceeded = !isNaN(maxWeightNum) && v.weight > maxWeightNum;
+                    
+                    return (
+                      <tr
+                        key={i}
+                        className={classNames(
+                          "odd:bg-white even:bg-zinc-50",
+                          isExceeded && "!bg-yellow-100"
+                        )}
+                      >
+                        <td className="p-1">
+                          <AddressDisplay address={v.address} />
+                        </td>
+                        <td className="p-1">{v.vote}</td>
+                        <td className="p-1">{v.weight}</td>
+                        <td className="p-1">{v.maxWeight}</td>
+                        <td className="p-1">{v.seed}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
