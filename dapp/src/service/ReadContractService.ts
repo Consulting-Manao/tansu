@@ -363,6 +363,21 @@ async function getProjectsPage(page: number): Promise<Project[]> {
   }
 }
 
+/**
+ * Invalidate all cached data for a specific proposal and its project's list caches.
+ * Call this after any mutation (vote, execute) to prevent stale reads before TTL expiry.
+ */
+function invalidateProposalCache(
+  project_name: string,
+  proposal_id: number,
+): void {
+  const entryKey = proposalCacheKey(project_name, proposal_id);
+  proposalCache.deleteByPrefix(entryKey);
+  proposalsCache.deleteByPrefix(`${project_name}:`);
+  proposalPagesCache.deleteByPrefix(project_name);
+  invalidateProposalHydrationCache(project_name);
+}
+
 export {
   getProject,
   getProjectHash,
@@ -374,6 +389,7 @@ export {
   getMember,
   getBadges,
   getProjectsPage,
+  invalidateProposalCache,
 };
 
 /**

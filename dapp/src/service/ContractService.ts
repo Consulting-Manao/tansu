@@ -17,6 +17,7 @@ import { handleFreighterError } from "../utils/errorHandler";
 import type { VoteType } from "types/proposal";
 import { signAndSend } from "./TxService";
 import { encryptWithPublicKey } from "../utils/crypto";
+import { invalidateProposalCache } from "./ReadContractService";
 
 /**
  * Get configured contract client instance (using proven working Tansu instance)
@@ -269,6 +270,7 @@ export async function voteToProposal(
   checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
+  invalidateProposalCache(project_name, proposal_id);
   return true;
 }
 
@@ -297,7 +299,9 @@ export async function execute(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  return await submitTransaction(assembledTx);
+  const result = await submitTransaction(assembledTx);
+  invalidateProposalCache(project_name, proposal_id);
+  return result;
 }
 
 // Direct export - no wrapper needed
