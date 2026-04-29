@@ -17,11 +17,7 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
 </Layout>
 
 <script>
-  import {
-    fetchTomlFromIpfs,
-    fetchTextFromIpfs,
-    getIpfsBasicLink,
-  } from "../../utils/ipfsFunctions";
+  import { fetchTomlFromIpfs } from "../../utils/ipfsFunctions";
   import {
     getProjectFromName,
     getProjectHash,
@@ -62,38 +58,6 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
             let configData: any = extractConfigData({}, project);
             if (tomlResult.status === "fulfilled" && tomlResult.value) {
               configData = extractConfigData(tomlResult.value, project);
-            }
-
-            // For non-software projects, fetch README from IPFS
-            if (configData.projectType !== "SOFTWARE" && project.config.ipfs) {
-              try {
-                let readme = await fetchTextFromIpfs(
-                  project.config.ipfs,
-                  "/README.md",
-                );
-                // Rewrite relative image paths to absolute IPFS gateway URLs
-                if (readme) {
-                  const basicUrl = getIpfsBasicLink(project.config.ipfs);
-                  if (basicUrl) {
-                    readme = readme.replace(
-                      /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g,
-                      `![$1](${basicUrl}/$2)`,
-                    );
-                  }
-                }
-                // README must come from /README.md file ONLY
-                configData = {
-                  ...configData,
-                  readmeContent:
-                    readme || "No README available for this project.",
-                };
-              } catch (e) {
-                console.error("Failed to fetch README.md:", e);
-                configData = {
-                  ...configData,
-                  readmeContent: "No README available for this project.",
-                };
-              }
             }
 
             setConfigData(configData);

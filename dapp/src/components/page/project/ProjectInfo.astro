@@ -2,7 +2,6 @@
 import CommitHistory from "./CommitHistory";
 import DonateModal from "./DonateModal";
 import LatestCommit from "./LatestCommit";
-import ProjectReadme from "./ProjectReadme.astro";
 import SubProjectsSection from "./SubProjectsSection";
 import Button from "components/utils/Button";
 ---
@@ -156,12 +155,6 @@ import Button from "components/utils/Button";
     >
       <p class="leading-4 text-base text-secondary">Community badges</p>
       <div class="community-content flex flex-col gap-4 p-4"></div>
-    </div>
-    <div
-      id="project-readme-section"
-      class="p-[15px_16px] lg:p-[30px_72px] bg-white flex flex-col gap-5"
-    >
-      <ProjectReadme />
     </div>
     <div id="contribution-metrics-section" class="bg-white w-full"></div>
     <div data-component="CommitHistory">

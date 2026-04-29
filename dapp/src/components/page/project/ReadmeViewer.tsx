@@ -7,6 +7,7 @@ import {
   configData as configDataStore,
   projectInfoLoaded,
 } from "../../../utils/store";
+import DOMPurify from "dompurify";
 
 const ReadmeViewer = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
@@ -59,7 +60,6 @@ const ReadmeViewer = () => {
     <div className="markdown-body border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
       <Markdown
         options={{
-          disableParsingRawHTML: true,
           overrides: {
             img: {
               props: {
@@ -94,7 +94,7 @@ const ReadmeViewer = () => {
           },
         }}
       >
-        {readmeContent}
+        {DOMPurify.sanitize(readmeContent)}
       </Markdown>
     </div>
   );
