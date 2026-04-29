@@ -20,6 +20,7 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
   import {
     fetchTomlFromIpfs,
     fetchTextFromIpfs,
+    getIpfsUrl,
   } from "../../utils/ipfsFunctions";
   import {
     getProjectFromName,
@@ -71,10 +72,20 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
                   "/README.md",
                 );
                 // README must come from /README.md file ONLY
+                // Rewrite relative image URLs so they resolve against the IPFS
+                // gateway rather than the page URL (images are co-hosted in the
+                // same IPFS bundle as the README).
+                const baseUrl = getIpfsUrl(project.config.ipfs);
+                const processed = readme
+                  ? readme.replace(
+                      /!\[([^\]]*)\]\((?!https?:\/\/)\.?\/?([^)]+)\)/g,
+                      (_, alt, src) => `![${alt}](${baseUrl}/${src})`,
+                    )
+                  : null;
                 configData = {
                   ...configData,
                   readmeContent:
-                    readme || "No README available for this project.",
+                    processed || "No README available for this project.",
                 };
               } catch (e) {
                 console.error("Failed to fetch README.md:", e);
