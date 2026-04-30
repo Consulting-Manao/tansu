@@ -8,8 +8,8 @@ import {
   computeAnonymousVotingData,
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
-import type { VoteStatus } from "types/proposal";
 import type { DecodedVote } from "utils/anonymousVoting";
+import type { VoteStatus } from "types/proposal";
 import classNames from "classnames";
 
 interface Props extends ModalProps {
@@ -67,6 +67,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
       const parsed = JSON.parse(txt);
 
       if (!parsed.privateKey) throw new Error("Invalid key file");
+      // Validate uploaded key against on-chain config (centralized helper)
 
       await validateAnonymousKeyForProject(projectName, parsed.publicKey);
 
