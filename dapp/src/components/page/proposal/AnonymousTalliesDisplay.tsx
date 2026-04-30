@@ -1,7 +1,7 @@
 import { useState } from "react";
 import VotingResult from "./VotingResult";
 import type { VoteStatus } from "types/proposal";
-import AddressDisplay from "./AddressDisplay"; // import our new component
+import AddressDisplay from "./AddressDisplay";
 import Button from "components/utils/Button";
 import ExportDecodedVotesModal from "./ExportDecodedVotesModal";
 import type { DecodedVote } from "utils/anonymousVoting";
@@ -9,6 +9,7 @@ import type { DecodedVote } from "utils/anonymousVoting";
 interface Props {
   voteStatus: VoteStatus | undefined;
   decodedVotes: DecodedVote[];
+  tallies?: bigint[];
   proofOk?: boolean | null;
   proofErrorMessage?: string | null;
   exportFileNameBase?: string;
@@ -17,6 +18,7 @@ interface Props {
 const AnonymousTalliesDisplay: React.FC<Props> = ({
   voteStatus,
   decodedVotes,
+  tallies,
   proofOk,
   proofErrorMessage,
   exportFileNameBase,
@@ -41,6 +43,25 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
         totalVotesOverride={decodedVotes.length}
         countsOverride={counts}
       />
+
+      {tallies && tallies.length === 3 && (
+        <div className="mt-4 p-3 border border-zinc-300 rounded bg-zinc-50 text-sm md:text-base">
+          <p className="font-semibold mb-2">Tallies</p>
+          <div className="flex justify-between">
+            <span>Approve:</span>
+            <span className="font-mono">{tallies[0].toString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Reject:</span>
+            <span className="font-mono">{tallies[1].toString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Abstain:</span>
+            <span className="font-mono">{tallies[2].toString()}</span>
+          </div>
+        </div>
+      )}
+
       {decodedVotes.length > 0 && (
         <div className="flex flex-col gap-3">
           <details className="border border-zinc-300 rounded max-h-48 md:max-h-60 overflow-y-auto overflow-x-auto">
