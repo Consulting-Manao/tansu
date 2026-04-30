@@ -393,24 +393,21 @@ export {
 };
 
 /**
- * Check whether anonymous voting is configured for a given project name.
- * Returns true when configuration exists, false otherwise.
+ * Read the conflict-of-interest list for a proposal.
+ * Errors propagate to the caller so a failed contract read is not
+ * indistinguishable from an empty list.
  */
 export async function getConflictOfInterest(
   projectName: string,
   proposalId: number,
 ): Promise<string[]> {
-  try {
-    const project_key = deriveProjectKey(projectName);
-    const tx = await Tansu.get_conflict_of_interest({
-      project_key,
-      proposal_id: Number(proposalId),
-    });
-    checkSimulationError(tx);
-    return tx.result || [];
-  } catch {
-    return [];
-  }
+  const project_key = deriveProjectKey(projectName);
+  const tx = await Tansu.get_conflict_of_interest({
+    project_key,
+    proposal_id: Number(proposalId),
+  });
+  checkSimulationError(tx);
+  return tx.result || [];
 }
 
 export async function hasAnonymousVotingConfig(

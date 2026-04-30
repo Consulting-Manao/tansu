@@ -31,16 +31,21 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAddress, setNewAddress] = useState<string>("");
   const [inputError, setInputError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const canEdit = !!connectedAddress && maintainers.includes(connectedAddress);
 
   const loadAddresses = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const list = await getConflictOfInterest(projectName, proposalId);
       setAddresses(list);
-    } catch {
+    } catch (error: any) {
       setAddresses([]);
+      setLoadError(
+        error?.message || "Failed to load the conflict of interest list.",
+      );
     }
     setIsLoading(false);
   };
@@ -142,6 +147,15 @@ const ConflictOfInterestModal: React.FC<Props> = ({
           </p>
           {isLoading ? (
             <Loading />
+          ) : loadError ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-red-600">{loadError}</p>
+              <div>
+                <Button type="tertiary" size="xs" onClick={loadAddresses}>
+                  Retry
+                </Button>
+              </div>
+            </div>
           ) : addresses.length === 0 ? (
             <p className="text-sm text-tertiary italic">
               No addresses have been declared.
