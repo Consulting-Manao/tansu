@@ -9,16 +9,12 @@ import { getIpfsBasicLink, fetchJsonFromIpfs } from "utils/ipfsFunctions";
 import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
 import { refreshLocalStorage } from "@service/StateService";
-import {
-  getProjectFromId,
-  getAllProjects,
-} from "../../../service/ReadContractService";
+import { getProjectFromId } from "../../../service/ReadContractService";
 import { navigate } from "astro:transitions/client";
 import { Buffer } from "buffer";
 import OnChainActions from "./OnChainActions";
 import { badgeName } from "../../../utils/badges";
 import AddressDisplay from "../proposal/AddressDisplay"; // use existing component
-import { deriveProjectKey } from "../../../utils/projectKey";
 
 interface Props extends ModalProps {
   member: Member | null;
@@ -37,7 +33,6 @@ interface ProjectWithName {
   name: string;
   badges: Array<Badge>;
   projectId: Buffer;
-  isMaintainer?: boolean;
 }
 
 const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
@@ -145,64 +140,27 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
     const fetchProjectNames = async () => {
       const allProjects: ProjectWithName[] = [];
 
-      // First, add projects from member.projects (where user has badges)
       if (member && member.projects && member.projects.length > 0) {
         const memberProjectsPromises = member.projects.map(async (proj) => {
           try {
             const projectData = await getProjectFromId(proj.project);
-            const isMaintainer =
-              projectData?.maintainers?.includes(memberAddress) || false;
 
             return {
               name: projectData?.name || "Unknown Project",
               badges: proj.badges,
               projectId: proj.project,
-              isMaintainer,
             };
           } catch {
             return {
               name: "Unknown Project",
               badges: proj.badges,
               projectId: proj.project,
-              isMaintainer: false,
             };
           }
         });
 
         const memberProjects = await Promise.all(memberProjectsPromises);
         allProjects.push(...memberProjects);
-      }
-
-      // Then, check if user is a maintainer of any other projects (not already in member.projects)
-      if (memberAddress) {
-        try {
-          const projects = await getAllProjects();
-          const existingProjectIds = new Set(
-            allProjects.map((p) => Buffer.from(p.projectId).toString("hex")),
-          );
-
-          const maintainerProjects = projects
-            .filter((project) => {
-              const projectKey = deriveProjectKey(project.name);
-
-              return (
-                project.maintainers.includes(memberAddress) &&
-                !existingProjectIds.has(projectKey.toString("hex"))
-              );
-            })
-            .map((project) => {
-              return {
-                name: project.name,
-                badges: [] as Badge[], // No badges, just maintainer status
-                projectId: deriveProjectKey(project.name),
-                isMaintainer: true,
-              };
-            });
-
-          allProjects.push(...maintainerProjects);
-        } catch (error) {
-          console.log("Could not fetch additional maintainer projects:", error);
-        }
       }
 
       setProjectsWithNames(allProjects);
@@ -298,7 +256,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   // If member exists, proceed with normal rendering
   const noBadges =
     projectsWithNames.length === 0 ||
-    projectsWithNames.every((p) => p.badges.length === 0 && !p.isMaintainer);
+    projectsWithNames.every((p) => p.badges.length === 0);
 
   return (
     <>
@@ -473,11 +431,6 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
                               {badgeName(b)}
                             </span>
                           ))}
-                          {proj.isMaintainer && (
-                            <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-active text-white text-xs sm:text-sm rounded font-medium">
-                              Maintainer
-                            </span>
-                          )}
                         </div>
                       </div>
                     ))}

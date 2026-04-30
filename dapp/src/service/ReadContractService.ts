@@ -307,20 +307,6 @@ async function getProjectsPage(page: number): Promise<Project[]> {
   }
 }
 
-async function getAllProjects(): Promise<Project[]> {
-  const projects: Project[] = [];
-  const maxProjectPages = 1000;
-
-  for (let page = 0; page < maxProjectPages; page += 1) {
-    const pageProjects = await getProjectsPage(page);
-    if (pageProjects.length === 0) break;
-
-    projects.push(...pageProjects);
-  }
-
-  return projects;
-}
-
 export {
   getProject,
   getProjectHash,
@@ -332,7 +318,6 @@ export {
   getMember,
   getBadges,
   getProjectsPage,
-  getAllProjects,
 };
 
 /**
