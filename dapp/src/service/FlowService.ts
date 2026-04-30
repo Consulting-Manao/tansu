@@ -431,3 +431,36 @@ export async function updateConfigFlow({
   await sendSignedTransaction(signedTxXdr);
   return true;
 }
+
+/**
+ * Remove a malicious vote from a proposal.
+ * Only callable by a project maintainer. The voter's collateral is slashed.
+ */
+export async function removeVoteFlow({
+  projectName,
+  proposalId,
+  voterAddress,
+}: {
+  projectName: string;
+  proposalId: number;
+  voterAddress: string;
+}): Promise<void> {
+  const maintainer = connectedPublicKey.get();
+  if (!maintainer) throw new Error("Please connect your wallet first");
+
+  const projectKey = deriveProjectKey(projectName);
+
+  Tansu.options.publicKey = maintainer;
+
+  const tx = await Tansu.remove_vote({
+    maintainer,
+    project_key: projectKey,
+    proposal_id: proposalId,
+    voter: voterAddress,
+  });
+
+  checkSimulationError(tx as any);
+
+  const signedTxXdr = await signAssembledTransaction(tx);
+  await sendSignedTransactionLocal(signedTxXdr);
+}

@@ -143,6 +143,14 @@ pub trait DaoTrait {
 
     fn vote(env: Env, voter: Address, project_key: Bytes, proposal_id: u32, vote: types::Vote);
 
+    fn remove_vote(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        voter: Address,
+    );
+
     fn revoke_proposal(env: Env, maintainer: Address, project_key: Bytes, proposal_id: u32);
 
     fn execute(

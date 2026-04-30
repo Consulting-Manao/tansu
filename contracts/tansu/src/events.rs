@@ -66,6 +66,16 @@ pub struct VoteCast {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VoteRemoved {
+    #[topic]
+    pub project_key: Bytes,
+    pub proposal_id: u32,
+    pub voter: Address,
+    pub maintainer: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProposalExecuted {
     #[topic]
     pub project_key: Bytes,

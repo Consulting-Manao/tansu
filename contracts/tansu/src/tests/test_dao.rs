@@ -3,7 +3,8 @@ use crate::events::{AnonymousVotingSetup, ProposalCreated, ProposalExecuted, Vot
 use crate::{
     errors::ContractErrors,
     types::{
-        AnonymousVote, Badge, Dao, OutcomeContract, ProposalStatus, PublicVote, Vote, VoteChoice,
+        AnonymousVote, Badge, Dao, OutcomeContract, ProposalStatus, PublicVote, TIMELOCK_DELAY,
+        Vote, VoteChoice,
     },
 };
 use soroban_sdk::testutils::{Address as _, Events, Ledger};
@@ -105,7 +106,10 @@ fn proposal_flow() {
     let balance_voter_ = setup.token_stellar.balance(&setup.mando);
     assert!(balance_voter_init > balance_voter_);
 
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
     let result = setup
         .contract
         .execute(&setup.mando, &id, &proposal_id, &None, &None);
@@ -180,7 +184,10 @@ fn scf_voting() {
         }),
     );
 
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
     let result = setup
         .contract
         .execute(&setup.mando, &id, &proposal_id, &None, &None);
@@ -339,7 +346,10 @@ fn dao_anonymous() {
     });
     setup.contract.vote(&kuiil, &id, &proposal_id, &vote_);
 
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     let vote_result = setup.contract.execute(
         &setup.grogu,
@@ -534,7 +544,10 @@ fn voting_errors() {
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 
     // advance time to allow execution
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     // Using args for anonymous voting in public votes. And the other way
     let err = setup
@@ -642,7 +655,10 @@ fn proposal_execution() {
         }),
     );
 
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     let vote_result = setup
         .contract
@@ -898,7 +914,10 @@ fn outcomes_execution() {
         }),
     );
 
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     let vote_result = setup
         .contract
@@ -971,7 +990,10 @@ fn token_based_proposal_flow() {
     );
 
     // Move time forward to end voting period
-    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
 
     // Execute the proposal
     let vote_result = setup
@@ -1013,4 +1035,218 @@ fn badge_based_get_max_weight_still_works() {
 
     // Should return default badge weight (1) since no badges assigned
     assert_eq!(max_weight, 1);
+}
+
+#[test]
+fn remove_vote_public_flips_outcome() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Test remove vote"),
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Auth check: outsider cannot remove a vote
+    let outsider = Address::generate(&setup.env);
+    assert_eq!(
+        setup
+            .contract
+            .try_remove_vote(&outsider, &id, &proposal_id, &setup.mando),
+        Err(Ok(ContractErrors::UnauthorizedSigner.into()))
+    );
+
+    // VoteNotFound check: cannot remove a vote that doesn't exist
+    let non_voter = Address::generate(&setup.env);
+    assert_eq!(
+        setup
+            .contract
+            .try_remove_vote(&setup.grogu, &id, &proposal_id, &non_voter),
+        Err(Ok(ContractErrors::VoteNotFound.into()))
+    );
+
+    // Give rex a Community badge so their vote carries more weight
+    let rex = Address::generate(&setup.env);
+    setup
+        .token_stellar
+        .mint(&rex, &(1_000_000_000 * 10_000_000));
+    let meta = String::from_str(&setup.env, "rex");
+    setup.contract.add_member(&rex, &meta);
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &rex, &vec![&setup.env, Badge::Community]);
+
+    // mando votes Approve (weight 1)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // rex votes Reject with high weight outcome would be Rejected without removal
+    setup.contract.vote(
+        &rex,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: rex.clone(),
+            weight: Badge::Community as u32,
+            vote_choice: VoteChoice::Reject,
+        }),
+    );
+
+    let balance_rex_after_vote = setup.token_stellar.balance(&rex);
+
+    // Advance past voting period — removal must still work after deadline
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+
+    // Maintainer removes rex's malicious reject vote
+    setup
+        .contract
+        .remove_vote(&setup.grogu, &id, &proposal_id, &rex);
+
+    // Rex's collateral is NOT returned — it was slashed as penalty
+    assert_eq!(setup.token_stellar.balance(&rex), balance_rex_after_vote);
+
+    let result = setup
+        .contract
+        .execute(&setup.grogu, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn remove_vote_anonymous_flips_outcome() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let public_key = String::from_str(&setup.env, "public key random");
+    setup
+        .contract
+        .anonymous_voting_setup(&setup.mando, &id, &public_key);
+
+    let kuiil = Address::generate(&setup.env);
+    setup.token_stellar.mint(&kuiil, &(10 * 10_000_000));
+    setup
+        .contract
+        .add_member(&kuiil, &String::from_str(&setup.env, "kuiil"));
+    setup.contract.set_badges(
+        &setup.mando,
+        &id,
+        &kuiil,
+        &vec![&setup.env, Badge::Community],
+    );
+
+    let rex = Address::generate(&setup.env);
+    setup.token_stellar.mint(&rex, &(10 * 10_000_000));
+    setup
+        .contract
+        .add_member(&rex, &String::from_str(&setup.env, "rex"));
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &rex, &vec![&setup.env, Badge::Community]);
+
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Anonymous remove vote test"),
+        &ipfs,
+        &voting_ends_at,
+        &false,
+        &None,
+        &None,
+    );
+
+    let kuiil_vote = Vote::AnonymousVote(AnonymousVote {
+        address: kuiil.clone(),
+        weight: 3,
+        encrypted_seeds: vec![
+            &setup.env,
+            String::from_str(&setup.env, "s0"),
+            String::from_str(&setup.env, "s1"),
+            String::from_str(&setup.env, "s2"),
+        ],
+        encrypted_votes: vec![
+            &setup.env,
+            String::from_str(&setup.env, "v0"),
+            String::from_str(&setup.env, "v1"),
+            String::from_str(&setup.env, "v2"),
+        ],
+        commitments: setup.contract.build_commitments_from_votes(
+            &id,
+            &vec![&setup.env, 1u128, 0u128, 0u128],
+            &vec![&setup.env, 2u128, 0u128, 0u128],
+        ),
+    });
+    setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
+
+    // rex votes Reject, weight=3 (Community badge)
+    // Without removal: reject=3 ties approve=3 → Cancelled
+    // With removal: approve=3 > reject=0 → Approved
+    let rex_vote = Vote::AnonymousVote(AnonymousVote {
+        address: rex.clone(),
+        weight: 3,
+        encrypted_seeds: vec![
+            &setup.env,
+            String::from_str(&setup.env, "r0"),
+            String::from_str(&setup.env, "r1"),
+            String::from_str(&setup.env, "r2"),
+        ],
+        encrypted_votes: vec![
+            &setup.env,
+            String::from_str(&setup.env, "rv0"),
+            String::from_str(&setup.env, "rv1"),
+            String::from_str(&setup.env, "rv2"),
+        ],
+        commitments: setup.contract.build_commitments_from_votes(
+            &id,
+            &vec![&setup.env, 0u128, 1u128, 0u128],
+            &vec![&setup.env, 0u128, 3u128, 0u128],
+        ),
+    });
+    setup.contract.vote(&rex, &id, &proposal_id, &rex_vote);
+
+    // Remove rex's reject vote (maintainer action)
+    setup
+        .contract
+        .remove_vote(&setup.grogu, &id, &proposal_id, &rex);
+
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+
+    let result = setup.contract.execute(
+        &setup.grogu,
+        &id,
+        &proposal_id,
+        &Some(vec![&setup.env, 3u128, 0u128, 0u128]),
+        &Some(vec![&setup.env, 6u128, 0u128, 0u128]),
+    );
+    assert_eq!(result, ProposalStatus::Approved);
 }

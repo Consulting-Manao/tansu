@@ -350,6 +350,125 @@ impl DaoTrait for Tansu {
         proposal_id
     }
 
+    /// Remove a malicious or non-compliant vote from a proposal.
+    ///
+    /// Only a project maintainer can call this. The voter's collateral is slashed
+    /// (kept by the contract) as a penalty. The vote must be cast on an active
+    /// proposal that is still within its voting period.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - Address of the maintainer removing the vote
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    /// * `voter` - The address of the voter whose vote is being removed
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the proposal is not active or voting period has ended
+    /// * If no vote from the given voter exists
+    fn remove_vote(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        voter: Address,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
+        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
+        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
+        let proposal = match dao_page.proposals.try_get(sub_id) {
+            Ok(Some(proposal)) => proposal,
+            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
+        };
+
+        if proposal.status != types::ProposalStatus::Active {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
+        }
+
+        let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
+        let vote = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::Vote>(&vote_key)
+            .unwrap_or_else(|| panic_with_error!(&env, &errors::ContractErrors::VoteNotFound));
+
+        // Remove the vote entry
+        env.storage().persistent().remove(&vote_key);
+
+        // Remove voter from the voters list
+        let mut voters = get_voters(&env, &project_key, proposal_id);
+        if let Some(pos) = voters.iter().position(|v| v == voter) {
+            voters.remove(pos as u32);
+        }
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
+        );
+
+        // Reverse the removed vote's contribution from the aggregate tallies.
+        let tallies_key = types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id);
+        let mut proposal_tallies = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::VoteTallies>(&tallies_key)
+            .unwrap();
+        match (&mut proposal_tallies, &vote) {
+            (types::VoteTallies::PublicVote(tallies), types::Vote::PublicVote(vote_choice)) => {
+                let vote_idx = match vote_choice.vote_choice {
+                    types::VoteChoice::Approve => 0,
+                    types::VoteChoice::Reject => 1,
+                    types::VoteChoice::Abstain => 2,
+                };
+                let current = tallies.get(vote_idx).unwrap_or(0u128);
+                tallies.set(vote_idx, current.saturating_sub(vote_choice.weight as u128));
+            }
+            (
+                types::VoteTallies::AnonymousVote(aggregate),
+                types::Vote::AnonymousVote(vote_choice),
+            ) => {
+                let bls12_381 = env.crypto().bls12_381();
+                // BLS12-381 scalar field order r. Multiplying by (r - weight) ≡ -weight (mod r).
+                let group_order = U256::from_parts(
+                    &env,
+                    0x73eda753299d7d48u64,
+                    0x3339d80809a1d805u64,
+                    0x53bda402fffe5bfeu64,
+                    0xffffffff00000001u64,
+                );
+                let neg_weight = group_order.sub(&U256::from_u32(&env, vote_choice.weight));
+                for (idx, commitment) in vote_choice.commitments.iter().enumerate() {
+                    let current = aggregate
+                        .get(idx as u32)
+                        .expect("missing aggregate commitment");
+                    let current = G1Affine::from_bytes(current);
+                    let commitment = G1Affine::from_bytes(commitment);
+                    let neg_weighted = bls12_381.g1_mul(&commitment, &neg_weight.clone().into());
+                    let updated = bls12_381.g1_add(&current, &neg_weighted);
+                    aggregate.set(idx as u32, updated.to_bytes());
+                }
+            }
+            _ => panic_with_error!(&env, &errors::ContractErrors::WrongVoteType),
+        }
+        env.storage()
+            .persistent()
+            .set(&tallies_key, &proposal_tallies);
+
+        // Collateral is intentionally NOT returned — slashed as penalty for malicious voting.
+
+        events::VoteRemoved {
+            project_key,
+            proposal_id,
+            voter,
+            maintainer,
+        }
+        .publish(&env);
+    }
+
     /// Revoke a proposal.
     ///
     /// Useful if there was some spam or bad intent. That will prevent the
@@ -900,13 +1019,16 @@ impl DaoTrait for Tansu {
 ///
 /// # Returns
 /// * `Vec<types::Vote>` - All votes of the proposal
-fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
-    let mut votes = Vec::new(env);
-    let voters = env
-        .storage()
+fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
+    env.storage()
         .persistent()
         .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
-        .unwrap_or(Vec::new(env));
+        .unwrap_or(Vec::new(env))
+}
+
+fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
+    let mut votes = Vec::new(env);
+    let voters = get_voters(env, project_key, proposal_id);
     for voter in voters.iter() {
         if let Some(vote_) = env
             .storage()
