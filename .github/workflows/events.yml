@@ -23,6 +23,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Get short commit sha with length 8
         id: get_short_sha

@@ -28,6 +28,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
 
       - name: Install App dependencies
@@ -67,5 +69,8 @@ jobs:
         run: |
           echo "### Shipping to IPFS! :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- CID: ${{ steps.storacha.outputs.cid }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${{ steps.storacha.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CID: ${STEPS_STORACHA_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${STEPS_STORACHA_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          STEPS_STORACHA_OUTPUTS_CID: ${{ steps.storacha.outputs.cid }}
+          STEPS_STORACHA_OUTPUTS_URL: ${{ steps.storacha.outputs.url }}

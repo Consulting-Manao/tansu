@@ -5,6 +5,8 @@ on:
     tags:
       - 'v*'
 
+  workflow_dispatch:
+
 permissions:
   contents: read
 
@@ -24,21 +26,22 @@ jobs:
       - name: Install dependencies
         run: |
           apk add --no-cache curl wget git
-      
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      
+          persist-credentials: false
+
       - name: Install Trivy
         run: |
           wget -qO - https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-      
+
       - name: Generate SBOMs
         run: |
           trivy fs --format spdx-json --output sbom.spdx.json .
           trivy fs --format cyclonedx --output sbom.cyclonedx.json .
-      
+
       - name: Upload SBOMs as artifact
         uses: actions/upload-artifact@v7
         with:
@@ -47,13 +50,13 @@ jobs:
             sbom.spdx.json
             sbom.cyclonedx.json
           retention-days: 90
-      
+
       - name: Create SBOM directory for IPFS upload
         run: |
           mkdir -p sbom-release
           cp sbom.spdx.json sbom-release/
           cp sbom.cyclonedx.json sbom-release/
-      
+
       - name: Upload SBOMs to IPFS
         uses: storacha/add-to-web3@892505d8e70c79336721485e5500155c17a728e0
         id: storacha
@@ -61,12 +64,15 @@ jobs:
           path_to_add: "sbom-release"
           secret_key: ${{ secrets.STORACHA_PRINCIPAL }}
           proof: ${{ secrets.STORACHA_PROOF }}
-      
+
       - name: Job summary
         run: |
           echo "### SBOMs uploaded to IPFS! :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Release: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- CID: ${{ steps.storacha.outputs.cid }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${{ steps.storacha.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CID: ${STEPS_STORACHA_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${STEPS_STORACHA_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Formats: SPDX JSON, CycloneDX JSON" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          STEPS_STORACHA_OUTPUTS_CID: ${{ steps.storacha.outputs.cid }}
+          STEPS_STORACHA_OUTPUTS_URL: ${{ steps.storacha.outputs.url }}

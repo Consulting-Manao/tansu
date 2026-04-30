@@ -34,6 +34,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -70,12 +72,15 @@ jobs:
       - name: Final check
         if: always()
         run: |
-          if [ "${{ steps.cost-test.outputs.test_exit_code }}" != "0" ]; then
+          if [ "${STEPS_COST_TEST_OUTPUTS_TEST_EXIT_CODE}" != "0" ]; then
             echo "❌ Tests failed"
             exit 1
           fi
-          if [ "${{ steps.cost-test.outputs.snapshot_drift }}" == "true" ]; then
+          if [ "${STEPS_COST_TEST_OUTPUTS_SNAPSHOT_DRIFT}" == "true" ]; then
             echo "⚠️ Snapshot drift detected – please review"
             exit 1
           fi
           echo "✅ All tests passed"
+        env:
+          STEPS_COST_TEST_OUTPUTS_TEST_EXIT_CODE: ${{ steps.cost-test.outputs.test_exit_code }}
+          STEPS_COST_TEST_OUTPUTS_SNAPSHOT_DRIFT: ${{ steps.cost-test.outputs.snapshot_drift }}

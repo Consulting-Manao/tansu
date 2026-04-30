@@ -9,6 +9,8 @@ updates:
         update-types:
           - minor
           - patch
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "bun"
     directory: "/website"
@@ -19,6 +21,8 @@ updates:
         update-types:
           - minor
           - patch
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "bun"
     directory: "/dapp"
@@ -29,6 +33,8 @@ updates:
         update-types:
           - minor
           - patch
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "cargo"
     directory: "/"
@@ -39,3 +45,5 @@ updates:
         update-types:
           - minor
           - patch
+    cooldown:
+      default-days: 7
