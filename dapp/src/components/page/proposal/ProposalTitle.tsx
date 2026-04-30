@@ -93,18 +93,15 @@ const ProposalTitle: React.FC<Props> = ({
                 <p
                   className={`leading-4 text-base font-semibold text-primary font-mono ${
                     isLoadingProfile
-                      ? "opacity-50 cursor-wait"
+                      ? "opacity-50"
                       : "cursor-pointer hover:underline"
                   }`}
                   onClick={isLoadingProfile ? undefined : openMemberProfile}
                 >
                   {proposal?.proposer
                     ? truncateMiddle(proposal.proposer, 20)
-                    : ""}
-                  {isLoadingProfile && (
-                    <span className="ml-2 inline-block w-3 h-3 border-2 border-[#311255] border-t-transparent rounded-full animate-spin" />
-                  )}
-                </p>
+: ""}
+</p>
               </div>
             </div>
             <div className="flex flex-col gap-3">
