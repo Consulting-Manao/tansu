@@ -30,6 +30,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
     null,
   );
   const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const computeTalliesAndProof = async (privKey: string) => {
     try {
@@ -52,6 +53,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   };
 
   const handleKeyUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsProcessing(true);
     try {
       const fileList = e.target.files;
       if (!fileList || fileList.length === 0) return;
@@ -67,6 +69,8 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
       if (count > 0) setStep(2);
     } catch (err: any) {
       setProcessingError(err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -88,15 +92,21 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
               "p-3 sm:p-4 text-sm sm:text-base break-words",
             )}
           >
-            <label className="cursor-pointer text-primary underline block text-center sm:text-left">
-              Choose key file
-              <input
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={handleKeyUpload}
-              />
-            </label>
+            {isProcessing ? (
+              <div className="text-primary text-center sm:text-left">
+                Processing key file...
+              </div>
+            ) : (
+              <label className="cursor-pointer text-primary underline block text-center sm:text-left">
+                Choose key file
+                <input
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleKeyUpload}
+                />
+              </label>
+            )}
           </div>
 
           {processingError && (

@@ -23,7 +23,7 @@ const VoteTypeCheckbox: FC<Props> = ({
   const width = `${sizeMap[size]}px`,
     height = `${sizeMap[size]}px`;
   const renderIcon = () => {
-    if (voteType == currentVoteType || !currentVoteType) {
+    if (voteType == currentVoteType) {
       if (voteType == VoteType.APPROVE) {
         return <img src="/icons/check-approve.svg" style={{ width, height }} />;
       }

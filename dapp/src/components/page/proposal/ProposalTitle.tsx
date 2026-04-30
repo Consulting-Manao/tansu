@@ -1,9 +1,12 @@
 import { useStore } from "@nanostores/react";
 import Button from "components/utils/Button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import type { Member } from "../../../../packages/tansu";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { toast, truncateMiddle } from "utils/utils";
+import { getMember } from "@service/ReadContractService";
+import MemberProfileModal from "components/page/dashboard/MemberProfileModal";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
 import ProposalStatusSection from "./ProposalStatusSection";
 import VoteStatusBar from "./VoteStatusBar";
@@ -24,35 +27,12 @@ const ProposalTitle: React.FC<Props> = ({
   executeProposal,
 }) => {
   const connectedAddress = useStore(connectedPublicKey);
-  const [isMaintainer, setIsMaintainer] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [showVotingResultModal, setShowVotingResultModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
-
-  const checkIsConnected = () => {
-    if (connectedAddress) {
-      setIsConnected(true);
-    } else {
-      if (isConnected) {
-        setIsConnected(false);
-      }
-    }
-  };
-
-  const checkIsMaintainer = () => {
-    if (connectedAddress) {
-      const isMaintainer = maintainers.includes(connectedAddress);
-      setIsMaintainer(isMaintainer);
-    } else {
-      setIsMaintainer(false);
-    }
-  };
-
-  useEffect(() => {
-    checkIsMaintainer();
-    checkIsConnected();
-  }, [connectedAddress, maintainers]);
+  const [showMemberProfile, setShowMemberProfile] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   const openVotingResultModal = () => {
     if (proposal?.status == "active") {
@@ -65,11 +45,29 @@ const ProposalTitle: React.FC<Props> = ({
     setShowVotingResultModal(true);
   };
 
+  const openMemberProfile = async () => {
+    if (!proposal?.proposer) return;
+
+    setIsLoadingProfile(true);
+    try {
+      const member = await getMember(proposal.proposer);
+      setSelectedMember(member);
+      setShowMemberProfile(true);
+    } catch {
+      toast.error("Member Profile", "Failed to load member profile");
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
   const totalVotes =
     (proposal?.voteStatus?.approve?.score || 0) +
     (proposal?.voteStatus?.reject?.score || 0) +
     (proposal?.voteStatus?.abstain?.score || 0);
   const isAnonymousProposal = proposal ? !proposal.publicVoting : false;
+  const isMaintainer = connectedAddress
+    ? maintainers.includes(connectedAddress)
+    : false;
 
   return (
     <>
@@ -94,18 +92,18 @@ const ProposalTitle: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <p className="leading-4 text-base text-[#695A77]">Created by</p>
               <div className="flex items-center gap-2">
-                <p className="leading-4 text-base font-semibold text-primary font-mono">
+                <p
+                  className={`leading-4 text-base font-semibold text-primary font-mono ${
+                    isLoadingProfile
+                      ? "opacity-50"
+                      : "cursor-pointer hover:underline"
+                  }`}
+                  onClick={isLoadingProfile ? undefined : openMemberProfile}
+                >
                   {proposal?.proposer
                     ? truncateMiddle(proposal.proposer, 20)
                     : ""}
                 </p>
-                {isMaintainer && (
-                  <div className="p-[2px_10px_4px_10px] bg-[#FFEFA8] rounded-[36px]">
-                    <p className="leading-4 text-base font-semibold text-[#2D0F51]">
-                      maintainer
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
             <div className="flex flex-col gap-3">
@@ -203,6 +201,13 @@ const ProposalTitle: React.FC<Props> = ({
           maintainers={maintainers}
           connectedAddress={connectedAddress ?? null}
           onClose={() => setShowConflictModal(false)}
+        />
+      )}
+      {showMemberProfile && proposal?.proposer && (
+        <MemberProfileModal
+          onClose={() => setShowMemberProfile(false)}
+          member={selectedMember}
+          address={proposal.proposer}
         />
       )}
     </>

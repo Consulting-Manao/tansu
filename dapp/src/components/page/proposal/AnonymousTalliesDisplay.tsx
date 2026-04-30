@@ -59,17 +59,28 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {decodedVotes.map((v, i) => (
-                    <tr key={i} className="odd:bg-white even:bg-zinc-50">
-                      <td className="p-1">
-                        <AddressDisplay address={v.address} />
-                      </td>
-                      <td className="p-1">{v.vote}</td>
-                      <td className="p-1">{v.weight}</td>
-                      <td className="p-1">{v.maxWeight}</td>
-                      <td className="p-1">{v.seed}</td>
-                    </tr>
-                  ))}
+                  {decodedVotes.map((v, i) => {
+                    const maxWeight = Number(v.maxWeight);
+                    const exceedsMaxWeight =
+                      Number.isFinite(maxWeight) && v.weight > maxWeight;
+
+                    return (
+                      <tr
+                        key={i}
+                        className={`odd:bg-white even:bg-zinc-50 ${
+                          exceedsMaxWeight ? "!bg-yellow-100" : ""
+                        }`}
+                      >
+                        <td className="p-1">
+                          <AddressDisplay address={v.address} />
+                        </td>
+                        <td className="p-1">{v.vote}</td>
+                        <td className="p-1">{v.weight}</td>
+                        <td className="p-1">{v.maxWeight}</td>
+                        <td className="p-1">{v.seed}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -113,10 +124,10 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
             the proposal.
           </p>
           <p className="text-xs md:text-sm text-secondary max-w-prose">
-            Final outcomes are based on weighted vote tallies. For a proposal
-            to be accepted, the tally of approve votes must be higher than
-            the sum of the tallies of reject plus cancel votes. Same goes to
-            reject a proposal.
+            Final outcomes are based on weighted vote tallies. For a proposal to
+            be accepted, the tally of approve votes must be higher than the sum
+            of the tallies of reject plus cancel votes. Same goes to reject a
+            proposal.
           </p>
         </div>
       )}

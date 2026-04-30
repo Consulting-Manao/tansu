@@ -25,9 +25,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
   setIsVoted,
   onClose,
 }) => {
-  const [selectedOption, setSelectedOption] = useState<VoteType | null>(
-    VoteType.APPROVE,
-  );
+  const [selectedOption, setSelectedOption] = useState<VoteType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [voteError, setVoteError] = useState<string | null>(null);

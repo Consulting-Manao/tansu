@@ -1,11 +1,14 @@
 interface SpinnerProps {
   className?: string;
+  color?: "white" | "primary";
 }
 
-const Spinner = ({ className = "" }: SpinnerProps) => {
+const Spinner = ({ className = "", color = "white" }: SpinnerProps) => {
+  const borderColor = color === "primary" ? "border-[#311255]" : "border-white";
+
   return (
     <div
-      className={`w-4 h-4 border-2 border-white border-b-[#fff4] rounded-full animate-spin ${className}`}
+      className={`w-4 h-4 border-2 ${borderColor} border-b-transparent rounded-full animate-spin ${className}`}
     />
   );
 };

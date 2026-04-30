@@ -7,6 +7,45 @@ import type { Project, Proposal, Member, Badges } from "../../packages/tansu";
 import type { Proposal as ModifiedProposal } from "types/proposal";
 import { checkSimulationError } from "utils/contractErrors";
 
+// TTL cache entry
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+function makeTtlCache<T>() {
+  const store = new Map<string, CacheEntry<T>>();
+  return {
+    get(key: string): T | undefined {
+      const entry = store.get(key);
+      if (!entry) return undefined;
+      if (Date.now() > entry.expiresAt) {
+        store.delete(key);
+        return undefined;
+      }
+      return entry.value;
+    },
+    set(key: string, value: T, ttlMs: number) {
+      store.set(key, { value, expiresAt: Date.now() + ttlMs });
+    },
+    deleteByPrefix(prefix: string) {
+      for (const key of store.keys()) {
+        if (key.startsWith(prefix)) store.delete(key);
+      }
+    },
+  };
+}
+
+const TTL_4H = 4 * 60 * 60 * 1000;
+const TTL_1H = 60 * 60 * 1000;
+
+// Proposal list caches (4h TTL)
+const proposalPagesCache = makeTtlCache<number | null>();
+const proposalsCache = makeTtlCache<Proposal[]>();
+
+// Individual proposal cache (1h TTL)
+const proposalCache = makeTtlCache<Proposal>();
+
 // Lightweight session cache to avoid rehydrating the same proposal repeatedly.
 const proposalHydrationCache = new Map<string, Proposal>();
 
@@ -145,6 +184,9 @@ async function getProjectFromId(projectId: Buffer): Promise<Project | null> {
 }
 
 async function getProposalPages(project_name: string): Promise<number | null> {
+  const cached = proposalPagesCache.get(project_name);
+  if (cached !== undefined) return cached;
+
   const project_key = deriveProjectKey(project_name);
 
   try {
@@ -166,6 +208,7 @@ async function getProposalPages(project_name: string): Promise<number | null> {
     };
 
     if (!(await hasProposalsOnPage(0))) {
+      proposalPagesCache.set(project_name, 1, TTL_4H);
       return 1;
     }
 
@@ -186,7 +229,9 @@ async function getProposalPages(project_name: string): Promise<number | null> {
       }
     }
 
-    return low + 1;
+    const result = low + 1;
+    proposalPagesCache.set(project_name, result, TTL_4H);
+    return result;
   } catch {
     // Never show toast error for proposal pages not found
     return null;
@@ -197,6 +242,10 @@ async function getProposals(
   project_name: string,
   page: number,
 ): Promise<ModifiedProposal[] | null> {
+  const cacheKey = `${project_name}:${page}`;
+  const cached = proposalsCache.get(cacheKey);
+  if (cached !== undefined) return cached.map(modifyProposalFromContract);
+
   const project_key = deriveProjectKey(project_name);
   try {
     // Invalidate project cache before list hydration to avoid stale list states.
@@ -216,6 +265,8 @@ async function getProposals(
       ),
     );
 
+    proposalsCache.set(cacheKey, hydratedProposals, TTL_4H);
+
     const proposals: ModifiedProposal[] = hydratedProposals.map((proposal) =>
       modifyProposalFromContract(proposal),
     );
@@ -230,6 +281,10 @@ async function getProposal(
   projectName: string,
   proposalId: number,
 ): Promise<ModifiedProposal | null> {
+  const cacheKey = proposalCacheKey(projectName, proposalId);
+  const cached = proposalCache.get(cacheKey);
+  if (cached !== undefined) return modifyProposalFromContract(cached);
+
   const project_key = deriveProjectKey(projectName);
   try {
     const res = await Tansu.get_proposal({
@@ -241,6 +296,7 @@ async function getProposal(
     checkSimulationError(res);
 
     const proposal: Proposal = res.result;
+    proposalCache.set(cacheKey, proposal, TTL_1H);
     return modifyProposalFromContract(proposal);
   } catch {
     // Never show toast error for proposal not found
@@ -307,6 +363,21 @@ async function getProjectsPage(page: number): Promise<Project[]> {
   }
 }
 
+/**
+ * Invalidate all cached data for a specific proposal and its project's list caches.
+ * Call this after any mutation (vote, execute) to prevent stale reads before TTL expiry.
+ */
+function invalidateProposalCache(
+  project_name: string,
+  proposal_id: number,
+): void {
+  const entryKey = proposalCacheKey(project_name, proposal_id);
+  proposalCache.deleteByPrefix(entryKey);
+  proposalsCache.deleteByPrefix(`${project_name}:`);
+  proposalPagesCache.deleteByPrefix(project_name);
+  invalidateProposalHydrationCache(project_name);
+}
+
 export {
   getProject,
   getProjectHash,
@@ -318,6 +389,7 @@ export {
   getMember,
   getBadges,
   getProjectsPage,
+  invalidateProposalCache,
 };
 
 /**

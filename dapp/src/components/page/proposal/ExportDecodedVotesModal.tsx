@@ -43,8 +43,8 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
             online, forwarded, or leaked, the voter privacy assumption is lost.
           </p>
           <p className="mt-2 leading-6">
-            Only export this file if you can assume the responsibility
-            of keeping voters' information private.
+            Only export this file if you can assume the responsibility of
+            keeping voters' information private.
           </p>
         </div>
 
