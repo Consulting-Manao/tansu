@@ -55,21 +55,14 @@ describe("extractConfigData", () => {
     expect(out.officials.githubLink).toBe("https://gitlab.com/org/alt-repo");
   });
 
-  it("ignores invalid canonical repository URLs", () => {
+  it("preserves unsupported repository URLs when normalization fails", () => {
     const project = {
       ...minimalProject,
       config: { url: "https://example.org/org/repo", ipfs: "bafy..." },
     };
 
-    const out = extractConfigData(
-      {
-        DOCUMENTATION: {
-          ORG_GITHUB: "org/alt-repo",
-        },
-      },
-      project as any,
-    );
+    const out = extractConfigData({}, project as any);
 
-    expect(out.officials.githubLink).toBe("");
+    expect(out.officials.githubLink).toBe("https://example.org/org/repo");
   });
 });

@@ -6,6 +6,7 @@ import Tansu from "../contracts/soroban_tansu";
 import { connectedPublicKey } from "../utils/store";
 import { loadedProjectId } from "./StateService";
 import { deriveProjectKey } from "../utils/projectKey";
+import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 //
 
 //
@@ -319,12 +320,14 @@ export async function createProjectFlow({
   if (!publicKey) throw new Error("Please connect your wallet first");
 
   Tansu.options.publicKey = publicKey;
+  const normalizedRepositoryUrl =
+    normalizeRepositoryUrl(githubRepoUrl) ?? githubRepoUrl;
 
   const tx = await Tansu.register({
     maintainer: publicKey,
     name: projectName,
     maintainers,
-    url: githubRepoUrl,
+    url: normalizedRepositoryUrl,
     ipfs: cid,
   });
 
@@ -407,9 +410,11 @@ export async function updateConfigFlow({
 
   // Step 2 – sign tx
   onProgress?.(7);
+  const normalizedRepositoryUrl =
+    normalizeRepositoryUrl(githubRepoUrl) ?? githubRepoUrl;
   const signedTxXdr = await createSignedUpdateConfigTransaction(
     maintainers,
-    githubRepoUrl,
+    normalizedRepositoryUrl,
     cid,
   );
 

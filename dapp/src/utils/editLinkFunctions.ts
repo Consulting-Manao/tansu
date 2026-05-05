@@ -221,6 +221,17 @@ export function parseRepositoryUrl(
   }
 }
 
+export function normalizeRepositoryUrl(
+  repoUrl: string | null | undefined,
+): string | undefined {
+  const parsed = parseRepositoryUrl(repoUrl);
+  if (!parsed || !SUPPORTED_REPOSITORY_HOSTS.has(parsed.host)) {
+    return undefined;
+  }
+
+  return parsed.normalizedUrl;
+}
+
 export function isSupportedRepositoryUrl(
   repoUrl: string | null | undefined,
 ): boolean {

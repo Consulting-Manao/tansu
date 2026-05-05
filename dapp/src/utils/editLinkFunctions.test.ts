@@ -5,6 +5,7 @@ import {
   getRepositoryIconInfo,
   getRepositoryProvider,
   isSupportedRepositoryUrl,
+  normalizeRepositoryUrl,
   parseRepositoryUrl,
 } from "./editLinkFunctions";
 
@@ -289,6 +290,34 @@ describe("repository URL validation", () => {
     expect(isSupportedRepositoryUrl("")).toBe(false);
     expect(isSupportedRepositoryUrl(null)).toBe(false);
     expect(isSupportedRepositoryUrl(undefined)).toBe(false);
+  });
+});
+
+describe("normalizeRepositoryUrl", () => {
+  it("returns the canonical repository root for supported subresource URLs", () => {
+    expect(
+      normalizeRepositoryUrl(
+        "https://gitlab.com/group/subgroup/project/-/blob/main/README.md",
+      ),
+    ).toBe("https://gitlab.com/group/subgroup/project");
+    expect(
+      normalizeRepositoryUrl(
+        "https://github.com/example/project/tree/main/src",
+      ),
+    ).toBe("https://github.com/example/project");
+  });
+
+  it("converts supported SSH URLs to the canonical HTTPS repository root", () => {
+    expect(normalizeRepositoryUrl("git@codeberg.org:example/project.git")).toBe(
+      "https://codeberg.org/example/project",
+    );
+  });
+
+  it("returns undefined for malformed or unsupported URLs", () => {
+    expect(normalizeRepositoryUrl("https://example.org/example/project")).toBe(
+      undefined,
+    );
+    expect(normalizeRepositoryUrl("not-a-url")).toBe(undefined);
   });
 });
 

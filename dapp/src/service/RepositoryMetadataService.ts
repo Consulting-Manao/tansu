@@ -611,14 +611,18 @@ async function getGiteaReadme(
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
-    const payload = await fetchMaybeJson<any>(
-      `https://${repo.host}/api/v1/repos/${owner}/${repoName}/contents/${encodeURIComponent(candidate)}?ref=HEAD`,
-    );
-    if (!payload || typeof payload.content !== "string") {
-      continue;
-    }
+    const candidatePath = encodeURIComponent(candidate);
+    for (const url of [
+      `https://${repo.host}/api/v1/repos/${owner}/${repoName}/contents/${candidatePath}?ref=HEAD`,
+      `https://${repo.host}/api/v1/repos/${owner}/${repoName}/contents/${candidatePath}`,
+    ]) {
+      const payload = await fetchMaybeJson<any>(url);
+      if (!payload || typeof payload.content !== "string") {
+        continue;
+      }
 
-    return decodeBase64Utf8(payload.content);
+      return decodeBase64Utf8(payload.content);
+    }
   }
 
   return undefined;

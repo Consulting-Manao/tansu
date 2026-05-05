@@ -13,7 +13,7 @@ import {
 } from "types/proposal";
 import {
   buildRepositoryUrlFromProjectPath,
-  isSupportedRepositoryUrl,
+  normalizeRepositoryUrl,
 } from "./editLinkFunctions";
 
 export function truncateMiddle(str: string, maxLength: number): string {
@@ -32,9 +32,8 @@ export function truncateMiddle(str: string, maxLength: number): string {
 export function extractConfigData(tomlData: any, project: Project) {
   const fullName = tomlData.DOCUMENTATION?.ORG_DBA || project.name;
   const projectType = tomlData.PROJECT_TYPE || "SOFTWARE";
-  const canonicalRepositoryUrl = isSupportedRepositoryUrl(project.config.url)
-    ? project.config.url
-    : "";
+  const canonicalRepositoryUrl =
+    normalizeRepositoryUrl(project.config.url) || project.config.url || "";
   const repositoryLink =
     buildRepositoryUrlFromProjectPath(
       canonicalRepositoryUrl,

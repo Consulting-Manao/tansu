@@ -66,31 +66,38 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   const releasesUrl = getRepositoryReleasesUrl(projectData?.githubUrl);
 
   useEffect(() => {
+    if (!isOpen) {
+      setReadmeContent("");
+      return;
+    }
+
     const loadReadme = async () => {
-      if (isOpen && projectData?.githubUrl) {
-        try {
-          const content = await fetchReadmeContentFromConfigUrl(
-            projectData.githubUrl,
-          );
-          if (content) {
-            setReadmeContent(content);
-          }
-        } catch (error) {
-          console.error("Failed to load README:", error);
-          setReadmeContent(
-            "Failed to load README content. Please check the repository directly.",
-          );
+      if (!projectData?.githubUrl) {
+        setReadmeContent("No README available for this project.");
+        return;
+      }
+
+      try {
+        const content = await fetchReadmeContentFromConfigUrl(
+          projectData.githubUrl,
+        );
+        if (content !== undefined && content !== null) {
+          setReadmeContent(content);
+        } else {
+          setReadmeContent("No README available for this project.");
         }
+      } catch (error) {
+        console.error("Failed to load README:", error);
+        setReadmeContent(
+          "Failed to load README content. Please check the repository directly.",
+        );
       }
     };
 
     loadReadme();
 
-    // Clear content when modal is closed
     return () => {
-      if (!isOpen) {
-        setReadmeContent("");
-      }
+      setReadmeContent("");
     };
   }, [isOpen, projectData?.githubUrl]);
 

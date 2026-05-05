@@ -7,6 +7,7 @@ import { projectInfo as projectInfoStore } from "utils/store";
 import { projectRepoInfo as projectRepoInfoStore } from "utils/store";
 import { projectLatestSha as projectLatestShaStore } from "utils/store";
 import { configData as configDataStore } from "utils/store";
+import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 
 const { keccak256 } = pkg;
 
@@ -90,7 +91,8 @@ function setProjectId(project_name: string): void {
  */
 function setProject(project: Project): void {
   projectInfo.project_maintainers = project.maintainers ?? [];
-  projectInfo.project_config_url = project.config.url ?? "";
+  projectInfo.project_config_url =
+    normalizeRepositoryUrl(project.config.url) ?? project.config.url ?? "";
   projectInfo.project_config_ipfs = project.config.ipfs ?? "";
 
   if (!project.sub_projects) {
@@ -129,7 +131,7 @@ function loadProjectInfo(): Project | undefined {
  * Set project repository URL
  */
 function setProjectRepoUrl(url: string): void {
-  projectRepoInfo.project_url = url;
+  projectRepoInfo.project_url = normalizeRepositoryUrl(url) ?? url;
 
   if (typeof window !== "undefined") {
     projectRepoInfoStore.set(projectRepoInfo);
