@@ -33,6 +33,9 @@ const { title, page } = Astro.props;
   const GLOBAL_CREATE_PROJECT_MODAL_KEY = Symbol.for(
     "tansu.createProjectModalListenerInited",
   );
+  const GLOBAL_MODAL_LISTENERS_KEY = Symbol.for(
+    "tansu.globalModalListenersInited",
+  );
 
   const openCreateProjectModal = async () => {
     try {
@@ -73,10 +76,14 @@ const { title, page } = Astro.props;
     });
   };
 
-  initCreateProjectModalListener();
+  const initGlobalModalListeners = () => {
+    const modalWindow = window as unknown as Window & Record<symbol, unknown>;
 
-  document.addEventListener("astro:page-load", () => {
-    initCreateProjectModalListener();
+    if (modalWindow[GLOBAL_MODAL_LISTENERS_KEY]) {
+      return;
+    }
+
+    modalWindow[GLOBAL_MODAL_LISTENERS_KEY] = true;
 
     window.addEventListener("openJoinCommunity", async (event: Event) => {
       try {
@@ -118,6 +125,14 @@ const { title, page } = Astro.props;
         console.error("Error opening profile modal:", e);
       }
     });
+  };
+
+  initCreateProjectModalListener();
+  initGlobalModalListeners();
+
+  document.addEventListener("astro:page-load", () => {
+    initCreateProjectModalListener();
+    initGlobalModalListeners();
 
     if (
       window.location.pathname === "/" &&

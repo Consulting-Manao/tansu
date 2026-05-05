@@ -34,6 +34,13 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
     },
     { approve: 0, reject: 0, abstain: 0 },
   );
+  const talliesTriplet: [bigint, bigint, bigint] | undefined =
+    tallies?.length === 3 &&
+    tallies[0] !== undefined &&
+    tallies[1] !== undefined &&
+    tallies[2] !== undefined
+      ? [tallies[0], tallies[1], tallies[2]]
+      : undefined;
 
   return (
     <>
@@ -44,23 +51,23 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
         countsOverride={counts}
       />
 
-      {tallies && tallies.length === 3 && (
+      {talliesTriplet && (
         <div className="mt-4 p-3 border border-zinc-300 rounded bg-zinc-50 text-sm md:text-base">
           <p className="font-semibold mb-2">Tallies</p>
 
           <div className="flex justify-between">
             <span>Approve:</span>
-            <span className="font-mono">{tallies[0].toString()}</span>
+            <span className="font-mono">{talliesTriplet[0].toString()}</span>
           </div>
 
           <div className="flex justify-between">
             <span>Reject:</span>
-            <span className="font-mono">{tallies[1].toString()}</span>
+            <span className="font-mono">{talliesTriplet[1].toString()}</span>
           </div>
 
           <div className="flex justify-between">
             <span>Abstain:</span>
-            <span className="font-mono">{tallies[2].toString()}</span>
+            <span className="font-mono">{talliesTriplet[2].toString()}</span>
           </div>
         </div>
       )}

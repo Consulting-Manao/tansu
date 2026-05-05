@@ -1,4 +1,53 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
+
+const chromiumExecutablePath = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  process.env.CHROMIUM_PATH,
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+].find((candidate) => candidate && existsSync(candidate));
+
+const browserLaunchOptions = {
+  args: [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-extensions",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+  ],
+  ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
+};
+
+const e2eEnv = {
+  PUBLIC_DELEGATION_API_URL:
+    process.env.PUBLIC_DELEGATION_API_URL ?? "https://ipfs-testnet.tansu.dev",
+  PUBLIC_SOROBAN_RPC_URL:
+    process.env.PUBLIC_SOROBAN_RPC_URL ??
+    "https://soroban-testnet.stellar.org:443",
+  PUBLIC_SOROBAN_NETWORK_PASSPHRASE:
+    process.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE ??
+    "Test SDF Network ; September 2015",
+  PUBLIC_HORIZON_URL:
+    process.env.PUBLIC_HORIZON_URL ?? "https://horizon-testnet.stellar.org",
+  PUBLIC_TANSU_CONTRACT_ID:
+    process.env.PUBLIC_TANSU_CONTRACT_ID ??
+    "CTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+  PUBLIC_SOROBAN_DOMAIN_CONTRACT_ID:
+    process.env.PUBLIC_SOROBAN_DOMAIN_CONTRACT_ID ??
+    "CAUORQ7XOSJOV6NLUK2A7FZSZP5Z55AQPEPMWDEZPQ4DDKSTXBBEDKNF",
+  PUBLIC_TANSU_OWNER_ID:
+    process.env.PUBLIC_TANSU_OWNER_ID ??
+    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+};
+
+const webServerEnv = Object.fromEntries(
+  Object.entries({
+    ...process.env,
+    ...e2eEnv,
+  }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+);
 
 export default defineConfig({
   testDir: "./tests",
@@ -31,19 +80,10 @@ export default defineConfig({
     trace: "off",
     screenshot: "off",
     video: "off",
-    channel: "chrome",
     ...devices["Desktop Chrome"],
     // Fast Chrome settings
-    launchOptions: {
-      args: [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-extensions",
-        "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-renderer-backgrounding",
-      ],
-    },
+    ...(chromiumExecutablePath ? {} : { channel: "chrome" }),
+    launchOptions: browserLaunchOptions,
   },
 
   projects: [
@@ -55,6 +95,7 @@ export default defineConfig({
 
   webServer: {
     command: "bun dev",
+    env: webServerEnv,
     port: 4321,
     reuseExistingServer: !process.env.CI,
   },

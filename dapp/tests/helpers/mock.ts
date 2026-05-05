@@ -239,6 +239,8 @@ export async function stubReadContractService(page) {
     export async function hasAnonymousVotingConfig() {
       return false;
     }
+
+    export function invalidateProposalCache() {}
   `;
 
   await page.route("**/service/ReadContractService*", (route) => {
@@ -435,6 +437,8 @@ export async function applyAllMocks(page) {
       export async function hasAnonymousVotingConfig(projectName) {
         return false;
       }
+
+      export function invalidateProposalCache() {}
     `;
     route.fulfill({
       status: 200,
@@ -501,6 +505,8 @@ export async function applyAllMocks(page) {
       export async function hasAnonymousVotingConfig(projectName) {
         return false;
       }
+
+      export function invalidateProposalCache() {}
     `;
     route.fulfill({
       status: 200,

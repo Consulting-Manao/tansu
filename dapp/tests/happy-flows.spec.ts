@@ -148,7 +148,10 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       // Scroll to bottom to enable button
       await termsModal.evaluate((el) => {
         const scrollable = el.querySelector(".overflow-auto");
-        if (scrollable) scrollable.scrollTop = scrollable.scrollHeight;
+        if (scrollable instanceof HTMLElement) {
+          scrollable.scrollTop = scrollable.scrollHeight;
+          scrollable.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
       });
 
       await page.waitForTimeout(200);
