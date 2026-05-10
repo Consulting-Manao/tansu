@@ -71,7 +71,7 @@ test.describe("Essential Production Validation", () => {
           error.includes("ReferenceError:")) &&
         !error.includes("Astro") && // Ignore Astro dev toolbar issues
         !error.includes("dev-toolbar") &&
-        !error.includes("Failed to fetch") &&
+        !error.includes("Failed to fetch") && // Network errors in dev toolbar
         !error.includes("Outdated Optimize Dep"), // Vite dev-server cache churn
     );
 
