@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apk add --no-cache curl wget git
+          apk add --no-cache curl wget git jq
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -57,22 +57,49 @@ jobs:
           cp sbom.spdx.json sbom-release/
           cp sbom.cyclonedx.json sbom-release/
 
-      - name: Upload SBOMs to IPFS
-        uses: storacha/add-to-web3@892505d8e70c79336721485e5500155c17a728e0
-        id: storacha
-        with:
-          path_to_add: "sbom-release"
-          secret_key: ${{ secrets.STORACHA_PRINCIPAL }}
-          proof: ${{ secrets.STORACHA_PROOF }}
+      - name: Upload SBOMs to Filebase
+        id: filebase
+        env:
+          FILEBASE_TOKEN: ${{ secrets.FILEBASE_TOKEN }}
+        run: |
+          if [ -z "${FILEBASE_TOKEN}" ]; then
+            echo "FILEBASE_TOKEN secret is required to upload SBOMs to Filebase" >&2
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          curl --silent --show-error --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer ${FILEBASE_TOKEN}" \
+            "https://rpc.filebase.io/api/v0/add?wrap-with-directory=true&cid-version=1" \
+            -F "file=@sbom-release/sbom.spdx.json;filename=sbom.spdx.json" \
+            -F "file=@sbom-release/sbom.cyclonedx.json;filename=sbom.cyclonedx.json" \
+            --output "${response_file}"
+          cat "${response_file}"
+
+          cid="$(jq -r 'select(.Hash != null) | select((.Name // "") == "") | .Hash' "${response_file}" | tail -n 1)"
+          if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
+            cid="$(jq -r 'select(.Hash != null) | .Hash' "${response_file}" | tail -n 1)"
+          fi
+
+          if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
+            echo "Unable to determine Filebase directory CID from upload response" >&2
+            exit 1
+          fi
+
+          {
+            echo "cid=${cid}"
+            echo "url=https://ipfs.filebase.io/ipfs/${cid}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Job summary
         run: |
-          echo "### SBOMs uploaded to IPFS! :rocket:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SBOMs uploaded to IPFS! :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Release: ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- CID: ${STEPS_STORACHA_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${STEPS_STORACHA_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CID: ${STEPS_FILEBASE_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${STEPS_FILEBASE_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Formats: SPDX JSON, CycloneDX JSON" >> "$GITHUB_STEP_SUMMARY"
         env:
-          STEPS_STORACHA_OUTPUTS_CID: ${{ steps.storacha.outputs.cid }}
-          STEPS_STORACHA_OUTPUTS_URL: ${{ steps.storacha.outputs.url }}
+          STEPS_FILEBASE_OUTPUTS_CID: ${{ steps.filebase.outputs.cid }}
+          STEPS_FILEBASE_OUTPUTS_URL: ${{ steps.filebase.outputs.url }}
