@@ -3,10 +3,11 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "baseUrl": "src",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@service/*": ["service/*"]
     },
     "allowImportingTsExtensions": true
   },
-  "exclude": ["packages", "dist", "node_modules"]
+  "exclude": ["packages", "dist", "node_modules", "workers"]
 }
