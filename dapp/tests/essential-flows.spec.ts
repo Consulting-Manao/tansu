@@ -133,7 +133,9 @@ test.describe("Essential Production Validation", () => {
           !error.includes(
             "Failed to load resource: the server responded with a status of 404",
           ) &&
-          !error.includes("Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep)")), // Ignore dev-only asset load errors
+          !error.includes(
+            "Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep)",
+          )), // Ignore dev-only asset load errors
     );
     expect(criticalErrors).toHaveLength(0);
 
