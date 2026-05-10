@@ -71,7 +71,8 @@ test.describe("Essential Production Validation", () => {
           error.includes("ReferenceError:")) &&
         !error.includes("Astro") && // Ignore Astro dev toolbar issues
         !error.includes("dev-toolbar") &&
-        !error.includes("Failed to fetch"), // Network errors in dev toolbar
+        !error.includes("Failed to fetch") &&
+        !error.includes("Outdated Optimize Dep"), // Vite dev-server cache churn
     );
 
     if (criticalErrors.length > 0) {
@@ -131,7 +132,8 @@ test.describe("Essential Production Validation", () => {
         (error.includes("Please connect your wallet first") === false &&
           !error.includes(
             "Failed to load resource: the server responded with a status of 404",
-          )), // Ignore 404s during dev testing
+          ) &&
+          !error.includes("Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep)")), // Ignore dev-only asset load errors
     );
     expect(criticalErrors).toHaveLength(0);
 

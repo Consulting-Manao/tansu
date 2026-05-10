@@ -8,7 +8,7 @@ export default defineConfig({
   adapter: netlify(),
   vite: {
     optimizeDeps: {
-      include: ["ipfs-car"],
+      include: ["ipfs-car", "@ipld/car"],
     },
   },
 });

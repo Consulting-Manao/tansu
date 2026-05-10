@@ -7,6 +7,7 @@
     "@creit.tech/sorobandomains-sdk": "^0.1.6",
     "@nanostores/react": "^1.1.0",
     "@noble/curves": "^2.2.0",
+    "@ipld/car": "^5.4.4",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "15.1.0",
     "@stellar/stellar-xdr-json": "^26.0.0",
