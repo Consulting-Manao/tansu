@@ -62,24 +62,19 @@ jobs:
         env:
           FILEBASE_TOKEN: ${{ secrets.FILEBASE_TOKEN }}
         run: |
-          if [ -z "${FILEBASE_TOKEN}" ]; then
-            echo "FILEBASE_TOKEN secret is required to upload SBOMs to Filebase" >&2
-            exit 1
-          fi
+          FILEBASE_RESPONSE="$(
+            curl --silent --show-error --fail \
+              -X POST \
+              -H "Authorization: Bearer ${FILEBASE_TOKEN}" \
+              "https://rpc.filebase.io/api/v0/add?wrap-with-directory=true" \
+              -F "file=@sbom-release/sbom.spdx.json;filename=sbom.spdx.json;type=application/json" \
+              -F "file=@sbom-release/sbom.cyclonedx.json;filename=sbom.cyclonedx.json;type=application/json"
+          )"
+          printf '%s\n' "${FILEBASE_RESPONSE}"
 
-          response_file="$(mktemp)"
-          curl --silent --show-error --fail-with-body \
-            -X POST \
-            -H "Authorization: Bearer ${FILEBASE_TOKEN}" \
-            "https://rpc.filebase.io/api/v0/add?wrap-with-directory=true&cid-version=1" \
-            -F "file=@sbom-release/sbom.spdx.json;filename=sbom.spdx.json" \
-            -F "file=@sbom-release/sbom.cyclonedx.json;filename=sbom.cyclonedx.json" \
-            --output "${response_file}"
-          cat "${response_file}"
-
-          cid="$(jq -r 'select(.Hash != null) | select((.Name // "") == "") | .Hash' "${response_file}" | tail -n 1)"
+          cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r 'select(.Hash != null) | select((.Name // "") == "") | .Hash' | tail -n 1)"
           if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
-            cid="$(jq -r 'select(.Hash != null) | .Hash' "${response_file}" | tail -n 1)"
+            cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r '.Hash // .Cid // empty' | tail -n 1)"
           fi
 
           if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
