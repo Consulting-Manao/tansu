@@ -72,12 +72,9 @@ jobs:
           )"
           printf '%s\n' "${FILEBASE_RESPONSE}"
 
-          cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r 'select(.Hash != null) | select((.Name // "") == "") | .Hash' | tail -n 1)"
-          if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
-            cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r '.Hash // .Cid // empty' | tail -n 1)"
-          fi
+          cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r '.Hash // .Cid // empty' | tail -n 1)"
 
-          if [ -z "${cid}" ] || [ "${cid}" = "null" ]; then
+          if [ -z "${cid}" ]; then
             echo "Unable to determine Filebase directory CID from upload response" >&2
             exit 1
           fi
