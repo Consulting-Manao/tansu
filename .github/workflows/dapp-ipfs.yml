@@ -58,19 +58,61 @@ jobs:
           path: |
             ./dapp/dist/*
 
-      - uses: storacha/add-to-web3@892505d8e70c79336721485e5500155c17a728e0
-        id: storacha
-        with:
-          path_to_add: "./dapp/dist"
-          secret_key: ${{ secrets.STORACHA_PRINCIPAL }}
-          proof: ${{ secrets.STORACHA_PROOF }}
+      - name: Install upload dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes jq
+
+      - name: Upload dApp to Filebase
+        id: filebase
+        env:
+          FILEBASE_TOKEN: ${{ secrets.FILEBASE_TOKEN }}
+        run: |
+          files=()
+          while IFS= read -r -d '' file; do
+            files+=("${file}")
+          done < <(find dist -type f -print0)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No dApp files found in dist for Filebase upload" >&2
+            exit 1
+          fi
+
+          curl_args=(
+            --silent
+            --show-error
+            --fail
+            -X POST
+            -H "Authorization: Bearer ${FILEBASE_TOKEN}"
+            "https://rpc.filebase.io/api/v0/add?wrap-with-directory=true"
+          )
+
+          for file in "${files[@]}"; do
+            rel_path="${file#dist/}"
+            curl_args+=(-F "file=@${file};filename=${rel_path}")
+          done
+
+          FILEBASE_RESPONSE="$(curl "${curl_args[@]}")"
+          printf '%s\n' "${FILEBASE_RESPONSE}"
+
+          cid="$(printf '%s\n' "${FILEBASE_RESPONSE}" | jq -r '.Hash // .Cid // empty' | tail -n 1)"
+
+          if [ -z "${cid}" ]; then
+            echo "Unable to determine Filebase directory CID from upload response" >&2
+            exit 1
+          fi
+
+          {
+            echo "cid=${cid}"
+            echo "url=https://ipfs.filebase.io/ipfs/${cid}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Job summary
         run: |
-          echo "### Shipping to IPFS! :rocket:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- CID: ${STEPS_STORACHA_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${STEPS_STORACHA_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Shipping to IPFS! :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CID: ${STEPS_FILEBASE_OUTPUTS_CID}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${STEPS_FILEBASE_OUTPUTS_URL}" >> "$GITHUB_STEP_SUMMARY"
         env:
-          STEPS_STORACHA_OUTPUTS_CID: ${{ steps.storacha.outputs.cid }}
-          STEPS_STORACHA_OUTPUTS_URL: ${{ steps.storacha.outputs.url }}
+          STEPS_FILEBASE_OUTPUTS_CID: ${{ steps.filebase.outputs.cid }}
+          STEPS_FILEBASE_OUTPUTS_URL: ${{ steps.filebase.outputs.url }}
