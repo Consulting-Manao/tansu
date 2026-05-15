@@ -268,7 +268,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                   </>
                 ) : (
                   <>
-                    ℹ️ Casting a vote requires a 10 XLM collateral. This
+                    ℹ️ Casting a vote requires a 2 XLM collateral. This
                     collateral is refunded when the vote is executed
                   </>
                 )}

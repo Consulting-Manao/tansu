@@ -962,9 +962,13 @@ const CreateProposalModal = () => {
               />
               {/* Note to the user */}
               <p className="px-3 py-1 text-sm sm:text-base bg-[#F5F1F9] text-primary">
-                ℹ️ Creating a proposal requires a 110 XLM collateral to create
-                the proposal. This collateral is refunded when the vote is
-                executed.
+                ℹ️ Creating a proposal requires{" "}
+                {votingType === "token" ? "5 XLM" : "7 XLM"}{" "}
+                collateral
+                {votingType === "badge"
+                  ? " (includes your automatic abstain vote deposit)"
+                  : ""}
+                . This collateral is refunded when the proposal is executed.
               </p>
               {/* Buttons for small screens */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">

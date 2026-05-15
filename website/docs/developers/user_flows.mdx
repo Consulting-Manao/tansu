@@ -148,7 +148,7 @@ sequenceDiagram
 
     Admin->>Contract: create_proposal(project_key, title, ipfs, voting_ends_at, public_voting=false)
     activate Contract
-    Note over Contract: Deposit PROPOSAL_COLLATERAL (100 XLM)
+    Note over Contract: Deposit PROPOSAL_COLLATERAL (5 XLM) + abstain vote deposit (2 XLM)
     Contract->>Storage: Store Proposal (status: Active)
     Contract-->>Admin: Proposal ID
     deactivate Contract
@@ -171,7 +171,7 @@ sequenceDiagram
 
     Voter->>Contract: vote(voter, proposal_id, AnonymousVote)
     activate Contract
-    Note over Contract: Validate commitment structure (3 G1 points)<br/>Check voter eligibility & weight<br/>Deposit VOTE_COLLATERAL (10 XLM)
+    Note over Contract: Validate commitment structure (3 G1 points)<br/>Check voter eligibility & weight<br/>Deposit VOTE_COLLATERAL (2 XLM)
     Contract->>Storage: Store encrypted votes, seeds, commitments
     Contract-->>Voter: Vote Recorded
     deactivate Contract
