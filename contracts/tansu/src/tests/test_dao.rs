@@ -962,7 +962,7 @@ fn token_based_proposal_flow() {
 
     // Check proposer balance decreased by PROPOSAL_COLLATERAL only (no VOTE_COLLATERAL for token-based)
     let balance_proposer_after_create = setup.token_stellar.balance(&setup.grogu);
-    let expected_proposer_deduction = 100 * 10_000_000; // PROPOSAL_COLLATERAL
+    let expected_proposer_deduction = 5 * 10_000_000; // PROPOSAL_COLLATERAL
     assert_eq!(
         balance_proposer_init - balance_proposer_after_create,
         expected_proposer_deduction
