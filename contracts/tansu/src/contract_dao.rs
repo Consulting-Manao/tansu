@@ -9,8 +9,8 @@ use soroban_sdk::{
     token, vec,
 };
 
-const PROPOSAL_COLLATERAL: i128 = 100 * 10_000_000;
-const VOTE_COLLATERAL: i128 = 10 * 10_000_000;
+const PROPOSAL_COLLATERAL: i128 = 5 * 10_000_000;
+const VOTE_COLLATERAL: i128 = 2 * 10_000_000;
 const MAX_TITLE_LENGTH: u32 = 256;
 const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
