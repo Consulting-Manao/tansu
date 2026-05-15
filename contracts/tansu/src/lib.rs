@@ -9,7 +9,7 @@ mod domain_contract {
 
 mod contract_dao;
 mod contract_membership;
-mod contract_migration;
+// mod contract_migration;
 mod contract_tansu;
 mod contract_versioning;
 mod errors;
@@ -193,9 +193,9 @@ pub trait DaoTrait {
     fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address>;
 }
 
-pub trait MigrationTrait {
-    fn projects_migration(env: Env, admin: Address, names: Vec<String>);
-}
+// pub trait MigrationTrait {
+//     fn projects_migration(env: Env, admin: Address, names: Vec<String>);
+// }
 
 fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> types::Project {
     maintainer.require_auth();

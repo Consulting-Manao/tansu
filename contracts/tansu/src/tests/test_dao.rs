@@ -981,9 +981,10 @@ fn token_based_proposal_flow() {
         }),
     );
 
-    // Verify voter balance decreased by vote_weight only (token IS the collateral)
+    // Verify voter balance decreased by vote_weight in whole tokens (scaled by decimals)
     let balance_voter_after_vote = setup.token_stellar.balance(&setup.mando);
-    let expected_deduction = vote_weight as i128; // Only the vote weight in tokens
+    let token_scale = 10_000_000i128; // SAC default 7 decimals in tests
+    let expected_deduction = vote_weight as i128 * token_scale;
     assert_eq!(
         balance_voter_init - balance_voter_after_vote,
         expected_deduction

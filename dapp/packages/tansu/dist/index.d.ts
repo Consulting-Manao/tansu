@@ -9,12 +9,6 @@ import type { u32, u64, u128, Option } from "@stellar/stellar-sdk/contract";
 export * from "@stellar/stellar-sdk";
 export * as contract from "@stellar/stellar-sdk/contract";
 export * as rpc from "@stellar/stellar-sdk/rpc";
-export interface ProjectV1 {
-  config: Config;
-  maintainers: Array<string>;
-  name: string;
-  sub_projects: Option<Array<Buffer>>;
-}
 export interface Dao {
   proposals: Array<Proposal>;
 }
@@ -981,19 +975,6 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
-   * Construct and simulate a projects_migration transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  projects_migration: (
-    {
-      admin,
-      names,
-    }: {
-      admin: string;
-      names: Array<string>;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-  /**
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
    *
@@ -1416,7 +1397,6 @@ export declare class Client extends ContractClient {
       json: string,
     ) => AssembledTransaction<UpgradeProposal>;
     set_collateral_contract: (json: string) => AssembledTransaction<null>;
-    projects_migration: (json: string) => AssembledTransaction<null>;
     add_member: (json: string) => AssembledTransaction<null>;
     get_badges: (json: string) => AssembledTransaction<Badges>;
     get_member: (json: string) => AssembledTransaction<Member>;

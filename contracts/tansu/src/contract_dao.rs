@@ -651,7 +651,14 @@ impl DaoTrait for Tansu {
 
         // Lock collateral: tokens or xlm
         let (token_address, amount) = match &proposal.vote_data.token_contract {
-            Some(token_contract) => (token_contract.clone(), *vote_weight as i128),
+            Some(token_contract) => {
+                let token_client = token::TokenClient::new(&env, token_contract);
+                let decimals = token_client.decimals();
+                (
+                    token_contract.clone(),
+                    (*vote_weight as i128) * 10_i128.pow(decimals),
+                )
+            }
             None => {
                 let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
                 (sac_contract.address, VOTE_COLLATERAL)
@@ -771,8 +778,15 @@ impl DaoTrait for Tansu {
             };
 
             let (transfer_contract, amount) = match &proposal.vote_data.token_contract {
-                Some(token_address) => (token_address.clone(), vote_weight as i128), // token
-                None => (sac_contract.address.clone(), VOTE_COLLATERAL),             // xlm
+                Some(token_address) => {
+                    let token_client = token::TokenClient::new(&env, token_address);
+                    let decimals = token_client.decimals();
+                    (
+                        token_address.clone(),
+                        vote_weight as i128 * 10_i128.pow(decimals),
+                    )
+                }
+                None => (sac_contract.address.clone(), VOTE_COLLATERAL), // xlm
             };
 
             match token::TokenClient::new(&env, &transfer_contract).try_transfer(

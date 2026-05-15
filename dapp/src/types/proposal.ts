@@ -23,6 +23,8 @@ export interface Proposal {
   voting_ends_at: number;
   voteStatus: VoteStatus;
   outcome_contracts?: OutcomeContract[] | null; // Array of [approved, rejected, cancelled] contracts
+  /** Set when proposal uses token-weighted voting (SAC contract address). */
+  tokenContract?: string | null;
 }
 
 export interface ProposalView {
@@ -35,6 +37,7 @@ export interface ProposalView {
   status: ProposalViewStatus;
   endDate: number;
   voteStatus: VoteStatus;
+  tokenContract?: string | null;
 }
 
 export enum VoteType {

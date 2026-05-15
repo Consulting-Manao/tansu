@@ -112,10 +112,10 @@ export const createProposalSchema = z.object({
     .refine(
       (val) => {
         if (!val || val.trim() === "") return true;
-        // Basic Stellar address validation (starts with G or C, 56 characters)
-        return /^[GC][A-Z0-9]{55}$/.test(val);
+        // Soroban contract ID (Stellar Asset Contract / SEP-41)
+        return /^C[A-Z0-9]{55}$/.test(val);
       },
-      { message: "Invalid token contract address format" },
+      { message: "Invalid token contract address (must start with C)" },
     ),
 });
 

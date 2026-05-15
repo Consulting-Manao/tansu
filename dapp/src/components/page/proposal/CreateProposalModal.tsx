@@ -128,11 +128,27 @@ const CreateProposalModal = () => {
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const validateTokenContractForVoting = () => {
+    if (votingType !== "token") return;
+    const trimmed = tokenContract.trim();
+    if (!trimmed) {
+      throw new Error(
+        "Token contract address is required for token-based voting",
+      );
+    }
+    if (!/^C[A-Z0-9]{55}$/.test(trimmed)) {
+      throw new Error(
+        "Invalid token contract address. Use the Soroban contract ID (starts with C).",
+      );
+    }
+  };
+
   const checkSubmitAvailability = () => {
     if (!connectedAddress) throw new Error("Please connect your wallet first");
     if (!projectName) throw new Error("Project name is not provided");
     if (!maintainers.includes(connectedAddress))
       throw new Error("Only maintainers can submit proposals");
+    validateTokenContractForVoting();
   };
 
   const handleSubmitProposal = useCallback(() => {
@@ -319,6 +335,7 @@ const CreateProposalModal = () => {
 
   const startProposalCreation = async (files: File[]) => {
     try {
+      validateTokenContractForVoting();
       setIsLoading(true);
       setStep(6);
 
@@ -358,7 +375,9 @@ const CreateProposalModal = () => {
         votingEndsAt,
         publicVoting: !isAnonymousVoting,
         outcomeContracts: contractOutcomes,
-        ...(votingType === "token" && tokenContract ? { tokenContract } : {}),
+        ...(votingType === "token"
+          ? { tokenContract: tokenContract.trim() }
+          : {}),
         onProgress: setStep,
       });
 
@@ -591,8 +610,8 @@ const CreateProposalModal = () => {
                 {votingType === "token" && (
                   <>
                     <Input
-                      label="Token Contract Address (Optional)"
-                      placeholder="Enter token contract address for token-based voting"
+                      label="Token Contract Address"
+                      placeholder="Enter SAC token contract address (C...)"
                       value={tokenContract}
                       onChange={(e) => setTokenContract(e.target.value)}
                     />
@@ -676,6 +695,8 @@ const CreateProposalModal = () => {
                       }
                     }
                   }
+
+                  validateTokenContractForVoting();
 
                   setStep(step + 1);
                 } catch (err: any) {
@@ -824,6 +845,8 @@ const CreateProposalModal = () => {
                       }
                     }
                   }
+
+                  validateTokenContractForVoting();
 
                   setStep(step + 1);
                 } catch (err: any) {

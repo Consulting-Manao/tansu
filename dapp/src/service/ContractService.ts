@@ -18,6 +18,20 @@ import type { VoteType } from "types/proposal";
 import { signAndSend } from "./TxService";
 import { encryptWithPublicKey } from "../utils/crypto";
 import { invalidateProposalCache } from "./ReadContractService";
+import {
+  getTokenBalance,
+  tokenVoteWeightToContract,
+} from "./TokenBalanceService";
+import { parseContractOptionString } from "../utils/utils";
+
+export interface VotingPowerResult {
+  maxWeight: number;
+  isTokenVoting: boolean;
+  tokenContract: string | null;
+  /** Whole-token balance from SAC (for display). */
+  tokenBalance?: number;
+  tokenDecimals?: number;
+}
 
 /**
  * Get configured contract client instance (using proven working Tansu instance)
@@ -122,6 +136,54 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
 }
 
 /**
+ * Resolves max voting power: token balance for token proposals, badge weight otherwise.
+ */
+export async function getVotingPower(
+  project_name: string,
+  proposal_id: number,
+  voterAddress?: string,
+): Promise<VotingPowerResult> {
+  const client = getClient();
+  const member = voterAddress ?? client.options.publicKey;
+  if (!member) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const proposalTx = await client.get_proposal({
+    project_key: projectKey,
+    proposal_id: Number(proposal_id),
+  });
+  checkSimulationError(proposalTx);
+
+  const tokenContract = parseContractOptionString(
+    proposalTx.result.vote_data.token_contract,
+  );
+
+  if (tokenContract) {
+    const tokenBalance = await getTokenBalance(tokenContract, member);
+    return {
+      maxWeight: tokenBalance.maxVoteWeight,
+      isTokenVoting: true,
+      tokenContract,
+      tokenBalance: tokenBalance.balanceInTokens,
+      tokenDecimals: tokenBalance.decimals,
+    };
+  }
+
+  const weightTx = await client.get_max_weight({
+    project_key: projectKey,
+    member_address: member,
+  });
+  checkSimulationError(weightTx);
+  const parsedWeight = Number(weightTx.result);
+  const maxWeight = Number.isFinite(parsedWeight)
+    ? Math.max(0, Math.round(parsedWeight))
+    : 0;
+
+  return { maxWeight, isTokenVoting: false, tokenContract: null };
+}
+
+/**
  * Vote on proposal
  */
 export async function voteToProposal(
@@ -136,39 +198,43 @@ export async function voteToProposal(
 
   const projectKey = getProjectKey(project_name);
 
-  // Get voting weight
+  const proposalTx = await client.get_proposal({
+    project_key: projectKey,
+    proposal_id: Number(proposal_id),
+  });
+  checkSimulationError(proposalTx);
+  const isPublicVoting = proposalTx.result.vote_data.public_voting;
+  const tokenContract = parseContractOptionString(
+    proposalTx.result.vote_data.token_contract,
+  );
+
+  // Badge: u32 badge weight. Token: u32 whole-token units (contract scales collateral).
   let weight = 1;
-  if (customWeight !== undefined) {
+  if (tokenContract) {
+    const tokenBalance = await getTokenBalance(tokenContract, maintainer);
+    const weightInTokens =
+      customWeight !== undefined
+        ? customWeight
+        : tokenBalance.maxVoteWeight > 0
+          ? tokenBalance.maxVoteWeight
+          : 1;
+    weight = tokenVoteWeightToContract(weightInTokens);
+    if (weight <= 0) {
+      throw new Error("Vote weight must be greater than zero");
+    }
+  } else if (customWeight !== undefined) {
     weight = customWeight;
   } else {
     try {
-      const weightTx = await client.get_max_weight({
-        project_key: projectKey,
-        member_address: maintainer,
-      });
-      // Check for simulation errors (contract errors)
-      checkSimulationError(weightTx);
-      const parsedWeight = Number(weightTx.result);
-      weight = Number.isFinite(parsedWeight)
-        ? Math.max(0, Math.round(parsedWeight))
-        : 1;
+      const { maxWeight } = await getVotingPower(
+        project_name,
+        proposal_id,
+        maintainer,
+      );
+      weight = maxWeight > 0 ? maxWeight : 1;
     } catch {
       // Default weight
     }
-  }
-
-  // Check if anonymous voting
-  let isPublicVoting = true;
-  try {
-    const proposalTx = await client.get_proposal({
-      project_key: projectKey,
-      proposal_id: Number(proposal_id),
-    });
-    // Check for simulation errors (contract errors)
-    checkSimulationError(proposalTx);
-    isPublicVoting = proposalTx.result.vote_data.public_voting;
-  } catch {
-    // Default to public
   }
 
   let votePayload: Vote;

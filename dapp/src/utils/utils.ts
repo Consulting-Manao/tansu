@@ -111,6 +111,28 @@ export const modifyProposalStatusToView = (
   return status;
 };
 
+/** Max vote weight on-chain (u32). */
+export const MAX_VOTE_WEIGHT_U32 = 4_294_967_295;
+
+/**
+ * Normalizes Soroban Option<string> from RPC/bindings into a contract address or null.
+ */
+export function parseContractOptionString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === "object" && value !== null && "tag" in value) {
+    const tagged = value as { tag: string; values?: unknown[] };
+    if (tagged.tag === "None") return null;
+    if (tagged.tag === "Some" && Array.isArray(tagged.values)) {
+      return parseContractOptionString(tagged.values[0]);
+    }
+  }
+  return null;
+}
+
 export const modifyProposalToView = (
   proposal: Proposal,
   projectName: string,
@@ -129,6 +151,7 @@ export const modifyProposalToView = (
     endDate: proposal.voting_ends_at,
     voteStatus: proposal.voteStatus,
     status: proposalStatusView as ProposalViewStatus,
+    tokenContract: proposal.tokenContract ?? null,
   };
 
   return proposalView;
@@ -160,6 +183,12 @@ export const modifyProposalFromContract = (
   proposal: ContractProposal,
 ): Proposal => {
   const status = normalizeProposalStatus(proposal.status);
+  const tokenContract = parseContractOptionString(
+    proposal.vote_data.token_contract,
+  );
+  const baseFields = {
+    tokenContract,
+  };
   if (proposal.vote_data.public_voting) {
     const publicVotes = proposal.vote_data.votes.filter(
       (v: Vote) => v.tag === "PublicVote",
@@ -199,6 +228,7 @@ export const modifyProposalFromContract = (
       status,
       voting_ends_at: Number(proposal.vote_data.voting_ends_at),
       outcome_contracts: proposal.outcome_contracts || null,
+      ...baseFields,
       voteStatus: {
         approve: {
           voteType: VoteType.APPROVE,
@@ -263,6 +293,7 @@ export const modifyProposalFromContract = (
     status,
     voting_ends_at: Number(proposal.vote_data.voting_ends_at),
     outcome_contracts: proposal.outcome_contracts || null,
+    ...baseFields,
     voteStatus: {
       approve: {
         voteType: VoteType.APPROVE,

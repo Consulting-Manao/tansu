@@ -30,13 +30,6 @@ if (typeof window !== "undefined") {
   window.Buffer = window.Buffer || Buffer;
 }
 
-export interface ProjectV1 {
-  config: Config;
-  maintainers: Array<string>;
-  name: string;
-  sub_projects: Option<Array<Buffer>>;
-}
-
 export interface Dao {
   proposals: Array<Proposal>;
 }
@@ -826,14 +819,6 @@ export interface Client {
   ) => Promise<AssembledTransaction<null>>;
 
   /**
-   * Construct and simulate a projects_migration transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  projects_migration: (
-    { admin, names }: { admin: string; names: Array<string> },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-
-  /**
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
    *
@@ -1215,8 +1200,6 @@ export class Client extends ContractClient {
         "AAAAAAAAAJpTZXQgdGhlIFNvcm9iYW4gRG9tYWluIGNvbnRyYWN0LgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBgYWRtaW5gIC0gVGhlIGFkbWluIGFkZHJlc3MKKiBgZG9tYWluX2NvbnRyYWN0YCAtIFRoZSBuZXcgZG9tYWluIGNvbnRyYWN0AAAAAAATc2V0X2RvbWFpbl9jb250cmFjdAAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAD2RvbWFpbl9jb250cmFjdAAAAAfQAAAACENvbnRyYWN0AAAAAA==",
         "AAAAAAAAABxHZXQgdXBncmFkZSBwcm9wb3NhbCBkZXRhaWxzAAAAFGdldF91cGdyYWRlX3Byb3Bvc2FsAAAAAAAAAAEAAAfQAAAAD1VwZ3JhZGVQcm9wb3NhbAA=",
         "AAAAAAAAAJ5TZXQgdGhlIENvbGxhdGVyYWwgY29udHJhY3QuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBhZG1pbmAgLSBUaGUgYWRtaW4gYWRkcmVzcwoqIGBjb2xsYXRlcmFsX2NvbnRyYWN0YCAtIFRoZSBuZXcgY29sbGF0ZXJhbCBjb250cmFjdAAAAAAAF3NldF9jb2xsYXRlcmFsX2NvbnRyYWN0AAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAATY29sbGF0ZXJhbF9jb250cmFjdAAAAAfQAAAACENvbnRyYWN0AAAAAA==",
-        "AAAAAQAAAAAAAAAAAAAACVByb2plY3RWMQAAAAAAAAQAAAAAAAAABmNvbmZpZwAAAAAH0AAAAAZDb25maWcAAAAAAAAAAAALbWFpbnRhaW5lcnMAAAAD6gAAABMAAAAAAAAABG5hbWUAAAAQAAAAAAAAAAxzdWJfcHJvamVjdHMAAAPoAAAD6gAAAA4=",
-        "AAAAAAAAAAAAAAAScHJvamVjdHNfbWlncmF0aW9uAAAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAABW5hbWVzAAAAAAAD6gAAABAAAAAA",
         "AAAAAAAAAQJBZGQgYSBuZXcgbWVtYmVyIHRvIHRoZSBzeXN0ZW0gd2l0aCBtZXRhZGF0YS4KCiMgQXJndW1lbnRzCiogYGVudmAgLSBUaGUgZW52aXJvbm1lbnQgb2JqZWN0CiogYG1lbWJlcl9hZGRyZXNzYCAtIFRoZSBhZGRyZXNzIG9mIHRoZSBtZW1iZXIgdG8gYWRkCiogYG1ldGFgIC0gTWV0YWRhdGEgc3RyaW5nIGFzc29jaWF0ZWQgd2l0aCB0aGUgbWVtYmVyIChlLmcuLCBJUEZTIGhhc2gpCgojIFBhbmljcwoqIElmIHRoZSBtZW1iZXIgYWxyZWFkeSBleGlzdHMAAAAAAAphZGRfbWVtYmVyAAAAAAACAAAAAAAAAA5tZW1iZXJfYWRkcmVzcwAAAAAAEwAAAAAAAAAEbWV0YQAAABAAAAAA",
         "AAAAAAAAAWVHZXQgYWxsIGJhZGdlcyBmb3IgYSBzcGVjaWZpYyBwcm9qZWN0LCBvcmdhbml6ZWQgYnkgYmFkZ2UgdHlwZS4KClJldHVybnMgYSBzdHJ1Y3R1cmUgY29udGFpbmluZyB2ZWN0b3JzIG9mIG1lbWJlciBhZGRyZXNzZXMgZm9yIGVhY2ggYmFkZ2UgdHlwZQooRGV2ZWxvcGVyLCBUcmlhZ2UsIENvbW11bml0eSwgVmVyaWZpZWQpLgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBga2V5YCAtIFRoZSBwcm9qZWN0IGtleSBpZGVudGlmaWVyCgojIFJldHVybnMKKiBgdHlwZXM6OkJhZGdlc2AgLSBTdHJ1Y3R1cmUgY29udGFpbmluZyBtZW1iZXIgYWRkcmVzc2VzIGZvciBlYWNoIGJhZGdlIHR5cGUAAAAAAAAKZ2V0X2JhZGdlcwAAAAAAAQAAAAAAAAADa2V5AAAAAA4AAAABAAAH0AAAAAZCYWRnZXMAAA==",
         "AAAAAAAAAR1HZXQgbWVtYmVyIGluZm9ybWF0aW9uIGluY2x1ZGluZyBhbGwgcHJvamVjdCBiYWRnZXMuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBtZW1iZXJfYWRkcmVzc2AgLSBUaGUgYWRkcmVzcyBvZiB0aGUgbWVtYmVyIHRvIHJldHJpZXZlCgojIFJldHVybnMKKiBgdHlwZXM6Ok1lbWJlcmAgLSBNZW1iZXIgaW5mb3JtYXRpb24gaW5jbHVkaW5nIG1ldGFkYXRhIGFuZCBwcm9qZWN0IGJhZGdlcwoKIyBQYW5pY3MKKiBJZiB0aGUgbWVtYmVyIGRvZXNuJ3QgZXhpc3QAAAAAAAAKZ2V0X21lbWJlcgAAAAAAAQAAAAAAAAAObWVtYmVyX2FkZHJlc3MAAAAAABMAAAABAAAH0AAAAAZNZW1iZXIAAA==",
@@ -1302,7 +1285,6 @@ export class Client extends ContractClient {
     set_domain_contract: this.txFromJSON<null>,
     get_upgrade_proposal: this.txFromJSON<UpgradeProposal>,
     set_collateral_contract: this.txFromJSON<null>,
-    projects_migration: this.txFromJSON<null>,
     add_member: this.txFromJSON<null>,
     get_badges: this.txFromJSON<Badges>,
     get_member: this.txFromJSON<Member>,
