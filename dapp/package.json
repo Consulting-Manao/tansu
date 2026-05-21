@@ -12,7 +12,7 @@
     "@stellar/stellar-xdr-json": "^26.0.0",
     "astro": "^6.3.1",
     "astro-seo": "1.1.0",
-    "axios": "^1.16.0",
+    "axios": "^1.16.1",
     "buffer": "^6.0.3",
     "classnames": "^2.5.1",
     "d3-array": "^3.2.4",
@@ -24,6 +24,7 @@
     "d3-shape": "^3.2.0",
     "d3-time": "^3.1.0",
     "d3-time-format": "^4.1.0",
+    "devalue": "^5.8.1",
     "dompurify": "^3.4.2",
     "github-markdown-css": "^5.9.0",
     "internmap": "^2.0.3",
@@ -90,5 +91,10 @@
   "version": "0.0.1",
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "axios": "^1.15.2",
+    "devalue": "^5.8.1",
+    "protobufjs": "^7.5.6"
+  }
 }
