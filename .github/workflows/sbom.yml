@@ -37,10 +37,6 @@ jobs:
         run: |
           wget -qO - https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Scanning
-        run: |
-          trivy fs .
-
       - name: Generate SBOMs
         run: |
           trivy fs --format spdx-json --output sbom.spdx.json .
