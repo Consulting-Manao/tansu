@@ -5,7 +5,9 @@
 > =====
 > 
 > Let's start with the basics thing: I am keeping my chair of BDFL (Benevolent Dictator For Life) 😅 That means that I want to be in all the big architecture change discussions and have a veto right. E.g. switching to a factory pattern: its your job to convince me, and happy to be convinced with logic and arguments. You know me know I think and on that specific topic I said I was open to be convinced for instance. Also bear with me, it's like my baby and will take time to fully let go.
-> 
+
+We would never dream of changing this while you're out, Pamphile! Happy to keep talking about it and coming to the best solution together.
+
 > I do trust you all and this is why I am even considering doing this now while I go on a break!
 > 
 > Core ideas
@@ -40,11 +42,23 @@
 > For IPFS I use Filebase, you most likely won't need access. Just a FYI.
 > 
 > I have a bit of docs and a small contributing file. Most importantly there is a comprehensive Makefile (yes, I love makefiles, don't change for vite 😉 ) Deploying on mainnet requires you to approve some workflows on GitHub. Ping me for the frontend, I must push a button on Netlify. There is also a .stellar folder with things like contract IDs that get updated magically.
-> 
+
+I think you meant "don't change for just"? @willemneal needs this reminder!!
+
 > Note: install the pre-commits, use them, they fix most stuff automagically. Makefile of course with commands to install.
+
+Only seeing the `install` command which mostly installs stuff I already have, but I think this is the part I need?
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh && \
+uv tool install pre-commit --with pre-commit-uv
+```
+
 > Note: the contract upload is 50XLM on mainnet.
 > Note: on testnet, change the `TIMELOCK_DELAY` to 0 before compiling. Otherwise you need to wait a day before you can actually update the contract after you propose an upgrade of the WASM. This is my seconde DAO in Tansu thing 😉
->
+
+Is there a way to encode this "per-network config" in the Rust? Environment variables? Paging @willemneal
+
 > Contract
 > ========
 > 
@@ -60,5 +74,15 @@
 > I want to do my best to be as much decentralized as possible. Nothing makes sense to me otherwise. (I am syncing the project on Radicle now even because I dream about deleting my GitHub.) The no backend part also allows to deploy on IPFS as a static website. From a user POV this is also a nice security bonus. No call to home, no telemetry, all runs on your side.
 > 
 > So yep things like project and project metadata, proposals. All that is on IPFS and not a DB. On-chain I mostly keep CIDs. 
->
+
+Ohhhh interesting. So:
+
+on project/proposal CREATE in frontend:
+└── make API request to the CloudFlare worker to upload things to IPFS via Filebase
+    └── use returned CID in Stellar contract call
+
+Neat. 👍
+
 > Ok I will stop there. Kudos if you read all that 😅 I am really passionate about this project. Ask me anything. Take good care of this 🤗
+
+🫡
