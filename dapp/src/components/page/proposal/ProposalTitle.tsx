@@ -155,7 +155,7 @@ const ProposalTitle: React.FC<Props> = ({
                     <Button
                       {...(userHasVoted ? { type: "secondary" } : {})}
                       size="sm"
-                      icon="/icons/vote.svg"
+                      icon={userHasVoted ? "" : "/icons/vote.svg"}
                       disabled={userHasVoted}
                       onClick={() => !userHasVoted && submitVote()}
                     >

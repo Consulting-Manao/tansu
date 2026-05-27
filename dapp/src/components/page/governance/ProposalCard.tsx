@@ -40,8 +40,8 @@ const ProposalCard: React.FC<Props> = ({ proposal, onVoteClick }) => {
         <ProposalStatusSection proposal={proposal} />
         {proposal.status == "active" && (
           <Button
-            {...(userHasVoted ? { type: "secondary" } : {})}
-            icon="/icons/vote.svg"
+            type={userHasVoted ? "secondary" : "primary"}
+            icon={userHasVoted ? "" : "/icons/vote.svg"}
             disabled={userHasVoted}
             onClick={(e) => {
               e.preventDefault();

@@ -51,22 +51,14 @@ const Button: FC<Props> = ({
       {isLoading && <Spinner />}
       {!isLoading && icon && order === "primary" && (
         <>
-          <img
-            src={icon}
-            alt=""
-            className={`w-6 h-6 min-w-[24px] ${type == "secondary" ? "brightness-0" : ""}`}
-          />
+          <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />
           {children}
         </>
       )}
       {!isLoading && icon && order === "secondary" && (
         <>
           {children}
-          <img
-            src={icon}
-            alt=""
-            className={`w-6 h-6 min-w-[24px] ${type == "secondary" ? "brightness-0" : ""}`}
-          />
+          <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />
         </>
       )}
       {!isLoading && !icon && children}
