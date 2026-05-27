@@ -81,8 +81,8 @@ export default defineConfig({
     screenshot: "off",
     video: "off",
     ...devices["Desktop Chrome"],
-    // Fast Chrome settings
-    ...(chromiumExecutablePath ? {} : { channel: "chrome" }),
+    // Use custom executable path if found, otherwise default to Playwright's chromium
+    ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
     launchOptions: browserLaunchOptions,
   },
 
