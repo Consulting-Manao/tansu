@@ -56,6 +56,9 @@ export interface DecodedVote {
   seed: number;
   weight: number;
   maxWeight: number | string;
+  // All outcome weights and seeds (for detecting problematic votes)
+  outcomeWeights: [number, number, number]; // [approve, reject, abstain]
+  outcomeSeeds: [number, number, number]; // [approve, reject, abstain]
 }
 
 export interface AnonymousVotingData {
@@ -165,6 +168,10 @@ export async function computeAnonymousVotingData(
       }
     }
 
+    // Capture all outcome weights and seeds for this voter
+    const outcomeWeights: [number, number, number] = [0, 0, 0];
+    const outcomeSeeds: [number, number, number] = [0, 0, 0];
+
     // Process each choice
     for (let i = 0; i < 3; i++) {
       if (i >= encryptedVotes.length || i >= encryptedSeeds.length) continue;
@@ -188,6 +195,10 @@ export async function computeAnonymousVotingData(
               .pop()!,
           );
 
+      // Store all outcome weights and seeds
+      outcomeWeights[i] = vDec;
+      outcomeSeeds[i] = sDec;
+
       if (vDec > 0) voteChoiceIdx = i;
       if (vDec > 0) selectedSeedRaw = sDec; // capture per-voter unweighted seed for display
 
@@ -210,6 +221,8 @@ export async function computeAnonymousVotingData(
       seed: selectedSeedRaw,
       weight,
       maxWeight,
+      outcomeWeights,
+      outcomeSeeds,
     });
   }
 

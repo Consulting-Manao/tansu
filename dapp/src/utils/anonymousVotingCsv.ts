@@ -1,6 +1,12 @@
 import type { DecodedVote } from "./anonymousVoting";
 
-const CSV_HEADERS = ["Address", "Vote", "Weight", "Max Weight", "Seed"];
+const CSV_HEADERS = [
+  "Address",
+  "Vote",
+  "Weight (A/R/Abs)",
+  "Max Weight",
+  "Seed (A/R/Abs)",
+];
 
 export function escapeCsvValue(value: unknown): string {
   const normalized = String(value ?? "");
@@ -13,7 +19,13 @@ export function escapeCsvValue(value: unknown): string {
 
 export function buildDecodedVotesCsv(decodedVotes: DecodedVote[]): string {
   const rows = decodedVotes.map((vote) =>
-    [vote.address, vote.vote, vote.weight, vote.maxWeight, vote.seed]
+    [
+      vote.address,
+      vote.vote,
+      vote.outcomeWeights.join("/"),
+      vote.maxWeight,
+      vote.outcomeSeeds.join("/"),
+    ]
       .map(escapeCsvValue)
       .join(","),
   );

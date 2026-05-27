@@ -84,9 +84,9 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                   <tr className="bg-zinc-100 text-left">
                     <th className="p-2">Address</th>
                     <th>Vote</th>
-                    <th>Weight</th>
+                    <th>Weights (A/R/Abs)</th>
                     <th>Max</th>
-                    <th>Seed</th>
+                    <th>Seeds (A/R/Abs)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -95,20 +95,32 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                     const exceedsMaxWeight =
                       Number.isFinite(maxWeight) && v.weight > maxWeight;
 
+                    // Check if multiple outcome weights are non-zero (problematic vote)
+                    const nonZeroWeightCount = v.outcomeWeights.filter(
+                      (w) => w > 0,
+                    ).length;
+                    const hasMultipleNonZeroWeights = nonZeroWeightCount > 1;
+
                     return (
                       <tr
                         key={i}
                         className={`odd:bg-white even:bg-zinc-50 ${
-                          exceedsMaxWeight ? "!bg-yellow-100" : ""
+                          exceedsMaxWeight || hasMultipleNonZeroWeights
+                            ? "!bg-yellow-100"
+                            : ""
                         }`}
                       >
                         <td className="p-1">
                           <AddressDisplay address={v.address} />
                         </td>
                         <td className="p-1">{v.vote}</td>
-                        <td className="p-1">{v.weight}</td>
+                        <td className="p-1 font-mono">
+                          {v.outcomeWeights.join("/")}
+                        </td>
                         <td className="p-1">{v.maxWeight}</td>
-                        <td className="p-1">{v.seed}</td>
+                        <td className="p-1 font-mono">
+                          {v.outcomeSeeds.join("/")}
+                        </td>
                       </tr>
                     );
                   })}
