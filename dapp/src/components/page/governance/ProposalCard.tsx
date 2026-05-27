@@ -36,10 +36,11 @@ const ProposalCard: React.FC<Props> = ({ proposal, onVoteClick }) => {
           </span>
         </div>
       </div>
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
         <ProposalStatusSection proposal={proposal} />
         {proposal.status == "active" && (
           <Button
+            size="md"
             type={userHasVoted ? "secondary" : "primary"}
             icon={userHasVoted ? "" : "/icons/vote.svg"}
             disabled={userHasVoted}
