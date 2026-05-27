@@ -115,6 +115,10 @@ const ProposalList: React.FC = () => {
           projectName={projectName}
           proposalId={proposalId}
           proposalTitle={proposalTitle}
+          onVoteSuccess={() => {
+            fetchProposalData(currentPage);
+            setShowVotingModal(false);
+          }}
           onClose={() => setShowVotingModal(false)}
         />
       )}

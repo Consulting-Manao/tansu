@@ -10,6 +10,7 @@ import {
   type ProposalStatus,
   type ProposalView,
   type ProposalViewStatus,
+  type VoteStatus,
 } from "types/proposal";
 import {
   buildRepositoryUrlFromProjectPath,
@@ -132,6 +133,22 @@ export function parseContractOptionString(value: unknown): string | null {
   }
   return null;
 }
+
+export const hasUserVoted = (
+  voteStatus: VoteStatus | undefined,
+  userAddress: string | undefined,
+): boolean => {
+  if (!voteStatus || !userAddress) return false;
+  const normalizedAddress = userAddress.toLowerCase();
+  const allVoters = [
+    ...(voteStatus.approve?.voters || []),
+    ...(voteStatus.reject?.voters || []),
+    ...(voteStatus.abstain?.voters || []),
+  ];
+  return allVoters.some(
+    (voter) => voter.address.toLowerCase() === normalizedAddress,
+  );
+};
 
 export const modifyProposalToView = (
   proposal: Proposal,

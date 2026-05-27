@@ -42,25 +42,34 @@ const Button: FC<Props> = ({
   return (
     <button
       id={id}
-      className={`${className} ${type == "primary" ? "bg-primary text-white" : type == "secondary" ? "bg-[#F5F1F9] text-primary" : type == "tertiary" ? "border border-primary text-primary" : "bg-white text-primary"} cursor-pointer flex justify-center items-center whitespace-nowrap ${sizeMap[size]} hover:opacity-90 transition-opacity`}
+      className={`${className} ${type == "primary" ? "bg-primary text-white" : type == "secondary" ? "bg-[#F5F1F9] text-primary" : type == "tertiary" ? "border border-primary text-primary" : "bg-white text-primary"} ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"} flex justify-center items-center whitespace-nowrap ${sizeMap[size]} hover:opacity-90 transition-opacity`}
       onClick={onClick}
       title={title}
       disabled={disabled}
       {...rest}
     >
       {isLoading && <Spinner />}
-      {!isLoading && order === "primary" && (
+      {!isLoading && icon && order === "primary" && (
         <>
-          {icon && <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />}
+          <img
+            src={icon}
+            alt=""
+            className={`w-6 h-6 min-w-[24px] ${type == "secondary" ? "brightness-0" : ""}`}
+          />
           {children}
         </>
       )}
-      {!isLoading && order === "secondary" && (
+      {!isLoading && icon && order === "secondary" && (
         <>
           {children}
-          {icon && <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />}
+          <img
+            src={icon}
+            alt=""
+            className={`w-6 h-6 min-w-[24px] ${type == "secondary" ? "brightness-0" : ""}`}
+          />
         </>
       )}
+      {!isLoading && !icon && children}
     </button>
   );
 };

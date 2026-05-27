@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Member } from "../../../../packages/tansu";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
-import { toast, truncateMiddle } from "utils/utils";
+import { hasUserVoted, toast, truncateMiddle } from "utils/utils";
 import { getMember } from "@service/ReadContractService";
 import MemberProfileModal from "components/page/dashboard/MemberProfileModal";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
@@ -71,6 +71,7 @@ const ProposalTitle: React.FC<Props> = ({
       (proposal?.voteStatus?.reject?.voters?.length || 0) +
       (proposal?.voteStatus?.abstain?.voters?.length || 0)
     : 0;
+  const userHasVoted = hasUserVoted(proposal?.voteStatus, connectedAddress);
 
   return (
     <>
@@ -152,11 +153,13 @@ const ProposalTitle: React.FC<Props> = ({
                 <div className="flex gap-3">
                   {proposal?.status == "active" && (
                     <Button
+                      {...(userHasVoted ? { type: "secondary" } : {})}
                       size="sm"
                       icon="/icons/vote.svg"
-                      onClick={() => submitVote()}
+                      disabled={userHasVoted}
+                      onClick={() => !userHasVoted && submitVote()}
                     >
-                      Vote
+                      {userHasVoted ? "Already Voted" : "Vote"}
                     </Button>
                   )}
                   {proposal?.status == "voted" && isMaintainer && (

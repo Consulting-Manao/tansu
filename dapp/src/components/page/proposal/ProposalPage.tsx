@@ -8,7 +8,7 @@ import Loading from "components/utils/Loading";
 import React, { useEffect, useState } from "react";
 import type { Proposal, ProposalOutcome, ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
-import { modifyProposalToView, toast } from "utils/utils";
+import { hasUserVoted, modifyProposalToView, toast } from "utils/utils";
 import ExecuteProposalModal from "./ExecuteProposalModal";
 import ProposalDetail from "./ProposalDetail";
 import ProposalTitle from "./ProposalTitle";
@@ -28,7 +28,8 @@ const ProposalPage: React.FC = () => {
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [projectMaintainers, setProjectMaintainers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isVoted, setIsVoted] = useState(false);
+
+  const userHasVoted = hasUserVoted(proposal?.voteStatus, connectedAddress);
 
   const openVotingModal = () => {
     if (proposal?.status === "active") {
@@ -100,7 +101,7 @@ const ProposalPage: React.FC = () => {
 
   useEffect(() => {
     getProposalDetails();
-  }, [id, projectName, isVoted]);
+  }, [id, projectName]);
 
   return (
     <>
@@ -128,8 +129,8 @@ const ProposalPage: React.FC = () => {
               projectName={projectName}
               proposalId={id}
               proposalTitle={proposal?.title}
-              isVoted={isVoted}
-              setIsVoted={setIsVoted}
+              isVoted={userHasVoted}
+              onVoteSuccess={getProposalDetails}
               onClose={() => setIsVotingModalOpen(false)}
             />
           )}

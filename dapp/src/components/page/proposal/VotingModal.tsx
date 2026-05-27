@@ -14,7 +14,8 @@ interface VotersModalProps extends ModalProps {
   proposalId: number | undefined;
   proposalTitle: string | undefined;
   isVoted?: boolean;
-  setIsVoted?: React.Dispatch<React.SetStateAction<boolean>>;
+  onVoteSuccess?: () => void;
+  onClose: () => void;
 }
 
 const VotingModal: React.FC<VotersModalProps> = ({
@@ -22,7 +23,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
   proposalId,
   proposalTitle,
   isVoted,
-  setIsVoted,
+  onVoteSuccess,
   onClose,
 }) => {
   const [selectedOption, setSelectedOption] = useState<VoteType | null>(null);
@@ -127,7 +128,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
         selectedOption as VoteType,
         selectedWeight,
       );
-      setIsVoted?.(true);
+      onVoteSuccess?.();
       setStep(2);
       onClose();
     } catch (error: any) {
