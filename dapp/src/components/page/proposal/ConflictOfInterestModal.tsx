@@ -32,6 +32,9 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   const [selectedAddresses, setSelectedAddresses] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedPendingAddresses, setSelectedPendingAddresses] = useState<
+    Set<string>
+  >(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAddress, setNewAddress] = useState<string>("");
@@ -79,6 +82,29 @@ const ConflictOfInterestModal: React.FC<Props> = ({
     }
   };
 
+  const handleTogglePendingSelection = (address: string) => {
+    setSelectedPendingAddresses((prev) => {
+      const next = new Set(prev);
+      if (next.has(address)) {
+        next.delete(address);
+      } else {
+        next.add(address);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllPending = () => {
+    if (
+      selectedPendingAddresses.size === pendingAddresses.length &&
+      pendingAddresses.length > 0
+    ) {
+      setSelectedPendingAddresses(new Set());
+    } else {
+      setSelectedPendingAddresses(new Set(pendingAddresses));
+    }
+  };
+
   const handleAdd = () => {
     const trimmed = newAddress.trim();
     if (!trimmed) {
@@ -105,6 +131,16 @@ const ConflictOfInterestModal: React.FC<Props> = ({
 
   const handleRemovePending = (address: string) => {
     setPendingAddresses((prev) => prev.filter((a) => a !== address));
+    if (selectedPendingAddresses.has(address)) {
+      handleTogglePendingSelection(address);
+    }
+  };
+
+  const handleBulkRemovePending = () => {
+    setPendingAddresses((prev) =>
+      prev.filter((addr) => !selectedPendingAddresses.has(addr)),
+    );
+    setSelectedPendingAddresses(new Set());
   };
 
   const handleApplyChanges = async () => {
@@ -118,6 +154,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
         `${pendingAddresses.length} address(es) added to the conflict list.`,
       );
       setPendingAddresses([]);
+      setSelectedPendingAddresses(new Set());
       await loadAddresses();
     } catch (error: any) {
       toast.error(
@@ -289,28 +326,63 @@ const ConflictOfInterestModal: React.FC<Props> = ({
 
         {pendingAddresses.length > 0 && (
           <div className="flex flex-col gap-3 mt-2 animate-in fade-in slide-in-from-top-2">
-            <p className="leading-4 text-base font-semibold text-primary">
-              Pending to add
-            </p>
+            <div className="flex justify-between items-center">
+              <p className="leading-4 text-base font-semibold text-primary">
+                Pending to add
+              </p>
+              <label className="flex items-center gap-2 text-sm cursor-pointer text-secondary hover:text-primary transition-colors">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedPendingAddresses.size === pendingAddresses.length &&
+                    pendingAddresses.length > 0
+                  }
+                  onChange={handleSelectAllPending}
+                  disabled={isSubmitting}
+                  className="w-4 h-4 accent-primary cursor-pointer"
+                />
+                Select all
+              </label>
+            </div>
             <div className="flex flex-col gap-2 max-h-[200px] overflow-auto pr-1">
               {pendingAddresses.map((addr) => (
-                <VoterInfo
-                  key={addr}
-                  address={addr}
-                  action={
-                    <Button
-                      type="tertiary"
-                      size="xs"
-                      onClick={() => handleRemovePending(addr)}
-                      disabled={isSubmitting}
-                    >
-                      Remove
-                    </Button>
-                  }
-                />
+                <div key={addr} className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedPendingAddresses.has(addr)}
+                    onChange={() => handleTogglePendingSelection(addr)}
+                    disabled={isSubmitting}
+                    className="w-4 h-4 cursor-pointer accent-primary shrink-0"
+                  />
+                  <div className="flex-grow">
+                    <VoterInfo
+                      address={addr}
+                      action={
+                        <Button
+                          type="tertiary"
+                          size="xs"
+                          onClick={() => handleRemovePending(addr)}
+                          disabled={isSubmitting}
+                        >
+                          Remove
+                        </Button>
+                      }
+                    />
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-end items-center gap-3 mt-2">
+              {selectedPendingAddresses.size > 0 && (
+                <Button
+                  type="tertiary"
+                  size="sm"
+                  onClick={handleBulkRemovePending}
+                  disabled={isSubmitting}
+                >
+                  Remove Selected ({selectedPendingAddresses.size})
+                </Button>
+              )}
               <Button
                 onClick={handleApplyChanges}
                 isLoading={isSubmitting}
