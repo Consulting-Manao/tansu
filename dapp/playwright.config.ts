@@ -82,7 +82,9 @@ export default defineConfig({
     video: "off",
     ...devices["Desktop Chrome"],
     // Use custom executable path if found, otherwise default to Playwright's chromium
-    ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
+    ...(chromiumExecutablePath
+      ? { executablePath: chromiumExecutablePath }
+      : {}),
     launchOptions: browserLaunchOptions,
   },
 
