@@ -36,7 +36,12 @@ pub trait TansuTrait {
 
     fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef);
 
-    fn set_nqg_contract(env: Env, admin: Address, nqg_contract: types::ContractRef, project: String);
+    fn set_nqg_contract(
+        env: Env,
+        admin: Address,
+        nqg_contract: types::ContractRef,
+        project: String,
+    );
 
     fn propose_upgrade(
         env: Env,

@@ -139,7 +139,12 @@ impl TansuTrait for Tansu {
     /// * `env` - The environment object
     /// * `admin` - The admin address
     /// * `nqg_contract` - The new NQG contract
-    fn set_nqg_contract(env: Env, admin: Address, nqg_contract: types::ContractRef, project: String) {
+    fn set_nqg_contract(
+        env: Env,
+        admin: Address,
+        nqg_contract: types::ContractRef,
+        project: String,
+    ) {
         auth_admin(&env, &admin);
 
         validate_contract(&env, &nqg_contract);
