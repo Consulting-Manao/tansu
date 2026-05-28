@@ -38,7 +38,6 @@
     "react-dom": "^19.2.6",
     "react18-json-view": "0.2.10",
     "recharts": "3.8.1",
-    "tmp": "^0.2.6",
     "toml": "^4.1.1",
     "typescript": "^6.0.3"
   },
