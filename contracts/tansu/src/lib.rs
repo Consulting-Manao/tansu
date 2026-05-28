@@ -80,6 +80,7 @@ pub trait MembershipTrait {
 }
 
 pub trait VersioningTrait {
+    #[allow(clippy::too_many_arguments)]
     fn register(
         env: Env,
         maintainer: Address,
@@ -88,9 +89,12 @@ pub trait VersioningTrait {
         url: String,
         ipfs: String,
         min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
     ) -> Bytes;
 
     fn get_min_voting_period(env: Env, project_key: Bytes) -> u64;
+
+    fn get_execute_delay(env: Env, project_key: Bytes) -> u64;
 
     fn update_config(
         env: Env,

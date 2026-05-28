@@ -756,7 +756,12 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if curr_timestamp < proposal.vote_data.voting_ends_at + types::TIMELOCK_DELAY {
+        let execute_delay = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::ExecuteDelay(project_key.clone()))
+            .unwrap_or(types::TIMELOCK_DELAY);
+        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 

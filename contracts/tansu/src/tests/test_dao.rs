@@ -154,7 +154,7 @@ fn scf_voting() {
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(
@@ -1427,6 +1427,7 @@ fn min_voting_period_override_applies_to_create_proposal() {
         &url,
         &ipfs,
         &Some(seven_days),
+        &None,
     );
 
     let title = String::from_str(&setup.env, "Some proposal title");
@@ -1464,4 +1465,82 @@ fn min_voting_period_override_applies_to_create_proposal() {
         &None,
         &None,
     );
+}
+
+#[test]
+fn execute_delay_override_applies_to_execute() {
+    // A project with a per-project execute delay of 60s should allow execute()
+    // 60s past voting_ends_at, even though TIMELOCK_DELAY is 24h.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "fastdao");
+    let url = String::from_str(&setup.env, "github.com/fastdao");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let fast_delay = 60u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(fast_delay),
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Before per-project delay: execute should panic.
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + fast_delay - 1);
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Exactly at per-project delay: execute should succeed (even though
+    // TIMELOCK_DELAY=24h hasn't elapsed).
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + fast_delay);
+    let status = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(status, ProposalStatus::Approved);
 }
