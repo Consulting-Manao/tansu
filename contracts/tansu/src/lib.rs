@@ -96,7 +96,10 @@ pub trait VersioningTrait {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
     ) -> Bytes;
+
+    fn get_min_voting_period(env: Env, project_key: Bytes) -> u64;
 
     fn update_config(
         env: Env,

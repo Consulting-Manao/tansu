@@ -42,6 +42,9 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
+    /// * `min_voting_period` - Optional per-project minimum voting period in seconds.
+    ///   When `None`, the global default is used. When `Some(v)`, `v` must be > 0 and
+    ///   <= `MAX_VOTING_PERIOD`.
     ///
     /// # Returns
     /// * `Bytes` - The project key (keccak256 hash of the name)
@@ -51,6 +54,7 @@ impl VersioningTrait for Tansu {
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
+    /// * If `min_voting_period` is `Some(0)` or exceeds `MAX_VOTING_PERIOD`
     fn register(
         env: Env,
         maintainer: Address,
@@ -58,8 +62,15 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
     ) -> Bytes {
         Tansu::require_not_paused(env.clone());
+
+        if let Some(v) = min_voting_period
+            && (v == 0 || v > crate::contract_dao::MAX_VOTING_PERIOD)
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+        }
 
         let project = types::Project {
             name: name.clone(),
@@ -131,6 +142,12 @@ impl VersioningTrait for Tansu {
             env.storage()
                 .persistent()
                 .set(&types::ProjectKey::TotalProjects, &(total_projects + 1));
+
+            if let Some(v) = min_voting_period {
+                env.storage()
+                    .persistent()
+                    .set(&types::ProjectKey::MinVotingPeriod(key.clone()), &v);
+            }
 
             events::ProjectRegistered {
                 project_key: key.clone(),
@@ -344,6 +361,17 @@ impl VersioningTrait for Tansu {
             .persistent()
             .get(&types::ProjectKey::Evidence(project_key, commit_hash, kind))
             .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    /// Get the effective minimum voting period for a project in seconds.
+    ///
+    /// Returns the per-project override stored at registration if set, otherwise
+    /// the global `MIN_VOTING_PERIOD` default.
+    fn get_min_voting_period(env: Env, project_key: Bytes) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::MinVotingPeriod(project_key))
+            .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD)
     }
 
     /// Get project information including configuration and maintainers.
