@@ -76,13 +76,13 @@ pub fn create_test_data() -> TestSetup {
         _ => panic!(),
     };
 
-    let new_domain = types::Contract {
+    let new_domain = types::ContractRef {
         address: domain_id.clone(),
         wasm_hash: Some(wasm_hash.clone()),
     };
     contract.set_domain_contract(&contract_admin, &new_domain);
 
-    let new_collateral = types::Contract {
+    let new_collateral = types::ContractRef {
         address: sac.address(),
         wasm_hash: None,
     };
@@ -93,7 +93,7 @@ pub fn create_test_data() -> TestSetup {
         Executable::Wasm(wasm) => wasm,
         _ => panic!(),
     };
-    let nqg_contract = types::Contract {
+    let nqg_contract = types::ContractRef {
         address: nqg_id.clone(),
         wasm_hash: Some(wasm_hash.clone()),
     };
