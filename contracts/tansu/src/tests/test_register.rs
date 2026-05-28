@@ -28,7 +28,7 @@ fn register_events() {
 
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
 
     let event = ProjectRegistered {
         project_key: id.clone(),
@@ -66,7 +66,7 @@ fn register_double_registration_error() {
     // double registration
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProjectAlreadyExist.into());
@@ -85,7 +85,15 @@ fn register_name_too_long_error() {
     // name too long
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name_long, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name_long,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidProjectName.into());
@@ -104,7 +112,15 @@ fn register_invalid_name_chars_error() {
 
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name_invalid, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name_invalid,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidProjectName.into());
@@ -122,7 +138,7 @@ fn register_insufficient_collateral_error() {
     // grogu has no tokens — collateral transfer should fail
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::CollateralError.into());
@@ -157,7 +173,7 @@ fn test_project_listing() {
         let ipfs_str = std::format!("{}{}", ipfs_prefix, i);
         let ipfs = String::from_str(env, &ipfs_str);
 
-        client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
+        client.register(maintainer, &name, &maintainers, &url, &ipfs, &None, &None);
     }
 
     // Check first page (should have items_per_page projects)
@@ -201,7 +217,15 @@ fn test_sub_projects() {
     let url2 = String::from_str(env, "github.com/subproject");
     let ipfs2 = String::from_str(env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers2 = vec![env, maintainer.clone()];
-    let sub_project_id = client.register(maintainer, &name2, &maintainers2, &url2, &ipfs2, &None);
+    let sub_project_id = client.register(
+        maintainer,
+        &name2,
+        &maintainers2,
+        &url2,
+        &ipfs2,
+        &None,
+        &None,
+    );
 
     // Set sub-projects
     let sub_projects = vec![env, sub_project_id.clone()];
@@ -247,7 +271,8 @@ fn test_sub_projects_limit() {
             &std::format!("2ef4f49fdd8fa9dc463f1f06a094c26b8871099{}", i),
         );
         let maintainers = vec![env, maintainer.clone()];
-        let sub_project_id = client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
+        let sub_project_id =
+            client.register(maintainer, &name, &maintainers, &url, &ipfs, &None, &None);
         sub_project_ids.push_back(sub_project_id);
     }
 
@@ -298,6 +323,7 @@ fn min_voting_period_override_is_stored_and_read() {
         &url,
         &ipfs,
         &Some(custom),
+        &None,
     );
     assert_eq!(setup.contract.get_min_voting_period(&id), custom);
 }
@@ -316,7 +342,15 @@ fn min_voting_period_rejects_zero() {
 
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(0u64))
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(0u64),
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
@@ -344,6 +378,68 @@ fn min_voting_period_rejects_above_max() {
             &url,
             &ipfs,
             &Some(too_long),
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn execute_delay_defaults_when_unset() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    // Mirrors TIMELOCK_DELAY = 24 * 3600.
+    assert_eq!(setup.contract.get_execute_delay(&id), 24 * 3600);
+}
+
+#[test]
+fn execute_delay_override_is_stored_and_read() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let custom = 60u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(custom),
+    );
+    assert_eq!(setup.contract.get_execute_delay(&id), custom);
+}
+
+#[test]
+fn execute_delay_rejects_zero() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &Some(0u64),
         )
         .unwrap_err()
         .unwrap();

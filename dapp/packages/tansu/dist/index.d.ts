@@ -136,6 +136,10 @@ export type ProjectKey =
   | {
       tag: "MinVotingPeriod";
       values: readonly [Buffer];
+    }
+  | {
+      tag: "ExecuteDelay";
+      values: readonly [Buffer];
     };
 export interface PublicVote {
   address: string;
@@ -1181,16 +1185,10 @@ export interface Client {
    * * `min_voting_period` - Optional per-project minimum voting period in seconds.
    * When `None`, the global default is used. When `Some(v)`, `v` must be > 0 and
    * <= `MAX_VOTING_PERIOD`.
-   *
-   * # Returns
-   * * `Bytes` - The project key (keccak256 hash of the name)
-   *
-   * # Panics
-   * * If the project name is longer than 15 characters
-   * * If the project already exists
-   * * If the maintainer is not authorized
-   * * If the domain registration fails
-   * * If the maintainer doesn't own
+   * * `execute_delay` - Optional per-project DAO execute timelock in seconds. When
+   * `None`, the global `TIMELOCK_DELAY` is used. When `Some(v)`, `v` must be > 0
+   * and <= `MAX_VOTING_PERIOD`. Only affects DAO proposal `execute()`; the admin
+   * upgrade timelock in `propose_upgr
    */
   register: (
     {
@@ -1200,6 +1198,7 @@ export interface Client {
       url,
       ipfs,
       min_voting_period,
+      execute_delay,
     }: {
       maintainer: string;
       name: string;
@@ -1207,6 +1206,7 @@ export interface Client {
       url: string;
       ipfs: string;
       min_voting_period: Option<u64>;
+      execute_delay: Option<u64>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Buffer>>;
@@ -1359,6 +1359,22 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
+   * Construct and simulate a get_execute_delay transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the effective DAO execute timelock for a project in seconds.
+   *
+   * Returns the per-project override stored at registration if set, otherwise
+   * the global `TIMELOCK_DELAY` default. Only governs DAO proposal `execute()`;
+   * the admin upgrade timelock in `propose_upgrade` is unaffected.
+   */
+  get_execute_delay: (
+    {
+      project_key,
+    }: {
+      project_key: Buffer;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<u64>>;
+  /**
    * Construct and simulate a get_min_voting_period transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get the effective minimum voting period for a project in seconds.
    *
@@ -1441,6 +1457,7 @@ export declare class Client extends ContractClient {
     update_config: (json: string) => AssembledTransaction<null>;
     get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
+    get_execute_delay: (json: string) => AssembledTransaction<bigint>;
     get_min_voting_period: (json: string) => AssembledTransaction<bigint>;
   };
 }

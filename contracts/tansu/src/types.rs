@@ -202,6 +202,7 @@ pub enum ProjectKey {
     TotalProjects,                  // Total number of projects
     ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
     MinVotingPeriod(Bytes),         // Per-project minimum voting period override (seconds)
+    ExecuteDelay(Bytes),            // Per-project DAO execute timelock override (seconds)
 }
 
 #[contracttype]
