@@ -303,14 +303,7 @@ fn min_voting_period_rejects_zero() {
 
     let err = setup
         .contract
-        .try_register(
-            &setup.grogu,
-            &name,
-            &maintainers,
-            &url,
-            &ipfs,
-            &Some(0u64),
-        )
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(0u64))
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
