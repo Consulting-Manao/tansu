@@ -154,7 +154,7 @@ fn scf_voting() {
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(
@@ -1402,4 +1402,66 @@ fn remove_vote_anonymous_flips_outcome() {
         &Some(vec![&setup.env, 6u128, 0u128, 0u128]),
     );
     assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn min_voting_period_override_applies_to_create_proposal() {
+    // A project with a per-project minimum of 7 days should reject a 2-day
+    // proposal even though 2 days clears the global 24h default.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "stricter");
+    let url = String::from_str(&setup.env, "github.com/stricter");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let seven_days = 7 * 24 * 3600u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(seven_days),
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let two_days_out = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+
+    let err = setup
+        .contract
+        .try_create_proposal(
+            &setup.grogu,
+            &id,
+            &title,
+            &prop_ipfs,
+            &two_days_out,
+            &true,
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
+
+    // And a proposal that respects the 7-day floor succeeds.
+    let eight_days_out = setup.env.ledger().timestamp() + 8 * 24 * 3600;
+    let _proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &eight_days_out,
+        &true,
+        &None,
+        &None,
+    );
 }

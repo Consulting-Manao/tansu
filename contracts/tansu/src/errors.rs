@@ -26,6 +26,7 @@ pub enum ContractErrors {
     VoterWeight = 209,
     VoteLimitExceeded = 210,
     VoterConflicted = 211,
+    InvalidVotingPeriod = 212,
 
     // State (300-399)
     NoHashFound = 300,

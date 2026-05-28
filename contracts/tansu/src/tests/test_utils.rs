@@ -130,5 +130,5 @@ pub fn init_contract(setup: &TestSetup) -> Bytes {
 
     setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs)
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
 }

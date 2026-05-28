@@ -28,7 +28,7 @@ fn register_events() {
 
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
 
     let event = ProjectRegistered {
         project_key: id.clone(),
@@ -66,7 +66,7 @@ fn register_double_registration_error() {
     // double registration
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs)
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProjectAlreadyExist.into());
@@ -85,7 +85,7 @@ fn register_name_too_long_error() {
     // name too long
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name_long, &maintainers, &url, &ipfs)
+        .try_register(&setup.grogu, &name_long, &maintainers, &url, &ipfs, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidDomainError.into());
@@ -109,7 +109,7 @@ fn register_maintainer_not_domain_owner_error() {
     let name_b_str = String::from_str(&setup.env, "bob");
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name_b_str, &maintainers, &url, &ipfs)
+        .try_register(&setup.grogu, &name_b_str, &maintainers, &url, &ipfs, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::MaintainerNotDomainOwner.into());
@@ -144,7 +144,7 @@ fn test_project_listing() {
         let ipfs_str = std::format!("{}{}", ipfs_prefix, i);
         let ipfs = String::from_str(env, &ipfs_str);
 
-        client.register(maintainer, &name, &maintainers, &url, &ipfs);
+        client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
     }
 
     // Check first page (should have items_per_page projects)
@@ -188,7 +188,7 @@ fn test_sub_projects() {
     let url2 = String::from_str(env, "github.com/subproject");
     let ipfs2 = String::from_str(env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers2 = vec![env, maintainer.clone()];
-    let sub_project_id = client.register(maintainer, &name2, &maintainers2, &url2, &ipfs2);
+    let sub_project_id = client.register(maintainer, &name2, &maintainers2, &url2, &ipfs2, &None);
 
     // Set sub-projects
     let sub_projects = vec![env, sub_project_id.clone()];
@@ -234,7 +234,7 @@ fn test_sub_projects_limit() {
             &std::format!("2ef4f49fdd8fa9dc463f1f06a094c26b8871099{}", i),
         );
         let maintainers = vec![env, maintainer.clone()];
-        let sub_project_id = client.register(maintainer, &name, &maintainers, &url, &ipfs);
+        let sub_project_id = client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
         sub_project_ids.push_back(sub_project_id);
     }
 
@@ -255,4 +255,91 @@ fn test_sub_projects_limit() {
     // Verify 10 sub-projects were set
     let sub_projects_after = client.get_sub_projects(&project_id);
     assert_eq!(sub_projects_after.len(), 10);
+}
+
+#[test]
+fn min_voting_period_defaults_when_unset() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    // 24h default (also defined in contract_dao but asserted on the public read path)
+    assert_eq!(setup.contract.get_min_voting_period(&id), 24 * 3600);
+}
+
+#[test]
+fn min_voting_period_override_is_stored_and_read() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let custom = 7 * 24 * 3600u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(custom),
+    );
+    assert_eq!(setup.contract.get_min_voting_period(&id), custom);
+}
+
+#[test]
+fn min_voting_period_rejects_zero() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(0u64),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn min_voting_period_rejects_above_max() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let too_long = 30 * 24 * 3600u64 + 1; // one second past MAX_VOTING_PERIOD
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(too_long),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
 }
