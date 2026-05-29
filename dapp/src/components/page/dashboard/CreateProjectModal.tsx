@@ -798,9 +798,9 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                           className="flex-1"
                           value={address}
                           {...(i == 0 && {
-                            label: "Maintainer Wallet Address",
+                            label: "Maintainer Address",
                           })}
-                          placeholder="G..."
+                          placeholder="G... or C..."
                           onChange={(e) => {
                             setMaintainerAddresses(
                               maintainerAddresses.map((addr, j) =>

@@ -6,14 +6,24 @@ import { isSupportedRepositoryUrl } from "../utils/editLinkFunctions";
  * Type-safe, composable validation for all form inputs and data.
  */
 
-// Base field schemas
+// Stellar account address (G...).
 export const stellarAddressSchema = z
   .string()
   .min(1, "Stellar address is required")
   .length(56, "Stellar address must be 56 characters long")
+  .regex(/^G[A-Z0-9]{55}$/, "Enter a valid Stellar account address (G...)");
+
+// Stellar principal: account (G...) or Soroban contract (C...).
+// Used where the on-chain contract treats both as equivalent authorizers via
+// require_auth() — notably project maintainers, where a contract address can
+// be a DAO, multisig, or other contract acting on the project's behalf.
+export const stellarPrincipalSchema = z
+  .string()
+  .min(1, "Stellar address is required")
+  .length(56, "Stellar address must be 56 characters long")
   .regex(
-    /^G[A-Z0-9]{55}$/,
-    "Invalid Stellar address format. Must start with G and contain only uppercase letters and numbers",
+    /^[GC][A-Z0-9]{55}$/,
+    "Enter a valid Stellar account (G...) or contract (C...) address",
   );
 
 export const projectNameSchema = z
@@ -71,7 +81,7 @@ export const textContentSchema = (minWords = 3, fieldName = "Text") =>
 export const createProjectSchema = z.object({
   projectName: projectNameSchema,
   maintainerAddresses: z
-    .array(stellarAddressSchema)
+    .array(stellarPrincipalSchema)
     .min(1, "At least one maintainer is required"),
   maintainerGithubs: z
     .array(githubHandleSchema)
@@ -183,7 +193,7 @@ export const validateGithubUrl = (url: string): string | null =>
   validateField(githubUrlSchema, url);
 
 export const validateMaintainerAddress = (address: string): string | null =>
-  validateField(stellarAddressSchema, address);
+  validateField(stellarPrincipalSchema, address);
 
 export const validateUrl = (url: string, required = false): string | null =>
   validateField(required ? httpsUrlSchema : optionalHttpsUrlSchema, url);
