@@ -1,88 +1,74 @@
 import { getProposalPages, getProposals } from "@service/ReadContractService";
 import Loading from "components/utils/Loading";
 import { useEffect, useState } from "react";
-import type { ProposalView } from "types/proposal";
-import { modifyProposalToView, toast } from "utils/utils";
+import { modifyProposalToView } from "utils/utils";
 import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
+import { queryKeys } from "@service/cache/cacheKeys";
+import { useCachedQuery } from "@service/cache/cacheHooks";
 
 const ProposalList: React.FC = () => {
   const projectName =
     new URLSearchParams(window.location.search).get("name") || "";
-  const [totalPage, setTotalPage] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
-  const [proposalData, setProposalData] = useState<ProposalView[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [showVotingModal, setShowVotingModal] = useState(false);
   const [proposalId, setProposalId] = useState<number>();
   const [proposalTitle, setProposalTitle] = useState<string>();
 
-  const fetchProposalPages = async () => {
-    try {
-      if (projectName) {
-        const contractTotalPage = Math.max(
-          1,
-          (await getProposalPages(projectName)) ?? 1,
-        );
-        const uiTotalPage = Math.max(1, Math.ceil(contractTotalPage / 2));
-        setTotalPage(uiTotalPage);
-        setCurrentPage((previousPage) =>
-          Math.min(Math.max(previousPage, 0), uiTotalPage - 1),
-        );
-      }
-    } catch (err: any) {
-      toast.error("Proposal list", err.message);
-    }
-  };
+  const proposalPagesQuery = useCachedQuery({
+    queryKey: queryKeys.proposals.pages(projectName),
+    queryFn: async () => {
+      if (!projectName) return 1;
+      return Math.max(1, (await getProposalPages(projectName)) ?? 1);
+    },
+    ttlMs: 4 * 60 * 60 * 1000,
+  });
 
-  const fetchProposalData = async (_page: number) => {
-    if (projectName) {
-      setIsLoading(true);
-      try {
-        const contractTotalPage = Math.max(
-          1,
-          (await getProposalPages(projectName)) ?? 1,
-        );
-        const latestContractPage = contractTotalPage - 1 - _page * 2;
-        const contractPagesToFetch = [
-          latestContractPage,
-          latestContractPage - 1,
-        ].filter((page) => page >= 0);
+  const contractTotalPage = Math.max(1, proposalPagesQuery.data ?? 1);
+  const totalPage = Math.max(1, Math.ceil(contractTotalPage / 2));
 
-        const proposals = (
-          await Promise.all(
-            contractPagesToFetch.map((page) => getProposals(projectName, page)),
-          )
-        ).flatMap((pageProposals) => pageProposals ?? []);
+  const proposalDataQuery = useCachedQuery({
+    queryKey: queryKeys.proposals.list(projectName, currentPage),
+    queryFn: async () => {
+      if (!projectName) return [];
 
-        const updatedProposalData = proposals
-          .map((proposal) => {
-            return modifyProposalToView(proposal, projectName);
-          })
-          .sort((a, b) => b.id - a.id);
-        setProposalData(updatedProposalData);
-      } catch (error: any) {
-        toast.error("Something Went Wrong!", error.message);
-      }
-      setIsLoading(false);
-    }
-  };
+      const latestContractPage = contractTotalPage - 1 - currentPage * 2;
+      const contractPagesToFetch = [
+        latestContractPage,
+        latestContractPage - 1,
+      ].filter((page) => page >= 0);
+
+      const proposals = (
+        await Promise.all(
+          contractPagesToFetch.map((page) => getProposals(projectName, page)),
+        )
+      ).flatMap((pageProposals) => pageProposals ?? []);
+
+      return proposals
+        .map((proposal) => modifyProposalToView(proposal, projectName))
+        .sort((a, b) => b.id - a.id);
+    },
+    ttlMs: 4 * 60 * 60 * 1000,
+    enabled: projectName.length > 0 && proposalPagesQuery.data !== undefined,
+  });
 
   useEffect(() => {
-    fetchProposalPages();
-  }, [projectName]);
+    setCurrentPage((previousPage) =>
+      Math.min(Math.max(previousPage, 0), totalPage - 1),
+    );
+  }, [totalPage]);
 
   const handlePageChange = (page: number) => {
     if (totalPage <= 0) return;
     setCurrentPage(Math.min(Math.max(page, 0), totalPage - 1));
   };
 
-  useEffect(() => {
-    if (totalPage > 0) {
-      fetchProposalData(currentPage);
-    }
-  }, [currentPage, projectName, totalPage]);
+  const isLoading =
+    proposalPagesQuery.isLoading ||
+    proposalPagesQuery.data === undefined ||
+    proposalDataQuery.isLoading;
+  const proposalData = proposalDataQuery.data ?? [];
 
   return (
     <>
@@ -116,7 +102,7 @@ const ProposalList: React.FC = () => {
           proposalId={proposalId}
           proposalTitle={proposalTitle}
           onVoteSuccess={() => {
-            fetchProposalData(currentPage);
+            proposalDataQuery.refetch({ force: true });
             setShowVotingModal(false);
           }}
           onClose={() => setShowVotingModal(false)}

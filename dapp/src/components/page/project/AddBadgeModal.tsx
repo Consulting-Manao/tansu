@@ -38,7 +38,6 @@ const AddBadgeModal = () => {
 
   const handleClose = () => {
     setIsOpen(false);
-    // Note: Page reload for successful operations is now handled by toast.success()
   };
 
   const handleToggleBadge = (badge: Badge) => {
@@ -55,8 +54,11 @@ const AddBadgeModal = () => {
     setIsLoading(true);
     try {
       await setBadges(memberAddress, selectedBadges);
+      window.dispatchEvent(new CustomEvent("badgesUpdated"));
       toast.success("Add badge", "Badges added successfully");
-      // Note: Modal will be closed and page refreshed automatically by toast.success()
+      setMemberAddress("");
+      setSelectedBadges([]);
+      setIsOpen(false);
     } catch (err: any) {
       toast.error("Add badge", err.message);
     } finally {

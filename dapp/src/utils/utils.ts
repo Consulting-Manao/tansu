@@ -333,14 +333,14 @@ export const toast = {
   success: (title: string, description: string) => {
     import("./toastHelper")
       .then(({ renderToastModal }) => {
-        renderToastModal("/images/flower.svg", title, description, true);
+        renderToastModal("/images/flower.svg", title, description);
       })
       .catch((_err) => {});
   },
   error: (title: string, description: string) => {
     import("./toastHelper")
       .then(({ renderToastModal }) => {
-        renderToastModal("/images/wrong.svg", title, description, false);
+        renderToastModal("/images/wrong.svg", title, description);
       })
       .catch((_err) => {});
   },

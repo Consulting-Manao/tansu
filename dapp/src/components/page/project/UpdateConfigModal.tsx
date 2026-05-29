@@ -360,13 +360,8 @@ const UpdateConfigModal = () => {
 
   const handleClose = () => {
     readmeImageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
-    const wasSuccessful = isSuccessful;
     setOpen(false);
     setIsSuccessful(false);
-    if (wasSuccessful) {
-      window.location.reload();
-      window.location.reload(); // double reload to ensure we bypass any stale cache and fetch the latest config from IPFS on load
-    }
   };
 
   // validation helpers

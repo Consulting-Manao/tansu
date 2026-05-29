@@ -1,45 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Button from "components/utils/Button";
 import JoinCommunityModal from "components/page/dashboard/JoinCommunityModal";
 
 import { getMember } from "@service/ReadContractService";
-import type { Member } from "../../packages/tansu";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey } from "utils/store";
+import { useCachedQuery } from "@service/cache/cacheHooks";
+import { queryKeys } from "@service/cache/cacheKeys";
 
 const JoinCommunityButton = () => {
   const publicKey = useStore(connectedPublicKey);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [isMember, setIsMember] = useState(false);
-  const [_memberData, setMemberData] = useState<Member | null>(null);
+  const memberQuery = useCachedQuery({
+    queryKey: queryKeys.membership.detail(publicKey || ""),
+    queryFn: async () => {
+      if (!publicKey) return null;
+      return await getMember(publicKey);
+    },
+    ttlMs: 4 * 60 * 60 * 1000,
+    enabled: !!publicKey,
+  });
 
-  const fetchMember = async (address: string) => {
-    try {
-      const member = await getMember(address);
-      // If getMember succeeds, they are a member regardless of metadata content
-      setIsMember(true);
-      setMemberData(member);
-    } catch {
-      // If getMember fails for any reason, treat as not a member
-      // This is expected behavior for non-members
-      setIsMember(false);
-      setMemberData(null);
-    }
-  };
-
-  useEffect(() => {
-    // Reset state first to avoid showing stale profile
-    setIsMember(false);
-    setMemberData(null);
-
-    if (publicKey) {
-      fetchMember(publicKey);
-    }
-  }, [publicKey]);
-
-  const handleJoined = () => {
-    if (publicKey) fetchMember(publicKey);
-  };
+  const isMember = !!memberQuery.data;
 
   // Hide button only when wallet is connected AND user is already a member
   if (publicKey && isMember) {
@@ -62,7 +44,7 @@ const JoinCommunityButton = () => {
         <JoinCommunityModal
           onClose={() => setShowJoinModal(false)}
           onJoined={() => {
-            handleJoined();
+            void memberQuery.refetch({ force: true });
             setShowJoinModal(false);
           }}
           prefillAddress={publicKey || ""}

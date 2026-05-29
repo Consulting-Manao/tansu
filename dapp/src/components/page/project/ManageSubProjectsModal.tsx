@@ -166,7 +166,6 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
       );
 
       handleClose();
-      window.location.reload();
     } catch (err: any) {
       setError(err.message || "Failed to update sub-projects");
       toast.error("Error", err.message || "Failed to update sub-projects");

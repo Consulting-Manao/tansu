@@ -3,12 +3,24 @@ import {
   fetchProposalOutcomeData,
   fetchProposalFromIPFS,
 } from "@service/ProposalService";
-import { getProjectFromName, getProposal } from "@service/ReadContractService";
+import {
+  getProjectFromName,
+  getProposalRaw,
+} from "@service/ReadContractService";
+import { useCachedQuery } from "@service/cache/cacheHooks";
+import { queryKeys } from "@service/cache/cacheKeys";
 import Loading from "components/utils/Loading";
 import React, { useEffect, useState } from "react";
-import type { Proposal, ProposalOutcome, ProposalView } from "types/proposal";
+import type { Proposal as ContractProposal } from "../../../../packages/tansu";
+import type { ProposalOutcome, ProposalView } from "types/proposal";
+import { deriveProjectKey } from "utils/projectKey";
 import { connectedPublicKey } from "utils/store";
-import { hasUserVoted, modifyProposalToView, toast } from "utils/utils";
+import {
+  hasUserVoted,
+  modifyProposalFromContract,
+  modifyProposalToView,
+  toast,
+} from "utils/utils";
 import ExecuteProposalModal from "./ExecuteProposalModal";
 import ProposalDetail from "./ProposalDetail";
 import ProposalTitle from "./ProposalTitle";
@@ -22,14 +34,43 @@ const ProposalPage: React.FC = () => {
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
   const [isExecuteProposalModalOpen, setIsExecuteProposalModalOpen] =
     useState(false);
-  const [proposal, setProposal] = useState<ProposalView | null>(null);
-  const [rawProposal, setRawProposal] = useState<Proposal | null>(null);
   const [description, setDescription] = useState("");
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [projectMaintainers, setProjectMaintainers] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const userHasVoted = hasUserVoted(proposal?.voteStatus, connectedAddress);
+  const isValidProposalId =
+    Number.isInteger(id) && id >= 0 && projectName.length > 0;
+
+  const proposalQuery = useCachedQuery({
+    queryKey: queryKeys.proposal.raw(projectName, id),
+    queryFn: async () => {
+      if (!isValidProposalId) return null;
+      return await getProposalRaw(projectName, id);
+    },
+    ttlMs: 60 * 60 * 1000,
+    enabled: isValidProposalId,
+  });
+
+  const projectQuery = useCachedQuery({
+    queryKey: queryKeys.project.byId(
+      deriveProjectKey(projectName).toString("hex"),
+    ),
+    queryFn: async () => {
+      if (!projectName) return null;
+      return await getProjectFromName(projectName);
+    },
+    ttlMs: 4 * 60 * 60 * 1000,
+    enabled: projectName.length > 0,
+  });
+
+  const rawProposal: ContractProposal | null = proposalQuery.data ?? null;
+  const appProposal = rawProposal
+    ? modifyProposalFromContract(rawProposal)
+    : null;
+  const proposal: ProposalView | null = appProposal
+    ? modifyProposalToView(appProposal, projectName)
+    : null;
+  const userHasVoted = hasUserVoted(appProposal?.voteStatus, connectedAddress);
 
   const openVotingModal = () => {
     if (proposal?.status === "active") {
@@ -49,63 +90,58 @@ const ProposalPage: React.FC = () => {
     }
   };
 
-  const isValidProposalId =
-    Number.isInteger(id) && id >= 0 && projectName.length > 0;
-
-  const getProposalDetails = async () => {
-    if (isValidProposalId) {
-      setIsLoading(true);
-      try {
-        const proposalData = await getProposal(projectName, id);
-
-        if (proposalData) {
-          setRawProposal(proposalData);
-          const proposalView = modifyProposalToView(proposalData, projectName);
-          setProposal(proposalView);
-
-          if (proposalData.ipfs) {
-            const fetchedDescription = await fetchProposalFromIPFS(
-              proposalData.ipfs,
-            );
-            setDescription(fetchedDescription || "");
-          }
-
-          try {
-            const outcomeData = await fetchProposalOutcomeData(proposalData);
-            setOutcome(outcomeData);
-          } catch {
-            setOutcome({});
-          }
-
-          // Fetch project maintainers – errors are logged but won't trigger a second toast
-          getProjectFromName(projectName)
-            .then((projectInfo) => {
-              if (projectInfo?.maintainers) {
-                setProjectMaintainers(projectInfo.maintainers);
-              }
-            })
-            .catch(() => {});
-        }
-      } catch (error: any) {
-        toast.error("Something Went Wrong!", error.message);
-      }
-      setIsLoading(false);
-    } else {
+  useEffect(() => {
+    if (!isValidProposalId) {
       toast.error(
         "Something Went Wrong!",
         "Project name or proposal id is not provided",
       );
-      setIsLoading(false);
     }
-  };
+  }, [id, projectName, isValidProposalId]);
 
   useEffect(() => {
-    getProposalDetails();
-  }, [id, projectName]);
+    const proposalData = proposalQuery.data;
+    if (!proposalData) return;
+
+    let ignore = false;
+
+    const loadProposalDetails = async () => {
+      setDescription("");
+      setOutcome(null);
+
+      if (proposalData.ipfs) {
+        const fetchedDescription = await fetchProposalFromIPFS(
+          proposalData.ipfs,
+        );
+        if (!ignore) setDescription(fetchedDescription || "");
+      }
+
+      try {
+        const outcomeProposal = modifyProposalFromContract(proposalData);
+        const outcomeData = await fetchProposalOutcomeData(outcomeProposal);
+        if (!ignore) setOutcome(outcomeData);
+      } catch {
+        if (!ignore) setOutcome({});
+      }
+    };
+
+    void loadProposalDetails();
+
+    return () => {
+      ignore = true;
+    };
+  }, [proposalQuery.data]);
+
+  useEffect(() => {
+    const projectInfo = projectQuery.data;
+    if (projectInfo?.maintainers) {
+      setProjectMaintainers(projectInfo.maintainers);
+    }
+  }, [projectQuery.data]);
 
   return (
     <>
-      {isLoading ? (
+      {proposalQuery.isLoading ? (
         <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <Loading />
         </div>
@@ -130,7 +166,9 @@ const ProposalPage: React.FC = () => {
               proposalId={id}
               proposalTitle={proposal?.title}
               isVoted={userHasVoted}
-              onVoteSuccess={getProposalDetails}
+              onVoteSuccess={() => {
+                proposalQuery.refetch({ force: true });
+              }}
               onClose={() => setIsVotingModalOpen(false)}
             />
           )}
@@ -138,7 +176,7 @@ const ProposalPage: React.FC = () => {
             <ExecuteProposalModal
               projectName={projectName}
               proposalId={id}
-              proposal={rawProposal || undefined}
+              proposal={appProposal || undefined}
               outcome={outcome}
               voteStatus={proposal?.voteStatus}
               onClose={() => setIsExecuteProposalModalOpen(false)}

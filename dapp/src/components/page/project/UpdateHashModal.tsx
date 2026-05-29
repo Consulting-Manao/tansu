@@ -17,7 +17,6 @@ const UpdateHashModal = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [latestHash, setLatestHash] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [updateSuccessful, setUpdateSuccessful] = useState(false);
   const projectInfo = isProjectInfoLoaded ? loadProjectInfo() : null;
   const repositoryIcon = getRepositoryIconInfo(projectInfo?.config?.url);
 
@@ -43,12 +42,7 @@ const UpdateHashModal = () => {
   }, [isProjectInfoLoaded]);
 
   const handleClose = () => {
-    const shouldReload = updateSuccessful;
     setIsOpen(false);
-    setUpdateSuccessful(false);
-    if (shouldReload) {
-      window.location.reload();
-    }
   };
 
   const handleUpdate = async () => {
@@ -72,8 +66,7 @@ const UpdateHashModal = () => {
         "Commit Hash Updated",
         "Project commit hash has been successfully updated.",
       );
-      setUpdateSuccessful(true);
-      // Don't close modal immediately - let user close it manually
+      setIsOpen(false);
     } catch (error: any) {
       if (import.meta.env.DEV)
         console.error("Error updating Commit Hash:", error);

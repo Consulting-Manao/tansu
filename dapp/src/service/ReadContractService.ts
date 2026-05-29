@@ -6,79 +6,32 @@ import { modifyProposalFromContract } from "utils/utils";
 import type { Project, Proposal, Member, Badges } from "../../packages/tansu";
 import type { Proposal as ModifiedProposal } from "types/proposal";
 import { checkSimulationError } from "utils/contractErrors";
-
-// TTL cache entry
-interface CacheEntry<T> {
-  value: T;
-  expiresAt: number;
-}
-
-function makeTtlCache<T>() {
-  const store = new Map<string, CacheEntry<T>>();
-  return {
-    get(key: string): T | undefined {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (Date.now() > entry.expiresAt) {
-        store.delete(key);
-        return undefined;
-      }
-      return entry.value;
-    },
-    set(key: string, value: T, ttlMs: number) {
-      store.set(key, { value, expiresAt: Date.now() + ttlMs });
-    },
-    deleteByPrefix(prefix: string) {
-      for (const key of store.keys()) {
-        if (key.startsWith(prefix)) store.delete(key);
-      }
-    },
-  };
-}
+import { fetchWithCache, invalidateQuery } from "./cache/cacheStore";
+import { queryKeys } from "./cache/cacheKeys";
 
 const TTL_4H = 4 * 60 * 60 * 1000;
 const TTL_1H = 60 * 60 * 1000;
-
-// Proposal list caches (4h TTL)
-const proposalPagesCache = makeTtlCache<number | null>();
-const proposalsCache = makeTtlCache<Proposal[]>();
-
-// Individual proposal cache (1h TTL)
-const proposalCache = makeTtlCache<Proposal>();
-
-// Lightweight session cache to avoid rehydrating the same proposal repeatedly.
-const proposalHydrationCache = new Map<string, Proposal>();
-
-const proposalCacheKey = (project_name: string, proposal_id: number) =>
-  `${project_name}:${proposal_id}`;
-
-const invalidateProposalHydrationCache = (project_name: string) => {
-  const prefix = `${project_name}:`;
-  for (const key of proposalHydrationCache.keys()) {
-    if (key.startsWith(prefix)) {
-      proposalHydrationCache.delete(key);
-    }
-  }
-};
 
 async function hydrateProposalFromDaoItem(
   project_name: string,
   project_key: Buffer,
   daoProposal: Proposal,
 ): Promise<Proposal> {
-  const cacheKey = proposalCacheKey(project_name, Number(daoProposal.id));
-  const cached = proposalHydrationCache.get(cacheKey);
-  if (cached) return cached;
-
   try {
-    const proposalRes = await Tansu.get_proposal({
-      project_key,
-      proposal_id: Number(daoProposal.id),
-    });
-    checkSimulationError(proposalRes);
-    const hydratedProposal: Proposal = proposalRes.result;
-    proposalHydrationCache.set(cacheKey, hydratedProposal);
-    return hydratedProposal;
+    return await fetchWithCache(
+      queryKeys.proposal.raw(project_name, Number(daoProposal.id)),
+      async () => {
+        const proposalRes = await Tansu.get_proposal({
+          project_key,
+          proposal_id: Number(daoProposal.id),
+        });
+        checkSimulationError(proposalRes);
+        return proposalRes.result as Proposal;
+      },
+      {
+        ttlMs: TTL_1H,
+      },
+    );
   } catch {
     // Keep list rendering resilient when a single hydration fails.
     return daoProposal;
@@ -98,19 +51,20 @@ async function getProjectHash(): Promise<string | null> {
     ? projectId
     : Buffer.from(projectId, "hex");
 
-  try {
-    const res = await Tansu.get_commit({
-      project_key: projectKey,
-    });
+  return await fetchWithCache(
+    queryKeys.project.hash(projectKey.toString("hex")),
+    async () => {
+      const res = await Tansu.get_commit({
+        project_key: projectKey,
+      });
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    return res.result;
-  } catch {
-    // Never show toast error for project hash not found
-    return null;
-  }
+      return res.result;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getProject(): Promise<Project | null> {
@@ -126,19 +80,20 @@ async function getProject(): Promise<Project | null> {
     ? projectId
     : Buffer.from(projectId, "hex");
 
-  try {
-    const res = await Tansu.get_project({
-      project_key: projectKey,
-    });
+  return await fetchWithCache(
+    queryKeys.project.byId(projectKey.toString("hex")),
+    async () => {
+      const res = await Tansu.get_project({
+        project_key: projectKey,
+      });
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    return res.result;
-  } catch {
-    // Never show toast error for project not found
-    return null;
-  }
+      return res.result;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getProjectFromName(
@@ -151,142 +106,126 @@ async function getProjectFromName(
 
   const projectId = deriveProjectKey(projectName);
 
-  try {
-    const res = await Tansu.get_project({
-      project_key: projectId,
-    });
+  return await fetchWithCache(
+    queryKeys.project.byId(projectId.toString("hex")),
+    async () => {
+      const res = await Tansu.get_project({
+        project_key: projectId,
+      });
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    return res.result;
-  } catch {
-    // Never show toast error for project not found - this is always an expected condition
-    // when searching for projects
-    return null;
-  }
+      return res.result;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getProjectFromId(projectId: Buffer): Promise<Project | null> {
-  try {
-    const res = await Tansu.get_project({
-      project_key: projectId,
-    });
+  return await fetchWithCache(
+    queryKeys.project.byId(projectId.toString("hex")),
+    async () => {
+      const res = await Tansu.get_project({
+        project_key: projectId,
+      });
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    return res.result;
-  } catch {
-    // Never show toast error for project not found
-    return null;
-  }
+      return res.result;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getProposalPages(project_name: string): Promise<number | null> {
-  const cached = proposalPagesCache.get(project_name);
-  if (cached !== undefined) return cached;
+  return await fetchWithCache(
+    queryKeys.proposals.pages(project_name),
+    async () => {
+      const project_key = deriveProjectKey(project_name);
 
-  const project_key = deriveProjectKey(project_name);
+      const hasProposalsOnPage = async (page: number) => {
+        try {
+          const res = await Tansu.get_dao({
+            project_key,
+            page,
+          });
 
-  try {
-    const hasProposalsOnPage = async (page: number) => {
-      try {
-        const res = await Tansu.get_dao({
-          project_key,
-          page,
-        });
+          // Check for simulation errors
+          checkSimulationError(res);
 
-        // Check for simulation errors
-        checkSimulationError(res);
+          return res.result.proposals.length > 0;
+        } catch {
+          // Silently handle errors for this internal function
+          return false;
+        }
+      };
 
-        return res.result.proposals.length > 0;
-      } catch {
-        // Silently handle errors for this internal function
-        return false;
+      if (!(await hasProposalsOnPage(0))) {
+        return 1;
       }
-    };
 
-    if (!(await hasProposalsOnPage(0))) {
-      proposalPagesCache.set(project_name, 1, TTL_4H);
-      return 1;
-    }
+      let low = 0;
+      let high = 1;
 
-    let low = 0;
-    let high = 1;
-
-    while (await hasProposalsOnPage(high)) {
-      low = high;
-      high *= 2;
-    }
-
-    while (high - low > 1) {
-      const middle = Math.floor((low + high) / 2);
-      if (await hasProposalsOnPage(middle)) {
-        low = middle;
-      } else {
-        high = middle;
+      while (await hasProposalsOnPage(high)) {
+        low = high;
+        high *= 2;
       }
-    }
 
-    const result = low + 1;
-    proposalPagesCache.set(project_name, result, TTL_4H);
-    return result;
-  } catch {
-    // Never show toast error for proposal pages not found
-    return null;
-  }
+      while (high - low > 1) {
+        const middle = Math.floor((low + high) / 2);
+        if (await hasProposalsOnPage(middle)) {
+          low = middle;
+        } else {
+          high = middle;
+        }
+      }
+
+      return low + 1;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getProposals(
   project_name: string,
   page: number,
 ): Promise<ModifiedProposal[] | null> {
-  const cacheKey = `${project_name}:${page}`;
-  const cached = proposalsCache.get(cacheKey);
-  if (cached !== undefined) return cached.map(modifyProposalFromContract);
+  return await fetchWithCache(
+    queryKeys.proposals.list(project_name, page),
+    async () => {
+      const project_key = deriveProjectKey(project_name);
 
-  const project_key = deriveProjectKey(project_name);
-  try {
-    // Invalidate project cache before list hydration to avoid stale list states.
-    invalidateProposalHydrationCache(project_name);
+      const res = await Tansu.get_dao({
+        project_key: project_key,
+        page: page,
+      });
 
-    const res = await Tansu.get_dao({
-      project_key: project_key,
-      page: page,
-    });
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      const hydratedProposals = await Promise.all(
+        (res.result.proposals as Proposal[]).map((proposal) =>
+          hydrateProposalFromDaoItem(project_name, project_key, proposal),
+        ),
+      );
 
-    const hydratedProposals = await Promise.all(
-      (res.result.proposals as Proposal[]).map((proposal) =>
-        hydrateProposalFromDaoItem(project_name, project_key, proposal),
-      ),
-    );
-
-    proposalsCache.set(cacheKey, hydratedProposals, TTL_4H);
-
-    const proposals: ModifiedProposal[] = hydratedProposals.map((proposal) =>
-      modifyProposalFromContract(proposal),
-    );
-    return proposals;
-  } catch {
-    // Never show toast error for proposals not found
-    return null;
-  }
+      return hydratedProposals.map((proposal) =>
+        modifyProposalFromContract(proposal),
+      );
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
-async function getProposal(
+async function getProposalRaw(
   projectName: string,
   proposalId: number,
-): Promise<ModifiedProposal | null> {
-  const cacheKey = proposalCacheKey(projectName, proposalId);
-  const cached = proposalCache.get(cacheKey);
-  if (cached !== undefined) return modifyProposalFromContract(cached);
-
-  const project_key = deriveProjectKey(projectName);
+): Promise<Proposal | null> {
   try {
+    const project_key = deriveProjectKey(projectName);
     const res = await Tansu.get_proposal({
       project_key: project_key,
       proposal_id: proposalId,
@@ -295,13 +234,24 @@ async function getProposal(
     // Check for simulation errors
     checkSimulationError(res);
 
-    const proposal: Proposal = res.result;
-    proposalCache.set(cacheKey, proposal, TTL_1H);
-    return modifyProposalFromContract(proposal);
+    return res.result as Proposal;
   } catch {
-    // Never show toast error for proposal not found
     return null;
   }
+}
+
+async function getProposal(
+  projectName: string,
+  proposalId: number,
+): Promise<ModifiedProposal | null> {
+  const proposal = await getProposalRaw(projectName, proposalId);
+  if (!proposal) return null;
+
+  return await fetchWithCache(
+    queryKeys.proposal.detail(projectName, proposalId),
+    async () => modifyProposalFromContract(proposal),
+    { ttlMs: TTL_1H },
+  );
 }
 
 async function getMember(memberAddress: string): Promise<Member | null> {
@@ -310,20 +260,20 @@ async function getMember(memberAddress: string): Promise<Member | null> {
     return null;
   }
 
-  try {
-    const res = await Tansu.get_member({
-      member_address: memberAddress,
-    });
+  return await fetchWithCache(
+    queryKeys.membership.detail(memberAddress),
+    async () => {
+      const res = await Tansu.get_member({
+        member_address: memberAddress,
+      });
 
-    // Check for simulation errors
-    checkSimulationError(res);
+      // Check for simulation errors
+      checkSimulationError(res);
 
-    return res.result;
-  } catch {
-    // Never show toast error for member not found - this is always an expected condition
-    // when searching for members
-    return null;
-  }
+      return res.result;
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => null);
 }
 
 async function getBadges(): Promise<Badges | null> {
@@ -353,14 +303,15 @@ async function getBadges(): Promise<Badges | null> {
 }
 
 async function getProjectsPage(page: number): Promise<Project[]> {
-  try {
-    const res = await Tansu.get_projects({ page });
-    checkSimulationError(res);
-
-    return res.result || [];
-  } catch {
-    return [];
-  }
+  return await fetchWithCache(
+    queryKeys.projects.page(page),
+    async () => {
+      const res = await Tansu.get_projects({ page });
+      checkSimulationError(res);
+      return res.result || [];
+    },
+    { ttlMs: TTL_4H },
+  ).catch(() => []);
 }
 
 /**
@@ -371,11 +322,10 @@ function invalidateProposalCache(
   project_name: string,
   proposal_id: number,
 ): void {
-  const entryKey = proposalCacheKey(project_name, proposal_id);
-  proposalCache.deleteByPrefix(entryKey);
-  proposalsCache.deleteByPrefix(`${project_name}:`);
-  proposalPagesCache.deleteByPrefix(project_name);
-  invalidateProposalHydrationCache(project_name);
+  invalidateQuery(queryKeys.proposal.raw(project_name, proposal_id));
+  invalidateQuery(queryKeys.proposal.detail(project_name, proposal_id));
+  invalidateQuery(queryKeys.proposals.all(project_name));
+  invalidateQuery(queryKeys.proposals.pages(project_name));
 }
 
 export {
@@ -385,6 +335,7 @@ export {
   getProjectFromId,
   getProposalPages,
   getProposals,
+  getProposalRaw,
   getProposal,
   getMember,
   getBadges,

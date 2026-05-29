@@ -13,6 +13,8 @@ import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 import { sendSignedTransaction, signAssembledTransaction } from "./TxService";
 import { checkSimulationError } from "../utils/contractErrors";
 import { Buffer } from "buffer";
+import { invalidateQuery } from "./cache/cacheStore";
+import { queryKeys } from "./cache/cacheKeys";
 
 interface CreateProposalFlowParams {
   projectName: string;
@@ -173,6 +175,8 @@ export async function createProposalFlow({
   // Step 5: Send the signed transaction
   onProgress?.(9); // Sending transaction
   const result = await sendSignedTransactionLocal(signedTxXdr);
+  invalidateQuery(queryKeys.proposals.all(projectName));
+  invalidateQuery(queryKeys.proposals.pages(projectName));
 
   // The result should be the proposal ID
   if (typeof result === "number") return result;
@@ -226,6 +230,7 @@ export async function joinCommunityFlow({
   // Step 5: Send the signed transaction
   onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
+  invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
 
@@ -295,6 +300,7 @@ export async function updateMemberFlow({
 
   onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
+  invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
 
@@ -354,6 +360,10 @@ export async function createProjectFlow({
   // Step 5 – Send signed transaction
   onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
+  invalidateQuery(queryKeys.projects.all);
+  invalidateQuery(
+    queryKeys.project.byId(deriveProjectKey(projectName).toString("hex")),
+  );
 
   return true;
 }
@@ -434,6 +444,13 @@ export async function updateConfigFlow({
 
   onProgress?.(9);
   await sendSignedTransaction(signedTxXdr);
+  const projectId = loadedProjectId();
+  if (projectId) {
+    const projectKey = Buffer.isBuffer(projectId)
+      ? projectId
+      : Buffer.from(projectId, "hex");
+    invalidateQuery(queryKeys.project.byId(projectKey.toString("hex")));
+  }
   return true;
 }
 
@@ -468,4 +485,8 @@ export async function removeVoteFlow({
 
   const signedTxXdr = await signAssembledTransaction(tx);
   await sendSignedTransactionLocal(signedTxXdr);
+  invalidateQuery(queryKeys.proposal.raw(projectName, proposalId));
+  invalidateQuery(queryKeys.proposal.detail(projectName, proposalId));
+  invalidateQuery(queryKeys.proposals.all(projectName));
+  invalidateQuery(queryKeys.proposals.pages(projectName));
 }

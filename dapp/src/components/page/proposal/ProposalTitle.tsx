@@ -1,11 +1,9 @@
 import { useStore } from "@nanostores/react";
 import Button from "components/utils/Button";
 import { useState } from "react";
-import type { Member } from "../../../../packages/tansu";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { hasUserVoted, toast, truncateMiddle } from "utils/utils";
-import { getMember } from "@service/ReadContractService";
 import MemberProfileModal from "components/page/dashboard/MemberProfileModal";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
 import ProposalStatusSection from "./ProposalStatusSection";
@@ -13,6 +11,9 @@ import VoteStatusBar from "./VoteStatusBar";
 import VotingResultModal from "./VotingResultModal";
 import VerifyAnonymousVotesModal from "./VerifyAnonymousVotesModal";
 import RemoveVoteModal from "./RemoveVoteModal";
+import { useCachedQuery } from "@service/cache/cacheHooks";
+import { queryKeys } from "@service/cache/cacheKeys";
+import { getMember } from "@service/ReadContractService";
 
 interface Props {
   proposal: ProposalView | null;
@@ -33,8 +34,16 @@ const ProposalTitle: React.FC<Props> = ({
   const [showRemoveVoteModal, setShowRemoveVoteModal] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [showMemberProfile, setShowMemberProfile] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const memberQuery = useCachedQuery({
+    queryKey: queryKeys.membership.detail(proposal?.proposer || ""),
+    queryFn: async () => {
+      if (!proposal?.proposer) return null;
+      return await getMember(proposal.proposer);
+    },
+    ttlMs: 4 * 60 * 60 * 1000,
+    enabled: !!proposal?.proposer,
+  });
 
   const openVotingResultModal = () => {
     if (proposal?.status == "active") {
@@ -52,8 +61,7 @@ const ProposalTitle: React.FC<Props> = ({
 
     setIsLoadingProfile(true);
     try {
-      const member = await getMember(proposal.proposer);
-      setSelectedMember(member);
+      await memberQuery.refetch({ force: true });
       setShowMemberProfile(true);
     } catch {
       toast.error("Member Profile", "Failed to load member profile");
@@ -220,7 +228,7 @@ const ProposalTitle: React.FC<Props> = ({
           proposalId={proposal.id}
           voteStatus={proposal.voteStatus}
           onClose={() => setShowRemoveVoteModal(false)}
-          onRemoved={() => window.location.reload()}
+          onRemoved={() => setShowRemoveVoteModal(false)}
         />
       )}
       {showConflictModal && proposal && (
@@ -235,7 +243,7 @@ const ProposalTitle: React.FC<Props> = ({
       {showMemberProfile && proposal?.proposer && (
         <MemberProfileModal
           onClose={() => setShowMemberProfile(false)}
-          member={selectedMember}
+          member={memberQuery.data ?? null}
           address={proposal.proposer}
         />
       )}

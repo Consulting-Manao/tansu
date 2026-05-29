@@ -23,6 +23,8 @@ import {
   tokenVoteWeightToContract,
 } from "./TokenBalanceService";
 import { parseContractOptionString } from "../utils/utils";
+import { invalidateQuery } from "./cache/cacheStore";
+import { queryKeys } from "./cache/cacheKeys";
 
 export interface VotingPowerResult {
   maxWeight: number;
@@ -132,6 +134,8 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
   checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
+  invalidateQuery(queryKeys.project.byId(projectKey.toString("hex")));
+  invalidateQuery(queryKeys.project.hash(projectKey.toString("hex")));
   return true;
 }
 
@@ -406,6 +410,7 @@ export async function setBadges(
   checkSimulationError(assembledTx);
 
   await submitTransaction(assembledTx);
+  invalidateQuery(queryKeys.membership.detail(member_address));
   return true;
 }
 

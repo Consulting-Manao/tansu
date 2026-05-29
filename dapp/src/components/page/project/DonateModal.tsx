@@ -26,7 +26,6 @@ const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
   const [amount, setAmount] = useState<number>(10);
   const [tipAmount, setTipAmount] = useState<string>("");
   const [donateMessage, setDonateMessage] = useState<string>("");
-  const [updateSuccessful, setUpdateSuccessful] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const amountInputRef = useRef<HTMLInputElement>(null);
@@ -39,19 +38,14 @@ const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
     setAmount(10);
     setTipAmount("");
     setDonateMessage("");
-    setUpdateSuccessful(false);
     setIsLoading(false);
     amountInputRef.current?.blur();
     tipAmountInputRef.current?.blur();
   };
 
   const onClose = () => {
-    const wasSuccessful = updateSuccessful;
     setIsOpen(false);
     resetForm();
-    if (wasSuccessful) {
-      window.location.reload();
-    }
   };
 
   const handleOpen = () => {
@@ -110,7 +104,8 @@ const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
 
       if (payment) {
         toast.success("Congratulations!", "You successfully donated.");
-        setUpdateSuccessful(true);
+        setIsOpen(false);
+        resetForm();
       } else {
         toast.error(
           "Support",
