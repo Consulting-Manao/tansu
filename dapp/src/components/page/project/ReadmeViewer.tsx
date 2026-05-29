@@ -38,9 +38,8 @@ const ReadmeViewer = () => {
 
         // Only fallback if truly null/undefined (not empty string)
         if (content !== undefined && content !== null) {
-          setReadmeContent(
-            rewriteRelativePaths(content, getReadmeRawBaseUrl(configUrl)),
-          );
+          const rawBaseUrl = await getReadmeRawBaseUrl(configUrl);
+          setReadmeContent(rewriteRelativePaths(content, rawBaseUrl));
         } else {
           setReadmeContent("No README available for this project.");
         }

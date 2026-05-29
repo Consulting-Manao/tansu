@@ -10,6 +10,7 @@ import { rewriteRelativePaths } from "../../utils/MarkdownEditorWithImages";
 
 import CopyButton from "components/utils/CopyButton";
 import {
+  getRepositoryCloneCommand,
   getRepositoryIconInfo,
   getRepositoryReleasesUrl,
 } from "../../../utils/editLinkFunctions";
@@ -86,12 +87,8 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
           projectData.githubUrl,
         );
         if (content !== undefined && content !== null) {
-          setReadmeContent(
-            rewriteRelativePaths(
-              content,
-              getReadmeRawBaseUrl(projectData.githubUrl),
-            ),
-          );
+          const rawBaseUrl = await getReadmeRawBaseUrl(projectData.githubUrl);
+          setReadmeContent(rewriteRelativePaths(content, rawBaseUrl));
         } else {
           setReadmeContent("No README available for this project.");
         }
@@ -175,9 +172,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <CopyButton
                     textToCopy={
-                      projectData?.githubUrl
-                        ? `git clone ${projectData.githubUrl}`
-                        : ""
+                      getRepositoryCloneCommand(projectData?.githubUrl) || ""
                     }
                     showText={true}
                     text="Clone Repository"

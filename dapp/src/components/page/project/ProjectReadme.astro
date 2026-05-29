@@ -26,7 +26,10 @@ import ReadmeViewer from "./ReadmeViewer";
 
 <script>
   import { loadProjectInfo } from "../../../service/StateService";
-  import { getRepositoryReleasesUrl } from "../../../utils/editLinkFunctions";
+  import {
+    getRepositoryCloneCommand,
+    getRepositoryReleasesUrl,
+  } from "../../../utils/editLinkFunctions";
   import { projectInfoLoaded } from "../../../utils/store";
 
   document.addEventListener("astro:page-load", async () => {
@@ -51,7 +54,7 @@ import ReadmeViewer from "./ReadmeViewer";
         // Render the CopyButton React component
         root.render(
           React.createElement(CopyButton, {
-            textToCopy: `git clone ${repositoryUrl}`,
+            textToCopy: getRepositoryCloneCommand(repositoryUrl) || "",
             showText: true,
             text: "Clone Repository",
             className:

@@ -1,5 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { applyAllMocks } from "./helpers/mock";
+
+const RADICLE_RID = "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5";
 
 /*
  * Additional happy-path coverage for the most critical user flows.
@@ -44,7 +46,6 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       await page.goto("/").catch(() => {});
     }
 
-    // Wait for page to be ready
     await page.waitForLoadState("networkidle", { timeout: 15000 });
 
     const addProjectBtn = page
@@ -195,5 +196,99 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
     } else {
       console.log("Wallet already connected, skipping Join button test.");
     }
+  });
+
+  test("Project creation modal adapts repository fields for a real public Radicle RID", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("tansu_tos_accepted", "true");
+      localStorage.setItem("publicKey", `G${"A".repeat(55)}`);
+      (window as any).getProjectFromName = async (name: string) => {
+        if (name === "newproject") return null;
+        return {
+          name: name || "demo",
+          maintainers: [
+            "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+          ],
+          config: {
+            url: "https://github.com/demo/demo",
+            ipfs: "abc123",
+          },
+        };
+      };
+    });
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 15000 });
+    await page.evaluate(async () => {
+      const store = await import("../src/utils/store.ts");
+      store.connectedPublicKey.set(
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      );
+      store.walletInitialized.set(true);
+    });
+
+    await page.evaluate(() => {
+      document.dispatchEvent(new CustomEvent("show-create-project-modal"));
+    });
+    const modal = page.locator("[data-modal-container]");
+    await expect(modal).toBeVisible({ timeout: 10000 });
+
+    const repositoryProvider = modal.locator("select").first();
+    const repositoryUrlInput = modal.locator(
+      'input[placeholder="https://github.com/owner/repo"]',
+    );
+
+    await expect(repositoryProvider).toHaveValue("github");
+    await repositoryUrlInput.fill(RADICLE_RID);
+
+    await expect(repositoryProvider).toHaveValue("radicle");
+    await expect(modal.getByText("Radicle Repository URL")).toBeVisible();
+    await expect(
+      modal.getByText("Use a public Radicle RID such as rad:z3"),
+    ).toBeVisible();
+    await expect(
+      modal.locator(`input[placeholder="${RADICLE_RID}"]`),
+    ).toBeVisible();
+
+    await modal
+      .locator('input[placeholder="Write the project name (e.g., myproject)"]')
+      .fill("newproject");
+    await modal
+      .locator('input[placeholder="My Awesome Project"]')
+      .fill("Radicle Heartwood");
+    await modal.getByRole("button", { name: "Next" }).click();
+
+    await expect(modal.getByText("Radicle Alias")).toBeVisible();
+    await modal.locator(`input[placeholder="alias"]`).fill("cloudhead");
+    await modal.getByRole("button", { name: "Next" }).click();
+
+    await expect(modal.getByText("Add Organization Details")).toBeVisible();
+    await expect(modal.getByText("Radicle Repository URL")).toBeVisible();
+    await expect(
+      modal.getByText("Use a public Radicle RID such as rad:z3"),
+    ).toBeVisible();
+
+    await modal
+      .locator('input[placeholder="Your organisation / project owner name"]')
+      .fill("Radicle");
+    await modal
+      .locator('input[placeholder="https://example.com"]')
+      .fill("https://radicle.network");
+    await modal
+      .locator('input[placeholder="https://.../logo.png"]')
+      .fill("https://radicle.xyz/apple-touch-icon.png");
+    await modal
+      .locator('textarea[placeholder="Describe your project (min 3 words)"]')
+      .fill("Public Radicle repository validation");
+    await modal.getByRole("button", { name: "Next" }).click();
+
+    await expect(
+      modal.getByText("Review and Submit Your Project"),
+    ).toBeVisible();
+    await expect(modal.getByText("Repository Provider")).toBeVisible();
+    await expect(modal.getByText("Radicle", { exact: true })).toBeVisible();
+    await expect(modal.getByText(RADICLE_RID)).toBeVisible();
   });
 });

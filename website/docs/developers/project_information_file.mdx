@@ -11,7 +11,12 @@ Metadata on the projects are defined in a TOML file using the [SEP-1](https://gi
 
 - `DOCUMENTATION`: information about the project
 - `ACCOUNTS`: public keys of the maintainers
-- `PRINCIPALS`: information about maintainers. At least the GitHub handle should be present.
+- `PRINCIPALS`: information about maintainers. For hosted git providers this is typically a GitHub-style handle; for public Radicle repositories this can be a Radicle alias.
+
+For software projects, repository metadata can be represented in two ways:
+
+- Hosted git providers such as GitHub, GitLab, Bitbucket, Codeberg, and Gitea use `ORG_GITHUB` to store the repository path while the canonical repository URL is stored on-chain.
+- Public Radicle repositories use the canonical `rad:<RID>` repository identifier on-chain and may include optional metadata such as `ORG_REPOSITORY_PROVIDER="radicle"` and `ORG_REPOSITORY_SEED="seed.radicle.xyz"` in `tansu.toml` to preserve the preferred public seed for browsing.
 
 ## Display Name (ORG_DBA)
 

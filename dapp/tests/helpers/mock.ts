@@ -599,6 +599,8 @@ export async function applyAllMocks(page) {
 
     // v2 renamed/restructured - export StellarWalletsKit so existing imports don't break
     export class StellarWalletsKit {
+      static async getAddress() { return { address: '${WALLET_PK}' }; }
+      static init(config) { return new StellarWalletsKit(config); }
       constructor(config) {}
       async signTransaction(xdr) { return { signedTxXdr: typeof xdr === 'string' ? xdr : String(xdr) }; }
       async getAddress() { return { address: '${WALLET_PK}' }; }

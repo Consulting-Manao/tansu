@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { extractConfigData } from "./utils";
 
 const minimalProject = {
@@ -64,5 +64,27 @@ describe("extractConfigData", () => {
     const out = extractConfigData({}, project as any);
 
     expect(out.officials.githubLink).toBe("https://example.org/org/repo");
+  });
+
+  it("builds public Radicle browse links and reads Radicle principal aliases", () => {
+    const project = {
+      ...minimalProject,
+      config: { url: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5", ipfs: "bafy..." },
+    };
+
+    const out = extractConfigData(
+      {
+        DOCUMENTATION: {
+          ORG_REPOSITORY_SEED: "seed.radicle.xyz",
+        },
+        PRINCIPALS: [{ radicle: "cloudhead" }],
+      },
+      project as any,
+    );
+
+    expect(out.officials.githubLink).toBe(
+      "https://radicle.network/nodes/seed.radicle.xyz/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    );
+    expect(out.authorGithubNames).toEqual(["cloudhead"]);
   });
 });

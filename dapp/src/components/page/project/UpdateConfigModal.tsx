@@ -31,9 +31,11 @@ import {
 import {
   getRepositoryHandleLabel,
   getRepositoryHandlePlaceholder,
+  getRepositoryPrincipalField,
   getRepositoryProjectPath,
   getRepositoryProvider,
   getRepositoryProviderLabel,
+  getRepositorySeedHost,
   getRepositoryUrlPlaceholder,
   SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
@@ -83,7 +85,7 @@ async function fetchExistingToml(
  *   [DOCUMENTATION]
  *     ORG_DBA, ORG_NAME, ORG_URL, ORG_LOGO, ORG_DESCRIPTION, ORG_GITHUB
  *   [[PRINCIPALS]]
- *     github = "..."
+ *     github = "..." or radicle = "..."
  */
 function mergeTomlData(
   existing: Record<string, any>,
@@ -97,6 +99,7 @@ function mergeTomlData(
     orgDescription: string;
     githubRepoUrl: string;
     isSoftwareProject: boolean;
+    repositoryProvider?: RepositoryProvider;
   },
 ): Record<string, any> {
   const merged = { ...existing };
@@ -119,9 +122,22 @@ function mergeTomlData(
   existingDoc["ORG_URL"] = fields.orgUrl;
   existingDoc["ORG_LOGO"] = fields.orgLogo;
   existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
-  existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
-    ? getRepositoryProjectPath(fields.githubRepoUrl)
-    : "";
+  if (fields.isSoftwareProject && fields.repositoryProvider === "radicle") {
+    existingDoc["ORG_GITHUB"] = "";
+    existingDoc["ORG_REPOSITORY_PROVIDER"] = "radicle";
+    const seedHost = getRepositorySeedHost(fields.githubRepoUrl);
+    if (seedHost) {
+      existingDoc["ORG_REPOSITORY_SEED"] = seedHost;
+    } else {
+      delete existingDoc["ORG_REPOSITORY_SEED"];
+    }
+  } else {
+    existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
+      ? getRepositoryProjectPath(fields.githubRepoUrl)
+      : "";
+    delete existingDoc["ORG_REPOSITORY_PROVIDER"];
+    delete existingDoc["ORG_REPOSITORY_SEED"];
+  }
 
   // README is now only stored as a separate file, so we explicitly remove it
   // from the TOML if it was previously there to enforce a single source of truth.
@@ -129,8 +145,11 @@ function mergeTomlData(
 
   merged["DOCUMENTATION"] = existingDoc;
 
-  // Replace PRINCIPALS array entirely (only field we manage there is github)
-  merged["PRINCIPALS"] = fields.maintainerGithubs.map((gh) => ({ github: gh }));
+  // Replace PRINCIPALS array entirely with provider-aware aliases.
+  const principalField = getRepositoryPrincipalField(fields.repositoryProvider);
+  merged["PRINCIPALS"] = fields.maintainerGithubs.map((gh) => ({
+    [principalField]: gh,
+  }));
 
   return merged;
 }
@@ -432,6 +451,9 @@ const UpdateConfigModal = () => {
       orgDescription,
       githubRepoUrl,
       isSoftwareProject,
+      ...(activeRepositoryProvider
+        ? { repositoryProvider: activeRepositoryProvider }
+        : {}),
     });
 
     return serializeToml(merged);
@@ -598,7 +620,7 @@ const UpdateConfigModal = () => {
                       }
                       description={
                         isSoftwareProject
-                          ? `Confirm the repository provider or URL first, then update maintainer wallet addresses and ${repositoryProviderLabel} handles.`
+                          ? `Confirm the repository provider or URL first, then update maintainer wallet addresses and ${activeRepositoryProvider === "radicle" ? "Radicle aliases" : `${repositoryProviderLabel} handles`}.`
                           : "Edit maintainer addresses and public handles"
                       }
                     />
@@ -643,7 +665,11 @@ const UpdateConfigModal = () => {
                               setSelectedRepositoryProvider(parsedProvider);
                             }
                           }}
-                          description={`Paste an HTTPS or SSH URL for ${repositoryProviderLabel}. The provider selector updates automatically when the URL is recognized.`}
+                          description={
+                            activeRepositoryProvider === "radicle"
+                              ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                              : `Paste an HTTPS or SSH URL for ${repositoryProviderLabel}. The provider selector updates automatically when the URL is recognized.`
+                          }
                           error={repoError || undefined}
                         />
                       </div>

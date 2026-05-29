@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const RADICLE_RID = "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5";
+
 function createJsonResponse(body: unknown, status: number = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -147,5 +149,132 @@ describe("RepositoryMetadataService", () => {
       getLatestCommitHash("https://github.com/example/project"),
     ).resolves.toBe("cached123");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches Radicle README content and resolves raw asset base URLs", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string | URL) => {
+      const url = String(input);
+
+      if (
+        url ===
+        `https://seed.example/api/v1/repos/${encodeURIComponent(RADICLE_RID)}`
+      ) {
+        return Promise.resolve(
+          createJsonResponse({
+            payloads: {
+              "xyz.radicle.project": {
+                meta: { head: "abcdef1234567890" },
+              },
+            },
+          }),
+        );
+      }
+
+      if (
+        url ===
+        `https://seed.example/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/blob/abcdef1234567890/README.md`
+      ) {
+        return Promise.resolve(
+          createJsonResponse({
+            binary: false,
+            content: "# Hello from Radicle\n![Logo](docs/logo.png)",
+          }),
+        );
+      }
+
+      return Promise.resolve(createJsonResponse({ message: "Not found" }, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchReadmeContentFromConfigUrl, getReadmeRawBaseUrl } =
+      await loadRepositoryMetadataService();
+
+    await expect(
+      fetchReadmeContentFromConfigUrl(
+        `https://radicle.network/nodes/seed.example/${encodeURIComponent(RADICLE_RID)}`,
+      ),
+    ).resolves.toBe("# Hello from Radicle\n![Logo](docs/logo.png)");
+
+    await expect(
+      getReadmeRawBaseUrl(
+        `https://radicle.network/nodes/seed.example/${encodeURIComponent(RADICLE_RID)}`,
+      ),
+    ).resolves.toBe(
+      `https://seed.example/raw/${encodeURIComponent(RADICLE_RID)}/abcdef1234567890`,
+    );
+  });
+
+  it("fetches Radicle commit history and commit details from the public seed fallback", async () => {
+    const committedAt = 1_710_000_000;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL) => {
+      const url = String(input);
+
+      if (
+        url ===
+        `https://seed.radicle.xyz/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits?page=1&per_page=1`
+      ) {
+        return Promise.resolve(
+          createJsonResponse([
+            {
+              id: "abc123",
+              summary: "Initial commit",
+              description: "Adds project scaffolding",
+              author: { name: "Cloudhead" },
+              committer: { time: committedAt },
+            },
+          ]),
+        );
+      }
+
+      if (
+        url ===
+        `https://seed.radicle.xyz/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits/abc123`
+      ) {
+        return Promise.resolve(
+          createJsonResponse({
+            commit: {
+              id: "abc123",
+              summary: "Initial commit",
+              description: "Adds project scaffolding",
+              author: {
+                name: "Cloudhead",
+                email: "cloudhead@example.com",
+              },
+              committer: {
+                name: "Cloudhead",
+                email: "cloudhead@example.com",
+                time: committedAt,
+              },
+            },
+          }),
+        );
+      }
+
+      return Promise.resolve(createJsonResponse({ message: "Not found" }, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getLatestCommitData, getLatestCommitHash } =
+      await loadRepositoryMetadataService();
+
+    await expect(getLatestCommitHash(RADICLE_RID)).resolves.toBe("abc123");
+
+    await expect(getLatestCommitData(RADICLE_RID, "abc123")).resolves.toEqual({
+      sha: "abc123",
+      html_url: `https://radicle.network/nodes/seed.radicle.xyz/${encodeURIComponent(RADICLE_RID)}`,
+      commit: {
+        message: "Initial commit\n\nAdds project scaffolding",
+        author: {
+          name: "Cloudhead",
+          email: "cloudhead@example.com",
+          date: "2024-03-09T16:00:00.000Z",
+        },
+        committer: {
+          name: "Cloudhead",
+          email: "cloudhead@example.com",
+          date: "2024-03-09T16:00:00.000Z",
+        },
+      },
+    });
   });
 });

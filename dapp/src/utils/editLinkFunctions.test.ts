@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildRadicleBrowseUrl,
   buildRepositoryUrlFromProjectPath,
+  getRepositoryCloneCommand,
   getRepositoryIconInfo,
   getRepositoryProvider,
+  getRepositorySeedHost,
   isSupportedRepositoryUrl,
   normalizeRepositoryUrl,
   parseRepositoryUrl,
@@ -25,6 +28,12 @@ describe("repository icon helpers", () => {
     ).toBe("codeberg");
     expect(getRepositoryIconInfo("https://gitea.com/example/project").src).toBe(
       "/icons/logos/gitea.svg",
+    );
+    expect(getRepositoryProvider("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toBe(
+      "radicle",
+    );
+    expect(getRepositoryIconInfo("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").src).toBe(
+      "/icons/logos/radicle.svg",
     );
   });
 
@@ -228,6 +237,49 @@ describe("parseRepositoryUrl", () => {
     expect(parseRepositoryUrl(null)).toBeUndefined();
     expect(parseRepositoryUrl(undefined)).toBeUndefined();
   });
+
+  it("parses direct Radicle RIDs and scheme URLs", () => {
+    expect(parseRepositoryUrl("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toEqual({
+      kind: "radicle",
+      provider: "radicle",
+      normalizedUrl: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    });
+    expect(parseRepositoryUrl("rad://z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toEqual({
+      kind: "radicle",
+      provider: "radicle",
+      normalizedUrl: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    });
+  });
+
+  it("parses public Radicle seed URLs and keeps the explicit seed host", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toEqual({
+      kind: "radicle",
+      provider: "radicle",
+      normalizedUrl: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      seedHost: "seed.example",
+    });
+  });
+
+  it("parses Radicle explorer URLs and preserves hostname-based node paths", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://radicle.network/nodes/node.example/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toEqual({
+      kind: "radicle",
+      provider: "radicle",
+      normalizedUrl: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      seedHost: "node.example",
+    });
+  });
 });
 
 describe("repository URL validation", () => {
@@ -258,6 +310,17 @@ describe("repository URL validation", () => {
     ).toBe(true);
     expect(
       isSupportedRepositoryUrl("git@codeberg.org:example/project.git"),
+    ).toBe(true);
+    expect(isSupportedRepositoryUrl("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toBe(
+      true,
+    );
+    expect(
+      isSupportedRepositoryUrl("rad://z3gqcJUoA1n9HaHKufZs5FCSGazv5"),
+    ).toBe(true);
+    expect(
+      isSupportedRepositoryUrl(
+        "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
     ).toBe(true);
   });
 
@@ -319,6 +382,14 @@ describe("normalizeRepositoryUrl", () => {
     );
     expect(normalizeRepositoryUrl("not-a-url")).toBe(undefined);
   });
+
+  it("normalizes Radicle references to canonical RIDs", () => {
+    expect(
+      normalizeRepositoryUrl(
+        "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toBe("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5");
+  });
 });
 
 describe("buildRepositoryUrlFromProjectPath", () => {
@@ -333,5 +404,26 @@ describe("buildRepositoryUrlFromProjectPath", () => {
 
   it("does not guess a provider when the canonical repository URL is missing", () => {
     expect(buildRepositoryUrlFromProjectPath("", "group/docs")).toBeUndefined();
+  });
+});
+
+describe("Radicle repository helpers", () => {
+  it("builds public browse URLs and clone commands for Radicle repositories", () => {
+    expect(
+      buildRadicleBrowseUrl(
+        "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+        "seed.example",
+      ),
+    ).toBe(
+      "https://radicle.network/nodes/seed.example/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    );
+    expect(getRepositoryCloneCommand("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toBe(
+      "rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    );
+    expect(
+      getRepositorySeedHost(
+        "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toBe("seed.example");
   });
 });

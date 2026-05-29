@@ -28,9 +28,11 @@ import { ProjectType } from "types/projectConfig";
 import {
   getRepositoryHandleLabel,
   getRepositoryHandlePlaceholder,
+  getRepositoryPrincipalField,
   getRepositoryProjectPath,
   getRepositoryProvider,
   getRepositoryProviderLabel,
+  getRepositorySeedHost,
   getRepositoryUrlPlaceholder,
   SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
@@ -109,6 +111,9 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     activeRepositoryProvider,
   );
   const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
+    activeRepositoryProvider,
+  );
+  const repositoryPrincipalField = getRepositoryPrincipalField(
     activeRepositoryProvider,
   );
 
@@ -390,6 +395,10 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
       }
 
       // ── Build TOML content ───────────────────────────────────────────────
+      const repositorySeedHost =
+        activeRepositoryProvider === "radicle"
+          ? getRepositorySeedHost(githubRepoUrl)
+          : undefined;
       const tomlContent = `VERSION="2.0.0"
 PROJECT_TYPE="${projectType}"
 
@@ -403,9 +412,11 @@ ORG_NAME="${orgName}"
 ORG_URL="${orgUrl}"
 ORG_LOGO="${orgLogo}"
 ORG_DESCRIPTION="${orgDescription}"
-${projectType === ProjectType.SOFTWARE ? `ORG_GITHUB="${getRepositoryProjectPath(githubRepoUrl)}"` : ""}
+${projectType === ProjectType.SOFTWARE && activeRepositoryProvider !== "radicle" ? `ORG_GITHUB="${getRepositoryProjectPath(githubRepoUrl)}"` : ""}
+${projectType === ProjectType.SOFTWARE && activeRepositoryProvider === "radicle" ? `ORG_REPOSITORY_PROVIDER="radicle"` : ""}
+${projectType === ProjectType.SOFTWARE && activeRepositoryProvider === "radicle" && repositorySeedHost ? `ORG_REPOSITORY_SEED="${repositorySeedHost}"` : ""}
 
-${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
+${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${gh}"`).join("\n\n")}
 `;
 
       const tomlFile = new File([tomlContent], "tansu.toml", {
@@ -658,7 +669,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                   </div>
                   <p className="text-sm text-secondary">
                     {projectType === ProjectType.SOFTWARE
-                      ? "For software projects hosted on GitHub, GitLab, Bitbucket, Codeberg, or Gitea"
+                      ? "For software projects hosted on GitHub, GitLab, Bitbucket, Codeberg, Gitea, or public Radicle repositories"
                       : "For non-software projects like creative work, documentation, or community initiatives"}
                   </p>
                 </div>
@@ -703,7 +714,11 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
                           setSelectedRepositoryProvider(parsedProvider);
                         }
                       }}
-                      description={`Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`}
+                      description={
+                        activeRepositoryProvider === "radicle"
+                          ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                          : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
+                      }
                       error={githubRepoUrlError}
                     />
                   </div>
@@ -973,13 +988,24 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\ngithub="${gh}"`).join("\n\n")}
 
                   {projectType === ProjectType.SOFTWARE ? (
                     <Input
-                      label="GitHub Repository URL"
-                      placeholder="Write the github repository URL"
+                      label={`${repositoryProviderLabel} Repository URL`}
+                      placeholder={repositoryUrlPlaceholder}
                       value={githubRepoUrl}
                       onChange={(e) => {
-                        setGithubRepoUrl(e.target.value);
+                        const nextValue = e.target.value;
+                        setGithubRepoUrl(nextValue);
                         setGithubRepoUrlError(null);
+
+                        const parsedProvider = getRepositoryProvider(nextValue);
+                        if (parsedProvider) {
+                          setSelectedRepositoryProvider(parsedProvider);
+                        }
                       }}
+                      description={
+                        activeRepositoryProvider === "radicle"
+                          ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                          : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
+                      }
                       error={githubRepoUrlError}
                     />
                   ) : (

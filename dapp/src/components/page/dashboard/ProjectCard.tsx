@@ -20,6 +20,7 @@ import { extractConfigData, toast } from "../../../utils/utils";
 
 interface ProjectConfig {
   projectName: string;
+  onChainProjectName?: string;
   projectFullName?: string;
   description?: string;
   logoImageLink?: string | null;
