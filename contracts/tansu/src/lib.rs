@@ -32,11 +32,16 @@ pub trait TansuTrait {
 
     fn get_admins_config(env: Env) -> types::AdminsConfig;
 
-    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::Contract);
+    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::ContractRef);
 
-    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::Contract);
+    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef);
 
-    fn set_nqg_contract(env: Env, admin: Address, nqg_contract: types::Contract, project: String);
+    fn set_nqg_contract(
+        env: Env,
+        admin: Address,
+        nqg_contract: types::ContractRef,
+        project: String,
+    );
 
     fn propose_upgrade(
         env: Env,
@@ -221,13 +226,13 @@ fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> typ
 /// * `key` - The contract key
 ///
 /// # Returns
-/// * `types::Contract` - The contract object
+/// * `types::ContractRef` - The contract object
 ///
 /// # Panics
 /// * If the contract cannot be found
 /// * If the WASM hash of the contract does not match on-chain data
-fn retrieve_contract(env: &Env, key: types::ContractKey) -> types::Contract {
-    let retrieved_contract: types::Contract = env.storage().instance().get(&key).unwrap();
+fn retrieve_contract(env: &Env, key: types::ContractKey) -> types::ContractRef {
+    let retrieved_contract: types::ContractRef = env.storage().instance().get(&key).unwrap();
     validate_contract(env, &retrieved_contract);
     retrieved_contract
 }
@@ -240,7 +245,7 @@ fn retrieve_contract(env: &Env, key: types::ContractKey) -> types::Contract {
 ///
 /// # Panics
 /// * If the WASM hash of the contract does not match on-chain data
-fn validate_contract(env: &Env, contract: &types::Contract) {
+fn validate_contract(env: &Env, contract: &types::ContractRef) {
     let contract_executable = contract.address.executable();
 
     if let Some(wasm_hash) = contract.clone().wasm_hash

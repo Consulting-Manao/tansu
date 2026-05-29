@@ -91,7 +91,7 @@ impl TansuTrait for Tansu {
     /// * `env` - The environment object
     /// * `admin` - The admin address
     /// * `domain_contract` - The new domain contract
-    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::Contract) {
+    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::ContractRef) {
         auth_admin(&env, &admin);
 
         validate_contract(&env, &domain_contract);
@@ -115,7 +115,7 @@ impl TansuTrait for Tansu {
     /// * `env` - The environment object
     /// * `admin` - The admin address
     /// * `collateral_contract` - The new collateral contract
-    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::Contract) {
+    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef) {
         auth_admin(&env, &admin);
 
         validate_contract(&env, &collateral_contract);
@@ -139,7 +139,12 @@ impl TansuTrait for Tansu {
     /// * `env` - The environment object
     /// * `admin` - The admin address
     /// * `nqg_contract` - The new NQG contract
-    fn set_nqg_contract(env: Env, admin: Address, nqg_contract: types::Contract, project: String) {
+    fn set_nqg_contract(
+        env: Env,
+        admin: Address,
+        nqg_contract: types::ContractRef,
+        project: String,
+    ) {
         auth_admin(&env, &admin);
 
         validate_contract(&env, &nqg_contract);

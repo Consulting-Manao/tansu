@@ -303,7 +303,7 @@ fn test_domain_contract_update() {
     // first a bad one
     let new_domain_id = Address::generate(&setup.env);
     let wasm_hash = BytesN::from_array(&setup.env, &[2u8; 32]);
-    let new_domain = types::Contract {
+    let new_domain = types::ContractRef {
         address: new_domain_id,
         wasm_hash: Some(wasm_hash),
     };
@@ -320,7 +320,7 @@ fn test_domain_contract_update() {
         Executable::Wasm(wasm) => wasm,
         _ => panic!(),
     };
-    let new_domain = types::Contract {
+    let new_domain = types::ContractRef {
         address: new_domain_id,
         wasm_hash: Some(wasm_hash),
     };
@@ -346,7 +346,7 @@ fn test_domain_contract_update() {
     assert_eq!(events, [event.to_xdr(&setup.env, &setup.contract_id)]);
 
     // Verify the update was successful
-    // let retrieved_domain: types::Contract = setup
+    // let retrieved_domain: types::ContractRef = setup
     //     .env
     //     .storage()
     //     .instance()

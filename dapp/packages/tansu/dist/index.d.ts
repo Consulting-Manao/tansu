@@ -69,10 +69,6 @@ export interface Project {
   name: string;
   sub_projects: Option<Array<Buffer>>;
 }
-export interface Contract {
-  address: string;
-  wasm_hash: Option<Buffer>;
-}
 export interface Proposal {
   id: u32;
   ipfs: string;
@@ -168,6 +164,10 @@ export type ContractKey =
       tag: "Nqg";
       values: void;
     };
+export interface ContractRef {
+  address: string;
+  wasm_hash: Option<Buffer>;
+}
 export type VoteTallies =
   | {
       tag: "PublicVote";
@@ -904,7 +904,7 @@ export interface Client {
       project,
     }: {
       admin: string;
-      nqg_contract: Contract;
+      nqg_contract: ContractRef;
       project: string;
     },
     options?: MethodOptions,
@@ -947,7 +947,7 @@ export interface Client {
       domain_contract,
     }: {
       admin: string;
-      domain_contract: Contract;
+      domain_contract: ContractRef;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -973,7 +973,7 @@ export interface Client {
       collateral_contract,
     }: {
       admin: string;
-      collateral_contract: Contract;
+      collateral_contract: ContractRef;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1386,7 +1386,7 @@ export declare class Client extends ContractClient {
     remove_conflict_of_interest: (json: string) => AssembledTransaction<null>;
     build_commitments_from_votes: (
       json: string,
-    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
+    ) => AssembledTransaction<Buffer[]>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
@@ -1407,14 +1407,12 @@ export declare class Client extends ContractClient {
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
     commit: (json: string) => AssembledTransaction<null>;
-    register: (json: string) => AssembledTransaction<Buffer<ArrayBufferLike>>;
+    register: (json: string) => AssembledTransaction<Buffer>;
     get_commit: (json: string) => AssembledTransaction<string>;
     get_project: (json: string) => AssembledTransaction<Project>;
     get_projects: (json: string) => AssembledTransaction<Project[]>;
     update_config: (json: string) => AssembledTransaction<null>;
-    get_sub_projects: (
-      json: string,
-    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
+    get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
   };
 }
