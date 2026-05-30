@@ -178,6 +178,7 @@ pub enum ProjectKey {
     Dao(Bytes, u32), // Decentralized organization, pagination
     DaoTotalProposals(Bytes),
     Voters(Bytes, u32),        // Voter addresses for proposal
+    VoteCount(Bytes, u32),     // Number of votes for a proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),

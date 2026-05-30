@@ -400,6 +400,17 @@ impl DaoTrait for Tansu {
         // Remove the vote entry
         env.storage().persistent().remove(&vote_key);
 
+        // Update vote count
+        let vote_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .unwrap_or(1u32);
+        env.storage().persistent().set(
+            &types::ProjectKey::VoteCount(project_key.clone(), proposal_id),
+            &(vote_count - 1),
+        );
+
         // Remove voter from the voters list
         let mut voters = get_voters(&env, &project_key, proposal_id);
         if let Some(pos) = voters.iter().position(|v| v == voter) {
@@ -569,14 +580,13 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
-        let mut voters = env
+        // Check vote limits for DoS protection
+        let vote_count: u32 = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
-            .unwrap_or(Vec::new(&env));
-
-        // Check vote limits for DoS protection
-        if voters.len() >= MAX_VOTES_PER_PROPOSAL {
+            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .unwrap_or(0u32);
+        if vote_count >= MAX_VOTES_PER_PROPOSAL {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
         }
 
@@ -676,6 +686,18 @@ impl DaoTrait for Tansu {
 
         // Record the vote in keyed storage
         env.storage().persistent().set(&vote_key, &vote.clone());
+
+        // Update vote count
+        let vote_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .unwrap_or(0u32);
+        env.storage().persistent().set(
+            &types::ProjectKey::VoteCount(project_key.clone(), proposal_id),
+            &(vote_count + 1),
+        );
+
         voters.push_back(voter.clone());
         env.storage().persistent().set(
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
