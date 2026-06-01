@@ -410,7 +410,10 @@ impl DaoTrait for Tansu {
         let vote_count: u32 = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .get(&types::ProjectKey::VoteCount(
+                project_key.clone(),
+                proposal_id,
+            ))
             .unwrap_or(1u32);
         env.storage().persistent().set(
             &types::ProjectKey::VoteCount(project_key.clone(), proposal_id),
@@ -580,7 +583,10 @@ impl DaoTrait for Tansu {
         let vote_count: u32 = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .get(&types::ProjectKey::VoteCount(
+                project_key.clone(),
+                proposal_id,
+            ))
             .unwrap_or(0u32);
         if vote_count >= MAX_VOTES_PER_PROPOSAL {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
@@ -687,7 +693,10 @@ impl DaoTrait for Tansu {
         let vote_count: u32 = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::VoteCount(project_key.clone(), proposal_id))
+            .get(&types::ProjectKey::VoteCount(
+                project_key.clone(),
+                proposal_id,
+            ))
             .unwrap_or(0u32);
         env.storage().persistent().set(
             &types::ProjectKey::VoteCount(project_key.clone(), proposal_id),
@@ -698,7 +707,10 @@ impl DaoTrait for Tansu {
         let next_index: u32 = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::VoteNextIndex(project_key.clone(), proposal_id))
+            .get(&types::ProjectKey::VoteNextIndex(
+                project_key.clone(),
+                proposal_id,
+            ))
             .unwrap_or(1u32);
         env.storage().persistent().set(
             &types::ProjectKey::VoteIndex(project_key.clone(), proposal_id, next_index),
@@ -1183,20 +1195,22 @@ impl DaoTrait for Tansu {
 fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
     // Determine the voter list using the new index scheme if available,
     // or fall back to the legacy Voters vector for proposals created before the upgrade.
-    let voters: Vec<Address> = match env
-        .storage()
-        .persistent()
-        .get::<types::ProjectKey, u32>(&types::ProjectKey::VoteNextIndex(
-            project_key.clone(),
-            proposal_id,
-        )) {
+    let voters: Vec<Address> = match env.storage().persistent().get::<types::ProjectKey, u32>(
+        &types::ProjectKey::VoteNextIndex(project_key.clone(), proposal_id),
+    ) {
         Some(next_index) => {
             // New scheme: collect addresses from VoteIndex slots, skipping gaps.
             let mut addrs = Vec::new(env);
             for i in 0..next_index {
-                if let Some(voter) = env.storage().persistent().get::<types::ProjectKey, Address>(
-                    &types::ProjectKey::VoteIndex(project_key.clone(), proposal_id, i),
-                ) {
+                if let Some(voter) = env
+                    .storage()
+                    .persistent()
+                    .get::<types::ProjectKey, Address>(&types::ProjectKey::VoteIndex(
+                        project_key.clone(),
+                        proposal_id,
+                        i,
+                    ))
+                {
                     addrs.push_back(voter);
                 }
             }
