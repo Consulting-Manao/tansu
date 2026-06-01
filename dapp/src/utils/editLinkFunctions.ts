@@ -27,9 +27,12 @@ const RADICLE_KNOWN_SEED_HOSTS = new Set<string>(RADICLE_PUBLIC_SEED_HOSTS);
 
 const RADICLE_EXPLORER_HOSTS = new Set(["radicle.network", "app.radicle.xyz"]);
 const RADICLE_RID_PATTERN = /^rad:(z[1-9A-HJ-NP-Za-km-z]+)$/;
-const RADICLE_RID_IN_TEXT_PATTERN = /(rad:(z[1-9A-HJ-NP-Za-km-z]+))/;
-const RADICLE_SCHEME_PATTERN = /^rad:\/\/(z[1-9A-HJ-NP-Za-km-z]+)(?:[/?#].*)?$/;
+const RADICLE_SCHEME_PATTERN = /^rad:\/\/(z[1-9A-HJ-NP-Za-km-z]+)\/?$/;
 const RADICLE_GIT_PATH_PATTERN = /^\/(z[1-9A-HJ-NP-Za-km-z]+)\.git$/;
+const RADICLE_SEED_API_PATH_PATTERN =
+  /^\/api\/v1\/repos\/(rad:(z[1-9A-HJ-NP-Za-km-z]+))\/?$/;
+const RADICLE_EXPLORER_NODE_PATH_PATTERN =
+  /^\/nodes\/([^/]+)\/(rad:(z[1-9A-HJ-NP-Za-km-z]+))\/?$/;
 
 export type RepositoryProvider =
   | "github"
@@ -219,41 +222,44 @@ function isLikelyHostname(value: string): boolean {
   return /^[a-z0-9.-]+$/i.test(value) && value.includes(".");
 }
 
-function extractRadicleRidFromUrl(parsedUrl: URL): string | undefined {
-  const directGitMatch = parsedUrl.pathname.match(RADICLE_GIT_PATH_PATTERN);
-  if (directGitMatch?.[1]) {
-    return `rad:${directGitMatch[1]}`;
-  }
-
-  const decodedPathname = decodePathname(parsedUrl.pathname);
-  const pathMatch = decodedPathname.match(RADICLE_RID_IN_TEXT_PATTERN);
-  if (pathMatch?.[1]) {
-    return pathMatch[1];
-  }
-
-  const decodedSearch = decodePathname(parsedUrl.search);
-  const searchMatch = decodedSearch.match(RADICLE_RID_IN_TEXT_PATTERN);
-  if (searchMatch?.[1]) {
-    return searchMatch[1];
-  }
-
-  return undefined;
-}
-
-function extractRadicleSeedHost(parsedUrl: URL): string | undefined {
-  const host = parsedUrl.hostname.toLowerCase();
-
-  if (RADICLE_EXPLORER_HOSTS.has(host)) {
-    const decodedPathname = decodePathname(parsedUrl.pathname);
-    const nodesMatch = decodedPathname.match(/^\/nodes\/([^/]+)\/rad:/);
-    if (nodesMatch?.[1] && isLikelyHostname(nodesMatch[1])) {
-      return nodesMatch[1].toLowerCase();
-    }
+function parseRadicleHttpsUrl(
+  parsedUrl: URL,
+): Pick<ParsedRadicleRepositoryUrl, "rid" | "seedHost"> | undefined {
+  if (parsedUrl.search || parsedUrl.hash) {
     return undefined;
   }
 
-  if (RADICLE_KNOWN_SEED_HOSTS.has(host) || isLikelyHostname(host)) {
-    return host;
+  const host = parsedUrl.hostname.toLowerCase();
+  const decodedPathname = decodePathname(parsedUrl.pathname);
+
+  if (RADICLE_EXPLORER_HOSTS.has(host)) {
+    const nodesMatch = decodedPathname.match(
+      RADICLE_EXPLORER_NODE_PATH_PATTERN,
+    );
+    if (!nodesMatch?.[1] || !nodesMatch[2]) {
+      return undefined;
+    }
+
+    const seedHost = nodesMatch[1].toLowerCase();
+    if (!isLikelyHostname(seedHost)) {
+      return undefined;
+    }
+
+    return { rid: nodesMatch[2], seedHost };
+  }
+
+  if (!RADICLE_KNOWN_SEED_HOSTS.has(host) && !isLikelyHostname(host)) {
+    return undefined;
+  }
+
+  const apiMatch = decodedPathname.match(RADICLE_SEED_API_PATH_PATTERN);
+  if (apiMatch?.[1]) {
+    return { rid: apiMatch[1], seedHost: host };
+  }
+
+  const directGitMatch = decodedPathname.match(RADICLE_GIT_PATH_PATTERN);
+  if (directGitMatch?.[1]) {
+    return { rid: `rad:${directGitMatch[1]}`, seedHost: host };
   }
 
   return undefined;
@@ -281,19 +287,19 @@ function parseRadicleRepositoryUrl(
       return undefined;
     }
 
-    const rid = extractRadicleRidFromUrl(parsedUrl);
-    if (!rid) {
+    const parsedRadicleUrl = parseRadicleHttpsUrl(parsedUrl);
+    if (!parsedRadicleUrl) {
       return undefined;
     }
-
-    const seedHost = extractRadicleSeedHost(parsedUrl);
 
     return {
       kind: "radicle",
       provider: "radicle",
-      normalizedUrl: rid,
-      rid,
-      ...(seedHost ? { seedHost } : {}),
+      normalizedUrl: parsedRadicleUrl.rid,
+      rid: parsedRadicleUrl.rid,
+      ...(parsedRadicleUrl.seedHost
+        ? { seedHost: parsedRadicleUrl.seedHost }
+        : {}),
     };
   } catch {
     return undefined;

@@ -8,25 +8,30 @@ import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import { useEffect, useState } from "react";
 import { getRepositoryIconInfo } from "utils/editLinkFunctions";
-import { projectInfoLoaded } from "utils/store";
+import { configData as configDataStore, projectInfoLoaded } from "utils/store";
 import { toast } from "utils/utils";
 
 const UpdateHashModal = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
+  const configData = useStore(configDataStore);
   const [showButton, setShowButton] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [latestHash, setLatestHash] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [updateSuccessful, setUpdateSuccessful] = useState(false);
   const projectInfo = isProjectInfoLoaded ? loadProjectInfo() : null;
-  const repositoryIcon = getRepositoryIconInfo(projectInfo?.config?.url);
+  const repositoryUrl =
+    configData?.officials?.githubLink || projectInfo?.config?.url;
+  const repositoryIcon = getRepositoryIconInfo(repositoryUrl);
 
   useEffect(() => {
     if (isProjectInfoLoaded) {
       const projectInfo = loadProjectInfo();
+      const repositoryUrl =
+        configData?.officials?.githubLink || projectInfo?.config?.url;
 
       if (projectInfo) {
-        getLatestCommitHash(projectInfo?.config.url || "")
+        getLatestCommitHash(repositoryUrl || "")
           .then((latestSha) => {
             setLatestHash(latestSha || "");
           })
@@ -40,7 +45,7 @@ const UpdateHashModal = () => {
         setShowButton(isMaintainer);
       }
     }
-  }, [isProjectInfoLoaded]);
+  }, [isProjectInfoLoaded, configData?.officials?.githubLink]);
 
   const handleClose = () => {
     const shouldReload = updateSuccessful;

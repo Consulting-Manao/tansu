@@ -599,13 +599,21 @@ import Button from "components/utils/Button";
             configData?.officials?.githubLink || projectInfo.config.url,
           websiteUrl: configData?.officials?.websiteLink,
         };
+        const repositoryUrl =
+          configData?.officials?.githubLink || projectInfo.config.url;
 
         if (isSoftwareProject) {
           const latestSha = loadProjectLatestSha();
           if (latestSha) {
+            commitData = {
+              sha: latestSha,
+              html_url: "",
+              date: "",
+              author: "",
+            };
             try {
               const latestCommit = await getLatestCommitData(
-                projectInfo.config.url,
+                repositoryUrl,
                 latestSha,
               );
 
@@ -628,7 +636,7 @@ import Button from "components/utils/Button";
             contributionMetricsRoot.render(
               React.createElement(ContributionMetrics, {
                 projectName: projectInfo.name,
-                repoUrl: projectInfo.config.url,
+                repoUrl: repositoryUrl,
               }),
             );
           }
@@ -659,9 +667,15 @@ import Button from "components/utils/Button";
         if (isSoftwareProject) {
           const latestSha = loadProjectLatestSha();
           if (latestSha) {
+            commitData = {
+              sha: latestSha,
+              html_url: "",
+              date: "",
+              author: "",
+            };
             try {
               const latestCommit = await getLatestCommitData(
-                projectInfo.config.url,
+                repositoryUrl,
                 latestSha,
               );
 
@@ -684,7 +698,7 @@ import Button from "components/utils/Button";
             contributionMetricsRoot.render(
               React.createElement(ContributionMetrics, {
                 projectName: projectInfo.name,
-                repoUrl: projectInfo.config.url,
+                repoUrl: repositoryUrl,
               }),
             );
           }

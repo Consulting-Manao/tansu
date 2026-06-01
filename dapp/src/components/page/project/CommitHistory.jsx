@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts";
 import {
   loadConfigData,
-  loadProjectRepoUrl,
+  loadProjectInfo,
 } from "../../../service/StateService.ts";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
 import {
@@ -27,7 +27,8 @@ const CommitHistory = () => {
 
   const fetchCommitHistory = async (page = 1) => {
     setLoadError(null);
-    const projectRepoUrl = loadProjectRepoUrl();
+    const projectRepoUrl =
+      configData?.officials?.githubLink || loadProjectInfo()?.config?.url;
     if (projectRepoUrl) {
       setIsLoading(true);
       try {

@@ -267,6 +267,20 @@ describe("parseRepositoryUrl", () => {
     });
   });
 
+  it("parses Radicle seed git URLs and keeps the explicit seed host", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://seed.example/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git",
+      ),
+    ).toEqual({
+      kind: "radicle",
+      provider: "radicle",
+      normalizedUrl: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      seedHost: "seed.example",
+    });
+  });
+
   it("parses Radicle explorer URLs and preserves hostname-based node paths", () => {
     expect(
       parseRepositoryUrl(
@@ -279,6 +293,27 @@ describe("parseRepositoryUrl", () => {
       rid: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
       seedHost: "node.example",
     });
+  });
+
+  it("rejects arbitrary HTTPS URLs that only contain a Radicle RID substring", () => {
+    expect(
+      parseRepositoryUrl(
+        "https://example.org/docs/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toBeUndefined();
+    expect(
+      parseRepositoryUrl(
+        "https://example.org/search?q=rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toBeUndefined();
+    expect(
+      parseRepositoryUrl(
+        "https://radicle.network/search?q=rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      ),
+    ).toBeUndefined();
+    expect(
+      parseRepositoryUrl("rad://z3gqcJUoA1n9HaHKufZs5FCSGazv5/tree/main"),
+    ).toBeUndefined();
   });
 });
 

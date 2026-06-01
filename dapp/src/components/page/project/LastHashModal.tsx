@@ -51,22 +51,24 @@ const LastHashModal: FC<LastHashModalProps> = ({
                   </p>
                   <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-shrink-0">
                     <CopyButton
-                      textToCopy={commitData?.html_url || ""}
+                      textToCopy={commitData?.html_url || commitData?.sha || ""}
                       size="sm"
                     />
-                    <a
-                      className="p-2 hover:bg-gray-100 rounded"
-                      href={commitData?.html_url || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Open commit in new tab"
-                    >
-                      <img
-                        src="/icons/link.svg"
-                        className="w-4 h-4 sm:w-auto sm:h-auto"
-                        alt="Open link"
-                      />
-                    </a>
+                    {commitData?.html_url ? (
+                      <a
+                        className="p-2 hover:bg-gray-100 rounded"
+                        href={commitData.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Open commit in new tab"
+                      >
+                        <img
+                          src="/icons/link.svg"
+                          className="w-4 h-4 sm:w-auto sm:h-auto"
+                          alt="Open link"
+                        />
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>

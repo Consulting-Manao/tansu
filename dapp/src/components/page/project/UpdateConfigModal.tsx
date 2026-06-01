@@ -128,8 +128,6 @@ function mergeTomlData(
     const seedHost = getRepositorySeedHost(fields.githubRepoUrl);
     if (seedHost) {
       existingDoc["ORG_REPOSITORY_SEED"] = seedHost;
-    } else {
-      delete existingDoc["ORG_REPOSITORY_SEED"];
     }
   } else {
     existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
@@ -313,9 +311,11 @@ const UpdateConfigModal = () => {
     setMaintainerGithubs(
       cfg?.authorGithubNames || projectInfo.maintainers.map(() => ""),
     );
-    setGithubRepoUrl(projectInfo.config.url || "");
+    const repositoryUrl =
+      cfg?.officials?.githubLink || projectInfo.config.url || "";
+    setGithubRepoUrl(repositoryUrl);
     setSelectedRepositoryProvider(
-      getRepositoryProvider(projectInfo.config.url || "") || "github",
+      getRepositoryProvider(repositoryUrl) || "github",
     );
     setProjectName(projectInfo.name || "");
     setProjectFullName(cfg?.projectFullName || projectInfo.name || "");

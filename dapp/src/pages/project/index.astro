@@ -95,26 +95,24 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
               }
             }
 
-            setConfigData(configData);
-            projectInfoLoaded.set(true);
-
             // Only set git-derived metadata for SOFTWARE projects
             const isSoftwareProject = configData.projectType === "SOFTWARE";
             if (isSoftwareProject) {
               const sha =
                 hashResult.status === "fulfilled" ? hashResult.value : null;
-              setProjectLatestSha(
-                sha && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
-                  ? sha
-                  : "",
-              );
+              setProjectLatestSha(sha && typeof sha === "string" ? sha : "");
               if (hashResult.status === "rejected") {
                 toast.error(
                   "Something Went Wrong!",
                   hashResult.reason?.message,
                 );
               }
+            } else {
+              setProjectLatestSha("");
             }
+
+            setConfigData(configData);
+            projectInfoLoaded.set(true);
           })();
         } else {
           refreshLocalStorage();

@@ -54,15 +54,12 @@ const LatestCommit = () => {
     setIsLoading(true);
     const projectInfo = loadProjectInfo();
     const latestSha = await getProjectHash();
-    if (
-      projectInfo &&
-      projectInfo.config &&
-      projectInfo.config.url &&
-      latestSha
-    ) {
+    const repositoryUrl =
+      configData?.officials?.githubLink || projectInfo?.config?.url;
+    if (projectInfo && projectInfo.config && repositoryUrl && latestSha) {
       try {
         const latestCommit = await getLatestCommitData(
-          projectInfo.config.url,
+          repositoryUrl,
           latestSha,
         );
         if (latestCommit) {
