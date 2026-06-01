@@ -35,6 +35,7 @@ import {
   getRepositoryProjectPath,
   getRepositoryProvider,
   getRepositoryProviderLabel,
+  getRepositoryRid,
   getRepositorySeedHost,
   getRepositoryUrlPlaceholder,
   SUPPORTED_REPOSITORY_PROVIDERS,
@@ -98,6 +99,7 @@ function mergeTomlData(
     orgLogo: string;
     orgDescription: string;
     githubRepoUrl: string;
+    originalRepositoryUrl?: string;
     isSoftwareProject: boolean;
     repositoryProvider?: RepositoryProvider;
   },
@@ -128,6 +130,13 @@ function mergeTomlData(
     const seedHost = getRepositorySeedHost(fields.githubRepoUrl);
     if (seedHost) {
       existingDoc["ORG_REPOSITORY_SEED"] = seedHost;
+    } else {
+      const currentRid = getRepositoryRid(fields.githubRepoUrl);
+      const originalRid = getRepositoryRid(fields.originalRepositoryUrl);
+
+      if (!currentRid || currentRid !== originalRid) {
+        delete existingDoc["ORG_REPOSITORY_SEED"];
+      }
     }
   } else {
     existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
@@ -271,6 +280,7 @@ const UpdateConfigModal = () => {
   const [readmeContent, setReadmeContent] = useState("");
   const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
   const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
+  const originalRepositoryUrlRef = useRef("");
 
   // errors
   const [addrErrors, setAddrErrors] = useState<(string | null)[]>([null]);
@@ -313,6 +323,7 @@ const UpdateConfigModal = () => {
     );
     const repositoryUrl =
       cfg?.officials?.githubLink || projectInfo.config.url || "";
+    originalRepositoryUrlRef.current = repositoryUrl;
     setGithubRepoUrl(repositoryUrl);
     setSelectedRepositoryProvider(
       getRepositoryProvider(repositoryUrl) || "github",
@@ -450,6 +461,7 @@ const UpdateConfigModal = () => {
       orgLogo,
       orgDescription,
       githubRepoUrl,
+      originalRepositoryUrl: originalRepositoryUrlRef.current,
       isSoftwareProject,
       ...(activeRepositoryProvider
         ? { repositoryProvider: activeRepositoryProvider }

@@ -566,6 +566,13 @@ export function getRepositorySeedHost(
   return parsed?.kind === "radicle" ? parsed.seedHost : undefined;
 }
 
+export function getRepositoryRid(
+  repoUrl: string | null | undefined,
+): string | undefined {
+  const parsed = parseRepositoryUrl(repoUrl);
+  return parsed?.kind === "radicle" ? parsed.rid : undefined;
+}
+
 export function getRepositoryBrowseUrl(
   repoUrl: string | null | undefined,
 ): string | undefined {
