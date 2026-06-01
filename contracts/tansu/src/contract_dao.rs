@@ -307,10 +307,16 @@ impl DaoTrait for Tansu {
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
             &vote_,
         );
-        let voters = vec![&env, proposer.clone()];
+        // Proposer's abstain occupies slot 0; VoteNextIndex advances to 1.
+        // VoteCount is NOT written here: the proposer's weight=0 abstain was never
+        // counted in the original VoteCount, preserving DoS-limit semantics.
         env.storage().persistent().set(
-            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
-            &voters,
+            &types::ProjectKey::VoteIndex(project_key.clone(), proposal_id, 0),
+            &proposer,
+        );
+        env.storage().persistent().set(
+            &types::ProjectKey::VoteNextIndex(project_key.clone(), proposal_id),
+            &1u32,
         );
 
         let proposal_tallies = if public_voting {
@@ -400,7 +406,7 @@ impl DaoTrait for Tansu {
         // Remove the vote entry
         env.storage().persistent().remove(&vote_key);
 
-        // Update vote count
+        // Decrement active vote count
         let vote_count: u32 = env
             .storage()
             .persistent()
@@ -409,16 +415,6 @@ impl DaoTrait for Tansu {
         env.storage().persistent().set(
             &types::ProjectKey::VoteCount(project_key.clone(), proposal_id),
             &(vote_count - 1),
-        );
-
-        // Remove voter from the voters list
-        let mut voters = get_voters(&env, &project_key, proposal_id);
-        if let Some(pos) = voters.iter().position(|v| v == voter) {
-            voters.remove(pos as u32);
-        }
-        env.storage().persistent().set(
-            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
-            &voters,
         );
 
         // Reverse the removed vote's contribution from the aggregate tallies.
@@ -687,7 +683,7 @@ impl DaoTrait for Tansu {
         // Record the vote in keyed storage
         env.storage().persistent().set(&vote_key, &vote.clone());
 
-        // Update vote count
+        // Increment active vote count (used for DoS limit check)
         let vote_count: u32 = env
             .storage()
             .persistent()
@@ -698,10 +694,19 @@ impl DaoTrait for Tansu {
             &(vote_count + 1),
         );
 
-        voters.push_back(voter.clone());
+        // Assign a slot using VoteNextIndex (monotonically increasing, never decremented)
+        let next_index: u32 = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::VoteNextIndex(project_key.clone(), proposal_id))
+            .unwrap_or(1u32);
         env.storage().persistent().set(
-            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
-            &voters,
+            &types::ProjectKey::VoteIndex(project_key.clone(), proposal_id, next_index),
+            &voter,
+        );
+        env.storage().persistent().set(
+            &types::ProjectKey::VoteNextIndex(project_key.clone(), proposal_id),
+            &(next_index + 1),
         );
 
         let tallies_key = types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id);
@@ -1175,25 +1180,38 @@ impl DaoTrait for Tansu {
     }
 }
 
-/// Load all persisted votes for a proposal.
-///
-/// # Arguments
-/// * `env` - The environment object
-/// * `project_key` - The project key identifier
-/// * `proposal_id` - The ID of the proposal to load votes for
-///
-/// # Returns
-/// * `Vec<types::Vote>` - All votes of the proposal
-fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
-    env.storage()
-        .persistent()
-        .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
-        .unwrap_or(Vec::new(env))
-}
-
 fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
+    // Determine the voter list using the new index scheme if available,
+    // or fall back to the legacy Voters vector for proposals created before the upgrade.
+    let voters: Vec<Address> = match env
+        .storage()
+        .persistent()
+        .get::<types::ProjectKey, u32>(&types::ProjectKey::VoteNextIndex(
+            project_key.clone(),
+            proposal_id,
+        )) {
+        Some(next_index) => {
+            // New scheme: collect addresses from VoteIndex slots, skipping gaps.
+            let mut addrs = Vec::new(env);
+            for i in 0..next_index {
+                if let Some(voter) = env.storage().persistent().get::<types::ProjectKey, Address>(
+                    &types::ProjectKey::VoteIndex(project_key.clone(), proposal_id, i),
+                ) {
+                    addrs.push_back(voter);
+                }
+            }
+            addrs
+        }
+        None => {
+            // Legacy scheme: read the Voters address vector written by the old code.
+            env.storage()
+                .persistent()
+                .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
+                .unwrap_or(Vec::new(env))
+        }
+    };
+
     let mut votes = Vec::new(env);
-    let voters = get_voters(env, project_key, proposal_id);
     for voter in voters.iter() {
         if let Some(vote_) = env
             .storage()

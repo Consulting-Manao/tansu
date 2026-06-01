@@ -177,9 +177,11 @@ pub enum ProjectKey {
     LastHash(Bytes), // last hash of the project
     Dao(Bytes, u32), // Decentralized organization, pagination
     DaoTotalProposals(Bytes),
-    Voters(Bytes, u32),        // Voter addresses for proposal
-    VoteCount(Bytes, u32),     // Number of votes for a proposal
-    Vote(Bytes, u32, Address), // Proposal vote keyed by voter
+    Voters(Bytes, u32),         // Legacy: voter address list (read-only after upgrade, never written)
+    VoteCount(Bytes, u32),      // Active vote count for a proposal (incremented on cast, decremented on removal)
+    Vote(Bytes, u32, Address),  // Proposal vote keyed by voter
+    VoteIndex(Bytes, u32, u32), // Voter address at sequential slot (project_key, proposal_id, slot)
+    VoteNextIndex(Bytes, u32),  // Next available slot index, monotonically increasing
     ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),
     ProjectKeys(u32),               // List of project keys, pagination

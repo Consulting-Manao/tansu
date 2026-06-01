@@ -1287,6 +1287,74 @@ fn remove_vote_public_flips_outcome() {
     assert_eq!(result, ProposalStatus::Approved);
 }
 
+/// Duplicate votes are rejected via storage-based existence check — no voter list involved.
+/// Covers: proposer auto-abstain blocks re-vote, and a regular voter cannot vote twice.
+#[test]
+fn duplicate_vote_rejected_via_storage() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Duplicate vote test"),
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Proposer (grogu) was auto-enrolled as abstain; re-voting must be rejected
+    // purely because Vote(key, proposal_id, grogu) already exists in storage.
+    assert_eq!(
+        setup.contract.try_vote(
+            &setup.grogu,
+            &id,
+            &proposal_id,
+            &Vote::PublicVote(PublicVote {
+                address: setup.grogu.clone(),
+                weight: 1,
+                vote_choice: VoteChoice::Approve,
+            }),
+        ),
+        Err(Ok(ContractErrors::AlreadyVoted.into()))
+    );
+
+    // mando votes successfully
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // mando attempts to vote again — rejected via storage check, not a voter list scan
+    assert_eq!(
+        setup.contract.try_vote(
+            &setup.mando,
+            &id,
+            &proposal_id,
+            &Vote::PublicVote(PublicVote {
+                address: setup.mando.clone(),
+                weight: 1,
+                vote_choice: VoteChoice::Reject,
+            }),
+        ),
+        Err(Ok(ContractErrors::AlreadyVoted.into()))
+    );
+}
+
 #[test]
 fn remove_vote_anonymous_flips_outcome() {
     let setup = create_test_data();
