@@ -1,0 +1,16 @@
+# Pin DEPLOY PREVIEWS of this branch to the time-limits-removed Tansu on testnet
+# so the governance flow can be exercised from the automatic preview URL.
+#
+# Only the deploy-preview context env is overridden — production/staging keep
+# the env configured in the Netlify UI, and the build command/publish dir are
+# left to the site settings (Astro Netlify adapter).
+
+[context.deploy-preview.environment]
+  PUBLIC_SOROBAN_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+  PUBLIC_SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org:443"
+  PUBLIC_HORIZON_URL = "https://horizon-testnet.stellar.org"
+  # New Tansu (SorobanDomain removed, per-project min_voting_period/execute_delay)
+  PUBLIC_TANSU_CONTRACT_ID = "CDLQFXGGQHD3DJXMOO4T6O2IISWOEAL27GQZZS6MAQQBEAU2GYFTHP3O"
+  PUBLIC_SOROBAN_DOMAIN_CONTRACT_ID = "CAUORQ7XOSJOV6NLUK2A7FZSZP5Z55AQPEPMWDEZPQ4DDKSTXBBEDKNF"
+  PUBLIC_TANSU_OWNER_ID = "GAUF7DU72VMB4IHGJLO3AHJWRKTFAJXWMB6LBXSJT5TLS2ARJFE6VCBZ"
+  PUBLIC_DELEGATION_API_URL = "https://ipfs-testnet.tansu.dev"
