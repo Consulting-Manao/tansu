@@ -3,10 +3,6 @@
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, Vec, contract, panic_with_error};
 use soroban_sdk::{Executable, contractmeta};
 
-mod domain_contract {
-    soroban_sdk::contractimport!(file = "../domain_current.wasm");
-}
-
 mod contract_dao;
 mod contract_membership;
 // mod contract_migration;
@@ -31,8 +27,6 @@ pub trait TansuTrait {
     fn require_not_paused(env: Env);
 
     fn get_admins_config(env: Env) -> types::AdminsConfig;
-
-    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::ContractRef);
 
     fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef);
 

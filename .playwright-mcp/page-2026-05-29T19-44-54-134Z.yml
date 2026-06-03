@@ -1,0 +1,50 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Main navigation" [ref=e3]:
+      - generic [ref=e5]:
+        - link "Tansu homepage" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Tansu logo" [ref=e8]
+        - generic [ref=e14]:
+          - img "Search" [ref=e16]
+          - textbox "Search projects or community..." [ref=e17]
+        - generic [ref=e18]:
+          - button "Connect wallet to start using Tansu" [ref=e21]:
+            - generic [ref=e22]: Connect
+            - img "Connect wallet icon" [ref=e23]
+          - button "Join" [ref=e26] [cursor=pointer]:
+            - paragraph [ref=e27]: Join
+  - generic [ref=e30]:
+    - paragraph [ref=e33]: Featured Projects
+    - paragraph [ref=e35]: No projects found. Try searching for something.
+    - generic [ref=e36]:
+      - paragraph [ref=e39]: All Projects
+      - generic [ref=e40]:
+        - paragraph [ref=e41]: No projects found yet.
+        - paragraph [ref=e42]: Be the first to register a project!
+  - contentinfo [ref=e43]:
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - link "(//)" [ref=e48] [cursor=pointer]:
+          - /url: https://tansu.dev
+          - img "(//)" [ref=e49]
+        - generic [ref=e50]:
+          - text: © 2026 Tansu,
+          - link "Consulting Manao GmbH" [ref=e51] [cursor=pointer]:
+            - /url: https://consulting-manao.com
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - link "Terms of Service" [ref=e54] [cursor=pointer]:
+            - /url: /terms
+          - generic [ref=e55]: "|"
+          - link "Privacy Policy" [ref=e56] [cursor=pointer]:
+            - /url: /privacy
+        - link "github" [ref=e57] [cursor=pointer]:
+          - /url: https://github.com/Consulting-Manao/tansu
+          - img "github" [ref=e58]
+        - link "stellar explorer" [ref=e59] [cursor=pointer]:
+          - /url: https://stellar.expert/explorer/testnet/contract/CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
+          - img "stellar explorer" [ref=e60]
+        - link "stellar explorer" [ref=e61] [cursor=pointer]:
+          - /url: https://discord.com/channels/897514728459468821/1262501866915237908
+          - img "stellar explorer" [ref=e62]

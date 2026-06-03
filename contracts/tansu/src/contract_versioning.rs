@@ -1,14 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 
-use soroban_sdk::{
-    Address, Bytes, BytesN, Env, IntoVal, String, Symbol, Val, Vec, contractimpl, panic_with_error,
-    vec,
-};
+use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error};
 
-use crate::{
-    Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, domain_contract, errors, events,
-    types,
-};
+use stellar_registry_types::NormalizedName;
+
+use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events, types};
 
 const MAX_PROJECTS_PER_PAGE: u32 = 10;
 
@@ -17,13 +13,17 @@ impl VersioningTrait for Tansu {
     /// Register a new project.
     ///
     /// Creates a new project entry with maintainers, URL, and commit hash.
-    /// Also registers the project name in the domain contract if not already registered.
-    /// The project key is generated using keccak256 hash of the project name.
+    /// The project name is validated/normalized via `NormalizedName` (shared
+    /// with the Stellar Registry contract); the project key is the keccak256
+    /// hash of the normalized name.
     ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `maintainer` - The address of the maintainer calling this function
-    /// * `name` - The project name (max 15 characters)
+    /// * `name` - The project name. Must be a canonical crate-style name:
+    ///   non-empty, ≤64 chars, ascii alphanumeric/`-`/`_`, starting with a
+    ///   letter, and not a Rust keyword. Uppercase is lowercased and `_` becomes
+    ///   `-`.
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
@@ -39,11 +39,9 @@ impl VersioningTrait for Tansu {
     /// * `Bytes` - The project key (keccak256 hash of the name)
     ///
     /// # Panics
-    /// * If the project name is longer than 15 characters
+    /// * If the project name is not a valid `NormalizedName`
     /// * If the project already exists
     /// * If the maintainer is not authorized
-    /// * If the domain registration fails
-    /// * If the maintainer doesn't own an existing domain
     /// * If `min_voting_period` or `execute_delay` is `Some(0)` or exceeds `MAX_VOTING_PERIOD`
     fn register(
         env: Env,
@@ -63,17 +61,22 @@ impl VersioningTrait for Tansu {
             }
         }
 
+        // Validate + normalize the project name. This replaces the old
+        // SorobanDomain registration: `NormalizedName` (shared with the Stellar
+        // Registry contract) enforces a canonical crate-style name — ≤64 chars,
+        // ascii alphanumeric/`-`/`_`, leading alphabetic, no Rust keywords — and
+        // lowercases it so the keccak256 project key is collision-free.
+        let name = match NormalizedName::new(&name) {
+            Ok(normalized) => normalized.to_string(),
+            Err(_) => panic_with_error!(&env, &errors::ContractErrors::InvalidProjectName),
+        };
+
         let project = types::Project {
             name: name.clone(),
             config: types::Config { url, ipfs },
             maintainers: maintainers.clone(),
             sub_projects: None,
         };
-        let str_len = name.len() as usize;
-        if str_len > 15 {
-            // could add more checks but handled in any case with later calls
-            panic_with_error!(&env, &errors::ContractErrors::InvalidDomainError);
-        }
 
         let name_b = name.to_bytes();
         let key: Bytes = env.crypto().keccak256(&name_b).into();
@@ -92,23 +95,6 @@ impl VersioningTrait for Tansu {
                 panic_with_error!(&env, &errors::ContractErrors::UnauthorizedSigner);
             }
 
-            let domain_contract = crate::retrieve_contract(&env, types::ContractKey::Domain);
-
-            let node = domain_node(&env, &key);
-            let record_keys = domain_contract::RecordKeys::Record(node);
-
-            let domain_client = domain_contract::Client::new(&env, &domain_contract.address);
-            match domain_client.try_record(&record_keys) {
-                Ok(Ok(None)) => {
-                    domain_register(&env, &name_b, &maintainer, domain_contract.address)
-                }
-                Ok(Ok(Some(domain_contract::Record::Domain(domain)))) => {
-                    if domain.owner != maintainer {
-                        panic_with_error!(&env, &errors::ContractErrors::MaintainerNotDomainOwner)
-                    }
-                }
-                _ => panic_with_error!(&env, &errors::ContractErrors::InvalidDomainError),
-            }
             env.storage().persistent().set(&key_, &project);
 
             // Add to project list
@@ -396,61 +382,4 @@ impl VersioningTrait for Tansu {
         }
         .publish(&env);
     }
-}
-
-/// Register a Soroban Domain: https://sorobandomains.org
-/// Register a project name in the domain contract.
-///
-/// Helper function to register a project name in the domain contract system.
-///
-/// # Arguments
-/// * `env` - The environment object
-/// * `name` - The project name to register
-/// * `maintainer` - The maintainer address to set as owner
-/// * `domain_contract_id` - The domain contract address
-pub fn domain_register(env: &Env, name: &Bytes, maintainer: &Address, domain_contract_id: Address) {
-    let tld = Bytes::from_slice(env, &[120, 108, 109]); // xlm
-    let min_duration: u64 = 31536000;
-
-    // Convert the arguments to Val
-    let name_raw = name.to_val();
-    let tld_raw = tld.to_val();
-    let maintainer_raw = maintainer.to_val();
-    let min_duration_raw: Val = min_duration.into_val(env);
-
-    // Construct the init_args
-    let init_args = vec![
-        &env,
-        name_raw,
-        tld_raw,
-        maintainer_raw,
-        maintainer_raw,
-        min_duration_raw,
-    ];
-
-    env.invoke_contract::<()>(
-        &domain_contract_id,
-        &Symbol::new(env, "set_record"),
-        init_args,
-    );
-}
-
-/// Generate a domain node hash for the domain contract.
-///
-/// Helper function to create a domain node hash from a project key.
-///
-/// # Arguments
-/// * `env` - The environment object
-/// * `domain` - The domain bytes to hash
-///
-/// # Returns
-/// * `BytesN<32>` - The domain node hash
-pub fn domain_node(env: &Env, domain: &Bytes) -> BytesN<32> {
-    let tld = Bytes::from_slice(env, &[120, 108, 109]); // xlm
-    let parent_hash: Bytes = env.crypto().keccak256(&tld).into();
-    let mut node_builder: Bytes = Bytes::new(env);
-    node_builder.append(&parent_hash);
-    node_builder.append(domain);
-
-    env.crypto().keccak256(&node_builder).into()
 }

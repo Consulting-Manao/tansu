@@ -21,10 +21,6 @@ endif
 override tansu_id = $(shell cat .stellar/tansu_id-$(network))
 override scf_membership_id = $(shell cat .stellar/scf_membership_id-$(network))
 
-override domain_contract_id_mainnet = $(shell cat .stellar/soroban_domain_id-mainnet)
-override domain_contract_id = $(shell cat .stellar/soroban_domain_id-$(network))
-override domain_wasm_hash = $(shell stellar contract fetch --id $(domain_contract_id) --network $(network) | openssl sha256 | awk '{print $$2}')
-
 override collateral_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
 override nqg_contract_id = CAM3VZX47TCQWCEYGXEDTSIJYKIVM6AWMFR7VTFYTETXFO53I5LOZGBT
@@ -192,49 +188,9 @@ radicle_ci:  ## Run test and register the results on Radicle
 radicle_release:  ## Publish a release on Radicle
 	.radicle/release.sh
 
-# --------- Soroban Domains --------- #
-
-contract_domain_deploy:
-	stellar contract deploy \
-  		--wasm contracts/domain_current.wasm \
-  		--source-account $(admin) \
-  		--network $(network) \
-  		--salt $(shell printf soroban_domain | openssl sha256 | cut -d " " -f2) \
-  		> .stellar/soroban_domain_id-$(network) && \
-  	cat .stellar/soroban_domain_id-$(network)
-
-contract_domain_init:
-	stellar contract invoke \
-		--source-account mando-testnet \
-		--network testnet \
-		--id $(shell cat .stellar/soroban_domain_id) \
-		-- \
-		init \
-		--adm $(shell stellar keys address $(admin)) \
-		--node_rate 100 \
-		--col_asset $(shell stellar contract id asset --asset native --network $(network)) \
-		--min_duration 31536000 \
-		--allowed_tlds '[{"bytes": "786c6d"}]'
-
-contract_domain_fetch_latest:  ## Fetch latest Domain wasm from mainnet and store as domain_<sha256>.wasm
-	@echo "Fetching domain contract $(domain_contract_id_mainnet) from mainnet..."
-	stellar contract fetch --id $(domain_contract_id_mainnet) --network mainnet > contracts/domain_latest.wasm
-	mv contracts/domain_latest.wasm contracts/domain_current.wasm; \
-	echo "Updated contracts/domain_current.wasm"
-
 # --------- Setup --------- #
 
-contract_set_domain_contract:  ## Set the SorobanDomain contract address
-	stellar contract invoke \
-    	--source-account $(admin) \
-    	--network $(network) \
-    	--id $(tansu_id) \
-    	-- \
-    	set_domain_contract \
-		--admin $(shell stellar keys address $(admin)) \
-		--domain_contract '{"address":"$(domain_contract_id)","wasm_hash":"$(domain_wasm_hash)"}'
-
-contract_set_collateral_contract:  ## Set the SorobanDomain contract address
+contract_set_collateral_contract:  ## Set the collateral contract address
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -261,9 +217,6 @@ testnet_reset:  ## Playbook for testnet reset
 	make funds && \
 	make contract_bindings && \
 	make contract_deploy && \
-	make contract_domain_deploy && \
-	make contract_domain_init && \
-	make contract_set_domain_contract && \
 	make contract_set_collateral_contract && \
 	make contract_unpause && \
 	make contract_register && \

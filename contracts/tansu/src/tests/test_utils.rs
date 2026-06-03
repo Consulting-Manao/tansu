@@ -1,12 +1,11 @@
-use crate::{Tansu, TansuClient, domain_contract, types};
+use crate::{Tansu, TansuClient, types};
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, Bytes, Env, Executable, String, Vec, token, vec};
+use soroban_sdk::{Address, Bytes, Env, Executable, String, token, vec};
 
 pub struct TestSetup {
     pub env: Env,
     pub contract: TansuClient<'static>,
     pub contract_id: Address,
-    pub domain_id: Address,
     pub token_stellar: token::StellarAssetClient<'static>,
     pub grogu: Address,
     pub mando: Address,
@@ -36,51 +35,15 @@ mod nqg {
 pub fn create_test_data() -> TestSetup {
     let env = create_env();
 
-    let domain_id = env.register(domain_contract::WASM, ());
-    let domain = domain_contract::Client::new(&env, &domain_id);
-
-    let adm = Address::generate(&env);
-    let node_rate: u128 = 100;
-    let min_duration: u64 = 31_536_000;
-    let allowed_tlds: Vec<Bytes> = Vec::from_array(
-        &env,
-        [
-            Bytes::from_slice(&env, b"xlm"),
-            Bytes::from_slice(&env, b"stellar"),
-            Bytes::from_slice(&env, b"wallet"),
-            Bytes::from_slice(&env, b"dao"),
-        ],
-    );
-
     let issuer = Address::generate(&env);
     let sac = env.register_stellar_asset_contract_v2(issuer.clone());
-    let token_client = token::TokenClient::new(&env, &sac.address());
     let token_stellar = token::StellarAssetClient::new(&env, &sac.address());
-
-    domain.init(
-        &adm,
-        &node_rate,
-        &token_client.address.clone(),
-        &min_duration,
-        &allowed_tlds,
-    );
 
     let contract_admin = Address::generate(&env);
     let contract_id = env.register(Tansu, (&contract_admin,));
     let contract = TansuClient::new(&env, &contract_id);
 
     contract.pause(&contract_admin, &false);
-
-    let wasm_hash = match domain_id.executable().unwrap() {
-        Executable::Wasm(wasm) => wasm,
-        _ => panic!(),
-    };
-
-    let new_domain = types::ContractRef {
-        address: domain_id.clone(),
-        wasm_hash: Some(wasm_hash.clone()),
-    };
-    contract.set_domain_contract(&contract_admin, &new_domain);
 
     let new_collateral = types::ContractRef {
         address: sac.address(),
@@ -110,7 +73,6 @@ pub fn create_test_data() -> TestSetup {
         env,
         contract,
         contract_id,
-        domain_id,
         token_stellar,
         grogu,
         mando,

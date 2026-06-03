@@ -85,30 +85,6 @@ impl TansuTrait for Tansu {
             })
     }
 
-    /// Set the Soroban Domain contract.
-    ///
-    /// # Arguments
-    /// * `env` - The environment object
-    /// * `admin` - The admin address
-    /// * `domain_contract` - The new domain contract
-    fn set_domain_contract(env: Env, admin: Address, domain_contract: types::ContractRef) {
-        auth_admin(&env, &admin);
-
-        validate_contract(&env, &domain_contract);
-
-        env.storage()
-            .instance()
-            .set(&types::ContractKey::Domain, &domain_contract);
-
-        events::ContractUpdated {
-            admin,
-            contract_key: String::from_str(&env, "domain"),
-            address: domain_contract.address,
-            wasm_hash: domain_contract.wasm_hash,
-        }
-        .publish(&env);
-    }
-
     /// Set the Collateral contract.
     ///
     /// # Arguments

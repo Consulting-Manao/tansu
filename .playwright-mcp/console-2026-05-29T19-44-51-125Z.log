@@ -1,0 +1,10 @@
+[    2097ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/chunk-ALOWBOUH.js?v=2b7ba366:0
+[    2116ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/chunk-IXGMXJWD.js?v=2b7ba366:0
+[    2117ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/react.js?v=bd5e1126:0
+[    2117ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/react-dom_client.js?v=bd5e1126:0
+[    2117ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=bd5e1126:0
+[    2181ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/@id/astro/runtime/client/dev-toolbar/entrypoint.js:0
+[    2778ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:4321/node_modules/.vite/deps/chunk-QDQDZVKR.js?v=ac0a3a57:20102
+[   37658ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/@id/astro/runtime/client/dev-toolbar/entrypoint.js:0
+[   37749ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:4321/node_modules/.vite/deps/chunk-QDQDZVKR.js?v=ac0a3a57:20102
+[   66416ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:4321/node_modules/.vite/deps/@stellar_stellar-sdk.js?v=0:0

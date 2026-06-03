@@ -12,7 +12,6 @@ pub struct ContractRef {
 
 #[contracttype]
 pub enum ContractKey {
-    Domain,     // Address and wasm hash of the SorobanDomain contract
     Collateral, // Collateral asset contract address
     Nqg,        // Neural Quorum Governance contract address
 }

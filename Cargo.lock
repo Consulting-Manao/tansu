@@ -1511,6 +1511,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stellar-registry-types"
+version = "0.1.0"
+source = "git+https://github.com/stellar-registry/contracts?rev=2826467dbe9fb4741cca8d8ca21b0cc513f9dba8#2826467dbe9fb4741cca8d8ca21b0cc513f9dba8"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "stellar-strkey"
 version = "0.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,6 +1586,7 @@ name = "tansu"
 version = "2.0.2"
 dependencies = [
  "soroban-sdk",
+ "stellar-registry-types",
 ]
 
 [[package]]

@@ -1,11 +1,9 @@
 use super::test_utils::create_test_data;
 use crate::errors::ContractErrors;
-use crate::events::{
-    ContractPaused, ContractUpdated, UpgradeApproved, UpgradeProposed, UpgradeStatus,
-};
-use crate::{domain_contract, types};
+use crate::events::{ContractPaused, UpgradeApproved, UpgradeProposed, UpgradeStatus};
+use crate::types;
 use soroban_sdk::testutils::{Address as _, Events, Ledger};
-use soroban_sdk::{Address, Bytes, BytesN, Event, Executable, String, bytesn, vec};
+use soroban_sdk::{Address, Bytes, BytesN, Event, String, bytesn, vec};
 
 #[test]
 fn test_pause_unpause() {
@@ -292,67 +290,6 @@ fn test_upgrade_approval() {
     let proposal = setup.contract.get_upgrade_proposal();
     assert_eq!(proposal.wasm_hash, wasm_hash);
     assert_eq!(proposal.approvals.len(), 2); // Both admins have approved
-}
-
-#[test]
-fn test_domain_contract_update() {
-    let setup = create_test_data();
-
-    // Create a new domain contract ID
-
-    // first a bad one
-    let new_domain_id = Address::generate(&setup.env);
-    let wasm_hash = BytesN::from_array(&setup.env, &[2u8; 32]);
-    let new_domain = types::ContractRef {
-        address: new_domain_id,
-        wasm_hash: Some(wasm_hash),
-    };
-    let err = setup
-        .contract
-        .try_set_domain_contract(&setup.contract_admin, &new_domain)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ContractValidation.into());
-
-    // a good one
-    let new_domain_id = setup.env.register(domain_contract::WASM, ());
-    let wasm_hash = match new_domain_id.executable().unwrap() {
-        Executable::Wasm(wasm) => wasm,
-        _ => panic!(),
-    };
-    let new_domain = types::ContractRef {
-        address: new_domain_id,
-        wasm_hash: Some(wasm_hash),
-    };
-
-    // Update the domain contract ID
-    setup
-        .contract
-        .set_domain_contract(&setup.contract_admin, &new_domain);
-
-    // Verify the event
-    let event = ContractUpdated {
-        admin: setup.contract_admin.clone(),
-        contract_key: String::from_str(&setup.env, "domain"),
-        address: new_domain.address.clone(),
-        wasm_hash: new_domain.wasm_hash,
-    };
-
-    let events = setup
-        .env
-        .events()
-        .all()
-        .filter_by_contract(&setup.contract_id);
-    assert_eq!(events, [event.to_xdr(&setup.env, &setup.contract_id)]);
-
-    // Verify the update was successful
-    // let retrieved_domain: types::ContractRef = setup
-    //     .env
-    //     .storage()
-    //     .instance()
-    //     .get(&types::ContractKey::DomainContract)
-    //     .unwrap();
-    // assert_eq!(retrieved_domain, new_domain);
 }
 
 #[test]

@@ -14,6 +14,11 @@ repository = "https://github.com/consulting-manao/tansu"
 soroban-sdk = { version = "26.0.0" }
 # features = ["experimental_spec_shaking_v2"]
 
+# Shared name-validation type extracted from the Stellar Registry contract.
+# Used to validate/normalize project names now that the SorobanDomain
+# integration has been removed.
+stellar-registry-types = { git = "https://github.com/stellar-registry/contracts", rev = "2826467dbe9fb4741cca8d8ca21b0cc513f9dba8" }
+
 [profile.release]
 opt-level = "z"
 overflow-checks = true

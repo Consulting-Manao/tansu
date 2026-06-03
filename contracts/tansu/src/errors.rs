@@ -10,7 +10,6 @@ pub enum ContractErrors {
     // Authorization/Permission (100-199)
     UnauthorizedSigner = 100,
     WrongVoter = 101,
-    MaintainerNotDomainOwner = 102,
     MissingMaintainer = 103,
 
     // Validation (200-299)
@@ -20,7 +19,7 @@ pub enum ContractErrors {
     ProposalInputValidation = 203,
     UnknownMember = 204,
     MemberAlreadyExist = 205,
-    InvalidDomainError = 206,
+    InvalidProjectName = 206,
     WrongVoteType = 207,
     BadCommitment = 208,
     VoterWeight = 209,
