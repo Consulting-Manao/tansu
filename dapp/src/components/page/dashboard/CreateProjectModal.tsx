@@ -535,7 +535,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
                       }}
                       description={
                         activeRepositoryProvider === "radicle"
-                          ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                          ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
                           : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
                       }
                       error={githubRepoUrlError}
@@ -821,7 +821,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
                       }}
                       description={
                         activeRepositoryProvider === "radicle"
-                          ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                          ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
                           : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
                       }
                       error={githubRepoUrlError}

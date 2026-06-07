@@ -21,7 +21,7 @@ const SUPPORTED_REPOSITORY_HOSTS = new Set([
   "gitea.com",
 ]);
 
-const RADICLE_PUBLIC_SEED_HOSTS = ["seed.radicle.xyz"] as const;
+const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
 
 const RADICLE_KNOWN_SEED_HOSTS = new Set<string>(RADICLE_PUBLIC_SEED_HOSTS);
 
@@ -89,7 +89,8 @@ const REPOSITORY_PROVIDER_REPO_PLACEHOLDERS: Record<
   bitbucket: "https://bitbucket.org/workspace/repo",
   codeberg: "https://codeberg.org/owner/repo",
   gitea: "https://gitea.com/owner/repo",
-  radicle: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+  radicle:
+    "https://radicle.network/nodes/iris.radicle.network/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
 };
 
 const REPOSITORY_PROVIDER_HANDLE_PLACEHOLDERS: Record<

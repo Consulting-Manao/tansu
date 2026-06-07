@@ -211,7 +211,7 @@ describe("RepositoryMetadataService", () => {
 
       if (
         url ===
-        `https://seed.radicle.xyz/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits?page=1&per_page=1`
+        `https://iris.radicle.network/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits?page=1&per_page=1`
       ) {
         return Promise.resolve(
           createJsonResponse([
@@ -228,7 +228,7 @@ describe("RepositoryMetadataService", () => {
 
       if (
         url ===
-        `https://seed.radicle.xyz/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits/abc123`
+        `https://iris.radicle.network/api/v1/repos/${encodeURIComponent(RADICLE_RID)}/commits/abc123`
       ) {
         return Promise.resolve(
           createJsonResponse({
@@ -261,7 +261,7 @@ describe("RepositoryMetadataService", () => {
 
     await expect(getLatestCommitData(RADICLE_RID, "abc123")).resolves.toEqual({
       sha: "abc123",
-      html_url: `https://radicle.network/nodes/seed.radicle.xyz/${encodeURIComponent(RADICLE_RID)}`,
+      html_url: `https://radicle.network/nodes/iris.radicle.network/${encodeURIComponent(RADICLE_RID)}`,
       commit: {
         message: "Initial commit\n\nAdds project scaffolding",
         author: {

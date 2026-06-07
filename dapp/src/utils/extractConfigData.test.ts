@@ -75,7 +75,7 @@ describe("extractConfigData", () => {
     const out = extractConfigData(
       {
         DOCUMENTATION: {
-          ORG_REPOSITORY_SEED: "seed.radicle.xyz",
+          ORG_REPOSITORY_SEED: "iris.radicle.network",
         },
         PRINCIPALS: [{ radicle: "cloudhead" }],
       },
@@ -83,7 +83,7 @@ describe("extractConfigData", () => {
     );
 
     expect(out.officials.githubLink).toBe(
-      "https://radicle.network/nodes/seed.radicle.xyz/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
+      "https://radicle.network/nodes/iris.radicle.network/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
     );
     expect(out.authorGithubNames).toEqual(["cloudhead"]);
   });

@@ -674,7 +674,7 @@ const UpdateConfigModal = () => {
                           }}
                           description={
                             activeRepositoryProvider === "radicle"
-                              ? "Use a public Radicle RID such as rad:z3..., a rad:// reference, or a public seed URL."
+                              ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
                               : `Paste an HTTPS or SSH URL for ${repositoryProviderLabel}. The provider selector updates automatically when the URL is recognized.`
                           }
                           error={repoError || undefined}

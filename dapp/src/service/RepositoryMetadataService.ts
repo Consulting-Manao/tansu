@@ -80,7 +80,7 @@ const REQUEST_CACHE_TTL_MS = 30_000;
 const MAX_RETRY_ATTEMPTS = 2;
 const INITIAL_RETRY_DELAY_MS = 250;
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
-const RADICLE_PUBLIC_SEED_HOSTS = ["seed.radicle.xyz"] as const;
+const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
 const responseCache = new Map<
   string,
   { expiresAt: number; response: Response }

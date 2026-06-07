@@ -455,6 +455,9 @@ describe("Radicle repository helpers", () => {
     expect(getRepositoryCloneCommand("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toBe(
       "rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
     );
+    expect(buildRadicleBrowseUrl("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")).toBe(
+      "https://radicle.network/nodes/iris.radicle.network/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    );
     expect(
       getRepositorySeedHost(
         "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
