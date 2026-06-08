@@ -51,6 +51,11 @@ interface CreateProjectFlowParams {
   maintainers: string[];
   onProgress?: (step: number) => void;
   additionalFiles?: File[]; // Optional files like README.md for non-software projects
+  // Per-project governance overrides (added when the contract made the DAO
+  // voting period / execute timelock configurable). `undefined` => contract
+  // defaults. A short minVotingPeriod is handy for demoing governance.
+  minVotingPeriod?: bigint;
+  executeDelay?: bigint;
 }
 
 // Side-effect: patch Spec for OutcomeContract.args (Vec<Val>) encode/decode.
@@ -335,6 +340,8 @@ export async function createProjectFlow({
   maintainers,
   onProgress,
   additionalFiles,
+  minVotingPeriod,
+  executeDelay,
 }: CreateProjectFlowParams): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
@@ -356,6 +363,8 @@ export async function createProjectFlow({
     maintainers,
     url: normalizedRepositoryUrl,
     ipfs: cid,
+    min_voting_period: minVotingPeriod,
+    execute_delay: executeDelay,
   });
 
   // Check for simulation errors (contract errors) before signing

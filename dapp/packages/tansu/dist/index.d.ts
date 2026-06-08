@@ -161,10 +161,6 @@ export type VoteChoice =
     };
 export type ContractKey =
   | {
-      tag: "Domain";
-      values: void;
-    }
-  | {
       tag: "Collateral";
       values: void;
     }
@@ -245,9 +241,6 @@ export declare const ContractErrors: {
     message: string;
   };
   101: {
-    message: string;
-  };
-  102: {
     message: string;
   };
   103: {
@@ -944,25 +937,6 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
-   * Construct and simulate a set_domain_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Set the Soroban Domain contract.
-   *
-   * # Arguments
-   * * `env` - The environment object
-   * * `admin` - The admin address
-   * * `domain_contract` - The new domain contract
-   */
-  set_domain_contract: (
-    {
-      admin,
-      domain_contract,
-    }: {
-      admin: string;
-      domain_contract: ContractRef;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-  /**
    * Construct and simulate a get_upgrade_proposal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get upgrade proposal details
    */
@@ -1429,7 +1403,7 @@ export declare class Client extends ContractClient {
     remove_conflict_of_interest: (json: string) => AssembledTransaction<null>;
     build_commitments_from_votes: (
       json: string,
-    ) => AssembledTransaction<Buffer[]>;
+    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
@@ -1438,7 +1412,6 @@ export declare class Client extends ContractClient {
     set_nqg_contract: (json: string) => AssembledTransaction<null>;
     get_admins_config: (json: string) => AssembledTransaction<AdminsConfig>;
     require_not_paused: (json: string) => AssembledTransaction<null>;
-    set_domain_contract: (json: string) => AssembledTransaction<null>;
     get_upgrade_proposal: (
       json: string,
     ) => AssembledTransaction<UpgradeProposal>;
@@ -1450,12 +1423,14 @@ export declare class Client extends ContractClient {
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
     commit: (json: string) => AssembledTransaction<null>;
-    register: (json: string) => AssembledTransaction<Buffer>;
+    register: (json: string) => AssembledTransaction<Buffer<ArrayBufferLike>>;
     get_commit: (json: string) => AssembledTransaction<string>;
     get_project: (json: string) => AssembledTransaction<Project>;
     get_projects: (json: string) => AssembledTransaction<Project[]>;
     update_config: (json: string) => AssembledTransaction<null>;
-    get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
+    get_sub_projects: (
+      json: string,
+    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
     get_execute_delay: (json: string) => AssembledTransaction<bigint>;
     get_min_voting_period: (json: string) => AssembledTransaction<bigint>;
