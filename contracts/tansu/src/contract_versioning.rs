@@ -376,29 +376,6 @@ impl VersioningTrait for Tansu {
             .unwrap_or_else(|| Vec::new(&env))
     }
 
-    /// Get the effective minimum voting period for a project in seconds.
-    ///
-    /// Returns the per-project override stored at registration if set, otherwise
-    /// the global `MIN_VOTING_PERIOD` default.
-    fn get_min_voting_period(env: Env, project_key: Bytes) -> u64 {
-        env.storage()
-            .persistent()
-            .get(&types::ProjectKey::MinVotingPeriod(project_key))
-            .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD)
-    }
-
-    /// Get the effective DAO execute timelock for a project in seconds.
-    ///
-    /// Returns the per-project override stored at registration if set, otherwise
-    /// the global `TIMELOCK_DELAY` default. Only governs DAO proposal `execute()`;
-    /// the admin upgrade timelock in `propose_upgrade` is unaffected.
-    fn get_execute_delay(env: Env, project_key: Bytes) -> u64 {
-        env.storage()
-            .persistent()
-            .get(&types::ProjectKey::ExecuteDelay(project_key))
-            .unwrap_or(types::TIMELOCK_DELAY)
-    }
-
     /// Get project information including configuration and maintainers.
     ///
     /// # Arguments

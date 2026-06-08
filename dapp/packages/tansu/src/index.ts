@@ -1142,31 +1142,6 @@ export interface Client {
     }: { maintainer: string; project_key: Buffer; sub_projects: Array<Buffer> },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
-
-  /**
-   * Construct and simulate a get_execute_delay transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the effective DAO execute timelock for a project in seconds.
-   *
-   * Returns the per-project override stored at registration if set, otherwise
-   * the global `TIMELOCK_DELAY` default. Only governs DAO proposal `execute()`;
-   * the admin upgrade timelock in `propose_upgrade` is unaffected.
-   */
-  get_execute_delay: (
-    { project_key }: { project_key: Buffer },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
-
-  /**
-   * Construct and simulate a get_min_voting_period transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the effective minimum voting period for a project in seconds.
-   *
-   * Returns the per-project override stored at registration if set, otherwise
-   * the global `MIN_VOTING_PERIOD` default.
-   */
-  get_min_voting_period: (
-    { project_key }: { project_key: Buffer },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -1227,8 +1202,6 @@ export class Client extends ContractClient {
         "AAAAAAAAAfhVcGRhdGUgdGhlIGNvbmZpZ3VyYXRpb24gb2YgYW4gZXhpc3RpbmcgcHJvamVjdC4KCkFsbG93cyBtYWludGFpbmVycyB0byBjaGFuZ2UgdGhlIHByb2plY3QncyBVUkwsIElQRlMgbWV0YWRhdGEsIGFuZCBtYWludGFpbmVyIGxpc3QuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBtYWludGFpbmVyYCAtIFRoZSBhZGRyZXNzIG9mIHRoZSBtYWludGFpbmVyIGNhbGxpbmcgdGhpcyBmdW5jdGlvbgoqIGBrZXlgIC0gVGhlIHByb2plY3Qga2V5IGlkZW50aWZpZXIKKiBgbWFpbnRhaW5lcnNgIC0gTmV3IGxpc3Qgb2YgbWFpbnRhaW5lciBhZGRyZXNzZXMKKiBgdXJsYCAtIE5ldyBHaXQgcmVwb3NpdG9yeSBVUkwKKiBgaXBmc2AgLSBOZXcgQ0lEIG9mIHRoZSB0YW5zdS50b21sIGZpbGUgd2l0aCBtZXRhZGF0YQoKIyBQYW5pY3MKKiBJZiB0aGUgcHJvamVjdCBkb2Vzbid0IGV4aXN0CiogSWYgdGhlIG1haW50YWluZXIgaXMgbm90IGF1dGhvcml6ZWQAAAANdXBkYXRlX2NvbmZpZwAAAAAAAAUAAAAAAAAACm1haW50YWluZXIAAAAAABMAAAAAAAAAA2tleQAAAAAOAAAAAAAAAAttYWludGFpbmVycwAAAAPqAAAAEwAAAAAAAAADdXJsAAAAABAAAAAAAAAABGlwZnMAAAAQAAAAAA==",
         "AAAAAAAAAOdHZXQgc3ViLXByb2plY3RzIGZvciBhIHByb2plY3QgKGlmIGl0J3MgYW4gb3JnYW5pemF0aW9uKS4KCiMgQXJndW1lbnRzCiogYGVudmAgLSBUaGUgZW52aXJvbm1lbnQgb2JqZWN0CiogYHByb2plY3Rfa2V5YCAtIFRoZSBwcm9qZWN0IGtleSBpZGVudGlmaWVyCgojIFJldHVybnMKKiBgVmVjPEJ5dGVzPmAgLSBMaXN0IG9mIHN1Yi1wcm9qZWN0IGtleXMsIGVtcHR5IGlmIG5vdCBhbiBvcmdhbml6YXRpb24AAAAAEGdldF9zdWJfcHJvamVjdHMAAAABAAAAAAAAAAtwcm9qZWN0X2tleQAAAAAOAAAAAQAAA+oAAAAO",
         "AAAAAAAAAn5TZXQgc3ViLXByb2plY3RzIGZvciBhIHByb2plY3QgKG1ha2luZyBpdCBhbiBvcmdhbml6YXRpb24pLgoKTm90ZTogYnkgZGVzaWduLCBzdWItcHJvamVjdCBrZXlzIGFyZSBub3QgdmFsaWRhdGVkIGFnYWluc3QgZXhpc3RpbmcKcHJvamVjdHMuIFRoaXMgYWxsb3dzIHJlc2VydmluZyBhIHByb2plY3Qgc3BhY2UgYmVmb3JlIHRoZSBwcm9qZWN0IGlzCnJlZ2lzdGVyZWQgKHNpbmNlIHRoZSBrZXkgaXMgZGVyaXZlZCBmcm9tIHRoZSBuYW1lKS4gQSBwcm9qZWN0IGNhbgphbHNvIGFwcGVhciBpbiBtdWx0aXBsZSBvcmdhbml6YXRpb25zLgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBgbWFpbnRhaW5lcmAgLSBUaGUgbWFpbnRhaW5lciBhZGRyZXNzIGNhbGxpbmcgdGhpcyBmdW5jdGlvbgoqIGBwcm9qZWN0X2tleWAgLSBUaGUgcHJvamVjdCBrZXkgaWRlbnRpZmllcgoqIGBzdWJfcHJvamVjdHNgIC0gTGlzdCBvZiBzdWItcHJvamVjdCBrZXlzIHRvIGFzc29jaWF0ZQoKIyBQYW5pY3MKKiBJZiB0aGUgcHJvamVjdCBkb2Vzbid0IGV4aXN0CiogSWYgdGhlIG1haW50YWluZXIgaXMgbm90IGF1dGhvcml6ZWQKKiBJZiBtb3JlIHRoYW4gMTAgc3ViLXByb2plY3RzIGFyZSBwcm92aWRlZAAAAAAAEHNldF9zdWJfcHJvamVjdHMAAAADAAAAAAAAAAptYWludGFpbmVyAAAAAAATAAAAAAAAAAtwcm9qZWN0X2tleQAAAAAOAAAAAAAAAAxzdWJfcHJvamVjdHMAAAPqAAAADgAAAAA=",
-        "AAAAAAAAARZHZXQgdGhlIGVmZmVjdGl2ZSBEQU8gZXhlY3V0ZSB0aW1lbG9jayBmb3IgYSBwcm9qZWN0IGluIHNlY29uZHMuCgpSZXR1cm5zIHRoZSBwZXItcHJvamVjdCBvdmVycmlkZSBzdG9yZWQgYXQgcmVnaXN0cmF0aW9uIGlmIHNldCwgb3RoZXJ3aXNlCnRoZSBnbG9iYWwgYFRJTUVMT0NLX0RFTEFZYCBkZWZhdWx0LiBPbmx5IGdvdmVybnMgREFPIHByb3Bvc2FsIGBleGVjdXRlKClgOwp0aGUgYWRtaW4gdXBncmFkZSB0aW1lbG9jayBpbiBgcHJvcG9zZV91cGdyYWRlYCBpcyB1bmFmZmVjdGVkLgAAAAAAEWdldF9leGVjdXRlX2RlbGF5AAAAAAAAAQAAAAAAAAALcHJvamVjdF9rZXkAAAAADgAAAAEAAAAG",
-        "AAAAAAAAALRHZXQgdGhlIGVmZmVjdGl2ZSBtaW5pbXVtIHZvdGluZyBwZXJpb2QgZm9yIGEgcHJvamVjdCBpbiBzZWNvbmRzLgoKUmV0dXJucyB0aGUgcGVyLXByb2plY3Qgb3ZlcnJpZGUgc3RvcmVkIGF0IHJlZ2lzdHJhdGlvbiBpZiBzZXQsIG90aGVyd2lzZQp0aGUgZ2xvYmFsIGBNSU5fVk9USU5HX1BFUklPRGAgZGVmYXVsdC4AAAAVZ2V0X21pbl92b3RpbmdfcGVyaW9kAAAAAAAAAQAAAAAAAAALcHJvamVjdF9rZXkAAAAADgAAAAEAAAAG",
         "AAAAAQAAAAAAAAAAAAAAA0RhbwAAAAABAAAAAAAAAAlwcm9wb3NhbHMAAAAAAAPqAAAH0AAAAAhQcm9wb3NhbA==",
         "AAAAAgAAAAAAAAAAAAAABFZvdGUAAAACAAAAAQAAAAAAAAAKUHVibGljVm90ZQAAAAAAAQAAB9AAAAAKUHVibGljVm90ZQAAAAAAAQAAAAAAAAANQW5vbnltb3VzVm90ZQAAAAAAAAEAAAfQAAAADUFub255bW91c1ZvdGUAAAA=",
         "AAAAAwAAAAAAAAAAAAAABUJhZGdlAAAAAAAABQAAAAAAAAAJRGV2ZWxvcGVyAAAAAJiWgAAAAAAAAAAGVHJpYWdlAAAATEtAAAAAAAAAAAlDb21tdW5pdHkAAAAAD0JAAAAAAAAAAAhWZXJpZmllZAAHoSAAAAAAAAAAB0RlZmF1bHQAAAAAAQ==",
@@ -1313,7 +1286,5 @@ export class Client extends ContractClient {
     update_config: this.txFromJSON<null>,
     get_sub_projects: this.txFromJSON<Array<Buffer>>,
     set_sub_projects: this.txFromJSON<null>,
-    get_execute_delay: this.txFromJSON<u64>,
-    get_min_voting_period: this.txFromJSON<u64>,
   };
 }

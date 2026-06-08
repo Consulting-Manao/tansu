@@ -2,9 +2,19 @@ extern crate std;
 use super::test_utils::{create_test_data, init_contract};
 use crate::errors::ContractErrors;
 use crate::events::ProjectRegistered;
-use crate::types::Project;
+use crate::types::{Project, ProjectKey};
 use soroban_sdk::testutils::Events;
-use soroban_sdk::{Bytes, Event, String, Vec, vec};
+use soroban_sdk::{Address, Bytes, Env, Event, String, Vec, vec};
+
+/// Read a per-project governance override straight from contract storage,
+/// mirroring how the DAO consumes it. The contract intentionally exposes no
+/// public accessor for these (per review on #155), so tests read storage
+/// directly via `as_contract`.
+fn stored_override(env: &Env, contract: &Address, key: ProjectKey, default: u64) -> u64 {
+    env.as_contract(contract, || {
+        env.storage().persistent().get(&key).unwrap_or(default)
+    })
+}
 
 #[test]
 fn register_project() {
@@ -299,8 +309,16 @@ fn test_sub_projects_limit() {
 fn min_voting_period_defaults_when_unset() {
     let setup = create_test_data();
     let id = init_contract(&setup);
-    // 24h default (also defined in contract_dao but asserted on the public read path)
-    assert_eq!(setup.contract.get_min_voting_period(&id), 24 * 3600);
+    // No override is persisted, so the DAO falls back to the 24h default.
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        24 * 3600
+    );
 }
 
 #[test]
@@ -325,7 +343,15 @@ fn min_voting_period_override_is_stored_and_read() {
         &Some(custom),
         &None,
     );
-    assert_eq!(setup.contract.get_min_voting_period(&id), custom);
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom
+    );
 }
 
 #[test]
@@ -389,8 +415,16 @@ fn min_voting_period_rejects_above_max() {
 fn execute_delay_defaults_when_unset() {
     let setup = create_test_data();
     let id = init_contract(&setup);
-    // Mirrors TIMELOCK_DELAY = 24 * 3600.
-    assert_eq!(setup.contract.get_execute_delay(&id), 24 * 3600);
+    // No override is persisted, so the DAO falls back to TIMELOCK_DELAY (24h).
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        24 * 3600
+    );
 }
 
 #[test]
@@ -415,7 +449,15 @@ fn execute_delay_override_is_stored_and_read() {
         &None,
         &Some(custom),
     );
-    assert_eq!(setup.contract.get_execute_delay(&id), custom);
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        custom
+    );
 }
 
 #[test]

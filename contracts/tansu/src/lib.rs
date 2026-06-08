@@ -101,10 +101,6 @@ pub trait VersioningTrait {
         execute_delay: Option<u64>,
     ) -> Bytes;
 
-    fn get_min_voting_period(env: Env, project_key: Bytes) -> u64;
-
-    fn get_execute_delay(env: Env, project_key: Bytes) -> u64;
-
     fn update_config(
         env: Env,
         maintainer: Address,

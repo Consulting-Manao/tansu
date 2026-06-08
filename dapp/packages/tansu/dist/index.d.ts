@@ -1332,37 +1332,6 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
-  /**
-   * Construct and simulate a get_execute_delay transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the effective DAO execute timelock for a project in seconds.
-   *
-   * Returns the per-project override stored at registration if set, otherwise
-   * the global `TIMELOCK_DELAY` default. Only governs DAO proposal `execute()`;
-   * the admin upgrade timelock in `propose_upgrade` is unaffected.
-   */
-  get_execute_delay: (
-    {
-      project_key,
-    }: {
-      project_key: Buffer;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
-  /**
-   * Construct and simulate a get_min_voting_period transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the effective minimum voting period for a project in seconds.
-   *
-   * Returns the per-project override stored at registration if set, otherwise
-   * the global `MIN_VOTING_PERIOD` default.
-   */
-  get_min_voting_period: (
-    {
-      project_key,
-    }: {
-      project_key: Buffer;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
 }
 export declare class Client extends ContractClient {
   readonly options: ContractClientOptions;
@@ -1432,7 +1401,5 @@ export declare class Client extends ContractClient {
       json: string,
     ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
-    get_execute_delay: (json: string) => AssembledTransaction<bigint>;
-    get_min_voting_period: (json: string) => AssembledTransaction<bigint>;
   };
 }
