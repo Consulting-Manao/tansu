@@ -1,0 +1,102 @@
+# PR-triggered Netlify deploy preview for the dapp.
+#
+# Posts a preview URL on the PR that runs against the time-limits-removed Tansu
+# deployment on testnet (so reviewers can exercise the governance flow). The
+# preview environment (contract id, RPC, etc.) comes from the
+# `[context.deploy-preview.environment]` block in dapp/netlify.toml.
+#
+# Required repository secrets:
+#   NETLIFY_AUTH_TOKEN  — a Netlify personal access token
+#   NETLIFY_SITE_ID     — the target Netlify site's API ID
+#
+# Note: secrets are not exposed to PRs from forks, so this job only runs for
+# same-repo PRs. Open the demo PR within the fork that owns the Netlify site
+# (e.g. willemneal/tansu) to get a preview.
+#
+# (Repo convention pins actions by commit SHA; pin these tags to match.)
+name: dapp-preview
+
+on:
+  pull_request:
+    paths:
+      - "dapp/**"
+      - ".github/workflows/dapp-preview.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dapp-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  netlify-preview:
+    name: Netlify deploy preview
+    runs-on: ubuntu-latest
+    # Secrets are unavailable to fork PRs — only run for same-repo PRs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: ./dapp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
+
+      - name: Install dapp dependencies
+        run: bun install
+
+      - name: Deploy Netlify preview
+        id: netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          npx --yes netlify-cli@17 deploy \
+            --build \
+            --context deploy-preview \
+            --alias "pr-${{ github.event.number }}" \
+            --message "Preview for PR #${{ github.event.number }} (${{ github.sha }})" \
+            --json | tee deploy.json
+          echo "url=$(jq -r '.deploy_ssl_url // .deploy_url // .url' deploy.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = "${{ steps.netlify.outputs.url }}";
+            const marker = "<!-- tansu-dapp-preview -->";
+            const body = [
+              marker,
+              "### 🚀 Tansu dapp preview",
+              "",
+              "Runs against the **time-limits-removed Tansu** on testnet " +
+                "(`CDLQFXGG…HP3O` — SorobanDomain removed, per-project " +
+                "`min_voting_period`/`execute_delay`).",
+              "",
+              `**Preview URL:** ${url}`,
+            ].join("\n");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body,
+              });
+            }

@@ -1,0 +1,24 @@
+# Netlify build + deploy-preview config.
+#
+# Deploy previews of this branch run against the time-limits-removed Tansu
+# deployment on testnet, so the governance flow (configurable voting period /
+# execute delay, no SorobanDomain) can be exercised from the preview URL.
+#
+# Production/staging keep using the env vars configured in the Netlify UI; only
+# the deploy-preview context is pinned here.
+
+[build]
+  command = "bun run build"
+  publish = "dist"
+
+[build.environment]
+  BUN_VERSION = "1.2"
+
+[context.deploy-preview.environment]
+  PUBLIC_SOROBAN_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+  PUBLIC_SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org:443"
+  PUBLIC_HORIZON_URL = "https://horizon-testnet.stellar.org"
+  # New Tansu (SorobanDomain removed, per-project min_voting_period/execute_delay)
+  PUBLIC_TANSU_CONTRACT_ID = "CDLQFXGGQHD3DJXMOO4T6O2IISWOEAL27GQZZS6MAQQBEAU2GYFTHP3O"
+  PUBLIC_TANSU_OWNER_ID = "GAUF7DU72VMB4IHGJLO3AHJWRKTFAJXWMB6LBXSJT5TLS2ARJFE6VCBZ"
+  PUBLIC_DELEGATION_API_URL = "https://ipfs-testnet.tansu.dev"
