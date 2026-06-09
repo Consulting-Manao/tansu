@@ -25,12 +25,14 @@ pub enum ContractErrors {
     VoterWeight = 209,
     VoteLimitExceeded = 210,
     VoterConflicted = 211,
+    InvalidEvidence = 212,
 
     // State (300-399)
     NoHashFound = 300,
     NoProposalorPageFound = 301,
     NoProjectPageFound = 302,
     NoAnonymousVotingConfig = 303,
+    NoEvidenceFound = 304,
 
     // Execution/Timing (400-499)
     AlreadyVoted = 400,

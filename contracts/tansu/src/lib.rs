@@ -96,6 +96,22 @@ pub trait VersioningTrait {
 
     fn get_commit(env: Env, project_key: Bytes) -> String;
 
+    fn set_evidence(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+        cid: String,
+    );
+
+    fn get_evidence(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+    ) -> types::Evidence;
+
     fn get_project(env: Env, project_key: Bytes) -> types::Project;
 
     fn get_projects(env: Env, page: u32) -> Vec<types::Project>;

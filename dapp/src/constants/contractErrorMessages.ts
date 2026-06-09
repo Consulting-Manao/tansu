@@ -34,12 +34,14 @@ export const contractErrorMessages = {
   209: "Invalid voter weight calculation.",
   210: "Too many voters already.",
   211: "Your address has a declared conflict of interest for this proposal.",
+  212: "Evidence must include a commit hash and CID.",
 
   // State (300-399)
   300: "No hash was found.",
   301: "Proposal or page could not be found.",
   302: "Project page could not be found.",
   303: "This is not the anonymous voting config.",
+  304: "No evidence was found for that commit and evidence kind.",
 
   // Execution/Timing (400-499)
   400: "You have already voted.",
