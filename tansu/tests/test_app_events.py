@@ -8,8 +8,8 @@ from tests.conftest import TANSU_PROJECT_KEY
 async def test_events(a_client):
     payload = api_models.EventRequest(
         project_key=TANSU_PROJECT_KEY,
-    ).model_dump_json()
-    response = await a_client.post("events", data=payload)
+    ).model_dump()
+    response = await a_client.post("events", json=payload)
 
     assert response.status_code == 200
     result = response.json()

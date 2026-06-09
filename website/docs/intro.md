@@ -34,6 +34,6 @@ Tansu does not replace GitHub (or your preferred hosting solution) – it comple
 - [Quick-Start on using the dApp](using_the_dapp.mdx): Step-by-step guide for end-users
 - [Membership & Badges](developers/membership.mdx): How roles and voting power work
 - [Governance & Proposals](developers/governance.mdx): DAO mechanics and proposal lifecycle
-- [On-chain architecture](developers/architecture.mdx): Smart contract and backend details
+- [On-chain architecture](developers/architecture.mdx): Smart contract and backend-less dApp details
 
 Tansu is fully open source and under active development. Join us on [GitHub](https://github.com/Consulting-Manao/tansu) and help shape the future of decentralized open source governance!

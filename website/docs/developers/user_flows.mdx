@@ -21,10 +21,6 @@ flowchart TD
     F["WriteContractService"]
     G["FlowService"]
   end
-  subgraph Backend_API
-    H["Events FastAPI"]
-    I["Database"]
-  end
   subgraph Blockchain
     J["Soroban Smart Contracts"]
     K["Horizon / RPC"]
@@ -43,11 +39,8 @@ flowchart TD
   F--"Transactions"-->K
   E--"RPC Calls"-->K
   K--"Calls"-->J
-  J--"Events"-->H
-  H--"Store"-->I
   C--"Fetch README / TOML"-->L
   C--"Fetch Assets"-->M
-  H--"Webhooks"-->C
 ```
 
 ## 1. Project Registration Flow
@@ -66,7 +59,6 @@ sequenceDiagram
   participant SD as SorobanDomains
   participant IPFS as IPFS
   participant SC as SorobanContract
-  participant DB as Database
 
   U->>W: Connect Wallet
   W->>D: Provide Address
@@ -81,7 +73,6 @@ sequenceDiagram
   D->>SC: Submit Transaction
   SC->>SD: Verify Domain Ownership
   SC-->>D: Registration Success
-  SC->>DB: Emit Registration Event
   D->>U: Show Success
 ```
 
@@ -271,7 +262,7 @@ sequenceDiagram
 
 ### Overview
 
-Maintainers can update project commit hashes to track code versions on-chain.
+Maintainers can update project commit hashes to track code versions on-chain. They can also attach generic off-chain evidence pointers to a specific commit for SBOMs, CVE scan reports, or attestations.
 
 ### Flow Diagram
 
@@ -281,14 +272,12 @@ sequenceDiagram
   participant D as dApp
   participant GH as GitHub
   participant SC as SorobanContract
-  participant DB as Database
 
   M->>D: Update Commit Hash
   D->>GH: Verify Commit Exists
   GH-->>D: Commit Verification
   M->>SC: Submit commit()
   SC-->>D: Commit Updated
-  SC->>DB: Emit Commit Event
   D->>M: Show Success
 ```
 
@@ -301,8 +290,14 @@ sequenceDiagram
 ### Historical Tracking
 
 - **Immutable History**: All commits stored permanently on-chain
-- **Event Indexing**: Backend indexes all commit events for efficient querying
+- **Direct Reads**: The dApp reads current commit state from the contract without a backend indexer
 - **Timestamp Accuracy**: Ledger timestamps provide precise commit timing
+
+### Commit Evidence
+
+- **Generic API**: Evidence uses `set_evidence` and `get_evidence`; there are no separate SBOM, CVE, or attestation endpoints.
+- **Scoped Storage**: Evidence is stored by `project_key`, `commit_hash`, and evidence kind.
+- **Off-Chain Contents**: The contract stores only a CID and ledger timestamp. Artifact upload, parsing, and verification happen off-chain by fetching the CID from IPFS.
 
 ---
 

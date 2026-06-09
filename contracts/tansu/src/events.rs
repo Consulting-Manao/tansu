@@ -2,6 +2,8 @@
 
 use soroban_sdk::{Address, Bytes, BytesN, String, Vec, contractevent};
 
+use crate::types::EvidenceKind;
+
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectRegistered {
@@ -25,6 +27,16 @@ pub struct Commit {
     #[topic]
     pub project_key: Bytes,
     pub hash: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceSet {
+    #[topic]
+    pub project_key: Bytes,
+    pub commit_hash: String,
+    pub kind: EvidenceKind,
+    pub cid: String,
 }
 
 #[contractevent]

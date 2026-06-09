@@ -220,6 +220,97 @@ impl VersioningTrait for Tansu {
         }
     }
 
+    /// Store generic external evidence for a specific project commit and evidence kind.
+    ///
+    /// Stores only the verifiable IPFS pointer. Evidence contents remain off-chain.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - The address of the maintainer calling this function
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash this evidence describes
+    /// * `kind` - The evidence category
+    /// * `cid` - The off-chain content identifier
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist
+    /// * If the maintainer is not authorized
+    /// * If commit_hash or cid is empty
+    fn set_evidence(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+        cid: String,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        if commit_hash.is_empty() || cid.is_empty() {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidEvidence);
+        }
+
+        let evidence = types::Evidence {
+            cid: cid.clone(),
+            created_at: env.ledger().timestamp(),
+        };
+
+        env.storage().persistent().set(
+            &types::ProjectKey::Evidence(project_key.clone(), commit_hash.clone(), kind.clone()),
+            &evidence,
+        );
+
+        events::EvidenceSet {
+            project_key,
+            commit_hash,
+            kind,
+            cid,
+        }
+        .publish(&env);
+    }
+
+    /// Get generic external evidence for a specific project commit and evidence kind.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash this evidence describes
+    /// * `kind` - The evidence category
+    ///
+    /// # Returns
+    /// * `types::Evidence` - Stored evidence pointer data
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    /// * If no evidence exists for the project, commit, and kind
+    fn get_evidence(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+    ) -> types::Evidence {
+        let project_storage_key = types::ProjectKey::Key(project_key.clone());
+
+        if env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::Project>(&project_storage_key)
+            .is_none()
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidKey);
+        }
+
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::Evidence(project_key, commit_hash, kind))
+            .unwrap_or_else(|| {
+                panic_with_error!(&env, &errors::ContractErrors::NoEvidenceFound);
+            })
+    }
+
     /// Get project information including configuration and maintainers.
     ///
     /// # Arguments

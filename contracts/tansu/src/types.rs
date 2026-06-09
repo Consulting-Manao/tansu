@@ -169,12 +169,28 @@ pub struct Dao {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EvidenceKind {
+    Sbom,
+    Cve,
+    Attestation,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Evidence {
+    pub cid: String,
+    pub created_at: u64,
+}
+
+#[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectKey {
-    Key(Bytes),      // UUID of the project from keccak256(name)
-    Badges(Bytes),   // badges of the project
-    LastHash(Bytes), // last hash of the project
-    Dao(Bytes, u32), // Decentralized organization, pagination
+    Key(Bytes),                            // UUID of the project from keccak256(name)
+    Badges(Bytes),                         // badges of the project
+    LastHash(Bytes),                       // last hash of the project
+    Evidence(Bytes, String, EvidenceKind), // evidence for a project commit and kind
+    Dao(Bytes, u32),                       // Decentralized organization, pagination
     DaoTotalProposals(Bytes),
     Voters(Bytes, u32),        // Voter addresses for proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
