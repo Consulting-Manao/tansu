@@ -390,13 +390,14 @@ export async function createProjectFlow({
     signedTxXdr,
   });
 
+  // Step 4 – Verify CID matches
   if (uploadedCid !== cid) {
     throw new Error(
       `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
     );
   }
 
-  // Step 4 – Send signed transaction
+  // Step 5 – Send signed transaction
   onProgress?.(9);
   await sendSignedTransactionLocal(signedTxXdr);
   invalidateQuery(queryKeys.projects.all);
