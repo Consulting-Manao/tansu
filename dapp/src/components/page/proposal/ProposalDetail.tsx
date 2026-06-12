@@ -358,86 +358,88 @@ export const OutcomeDetail: React.FC<{
 
   return (
     <div
-      className={`p-[30px] flex justify-between items-center bg-white rounded-md transition-all ${borderClass}`}
+      className={`p-[30px] flex flex-col gap-4 bg-white rounded-md transition-all ${borderClass}`}
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <p
-            className={`text-xl font-medium ${
-              type === "approved"
-                ? "text-approved"
-                : type === "rejected"
-                  ? "text-rejected"
-                  : "text-cancelled"
-            }`}
-          >
-            {capitalizeFirstLetter(type || "")}
-          </p>
-          {isExecuted && (
-            <span
-              className={`px-3 py-1 text-xs font-bold uppercase border-[#FFB21E] bg-[#FFB21E] text-white border`}
-            >
-              Executed Outcome
-            </span>
-          )}
-        </div>
-        <p className="text-base font-semibold text-primary">
-          {detail.description}
+      <div className="flex items-center gap-3">
+        <p
+          className={`text-xl font-medium ${
+            type === "approved"
+              ? "text-approved"
+              : type === "rejected"
+                ? "text-rejected"
+                : "text-cancelled"
+          }`}
+        >
+          {capitalizeFirstLetter(type || "")}
         </p>
-        {detail.contract?.address?.trim() && (
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-secondary">
-                Contract Address
-              </p>
-              <p className="font-mono text-sm text-primary break-all">
-                {detail.contract.address}
-              </p>
-            </div>
-            {detail.contract.execute_fn?.trim() ? (
-              <div>
-                <p className="text-xs uppercase tracking-wide text-secondary">
-                  Function Call
-                </p>
-                <p className="font-mono text-sm text-primary">
-                  {detail.contract.execute_fn}()
-                </p>
-                {detail.contract.args && detail.contract.args.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-secondary">
-                      Parameters
-                    </p>
-                    <div className="text-xs bg-gray-50 p-2 rounded border space-y-1">
-                      {detail.contract.args.map((arg, index) => (
-                        <div
-                          key={index}
-                          className="flex justify-between items-start gap-3"
-                        >
-                          <span className="font-medium text-primary">
-                            {getArgLabel(index)}
-                          </span>
-                          <span className="font-mono text-secondary break-all text-right">
-                            {formatContractValue(getDisplayArgValue(arg))}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-secondary">(Function not selected)</p>
-            )}
-          </div>
-        )}
-        {detail.xdr && (
-          <div className="text-sm text-secondary">
-            <span className="inline-block w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-            XDR-based execution
-          </div>
+        {isExecuted && (
+          <span
+            className={`px-3 py-1 text-xs font-bold uppercase border-[#FFB21E] bg-[#FFB21E] text-white border`}
+          >
+            Executed Outcome
+          </span>
         )}
       </div>
-      {renderActionButton()}
+      <p className="text-base font-semibold text-primary">
+        {detail.description}
+      </p>
+      {detail.contract?.address?.trim() && (
+        <div className="space-y-2">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-secondary">
+              Contract Address
+            </p>
+            <p className="font-mono text-sm text-primary break-all">
+              {detail.contract.address}
+            </p>
+          </div>
+          {detail.contract.execute_fn?.trim() ? (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-secondary">
+                Function Call
+              </p>
+              <p className="font-mono text-sm text-primary">
+                {detail.contract.execute_fn}()
+              </p>
+              {detail.contract.args && detail.contract.args.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-secondary">
+                    Parameters
+                  </p>
+                  <div className="text-xs bg-gray-50 p-2 rounded border space-y-1">
+                    {detail.contract.args.map((arg, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-start gap-3"
+                      >
+                        <span className="font-medium text-primary">
+                          {getArgLabel(index)}
+                        </span>
+                        <span className="font-mono text-secondary break-all text-right">
+                          {formatContractValue(getDisplayArgValue(arg))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-secondary">(Function not selected)</p>
+          )}
+        </div>
+      )}
+      {detail.xdr && (
+        <div className="text-sm text-secondary">
+          <span className="inline-block w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+          XDR-based execution
+        </div>
+      )}
+      {renderActionButton() && (
+        <div className="flex justify-end">
+          {renderActionButton()}
+        </div>
+      )}
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
           {renderModalContent()}

@@ -57,18 +57,7 @@ export const EnhancedContractFunctionSelector: React.FC<
           const existing = shouldUseInitialArgs
             ? initialArgs[index]
             : undefined;
-          if (existing !== undefined) {
-            if (
-              existing &&
-              typeof existing === "object" &&
-              "type" in existing &&
-              "value" in existing
-            ) {
-              return existing;
-            }
-            return { type: input.type, value: existing };
-          }
-          return { type: input.type, value: "" };
+          return existing !== undefined ? existing : "";
         });
         setArgs(newArgs);
       }
@@ -110,8 +99,7 @@ export const EnhancedContractFunctionSelector: React.FC<
 
   const handleArgChange = (index: number, value: any) => {
     const newArgs = [...args];
-    const inputType = selectedFunc?.inputs[index]?.type || "unknown";
-    newArgs[index] = { type: inputType, value };
+    newArgs[index] = value;
     setArgs(newArgs);
   };
 
@@ -288,13 +276,7 @@ interface ArgInputProps {
 }
 
 const ArgInput: React.FC<ArgInputProps> = ({ type, value, onChange }) => {
-  const normalizedValue =
-    value &&
-    typeof value === "object" &&
-    "value" in value &&
-    (value as { value: unknown }).value !== undefined
-      ? (value as { value: unknown }).value
-      : value;
+  const normalizedValue = value === undefined || value === null ? "" : value;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
