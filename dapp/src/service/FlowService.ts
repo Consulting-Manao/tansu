@@ -445,6 +445,7 @@ export async function updateConfigFlow({
   githubRepoUrl,
   maintainers,
   onProgress,
+  additionalFiles,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
@@ -453,7 +454,7 @@ export async function updateConfigFlow({
   additionalFiles?: File[];
 }): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
-  const filesToUpload = [tomlFile];
+  const filesToUpload = [tomlFile, ...(additionalFiles || [])];
   const { cid, carBlob } = await packFilesToCar(filesToUpload);
 
   // Step 2 – sign tx
