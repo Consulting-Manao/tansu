@@ -53,7 +53,7 @@ export const EnhancedContractFunctionSelector: React.FC<
           initialSelectedFunction === selectedFunction &&
           initialArgs.length > 0;
         // Initialize args array with proper length and types
-        const newArgs = func.inputs.map((input, index) => {
+        const newArgs = func.inputs.map((_input, index) => {
           const existing = shouldUseInitialArgs
             ? initialArgs[index]
             : undefined;
