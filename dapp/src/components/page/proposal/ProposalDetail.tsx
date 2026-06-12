@@ -436,9 +436,7 @@ export const OutcomeDetail: React.FC<{
         </div>
       )}
       {renderActionButton() && (
-        <div className="flex justify-end">
-          {renderActionButton()}
-        </div>
+        <div className="flex justify-end">{renderActionButton()}</div>
       )}
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
