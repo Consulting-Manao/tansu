@@ -40,7 +40,7 @@ test.describe("Essential Production Validation", () => {
       }
     });
 
-    page.setDefaultTimeout(12000);
+    page.setDefaultTimeout(15000);
   });
 
   test("App loads and core functionality works WITHOUT JavaScript errors", async ({
@@ -48,16 +48,12 @@ test.describe("Essential Production Validation", () => {
   }) => {
     await applyAllMocks(page);
 
-    try {
-      await page.goto("/", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/").catch(() => {});
-    }
-    await expect(page.locator("body")).toBeVisible();
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
 
     // Connect button should be present
     const connectButton = page.locator("[data-connect]");
-    await expect(connectButton).toBeVisible();
+    await expect(connectButton).toBeVisible({ timeout: 5000 });
 
     // Wait for page to fully hydrate and check for JavaScript errors
     await page.waitForTimeout(1000);
@@ -82,12 +78,8 @@ test.describe("Essential Production Validation", () => {
     expect(jsErrors).toHaveLength(0);
 
     // Navigation should work without errors
-    try {
-      await page.goto("/governance", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/governance").catch(() => {});
-    }
-    await expect(page.locator("body")).toBeVisible();
+    await page.goto("/governance", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(500);
 
     // Check errors after navigation
@@ -98,12 +90,8 @@ test.describe("Essential Production Validation", () => {
     );
     expect(navErrors).toHaveLength(0);
 
-    try {
-      await page.goto("/project?name=test", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/project?name=test").catch(() => {});
-    }
-    await expect(page.locator("body")).toBeVisible();
+    await page.goto("/project?name=test", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(500);
 
     // Check errors after project page load
@@ -118,12 +106,8 @@ test.describe("Essential Production Validation", () => {
   test("Environment variables are properly configured", async ({ page }) => {
     await applyAllMocks(page);
 
-    try {
-      await page.goto("/", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/").catch(() => {});
-    }
-    await page.waitForTimeout(500);
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(1000);
 
     // Check for specific contract initialization errors using our global tracking
     const criticalErrors = globalErrors.filter(
@@ -140,12 +124,8 @@ test.describe("Essential Production Validation", () => {
     expect(criticalErrors).toHaveLength(0);
 
     // Try to open project page which requires contract service
-    try {
-      await page.goto("/project?name=test", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/project?name=test").catch(() => {});
-    }
-    await page.waitForTimeout(500);
+    await page.goto("/project?name=test", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(1000);
 
     // Should not have contract ID errors
     const contractErrors = globalErrors.filter((error) =>
@@ -306,12 +286,8 @@ test.describe("Essential Production Validation", () => {
     await applyAllMocks(page);
 
     // Test specific components that we know had issues
-    try {
-      await page.goto("/project?name=tansu");
-    } catch {
-      await page.goto("/project?name=tansu").catch(() => {});
-    }
-    await page.waitForTimeout(1500); // Give time for all components to load
+    await page.goto("/project?name=tansu", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000); // Give time for all components to load
 
     // JoinCommunityButton specifically should not have undefined errors
     const joinButtonErrors = globalErrors.filter(

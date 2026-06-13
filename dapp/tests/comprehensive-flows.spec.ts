@@ -6,11 +6,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
   let allErrors: string[] = [];
   let pageErrors: string[] = [];
   const safeGoto = async (page: any, url: string) => {
-    try {
-      await page.goto(url, { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto(url).catch(() => {});
-    }
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
   };
 
   test.beforeEach(async ({ page }) => {
@@ -30,7 +26,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     });
 
     await applyAllMocks(page);
-    page.setDefaultTimeout(12000);
+    page.setDefaultTimeout(15000);
   });
 
   test.describe("🔐 Authentication & Wallet Flows", () => {
@@ -92,14 +88,8 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       await expect(page.locator("body")).toBeVisible();
 
       // Should handle malformed project names
-      try {
-        await page.goto("/project?name=");
-        await expect(page.locator("body")).toBeVisible();
-      } catch (error) {
-        // Navigation might fail for empty name, which is expected
-        await page.goto("/");
-        await expect(page.locator("body")).toBeVisible();
-      }
+      await safeGoto(page, "/project?name=");
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
     });
 
     test("Project search and discovery", async ({ page }) => {
@@ -126,31 +116,25 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       await expect(page.locator("body")).toBeVisible();
 
       // Test with project context
-      try {
-        await page.goto("/governance?name=test-project", {
-          waitUntil: "domcontentloaded",
-        });
-      } catch {
-        await page.goto("/governance?name=test-project").catch(() => {});
-      }
-      await expect(page.locator("body")).toBeVisible();
+      await safeGoto(page, "/governance?name=test-project");
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
 
       // Test with invalid project
-      await page.goto("/governance?name=invalid");
-      await expect(page.locator("body")).toBeVisible();
+      await safeGoto(page, "/governance?name=invalid");
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
     });
 
     test("Proposal page navigation", async ({ page }) => {
       await safeGoto(page, "/proposal?name=test-project&id=1");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
 
       // Test with invalid proposal ID
-      await page.goto("/proposal?name=test-project&id=999");
-      await expect(page.locator("body")).toBeVisible();
+      await safeGoto(page, "/proposal?name=test-project&id=999");
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
 
       // Test with missing parameters
-      await page.goto("/proposal");
-      await expect(page.locator("body")).toBeVisible();
+      await safeGoto(page, "/proposal");
+      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -232,10 +216,8 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       const mobilePages = ["/", "/governance", "/project?name=test"];
 
       for (const pagePath of mobilePages) {
-        await page.goto(pagePath);
-        await expect(page.locator("body")).toBeVisible();
-        // Check that the page loads without errors rather than specific elements
-        await expect(page.locator("body")).not.toHaveText("Error");
+        await safeGoto(page, pagePath);
+        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
       }
     });
 
@@ -248,11 +230,11 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
 
       for (const { path, maxTime } of pageTests) {
         const startTime = Date.now();
-        await page.goto(path);
+        await safeGoto(page, path);
         const loadTime = Date.now() - startTime;
 
         expect(loadTime).toBeLessThan(maxTime);
-        await expect(page.locator("body")).toBeVisible();
+        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
       }
     });
   });

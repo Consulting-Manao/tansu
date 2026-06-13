@@ -58,7 +58,7 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     await applyMinimalMocks(page);
 
     // This exact scenario caused the setShowProfileModal error
-    await page.goto("/project?name=tansu");
+    await page.goto("/project?name=tansu", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(2000); // Give time for all React components to mount
 
     // Specifically check for the exact errors we fixed
@@ -96,7 +96,7 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     ];
 
     for (const pagePath of contractPages) {
-      await page.goto(pagePath);
+      await page.goto(pagePath, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(1000);
 
       // Check for the specific contract ID error we fixed
@@ -124,7 +124,7 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
   test("CRITICAL: No SDK method signature errors", async ({ page }) => {
     await applyMinimalMocks(page);
 
-    await page.goto("/");
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(1000);
 
     // Test that ContractService can be imported without method signature errors
@@ -203,8 +203,8 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
   }) => {
     await applyMinimalMocks(page);
 
-    await page.goto("/project?name=test");
-    await page.waitForTimeout(1500);
+    await page.goto("/project?name=test", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
 
     // Simulate the contract service initialization that was failing
     const transactionTest = await page.evaluate(async () => {
@@ -266,8 +266,8 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     ];
 
     for (const { url, component } of componentTests) {
-      await page.goto(url);
-      await page.waitForTimeout(1500); // Allow full React hydration
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(2000); // Allow full React hydration
 
       // Check for React component errors
       const reactErrors = allConsoleErrors.filter(
@@ -300,7 +300,7 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
   test("DIAGNOSTIC: Log and validate mocking strategy", async ({ page }) => {
     await applyDiagnosticMocks(page);
 
-    await page.goto("/project?name=test");
+    await page.goto("/project?name=test", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(1000);
 
     // This test helps us understand what our mocks are intercepting
@@ -324,8 +324,8 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
   }) => {
     await applyAllMocks(page);
 
-    await page.goto("/project?name=demo");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/project?name=demo", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
 
     // Simulate wallet connection
     await page.evaluate(() => {

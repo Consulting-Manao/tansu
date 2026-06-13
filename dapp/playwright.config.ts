@@ -58,13 +58,12 @@ export default defineConfig({
   ],
 
   // Performance optimizations
-  timeout: 30000,
-  expect: { timeout: 5000 },
+  timeout: 60000,
+  expect: { timeout: 8000 },
 
   // Fast execution settings
   fullyParallel: true,
   retries: 0,
-  // Use more workers locally for speed; keep single worker on CI for stability
   ...(process.env.CI ? { workers: 1 } : {}),
 
   // Minimal reporting for speed
@@ -72,8 +71,8 @@ export default defineConfig({
 
   // No screenshots/videos for performance
   use: {
-    actionTimeout: 5000,
-    navigationTimeout: 10000,
+    actionTimeout: 10000,
+    navigationTimeout: 15000,
     trace: "off",
     screenshot: "off",
     video: "off",

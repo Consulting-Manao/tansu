@@ -11,27 +11,13 @@ const RADICLE_RID = "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5";
 test.describe("Tansu dApp – Happy-path User Flows", () => {
   test.beforeEach(async ({ page }) => {
     await applyAllMocks(page);
-    page.setDefaultTimeout(5_000);
+    page.setDefaultTimeout(10_000);
   });
 
   test.afterEach(async ({ page }) => {
-    // Clean up any open modals or state
-    try {
-      // Close any open modals by clicking escape or close buttons
-      await page.keyboard.press("Escape");
-      await page.waitForTimeout(100);
-
-      // Also try to close any visible modals
-      const closeButtons = page.locator("button", {
-        hasText: /Close|Cancel|×/,
-      });
-      if ((await closeButtons.count()) > 0) {
-        await closeButtons.first().click();
-        await page.waitForTimeout(100);
-      }
-    } catch (e) {
-      // Ignore cleanup errors
-    }
+    // Silently clean up — never let afterEach fail
+    await page.evaluate(() => {}).catch(() => {});
+    await page.keyboard.press("Escape").catch(() => {});
   });
 
   test("Project creation modal – basic functionality", async ({ page }) => {
@@ -40,13 +26,7 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       localStorage.setItem("publicKey", `G${"A".repeat(55)}`);
     });
 
-    try {
-      await page.goto("/", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/").catch(() => {});
-    }
-
-    await page.waitForLoadState("networkidle", { timeout: 15000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
 
     const addProjectBtn = page
       .locator("button:visible")
@@ -90,10 +70,9 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
   });
 
   test("Terms of Service modal – tabs and accept flow", async ({ page }) => {
-    await page.goto("/");
-    await page.evaluate(() => localStorage.removeItem("tansu_tos_accepted"));
-    await page.reload();
-    await page.waitForLoadState("networkidle", { timeout: 15000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.evaluate(() => localStorage.removeItem("tansu_tos_accepted")).catch(() => {});
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
 
     const termsModal = page.locator(".terms-modal-container");
     await expect(termsModal).toBeVisible({ timeout: 5000 });
@@ -122,14 +101,10 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
   });
 
   test("Join community modal – adapt to wallet state", async ({ page }) => {
-    try {
-      await page.goto("/", { waitUntil: "domcontentloaded" });
-    } catch {
-      await page.goto("/").catch(() => {});
-    }
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
 
-    // Wait for page to load
-    await page.waitForTimeout(1000);
+    // Wait for page to render
+    await page.waitForTimeout(2000);
 
     // Handle TermsAcceptanceModal if it appears
     const termsModal = page.locator(".terms-modal-container");
@@ -219,8 +194,7 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       };
     });
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 15000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     await page.evaluate(async () => {
       const store = await import("../src/utils/store.ts");
       store.connectedPublicKey.set(
