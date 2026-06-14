@@ -89,7 +89,7 @@ test.describe("Anonymous voting – proof computation", () => {
     });
 
     // Serve the stub for the module import path used by the app
-    await page.route("**/src/contracts/soroban_tansu.ts", (route) => {
+    await page.route("**/src/contracts/soroban_tansu*", (route) => {
       const body = `export default (globalThis).__tansuClient;`;
       route.fulfill({
         status: 200,
@@ -99,7 +99,7 @@ test.describe("Anonymous voting – proof computation", () => {
     });
 
     // --- MOCK WALLET SERVICE ---
-    await page.route("**/src/service/walletService.ts", (route) => {
+    await page.route("**/src/service/walletService*", (route) => {
       const body = `
     export function loadedPublicKey() { 
       return 'G'.padEnd(56,'A'); 
@@ -122,7 +122,9 @@ test.describe("Anonymous voting – proof computation", () => {
     });
 
     // Navigate to any page (module imports available). Then import the utility and run it.
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.goto("/__playwright-module-test", {
+      waitUntil: "domcontentloaded",
+    });
 
     const { tallies, seeds } = await page.evaluate(async () => {
       const mod = await import("../src/utils/anonymousVoting.ts");

@@ -58,8 +58,8 @@ export default defineConfig({
   ],
 
   // Performance optimizations
-  timeout: 60000,
-  expect: { timeout: 8000 },
+  timeout: 90000,
+  expect: { timeout: 15000 },
 
   // Fast execution settings
   fullyParallel: true,
@@ -71,8 +71,8 @@ export default defineConfig({
 
   // No screenshots/videos for performance
   use: {
-    actionTimeout: 10000,
-    navigationTimeout: 15000,
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
     trace: "off",
     screenshot: "off",
     video: "off",

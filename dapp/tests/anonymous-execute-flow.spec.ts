@@ -53,7 +53,7 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Stub the Soroban contract client
-  await page.route("**/src/contracts/soroban_tansu.ts", (route) => {
+  await page.route("**/src/contracts/soroban_tansu*", (route) => {
     const body = `export default (globalThis).__tansuClient;`;
     route.fulfill({
       status: 200,
@@ -63,7 +63,7 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Stub ContractService execute to just forward to the mocked client
-  await page.route("**/src/service/ContractService.ts", (route) => {
+  await page.route("**/src/service/ContractService*", (route) => {
     const body = `
       export async function execute(project_name, proposal_id, tallies, seeds){
         const c = (globalThis).__tansuClient;
@@ -80,7 +80,7 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Stub wallet kit so signing path is never reached (we only test argument wiring)
-  await page.route("**/src/components/stellar-wallets-kit.ts", (route) => {
+  await page.route("**/src/components/stellar-wallets-kit*", (route) => {
     const body = `export const kit = { signTransaction: async (xdr) => ({ signedTxXdr: xdr }) };`;
     route.fulfill({
       status: 200,
@@ -90,7 +90,7 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Stub walletService to provide a connected Mock wallet
-  await page.route("**/src/service/walletService.ts", (route) => {
+  await page.route("**/src/service/walletService*", (route) => {
     const body = `
     export function loadedPublicKey() { 
       return 'G'.padEnd(56,'A'); 
@@ -113,11 +113,9 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Navigate to the app
-  try {
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-  } catch {
-    await page.goto("/").catch(() => {});
-  }
+  await page
+    .goto("/__playwright-module-test", { waitUntil: "domcontentloaded" })
+    .catch(() => {});
 
   // Compute tallies and seeds, then call execute()
   const { ok } = await page.evaluate(async () => {

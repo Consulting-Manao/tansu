@@ -6,7 +6,11 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
   let allErrors: string[] = [];
   let pageErrors: string[] = [];
   const safeGoto = async (page: any, url: string) => {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+    } catch {
+      await page.goto(url).catch(() => {});
+    }
   };
 
   test.beforeEach(async ({ page }) => {
@@ -26,7 +30,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     });
 
     await applyAllMocks(page);
-    page.setDefaultTimeout(15000);
+    page.setDefaultTimeout(12000);
   });
 
   test.describe("🔐 Authentication & Wallet Flows", () => {
@@ -88,8 +92,14 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       await expect(page.locator("body")).toBeVisible();
 
       // Should handle malformed project names
-      await safeGoto(page, "/project?name=");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      try {
+        await page.goto("/project?name=");
+        await expect(page.locator("body")).toBeVisible();
+      } catch (error) {
+        // Navigation might fail for empty name, which is expected
+        await page.goto("/");
+        await expect(page.locator("body")).toBeVisible();
+      }
     });
 
     test("Project search and discovery", async ({ page }) => {
@@ -116,25 +126,31 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       await expect(page.locator("body")).toBeVisible();
 
       // Test with project context
-      await safeGoto(page, "/governance?name=test-project");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      try {
+        await page.goto("/governance?name=test-project", {
+          waitUntil: "domcontentloaded",
+        });
+      } catch {
+        await page.goto("/governance?name=test-project").catch(() => {});
+      }
+      await expect(page.locator("body")).toBeVisible();
 
       // Test with invalid project
-      await safeGoto(page, "/governance?name=invalid");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      await page.goto("/governance?name=invalid");
+      await expect(page.locator("body")).toBeVisible();
     });
 
     test("Proposal page navigation", async ({ page }) => {
       await safeGoto(page, "/proposal?name=test-project&id=1");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("body")).toBeVisible();
 
       // Test with invalid proposal ID
-      await safeGoto(page, "/proposal?name=test-project&id=999");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      await page.goto("/proposal?name=test-project&id=999");
+      await expect(page.locator("body")).toBeVisible();
 
       // Test with missing parameters
-      await safeGoto(page, "/proposal");
-      await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+      await page.goto("/proposal");
+      await expect(page.locator("body")).toBeVisible();
     });
   });
 
@@ -148,29 +164,49 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       ];
 
       for (const pagePath of pages) {
-        await safeGoto(page, pagePath);
-        await expect(page.locator("body")).toBeVisible();
+        const navigationPage = await page.context().newPage();
+        navigationPage.setDefaultTimeout(12000);
 
-        await page.waitForTimeout(500);
+        navigationPage.on("pageerror", (error) => {
+          pageErrors.push(`PageError: ${error.message}`);
+        });
 
-        // Check for critical JavaScript errors that should NEVER happen
-        const criticalErrors = allErrors.filter(
-          (error) =>
-            (error.includes("is not defined") ||
-              error.includes("Cannot read properties of undefined") ||
-              error.includes("TypeError:") ||
-              error.includes("ReferenceError:")) &&
-            !error.includes("Astro") && // Ignore Astro dev toolbar issues
-            !error.includes("dev-toolbar") &&
-            !error.includes("Failed to fetch"), // Network errors in dev toolbar
-        );
+        navigationPage.on("console", (msg) => {
+          if (msg.type() === "error") {
+            allErrors.push(msg.text());
+          }
+        });
 
-        // ZERO tolerance for critical JavaScript errors
-        if (criticalErrors.length > 0) {
-          console.error(`Critical errors on ${pagePath}:`, criticalErrors);
+        try {
+          await applyAllMocks(navigationPage);
+          await navigationPage.goto(pagePath, {
+            waitUntil: "domcontentloaded",
+            timeout: 10000,
+          });
+          await expect(navigationPage.locator("body")).toBeVisible({
+            timeout: 5000,
+          });
+          await navigationPage.waitForTimeout(500);
+
+          const criticalErrors = allErrors.filter(
+            (error) =>
+              (error.includes("is not defined") ||
+                error.includes("Cannot read properties of undefined") ||
+                error.includes("TypeError:") ||
+                error.includes("ReferenceError:")) &&
+              !error.includes("Astro") &&
+              !error.includes("dev-toolbar") &&
+              !error.includes("Failed to fetch"),
+          );
+
+          if (criticalErrors.length > 0) {
+            console.error(`Critical errors on ${pagePath}:`, criticalErrors);
+          }
+          expect(criticalErrors).toHaveLength(0);
+          expect(pageErrors).toHaveLength(0);
+        } finally {
+          await navigationPage.close().catch(() => {});
         }
-        expect(criticalErrors).toHaveLength(0);
-        expect(pageErrors).toHaveLength(0);
       }
     });
   });
@@ -216,8 +252,10 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       const mobilePages = ["/", "/governance", "/project?name=test"];
 
       for (const pagePath of mobilePages) {
-        await safeGoto(page, pagePath);
-        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+        await page.goto(pagePath);
+        await expect(page.locator("body")).toBeVisible();
+        // Check that the page loads without errors rather than specific elements
+        await expect(page.locator("body")).not.toHaveText("Error");
       }
     });
 
@@ -230,11 +268,11 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
 
       for (const { path, maxTime } of pageTests) {
         const startTime = Date.now();
-        await safeGoto(page, path);
+        await page.goto(path);
         const loadTime = Date.now() - startTime;
 
         expect(loadTime).toBeLessThan(maxTime);
-        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+        await expect(page.locator("body")).toBeVisible();
       }
     });
   });
