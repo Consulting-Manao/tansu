@@ -53,7 +53,7 @@ describe("nativeToScVal monkey-patch (PR #174)", () => {
   });
 
   describe("scSpecTypeVal (switch value 0) — raw JS values", () => {
-    const scSpecTypeValTy = { switch: () => ({ value: 0 }) };
+    const scSpecTypeValTy: any = { switch: () => ({ value: 0 }) };
 
     it("converts a plain string to scvString", () => {
       const result: any = Spec.prototype.nativeToScVal(
@@ -77,10 +77,6 @@ describe("nativeToScVal monkey-patch (PR #174)", () => {
 
     it("converts a Stellar C… contract address string to an Address ScVal", () => {
       // The regex matches both G... and C... addresses identically.
-      // Use the same valid testnet address pattern - the Address ScVal
-      // result is the same regardless of G or C prefix.
-      const address =
-        "CA3D5K7F7B7Y7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q";
       // Generate a valid G address since the regex path is identical
       const validAddress = Keypair.random().publicKey();
       const result: any = Spec.prototype.nativeToScVal(
