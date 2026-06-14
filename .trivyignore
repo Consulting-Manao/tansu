@@ -1,0 +1,28 @@
+# Trivy vulnerability ignore file
+# These vulnerabilities are in non-production dependencies (documentation site, dev tools, workers)
+# and are acknowledged rather than blocking CI.
+
+# dapp/bun.lock - esbuild (dev/build tool, not a runtime dependency)
+GHSA-gv7w-rqvm-qjhr
+
+# Gemfile.lock files (workers/ipfs-delegation) - activesupport
+CVE-2026-33176
+
+# website/package-lock.json - Docusaurus documentation site (not production)
+# shell-quote transitive dependency
+CVE-2026-9277
+# dompurify XSS bypasses (non-production documentation site)
+CVE-2026-44728
+CVE-2026-6321
+CVE-2026-6322
+# lodash transitive dependency
+CVE-2026-4800
+# minimatch vulnerabilities
+CVE-2026-26996
+CVE-2026-27903
+CVE-2026-27904
+# other website transitive deps
+CVE-2026-4867
+CVE-2026-33671
+GHSA-5c6j-r48x-rmvq
+CVE-2026-29074
