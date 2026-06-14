@@ -56,15 +56,22 @@ describe("nativeToScVal monkey-patch (PR #174)", () => {
     const scSpecTypeValTy = { switch: () => ({ value: 0 }) };
 
     it("converts a plain string to scvString", () => {
-      const result: any = Spec.prototype.nativeToScVal("hello", scSpecTypeValTy);
+      const result: any = Spec.prototype.nativeToScVal(
+        "hello",
+        scSpecTypeValTy,
+      );
       expect(result.switch()).toBe(xdr.ScValType.scvString());
       expect(result.str()).toBe("hello");
     });
 
     it("converts a Stellar G… address string to an Address ScVal", () => {
       // Generate a valid Stellar keypair address that will pass Address.fromString()
-      const address = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-      const result: any = Spec.prototype.nativeToScVal(address, scSpecTypeValTy);
+      const address =
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+      const result: any = Spec.prototype.nativeToScVal(
+        address,
+        scSpecTypeValTy,
+      );
       expect(result.switch()).toBe(xdr.ScValType.scvAddress());
     });
 
@@ -72,10 +79,14 @@ describe("nativeToScVal monkey-patch (PR #174)", () => {
       // The regex matches both G... and C... addresses identically.
       // Use the same valid testnet address pattern - the Address ScVal
       // result is the same regardless of G or C prefix.
-      const address = "CA3D5K7F7B7Y7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q";
+      const address =
+        "CA3D5K7F7B7Y7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q7Q";
       // Generate a valid G address since the regex path is identical
       const validAddress = Keypair.random().publicKey();
-      const result: any = Spec.prototype.nativeToScVal(validAddress, scSpecTypeValTy);
+      const result: any = Spec.prototype.nativeToScVal(
+        validAddress,
+        scSpecTypeValTy,
+      );
       expect(result.switch()).toBe(xdr.ScValType.scvAddress());
     });
 
