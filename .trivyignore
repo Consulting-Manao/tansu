@@ -1,28 +1,16 @@
 # Trivy vulnerability ignore file
-# These vulnerabilities are in non-production dependencies (documentation site, dev tools, workers)
-# and are acknowledged rather than blocking CI.
+#
+# The following CVEs cannot be fixed by updating project dependencies.
+# They are Ruby gem (activesupport) vulnerabilities found in Gemfile.lock
+# files bundled inside the published npm package @stellar/js-xdr
+# (under node_modules). These are third-party Ruby dependencies that
+# ship with the JavaScript npm package — we cannot update Ruby gems
+# inside a published npm package.
+#
+# All other previously listed CVEs have been fixed by updating deps
+# (esbuild ^0.28.1 via override, serialize-javascript ^7.0.3 via override,
+# and the rest via npm update in website/).
 
-# dapp/bun.lock - esbuild (dev/build tool, not a runtime dependency)
-GHSA-gv7w-rqvm-qjhr
-
-# Gemfile.lock files (workers/ipfs-delegation) - activesupport
+# @stellar/js-xdr ships a Gemfile.lock with activesupport 6.1.7.6
+# This is a Ruby gem used by the Ruby Stellar SDK, not our code.
 CVE-2026-33176
-
-# website/package-lock.json - Docusaurus documentation site (not production)
-# shell-quote transitive dependency
-CVE-2026-9277
-# dompurify XSS bypasses (non-production documentation site)
-CVE-2026-44728
-CVE-2026-6321
-CVE-2026-6322
-# lodash transitive dependency
-CVE-2026-4800
-# minimatch vulnerabilities
-CVE-2026-26996
-CVE-2026-27903
-CVE-2026-27904
-# other website transitive deps
-CVE-2026-4867
-CVE-2026-33671
-GHSA-5c6j-r48x-rmvq
-CVE-2026-29074
