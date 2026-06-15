@@ -5,6 +5,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
   // Track errors across all tests
   let allErrors: string[] = [];
   let pageErrors: string[] = [];
+
   const safeGoto = async (page: any, url: string) => {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -84,18 +85,21 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     test("Project page navigation and content loading", async ({ page }) => {
       await safeGoto(page, "/project?name=test-project");
 
-      // Page should load without crashes
-      await expect(page.locator("body")).toBeVisible();
+      // Page should render without crashing - verify body has meaningful content
+      const bodyText = await page.evaluate(
+        () => document.body?.textContent?.length || 0,
+      );
+      expect(bodyText).toBeGreaterThan(0);
 
-      // Should handle missing project gracefully without hanging the run
+      // Should handle missing project gracefully
       await safeGoto(page, "/project?name=nonexistent-project");
       await expect(page.locator("body")).toBeVisible();
 
-      // Should handle malformed project names
+      // Should handle empty project name
       try {
         await safeGoto(page, "/project?name=");
         await expect(page.locator("body")).toBeVisible();
-      } catch (error) {
+      } catch {
         // Navigation might fail for empty name, which is expected
         await safeGoto(page, "/");
         await expect(page.locator("body")).toBeVisible();
@@ -112,16 +116,24 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           waitUntil: "domcontentloaded",
           timeout: 10000,
         });
+
+        // Verify the home page loaded with meaningful content
         await expect(navigationPage.locator("body")).toBeVisible({
           timeout: 5000,
         });
+        const bodyText = await navigationPage.evaluate(
+          () => document.body?.textContent?.length || 0,
+        );
+        expect(bodyText).toBeGreaterThan(0);
 
+        // Search for a project if search input exists
         const searchInput = navigationPage
           .locator('input[placeholder*="search" i], input[type="search"]')
           .first();
         if (await searchInput.isVisible()) {
           await searchInput.fill("test-project");
           await navigationPage.waitForTimeout(100);
+          // After search, the page should still be functional
           await expect(navigationPage.locator("body")).toBeVisible({
             timeout: 5000,
           });
@@ -134,27 +146,35 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
 
   test.describe("🗳️ Governance & Proposal Flows", () => {
     test("Governance page functionality", async ({ page }) => {
+      // Navigate to governance page without project context
       await safeGoto(page, "/governance");
       await expect(page.locator("body")).toBeVisible();
 
-      // Test with project context
+      // Navigate with project context - verify it renders without errors
       await safeGoto(page, "/governance?name=test-project");
-      await expect(page.locator("body")).toBeVisible();
+      const bodyText = await page.evaluate(
+        () => document.body?.textContent?.length || 0,
+      );
+      expect(bodyText).toBeGreaterThan(0);
 
-      // Test with invalid project
+      // Test with invalid project - should still render gracefully
       await safeGoto(page, "/governance?name=invalid");
       await expect(page.locator("body")).toBeVisible();
     });
 
     test("Proposal page navigation", async ({ page }) => {
+      // Navigate to a valid proposal
       await safeGoto(page, "/proposal?name=test-project&id=1");
-      await expect(page.locator("body")).toBeVisible();
+      const proposalBodyText = await page.evaluate(
+        () => document.body?.textContent?.length || 0,
+      );
+      expect(proposalBodyText).toBeGreaterThan(0);
 
-      // Test with invalid proposal ID
+      // Test with invalid proposal ID - should render without crashing
       await safeGoto(page, "/proposal?name=test-project&id=999");
       await expect(page.locator("body")).toBeVisible();
 
-      // Test with missing parameters
+      // Test with missing parameters - should render without crashing
       await safeGoto(page, "/proposal");
       await expect(page.locator("body")).toBeVisible();
     });
@@ -263,8 +283,6 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           timeout: 10000,
         });
         await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
-        // Check that the page loads without errors rather than specific elements
-        await expect(page.locator("body")).not.toHaveText("Error");
       }
     });
 

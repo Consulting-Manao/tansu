@@ -47,7 +47,7 @@ afterAll(() => {
   Spec.prototype.nativeToScVal = ORIG_NATIVE_TO_SC_VAL;
 });
 
-describe("nativeToScVal monkey-patch (PR #174)", () => {
+describe("nativeToScVal monkey-patch", () => {
   it("has applied the patched function", () => {
     expect(Spec.prototype.nativeToScVal.name).toBe("patchNativeToScVal");
   });

@@ -71,6 +71,7 @@ export default defineConfig({
 
   // No screenshots/videos for performance
   use: {
+    baseURL: "http://localhost:4321",
     actionTimeout: 15000,
     navigationTimeout: 30000,
     trace: "off",
@@ -94,7 +95,7 @@ export default defineConfig({
   webServer: {
     command: "bun dev",
     env: webServerEnv,
-    port: 4321,
+    url: "http://localhost:4321",
     reuseExistingServer: !process.env.CI,
   },
 });

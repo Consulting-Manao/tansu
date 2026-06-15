@@ -329,42 +329,38 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
       waitUntil: "domcontentloaded",
       timeout: 10000,
     });
-    await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
 
-    // Look for the Add Badge button
+    // Check for the Add Badge button
     const badgeButton = page.locator("#badge-button");
-    if ((await badgeButton.count().catch(() => 0)) > 0) {
-      await badgeButton.dispatchEvent("click").catch(() => {});
+    const badgeButtonCount = await badgeButton.count().catch(() => 0);
+
+    if (badgeButtonCount > 0) {
+      await badgeButton.click();
 
       // Fill in badge form
       await page
         .locator('input[placeholder="Member address as G..."]')
-        .fill("G".padEnd(56, "B"))
-        .catch(() => {});
+        .fill("G".padEnd(56, "B"));
 
       // Select a badge
-      await page
-        .locator('input[type="checkbox"]')
-        .first()
-        .check()
-        .catch(() => {});
+      const checkbox = page.locator('input[type="checkbox"]').first();
+      await checkbox.check();
 
       // Submit
-      await page
-        .locator('button:has-text("Add Badges")')
-        .click()
-        .catch(() => {});
+      const submitButton = page.locator('button:has-text("Add Badges")');
+      await submitButton.click();
 
       // Wait for success
       await page.waitForTimeout(500);
 
       // Check for success message
-      const hasSuccess =
-        (await page
-          .locator("text=Badges added successfully")
-          .count()
-          .catch(() => 0)) > 0;
-      expect(hasSuccess).toBeTruthy();
+      const successMessage = page.locator("text=Badges added successfully");
+      await expect(successMessage).toBeVisible({ timeout: 5000 });
+    } else {
+      // No badge button on this page — verify the project page rendered with expected content
+      await expect(page.getByText(/demo|Project/i).first()).toBeVisible({
+        timeout: 5000,
+      });
     }
   });
 });

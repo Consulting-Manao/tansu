@@ -113,9 +113,9 @@ test("execute() receives weighted tallies/seeds for anonymous proposal", async (
   });
 
   // Navigate to the app
-  await page
-    .goto("/__playwright-module-test", { waitUntil: "domcontentloaded" })
-    .catch(() => {});
+  await page.goto("/__playwright-module-test", {
+    waitUntil: "domcontentloaded",
+  });
 
   // Compute tallies and seeds, then call execute()
   const { ok } = await page.evaluate(async () => {
