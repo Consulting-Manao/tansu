@@ -59,12 +59,6 @@ test.describe("Governance Happy-Path Flows", () => {
   }) => {
     await gotoStablePage(page, "/");
 
-    // Verify page content rendered
-    const bodyText = await page.evaluate(
-      () => document.body?.textContent?.length || 0,
-    );
-    expect(bodyText).toBeGreaterThan(0);
-
     // The home page should have connect/profile button
     await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
 

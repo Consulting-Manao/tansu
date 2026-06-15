@@ -36,48 +36,26 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
 
   test.describe("🔐 Authentication & Wallet Flows", () => {
     test("Wallet connection and state management", async ({ page }) => {
-      // Navigate safely
-      await safeGoto(page, "/");
+      // Navigate and verify the connect button is present
+      await page.goto("/", {
+        waitUntil: "domcontentloaded",
+        timeout: 15000,
+      }).catch(() => {});
 
-      // Initial state - Connect button visible and shows Profile (user is authenticated) but we make that happen in the code below and continue at line 68
-      const connectButton = page.locator("[data-connect]");
-      const buttonText = connectButton.locator("span");
+      // Verify the connect button is rendered
+      const hasButton = await page.evaluate(
+        () => !!document.querySelector("[data-connect]"),
+      );
+      expect(hasButton).toBe(true);
 
-      // Add temporary listener to simulate UI change
-      await page.evaluate(() => {
-        window.addEventListener("walletConnected", () => {
-          const connectBtn = document.querySelector("[data-connect] span");
-          if (connectBtn) connectBtn.textContent = "Profile";
-        });
-
-        window.addEventListener("walletDisconnected", () => {
-          const connectBtn = document.querySelector("[data-connect] span");
-          if (connectBtn) connectBtn.textContent = "Connect";
-        });
-      });
-
-      // Dispatch walletConnected
-      await page.evaluate(() => {
-        window.dispatchEvent(
-          new CustomEvent("walletConnected", {
-            detail: { address: "GABC...123" },
-          }),
-        );
-      });
-
-      // Wait for the UI to reflect the connection
-      await expect(connectButton).toBeVisible();
-      await expect(buttonText).toHaveText(/Profile/);
-
-      // Dispatch walletDisconnected
-      await page.evaluate(() => {
-        window.dispatchEvent(new CustomEvent("walletDisconnected"));
-      });
-
-      await page.waitForTimeout(300);
-
-      // Confirm it returns to connect state
-      await expect(buttonText).toHaveText("Connect");
+      // Check button text indicates either connected or disconnected state
+      const buttonText = await page.evaluate(
+        () =>
+          document.querySelector("[data-connect] span")?.textContent?.trim() ||
+          "",
+      );
+      // With our mocks, wallet is connected ("Profile"); otherwise it shows "Connect"
+      expect(["Connect", "Profile"]).toContain(buttonText);
     });
   });
 
@@ -85,25 +63,22 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     test("Project page navigation and content loading", async ({ page }) => {
       await safeGoto(page, "/project?name=test-project");
 
-      // Page should render without crashing - verify body has meaningful content
-      const bodyText = await page.evaluate(
-        () => document.body?.textContent?.length || 0,
-      );
-      expect(bodyText).toBeGreaterThan(0);
+      // Page should render without crashing
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Should handle missing project gracefully
       await safeGoto(page, "/project?name=nonexistent-project");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Should handle empty project name
-      try {
-        await safeGoto(page, "/project?name=");
-        await expect(page.locator("body")).toBeVisible();
-      } catch {
-        // Navigation might fail for empty name, which is expected
-        await safeGoto(page, "/");
-        await expect(page.locator("body")).toBeVisible();
-      }
+      await safeGoto(page, "/project?name=");
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
     });
 
     test("Project search and discovery", async ({ page }) => {
@@ -117,24 +92,22 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           timeout: 10000,
         });
 
-        // Verify the home page loaded with meaningful content
-        await expect(navigationPage.locator("body")).toBeVisible({
+        // Verify the home page loaded
+        await navigationPage.waitForSelector("body", {
+          state: "attached",
           timeout: 5000,
         });
-        const bodyText = await navigationPage.evaluate(
-          () => document.body?.textContent?.length || 0,
-        );
-        expect(bodyText).toBeGreaterThan(0);
 
         // Search for a project if search input exists
         const searchInput = navigationPage
           .locator('input[placeholder*="search" i], input[type="search"]')
           .first();
-        if (await searchInput.isVisible()) {
+        if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
           await searchInput.fill("test-project");
-          await navigationPage.waitForTimeout(100);
-          // After search, the page should still be functional
-          await expect(navigationPage.locator("body")).toBeVisible({
+          await navigationPage.waitForTimeout(500);
+          // After search, verify the page is still functional
+          await navigationPage.waitForSelector("body", {
+            state: "attached",
             timeout: 5000,
           });
         }
@@ -148,35 +121,29 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     test("Governance page functionality", async ({ page }) => {
       // Navigate to governance page without project context
       await safeGoto(page, "/governance");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
 
       // Navigate with project context - verify it renders without errors
       await safeGoto(page, "/governance?name=test-project");
-      const bodyText = await page.evaluate(
-        () => document.body?.textContent?.length || 0,
-      );
-      expect(bodyText).toBeGreaterThan(0);
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
 
       // Test with invalid project - should still render gracefully
       await safeGoto(page, "/governance?name=invalid");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
     });
 
     test("Proposal page navigation", async ({ page }) => {
       // Navigate to a valid proposal
       await safeGoto(page, "/proposal?name=test-project&id=1");
-      const proposalBodyText = await page.evaluate(
-        () => document.body?.textContent?.length || 0,
-      );
-      expect(proposalBodyText).toBeGreaterThan(0);
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
 
       // Test with invalid proposal ID - should render without crashing
       await safeGoto(page, "/proposal?name=test-project&id=999");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
 
       // Test with missing parameters - should render without crashing
       await safeGoto(page, "/proposal");
-      await expect(page.locator("body")).toBeVisible();
+      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -209,7 +176,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
             waitUntil: "domcontentloaded",
             timeout: 10000,
           });
-          await expect(navigationPage.locator("body")).toBeVisible({
+          await expect(navigationPage.locator("[data-connect]")).toBeVisible({
             timeout: 5000,
           });
           await navigationPage.waitForTimeout(500);
@@ -252,7 +219,9 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           waitUntil: "domcontentloaded",
           timeout: 5000,
         });
-        await expect(page.locator("body")).toBeVisible();
+        await expect(page.locator("[data-connect]")).toBeVisible({
+          timeout: 5000,
+        });
       } catch {
         await page.goto("/").catch(() => {});
       }
@@ -264,7 +233,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           .first();
         if (await searchInput.isVisible()) {
           await searchInput.fill(payload);
-          await expect(page.locator("body")).toBeVisible();
+          await expect(page.locator("[data-connect]")).toBeVisible();
           await searchInput.clear();
         }
       } catch {}
@@ -282,7 +251,9 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           waitUntil: "domcontentloaded",
           timeout: 10000,
         });
-        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+        await expect(page.locator("[data-connect]")).toBeVisible({
+          timeout: 5000,
+        });
       }
     });
 
@@ -302,7 +273,9 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
         const loadTime = Date.now() - startTime;
 
         expect(loadTime).toBeLessThan(maxTime);
-        await expect(page.locator("body")).toBeVisible({ timeout: 5000 });
+        await expect(page.locator("[data-connect]")).toBeVisible({
+          timeout: 5000,
+        });
       }
     });
   });

@@ -78,7 +78,7 @@ test.describe("Essential Production Validation", () => {
         waitUntil: "domcontentloaded",
         timeout: 10000,
       });
-      await expect(navigationPage.locator("body")).toBeVisible({
+      await expect(navigationPage.locator("[data-connect]")).toBeVisible({
         timeout: 5000,
       });
       await navigationPage.waitForTimeout(100);
@@ -235,7 +235,9 @@ test.describe("Essential Production Validation", () => {
       "/project?name=%3Cscript%3Ealert%28%27xss%27%29%3C%2Fscript%3E",
       { waitUntil: "domcontentloaded" },
     );
-    await expect(page.locator("body")).toBeVisible();
+    await expect(page.locator("[data-connect]")).toBeVisible({
+      timeout: 5000,
+    });
 
     // Network failure resilience
     await page.route("**/soroban/**", (route) => route.abort());

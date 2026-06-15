@@ -36,11 +36,10 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
     const btnCount = await addProjectBtn.count().catch(() => 0);
 
     if (btnCount === 0) {
-      // Button not rendered — verify the home page loaded with content
-      const bodyText = await page.evaluate(
-        () => document.body?.textContent || "",
-      );
-      expect(bodyText.length).toBeGreaterThan(0);
+      // Button not rendered — verify the home page loaded with the core element
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
@@ -102,11 +101,10 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
     const modalCount = await termsModal.count().catch(() => 0);
 
     if (modalCount === 0) {
-      // Modal didn't appear — verify the home page loaded with content
-      const bodyText = await page.evaluate(
-        () => document.body?.textContent || "",
-      );
-      expect(bodyText.length).toBeGreaterThan(0);
+      // Modal didn't appear — verify the home page loaded with the core element
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
@@ -299,11 +297,15 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       .fill("Radicle Heartwood");
     await modal.getByRole("button", { name: "Next" }).click();
 
-    await expect(modal.getByText("Radicle Alias")).toBeVisible();
+    await expect(modal.getByText("Radicle Alias")).toBeVisible({
+      timeout: 5000,
+    });
     await modal.locator(`input[placeholder="alias"]`).fill("cloudhead");
     await modal.getByRole("button", { name: "Next" }).click();
 
-    await expect(modal.getByText("Add Organization Details")).toBeVisible();
+    await expect(modal.getByText("Add Organization Details")).toBeVisible({
+      timeout: 5000,
+    });
     await expect(modal.getByText("Radicle Repository URL")).toBeVisible();
     await expect(
       modal.getByText("Use a public Radicle RID such as rad:z3"),
@@ -325,7 +327,7 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
 
     await expect(
       modal.getByText("Review and Submit Your Project"),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 5000 });
     await expect(modal.getByText("Repository Provider")).toBeVisible();
     await expect(modal.getByText("Radicle", { exact: true })).toBeVisible();
     await expect(modal.getByText(RADICLE_RID)).toBeVisible();
