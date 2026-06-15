@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { queryKeys } from "./cacheKeys";
+import { queryKeys } from "../../../src/service/cache/cacheKeys";
 import {
   fetchWithCache,
   getCachedQueryAtom,
   getQuerySnapshot,
   invalidateQuery,
-} from "./cacheStore";
+} from "../../../src/service/cache/cacheStore";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

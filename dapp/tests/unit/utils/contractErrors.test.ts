@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { parseContractError, checkSimulationError } from "./contractErrors";
+import {
+  parseContractError,
+  checkSimulationError,
+} from "../../../src/utils/contractErrors";
 
 describe("parseContractError", () => {
   it("returns user message for Error(Contract, #N) format", () => {

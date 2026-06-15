@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseContractOptionString, MAX_VOTE_WEIGHT_U32 } from "./utils";
+import {
+  parseContractOptionString,
+  MAX_VOTE_WEIGHT_U32,
+} from "../../../src/utils/utils";
 import {
   stroopsToTokenUnits,
   tokenUnitsToStroops,
   toMaxVoteWeightInTokens,
   tokenVoteWeightToContract,
   SOROBAN_CONTRACT_ID_REGEX,
-} from "../service/TokenBalanceService";
+} from "../../../src/service/TokenBalanceService";
 
 describe("parseContractOptionString", () => {
   it("returns null for empty values", () => {

@@ -65,7 +65,6 @@ describe("nativeToScVal monkey-patch", () => {
     });
 
     it("converts a Stellar G… address string to an Address ScVal", () => {
-      // Generate a valid Stellar keypair address that will pass Address.fromString()
       const address =
         "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
       const result: any = Spec.prototype.nativeToScVal(
@@ -76,8 +75,6 @@ describe("nativeToScVal monkey-patch", () => {
     });
 
     it("converts a Stellar C… contract address string to an Address ScVal", () => {
-      // The regex matches both G... and C... addresses identically.
-      // Generate a valid G address since the regex path is identical
       const validAddress = Keypair.random().publicKey();
       const result: any = Spec.prototype.nativeToScVal(
         validAddress,

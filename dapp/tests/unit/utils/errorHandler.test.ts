@@ -3,7 +3,7 @@ import {
   extractContractError,
   handleError,
   handleFreighterError,
-} from "./errorHandler";
+} from "../../../src/utils/errorHandler";
 
 describe("extractContractError", () => {
   it("returns code -4 and message when error.code === -4", () => {

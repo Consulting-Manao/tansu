@@ -55,6 +55,15 @@ export class GitLogService {
 
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
+
+      // Detect the blank line that separates headers from the commit message body.
+      // This check must come BEFORE the `if (!line) continue` guard so the blank
+      // line itself flips messageStarted instead of being silently consumed.
+      if (line === "" && !messageStarted) {
+        messageStarted = true;
+        continue;
+      }
+
       if (!line) continue;
 
       if (line.startsWith("Author: ")) {
@@ -73,8 +82,6 @@ export class GitLogService {
         }
       } else if (line.startsWith("CommitDate: ")) {
         committer.date = line.substring("CommitDate: ".length);
-      } else if (line === "" && !messageStarted) {
-        messageStarted = true;
       } else if (messageStarted && line.startsWith("    ")) {
         // Message lines are indented with 4 spaces
         message += line.substring(4) + "\n";

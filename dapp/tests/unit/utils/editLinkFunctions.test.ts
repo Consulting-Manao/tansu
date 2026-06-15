@@ -10,7 +10,7 @@ import {
   isSupportedRepositoryUrl,
   normalizeRepositoryUrl,
   parseRepositoryUrl,
-} from "./editLinkFunctions";
+} from "../../../src/utils/editLinkFunctions";
 
 describe("repository icon helpers", () => {
   it("maps supported providers to provider-specific icons", () => {

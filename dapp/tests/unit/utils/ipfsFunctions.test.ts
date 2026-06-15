@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { packFilesToCar } from "./ipfsFunctions";
+import { packFilesToCar } from "../../../src/utils/ipfsFunctions";
 
 describe("packFilesToCar", () => {
   it("returns CarPackResult with cid and carBlob for valid files", async () => {

@@ -23,12 +23,12 @@ const {
   checkSimulationErrorMock: vi.fn(),
 }));
 
-vi.mock("../utils/ipfsFunctions", () => ({
+vi.mock("../../../src/utils/ipfsFunctions", () => ({
   packFilesToCar: packFilesToCarMock,
   uploadToIpfsProxy: uploadToIpfsProxyMock,
 }));
 
-vi.mock("../contracts/soroban_tansu", () => ({
+vi.mock("../../../src/contracts/soroban_tansu", () => ({
   default: {
     options: {},
     register: registerMock,
@@ -36,26 +36,29 @@ vi.mock("../contracts/soroban_tansu", () => ({
   },
 }));
 
-vi.mock("../utils/store", () => ({
+vi.mock("../../../src/utils/store", () => ({
   connectedPublicKey: {
     get: connectedPublicKeyGetMock,
   },
 }));
 
-vi.mock("./StateService", () => ({
+vi.mock("../../../src/service/StateService", () => ({
   loadedProjectId: loadedProjectIdMock,
 }));
 
-vi.mock("./TxService", () => ({
+vi.mock("../../../src/service/TxService", () => ({
   signAssembledTransaction: signAssembledTransactionMock,
   sendSignedTransaction: sendSignedTransactionMock,
 }));
 
-vi.mock("../utils/contractErrors", () => ({
+vi.mock("../../../src/utils/contractErrors", () => ({
   checkSimulationError: checkSimulationErrorMock,
 }));
 
-import { createProjectFlow, updateConfigFlow } from "./FlowService";
+import {
+  createProjectFlow,
+  updateConfigFlow,
+} from "../../../src/service/FlowService";
 
 function createTomlFile() {
   return new File(['PROJECT_TYPE = "SOFTWARE"'], "project.toml", {

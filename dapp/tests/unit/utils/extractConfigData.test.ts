@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractConfigData } from "./utils";
+import { extractConfigData } from "../../../src/utils/utils";
 
 const minimalProject = {
   name: "myproject",

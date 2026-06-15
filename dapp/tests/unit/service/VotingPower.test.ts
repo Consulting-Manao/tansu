@@ -4,7 +4,7 @@ const mockGetProposal = vi.fn();
 const mockGetMaxWeight = vi.fn();
 const mockGetTokenBalance = vi.fn();
 
-vi.mock("../contracts/soroban_tansu", () => ({
+vi.mock("../../../src/contracts/soroban_tansu", () => ({
   default: {
     options: {
       publicKey: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
@@ -14,40 +14,43 @@ vi.mock("../contracts/soroban_tansu", () => ({
   },
 }));
 
-vi.mock("./walletService", () => ({
+vi.mock("../../../src/service/walletService", () => ({
   loadedPublicKey: () =>
     "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
 }));
 
-vi.mock("./StateService", () => ({
+vi.mock("../../../src/service/StateService", () => ({
   loadedProjectId: vi.fn(),
 }));
 
-vi.mock("./TxService", () => ({
+vi.mock("../../../src/service/TxService", () => ({
   signAndSend: vi.fn(),
 }));
 
-vi.mock("./ReadContractService", () => ({
+vi.mock("../../../src/service/ReadContractService", () => ({
   invalidateProposalCache: vi.fn(),
 }));
 
-vi.mock("../utils/crypto", () => ({
+vi.mock("../../../src/utils/crypto", () => ({
   encryptWithPublicKey: vi.fn(),
 }));
 
-vi.mock("../utils/errorHandler", () => ({
+vi.mock("../../../src/utils/errorHandler", () => ({
   handleFreighterError: vi.fn(),
 }));
 
-vi.mock("./TokenBalanceService", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./TokenBalanceService")>();
+vi.mock("../../../src/service/TokenBalanceService", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/service/TokenBalanceService")
+    >();
   return {
     ...actual,
     getTokenBalance: (...args: unknown[]) => mockGetTokenBalance(...args),
   };
 });
 
-import { getVotingPower } from "./ContractService";
+import { getVotingPower } from "../../../src/service/ContractService";
 
 describe("getVotingPower", () => {
   beforeEach(() => {

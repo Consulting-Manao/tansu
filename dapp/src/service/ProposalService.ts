@@ -22,11 +22,14 @@ async function fetchProposalFromIPFS(cid: string) {
     const basicUrl = getIpfsBasicLink(cid);
     if (!basicUrl) return content;
 
-    // Update relative image paths to absolute IPFS paths
-    return content.replace(
-      /!\[([^\]]*)\]\(([^http][^)]+|[^)]+)\)/g,
-      `![$1](${basicUrl}/$2)`,
-    );
+    // Update relative image paths to absolute IPFS paths.
+    // Keep absolute URLs (http://, https://) unchanged.
+    return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
+      if (path.startsWith("http://") || path.startsWith("https://")) {
+        return match;
+      }
+      return `![${alt}](${basicUrl}/${path})`;
+    });
   } catch {
     return null;
   }

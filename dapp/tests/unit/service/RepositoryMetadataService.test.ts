@@ -22,7 +22,7 @@ function mockImmediateTimers() {
 }
 
 async function loadRepositoryMetadataService() {
-  return import("./RepositoryMetadataService");
+  return import("../../../src/service/RepositoryMetadataService");
 }
 
 describe("RepositoryMetadataService", () => {

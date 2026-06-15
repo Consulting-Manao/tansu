@@ -5,7 +5,7 @@ import {
   validateGithubUrl,
   validateStellarAddress,
   validateMaintainerAddress,
-} from "./validation";
+} from "../../../src/schemas/validation";
 
 const validAccount = "G" + "A".repeat(55);
 const validContract = "C" + "A".repeat(55);
