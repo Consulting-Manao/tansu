@@ -1,16 +1,19 @@
 # Trivy vulnerability ignore file
 #
-# The following CVEs cannot be fixed by updating project dependencies.
-# They are Ruby gem (activesupport) vulnerabilities found in Gemfile.lock
-# files bundled inside the published npm package @stellar/js-xdr
-# (under node_modules). These are third-party Ruby dependencies that
-# ship with the JavaScript npm package — we cannot update Ruby gems
-# inside a published npm package.
+# These CVEs cannot be fixed by updating project dependencies.
 #
-# All other previously listed CVEs have been fixed by updating deps
-# (esbuild ^0.28.1 via override, serialize-javascript ^7.0.3 via override,
-# and the rest via npm update in website/).
+# GHSA-gv7w-rqvm-qjhr (esbuild): Affects Deno module binary integrity.
+# We don't use Deno, and esbuild is a build-time-only dev dependency.
+# astro/vite pin esbuild to ^0.27.3; forcing ^0.28.x breaks Astro's
+# dynamic module imports. This is a build-tool CVE with no runtime risk.
+#
+# CVE-2026-33176 (activesupport): Ruby gem vulnerability found in
+# Gemfile.lock files bundled inside the published npm package
+# @stellar/js-xdr (under node_modules). These are third-party Ruby
+# dependencies — we cannot update them.
 
-# @stellar/js-xdr ships a Gemfile.lock with activesupport 6.1.7.6
-# This is a Ruby gem used by the Ruby Stellar SDK, not our code.
+# esbuild (build-time tool, Deno-specific CVE, astro/vite pin to 0.27.x)
+GHSA-gv7w-rqvm-qjhr
+
+# activesupport in @stellar/js-xdr's bundled Gemfile.lock (third-party Ruby dep)
 CVE-2026-33176
