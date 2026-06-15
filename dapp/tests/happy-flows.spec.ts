@@ -325,9 +325,9 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       .fill("Public Radicle repository validation");
     await modal.getByRole("button", { name: "Next" }).click();
 
-    await expect(
-      modal.getByText("Review and Submit Your Project"),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(modal.getByText("Review and Submit Your Project")).toBeVisible(
+      { timeout: 5000 },
+    );
     await expect(modal.getByText("Repository Provider")).toBeVisible();
     await expect(modal.getByText("Radicle", { exact: true })).toBeVisible();
     await expect(modal.getByText(RADICLE_RID)).toBeVisible();

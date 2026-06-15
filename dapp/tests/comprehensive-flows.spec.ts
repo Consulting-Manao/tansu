@@ -37,10 +37,12 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
   test.describe("🔐 Authentication & Wallet Flows", () => {
     test("Wallet connection and state management", async ({ page }) => {
       // Navigate and verify the connect button is present
-      await page.goto("/", {
-        waitUntil: "domcontentloaded",
-        timeout: 15000,
-      }).catch(() => {});
+      await page
+        .goto("/", {
+          waitUntil: "domcontentloaded",
+          timeout: 15000,
+        })
+        .catch(() => {});
 
       // Verify the connect button is rendered
       const hasButton = await page.evaluate(
@@ -121,29 +123,41 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
     test("Governance page functionality", async ({ page }) => {
       // Navigate to governance page without project context
       await safeGoto(page, "/governance");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Navigate with project context - verify it renders without errors
       await safeGoto(page, "/governance?name=test-project");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Test with invalid project - should still render gracefully
       await safeGoto(page, "/governance?name=invalid");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
     });
 
     test("Proposal page navigation", async ({ page }) => {
       // Navigate to a valid proposal
       await safeGoto(page, "/proposal?name=test-project&id=1");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Test with invalid proposal ID - should render without crashing
       await safeGoto(page, "/proposal?name=test-project&id=999");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
 
       // Test with missing parameters - should render without crashing
       await safeGoto(page, "/proposal");
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
     });
   });
 
