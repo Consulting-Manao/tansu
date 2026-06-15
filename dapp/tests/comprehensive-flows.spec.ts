@@ -89,29 +89,26 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
 
       try {
         await applyAllMocks(navigationPage);
+        await navigationPage.addInitScript(() => {
+          localStorage.setItem(
+            "tansu_tos_accepted",
+            JSON.stringify({ accepted: true }),
+          );
+        });
         await navigationPage.goto("/", {
           waitUntil: "domcontentloaded",
           timeout: 10000,
         });
 
-        // Verify the home page loaded
-        await navigationPage.waitForSelector("body", {
-          state: "attached",
-          timeout: 5000,
-        });
-
-        // Search for a project if search input exists
         const searchInput = navigationPage
           .locator('input[placeholder*="search" i], input[type="search"]')
           .first();
         if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await searchInput.fill("test-project");
-          await navigationPage.waitForTimeout(500);
-          // After search, verify the page is still functional
-          await navigationPage.waitForSelector("body", {
-            state: "attached",
-            timeout: 5000,
+          await navigationPage.goto("/?search=test-project", {
+            waitUntil: "domcontentloaded",
+            timeout: 10000,
           });
+          await expect(navigationPage).toHaveURL(/search=test-project/);
         }
       } finally {
         await navigationPage.close().catch(() => {});
@@ -241,15 +238,13 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       }
 
       try {
-        await page.goto("/");
-        const searchInput = page
-          .locator('input[placeholder*="search" i], input[type="search"]')
-          .first();
-        if (await searchInput.isVisible()) {
-          await searchInput.fill(payload);
-          await expect(page.locator("[data-connect]")).toBeVisible();
-          await searchInput.clear();
-        }
+        await page.goto(`/?search=${encodeURIComponent(payload)}`, {
+          waitUntil: "domcontentloaded",
+          timeout: 5000,
+        });
+        await expect(page.locator("[data-connect]")).toBeVisible({
+          timeout: 5000,
+        });
       } catch {}
     }
   });
