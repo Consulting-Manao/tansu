@@ -260,7 +260,7 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
 
     // Test components that had mounting issues
     const componentTests = [
-      { url: "/", component: "NavbarSearch" },
+      { url: "/", component: "JoinCommunityButton" },
       { url: "/project?name=test", component: "UpdateHashModal" },
       { url: "/governance", component: "ProposalsSection" },
       { url: "/proposal?name=test&id=1", component: "VotingModal" },

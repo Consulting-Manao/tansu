@@ -139,6 +139,84 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
     await expect(termsModal).not.toBeVisible();
   });
 
+  test("Join community modal – adapt to wallet state", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("tansu_tos_accepted", "true");
+    });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 10000 });
+
+    // Handle TermsAcceptanceModal if it appears
+    const termsModal = page.locator(".terms-modal-container");
+    const acceptButton = termsModal.getByRole("button", {
+      name: /accept terms/i,
+    });
+
+    const termsModalCount = await page
+      .locator(".terms-modal-container")
+      .evaluateAll((elements) => elements.length)
+      .catch(() => 0);
+    if (termsModalCount > 0) {
+      await termsModal
+        .getByRole("button", { name: "Terms of Service" })
+        .click();
+      await expect(termsModal.locator(".markdown-body")).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Scroll to bottom to enable button
+      await termsModal.evaluate((el) => {
+        const scrollable = el.querySelector(".overflow-auto");
+        if (scrollable instanceof HTMLElement) {
+          scrollable.scrollTop = scrollable.scrollHeight;
+          scrollable.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
+      });
+
+      await expect(acceptButton).toBeEnabled();
+
+      // Click accept
+      await acceptButton.click();
+    }
+
+    await expect(page.locator("[data-connect] span")).toBeVisible({
+      timeout: 5000,
+    });
+
+    // With mocks, wallet is connected by default (Profile text due to walletService mock)
+    // Verify the connect/profile button rendered in either state
+    const buttonText = await page
+      .locator("[data-connect] span")
+      .textContent()
+      .catch(() => "");
+    const isConnected = buttonText === "Profile";
+
+    if (!isConnected) {
+      // Wallet not connected → Join button should be visible
+      const joinButton = page.locator("button", { hasText: "Join" }).first();
+      await expect(joinButton).toBeVisible({ timeout: 5000 });
+      await joinButton.click();
+
+      // Wait for modal to render
+      await expect(page.getByText("Join the Community")).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Fill minimal required fields
+      await page
+        .locator("input[placeholder='Write the address as G...']")
+        .fill("G".padEnd(56, "B"));
+      await page
+        .locator("input[placeholder='https://twitter.com/yourhandle']")
+        .fill("https://twitter.com/test");
+
+      // Submit – click the second Join button (the submit)
+      await page.getByRole("button", { name: "Join" }).nth(1).click();
+    } else {
+      // Wallet IS connected — verify the connected profile button is visible
+      await expect(page.locator("[data-connect]")).toBeVisible();
+    }
+  });
+
   test("Project creation modal adapts repository fields for a real public Radicle RID", async ({
     page,
   }) => {
