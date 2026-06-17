@@ -85,23 +85,6 @@ const { title, page } = Astro.props;
 
     modalWindow[GLOBAL_MODAL_LISTENERS_KEY] = true;
 
-    window.addEventListener("openJoinCommunity", async (event: Event) => {
-      try {
-        const address =
-          event && typeof event === "object" && "detail" in event
-            ? ((event as CustomEvent<{ address?: string }>).detail?.address ??
-              "")
-            : "";
-        await mountModal(
-          `join-modal-container ${MODAL_CLASS}`,
-          () => import("components/page/dashboard/JoinCommunityModal.tsx"),
-          () => ({ prefillAddress: address }),
-        );
-      } catch (e) {
-        console.error("Error opening join community modal:", e);
-      }
-    });
-
     window.addEventListener("openProfileModal", async () => {
       try {
         const { loadedPublicKey } = await import("service/walletService");

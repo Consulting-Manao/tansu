@@ -1,6 +1,5 @@
 ---
 import ConnectWallet from "../ConnectWallet.astro";
-import JoinCommunityButton from "../JoinCommunityButton.tsx";
 import NavbarSearch from "../NavbarSearch.tsx";
 ---
 
@@ -41,9 +40,6 @@ import NavbarSearch from "../NavbarSearch.tsx";
           <div class="ml-6">
             <ConnectWallet />
           </div>
-          <div id="join-community-wrapper" class="hidden sm:block">
-            <JoinCommunityButton client:load />
-          </div>
         </div>
       </div>
     </div>
@@ -52,14 +48,6 @@ import NavbarSearch from "../NavbarSearch.tsx";
 
 <script>
   const GLOBAL_KEY = Symbol.for("globalListenersInited");
-
-  const updateJoinButtonVisibility = () => {
-    const publicKey = localStorage.getItem("publicKey");
-    const wrapper = document.getElementById("join-community-wrapper");
-    if (wrapper) {
-      wrapper.style.display = publicKey ? "none" : "block";
-    }
-  };
 
   const initGlobalListeners = () => {
     if ((window as any)[GLOBAL_KEY]) return;
@@ -74,17 +62,12 @@ import NavbarSearch from "../NavbarSearch.tsx";
         document.dispatchEvent(new CustomEvent("create-project-global"));
       }
     });
-
-    window.addEventListener("walletConnected", updateJoinButtonVisibility);
-    window.addEventListener("walletDisconnected", updateJoinButtonVisibility);
   };
 
   document.addEventListener("astro:page-load", () => {
-    updateJoinButtonVisibility();
     initGlobalListeners();
   });
 
   // immediate run on first load
-  updateJoinButtonVisibility();
   initGlobalListeners();
 </script>

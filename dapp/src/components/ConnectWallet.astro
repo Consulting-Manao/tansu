@@ -172,7 +172,7 @@ import WalletFundingWrapper from "../components/wallet/WalletFundingWrapper.tsx"
 
     if (button) button.addEventListener("click", connectWallet);
 
-    // ── Listen for walletConnected fired by other components (e.g. JoinCommunityModal) ──
+    // ── Listen for walletConnected fired by other components ──
     // This ensures the button updates to "Profile" even when connection
     // happens outside of this component's own click handler.
     window.addEventListener("walletConnected", (e: Event) => {

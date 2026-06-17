@@ -27,12 +27,6 @@ interface CreateProposalFlowParams {
   onProgress?: (step: number) => void;
 }
 
-interface JoinCommunityFlowParams {
-  memberAddress: string;
-  profileFiles: File[];
-  onProgress?: (step: number) => void;
-}
-
 interface UpdateMemberFlowParams {
   memberAddress: string;
   profileFiles: File[];
@@ -124,34 +118,6 @@ async function createSignedProposalTransaction(
 }
 
 /**
- * Create and sign an add member transaction
- */
-async function createSignedAddMemberTransaction(
-  memberAddress: string,
-  meta: string,
-): Promise<string> {
-  const address = memberAddress || connectedPublicKey.get();
-  if (!address) throw new Error("Please connect your wallet first");
-
-  // Validate meta parameter - ensure it's not just whitespace
-  if (meta.trim() === "") {
-    meta = ""; // Use empty string instead of whitespace
-  }
-
-  Tansu.options.publicKey = address;
-
-  const tx = await Tansu.add_member({
-    member_address: address,
-    meta: meta,
-  });
-
-  // Check for simulation errors (contract errors) before signing
-  checkSimulationError(tx as any);
-
-  return await signAssembledTransaction(tx);
-}
-
-/**
  * Send a signed transaction to the network
  */
 async function sendSignedTransactionLocal(signedTxXdr: string): Promise<any> {
@@ -226,55 +192,6 @@ export async function createProposalFlow({
 }
 
 /**
- * Execute the new Flow 2 for joining the community
- */
-export async function joinCommunityFlow({
-  memberAddress,
-  profileFiles,
-  onProgress,
-}: JoinCommunityFlowParams): Promise<boolean> {
-  let cid = "";
-  let carBlob: Blob | undefined;
-
-  if (profileFiles.length > 0) {
-    // Step 1: Calculate CID and pack CAR once
-    const result = await packFilesToCar(profileFiles);
-    cid = result.cid;
-    carBlob = result.carBlob;
-  }
-
-  // Step 2: Create and sign the smart contract transaction with the CID
-  onProgress?.(7);
-  const signedTxXdr = await createSignedAddMemberTransaction(
-    memberAddress,
-    cid,
-  );
-
-  if (profileFiles.length > 0 && carBlob) {
-    // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
-    onProgress?.(8);
-    const uploadedCid = await uploadToIpfsProxy({
-      cid,
-      carBlob,
-      signedTxXdr,
-    });
-
-    // Step 4: Verify CID matches
-    if (uploadedCid !== cid) {
-      throw new Error(
-        `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-      );
-    }
-  }
-
-  // Step 5: Send the signed transaction
-  onProgress?.(9);
-  await sendSignedTransactionLocal(signedTxXdr);
-  invalidateQuery(queryKeys.membership.detail(memberAddress));
-  return true;
-}
-
-/**
  * Create and sign an update member transaction
  */
 async function createSignedUpdateMemberTransaction(
@@ -297,7 +214,7 @@ async function createSignedUpdateMemberTransaction(
 }
 
 /**
- * Execute the flow for updating member profile – mirrors joinCommunityFlow:
+ * Execute the flow for updating member profile:
  * 1. If profile data is provided, calculate CID locally
  * 2. Create and sign the update_member transaction with the CID
  * 3. If profile data exists, upload to IPFS and verify CID

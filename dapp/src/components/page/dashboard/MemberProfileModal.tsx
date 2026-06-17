@@ -191,19 +191,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
     window.location.href = "/";
   };
 
-  // Handle registration button click
-  const handleRegister = () => {
-    // Show registration modal or redirect to registration page
-    onClose();
-    // Dispatch event to show join community modal with the address
-    window.dispatchEvent(
-      new CustomEvent("openJoinCommunity", {
-        detail: { address: memberAddress },
-      }),
-    );
-  };
-
-  // If member is null, show registration message
+  // If member is null, show a "not registered" message
   if (!member) {
     return (
       <Modal onClose={onClose}>
@@ -220,24 +208,13 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
             {memberAddress && <AddressDisplay address={memberAddress} />}
 
             <div className="text-center mt-1">
-              <p className="text-sm sm:text-base text-secondary mb-1">
-                This member hasn't registered on the platform yet.
-              </p>
               <p className="text-sm sm:text-base text-secondary">
-                To participate in the community, please register first.
+                This member hasn't registered on the platform yet.
               </p>
             </div>
 
-            <div className="flex w-full justify-between gap-2 sm:gap-3 mt-3">
-              <Button
-                type="primary"
-                onClick={handleRegister}
-                className="w-full"
-              >
-                Register Now
-              </Button>
-
-              {publicKey === memberAddress && (
+            {publicKey === memberAddress && (
+              <div className="flex w-full justify-center mt-3">
                 <Button
                   type="primary"
                   onClick={handleDisconnect}
@@ -245,8 +222,8 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
                 >
                   Disconnect
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </Modal>
