@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ipld/car": "^5.4.5",
-    "@stellar/stellar-sdk": "^15.1.0",
+    "@stellar/stellar-sdk": "^16.0.0",
     "ipfs-car": "^3.1.0"
   },
   "devDependencies": {
