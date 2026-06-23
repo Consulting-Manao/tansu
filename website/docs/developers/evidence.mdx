@@ -1,0 +1,110 @@
+---
+sidebar_position: 7
+---
+
+# Commit Evidence
+
+Tansu lets maintainers attach generic supply-chain **evidence** to a specific project commit. Evidence is keyed by project, commit hash, and kind:
+
+```text
+(project_key, commit_hash, kind) -> IPFS CID
+```
+
+Supported kinds are `Sbom`, `Cve`, and `Attestation`.
+
+The contract intentionally stays small. Artifact contents live **off-chain on IPFS**; the contract stores only a content identifier (CID) and a ledger timestamp. It does not upload artifacts, parse SBOMs or CVEs, or verify attestations on-chain.
+
+:::note[Why no separate digest?]
+
+An IPFS CIDv1 is itself a content-addressed multihash of the bytes, so fetching by CID is self-verifying — a tampered artifact yields a different CID. A redundant digest field was therefore left out of the contract. Producer tooling still prints a `sha256` for human-readable logs, but that digest is not stored on-chain.
+
+:::
+
+## Storage model
+
+```text
+ProjectKey::Evidence(project_key, commit_hash, kind) -> Evidence { cid, created_at }
+```
+
+Setting evidence emits an `EvidenceSet` event so the chain history can be observed directly, with no backend required.
+
+## Publishing evidence
+
+The full producer path — generate an artifact, upload it to IPFS, and record the CID on-chain — is automated by `tools/evidence/publish_evidence.py`.
+
+```bash
+uv run tools/evidence/publish_evidence.py \
+  --project-key "$TANSU_PROJECT_KEY" \
+  --commit-hash "$GITHUB_SHA" \
+  --kind sbom \
+  --file artifacts/sbom.cyclonedx.json \
+  --network testnet \
+  --contract-id "$TANSU_CONTRACT_ID" \
+  --source-account tansu-testnet
+```
+
+The tool:
+
+1. validates the kind and artifact file,
+2. computes a `sha256` digest (informational, printed to the log),
+3. uploads the artifact to IPFS and captures the CID,
+4. calls `set_evidence(maintainer, project_key, commit_hash, kind, cid)` via the `stellar` CLI.
+
+### Pluggable IPFS upload
+
+The upload step is configurable so no single pinning vendor is hardcoded:
+
+- Set `TANSU_IPFS_UPLOAD_COMMAND` to any command that takes the artifact path as its final argument and prints the CID as the last token on stdout, e.g.
+
+  ```bash
+  export TANSU_IPFS_UPLOAD_COMMAND="ipfs add --cid-version=1 --quieter"
+  ```
+
+- Otherwise, if `FILEBASE_TOKEN` is set, the artifact is uploaded to Filebase's IPFS pinning RPC (the same provider used by the dApp and SBOM workflows).
+
+Use `--dry-run` to upload and print the resulting `set_evidence` invocation without sending the transaction.
+
+### Makefile shortcut
+
+```bash
+make contract_set_evidence kind=cve commit=<hash> file=artifacts/trivy-results.json
+make contract_get_evidence commit=<hash>
+```
+
+## CI workflow
+
+`.github/workflows/evidence.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags. For each commit it generates an SBOM and a vulnerability scan with Trivy, builds a GitHub attestation manifest, uploads each artifact to IPFS, and records the CIDs on-chain.
+
+It expects the following repository configuration in the `publish-evidence` environment:
+
+| Setting | Type | Purpose |
+| --- | --- | --- |
+| `TANSU_SECRET_KEY` | secret | Maintainer Stellar secret key (`S...`) used to sign |
+| `FILEBASE_TOKEN` | secret | Filebase IPFS pinning token |
+| `TANSU_CONTRACT_ID` | var | Deployed Tansu contract id (`C...`) |
+| `TANSU_PROJECT_KEY` | var | Project key (hex) |
+| `TANSU_MAINTAINER` | var | Maintainer address (`G...`) matching the secret key |
+| `TANSU_NETWORK` | var | Stellar network name (defaults to `testnet`) |
+
+## Verifying evidence
+
+Anyone can read the pointer back and verify the artifact:
+
+```bash
+# 1. fetch the CID from the chain
+stellar contract invoke \
+  --network testnet --id "$TANSU_CONTRACT_ID" \
+  -- get_evidence \
+  --project_key "$TANSU_PROJECT_KEY" \
+  --commit_hash "$COMMIT_HASH" \
+  --kind Sbom
+
+# 2. download the artifact by CID (IPFS verifies content against the CID)
+ipfs cat "$CID" > evidence.json
+```
+
+Then run artifact-specific checks:
+
+- **SBOM** — inspect the CycloneDX JSON with your SBOM tooling.
+- **CVE** — inspect the Trivy JSON output.
+- **Attestation** — verify the referenced subjects with `gh attestation verify <artifact> --repo <owner>/<repo>`.
