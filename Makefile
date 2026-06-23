@@ -331,6 +331,42 @@ contract_get_max_weight:
     	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
     	--member_address $(admin)
 
+# Generate an artifact, upload it to IPFS, and record its CID on-chain.
+# Requires FILEBASE_TOKEN (or TANSU_IPFS_UPLOAD_COMMAND) in the environment.
+# Override kind/commit/file on the command line, e.g.
+#   make contract_set_evidence kind=cve file=artifacts/trivy-results.json
+ifndef kind
+   override kind = sbom
+endif
+ifndef commit
+   override commit = bc4d84f2b00501ce6c176d797371f65799838720
+endif
+ifndef file
+   override file = artifacts/sbom.cyclonedx.json
+endif
+
+contract_set_evidence:  ## Upload an evidence artifact to IPFS and record its CID on-chain
+	uv run tools/evidence/publish_evidence.py \
+		--project-key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
+		--commit-hash $(commit) \
+		--kind $(kind) \
+		--file $(file) \
+		--network $(network) \
+		--contract-id $(tansu_id) \
+		--source-account $(admin) \
+		--maintainer $(shell stellar keys address $(admin))
+
+contract_get_evidence:  ## Read the stored evidence pointer for a commit and kind
+	stellar contract invoke \
+    	--source-account $(admin) \
+    	--network $(network) \
+    	--id $(tansu_id) \
+    	-- \
+    	get_evidence \
+    	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
+    	--commit_hash $(commit) \
+    	--kind Sbom
+
 # --------- Hook --------- #
 
 pre_push_hook:

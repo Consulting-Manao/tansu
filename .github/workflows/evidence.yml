@@ -1,0 +1,141 @@
+name: Publish commit evidence
+
+# Generates supply-chain evidence for the current commit, uploads each artifact to
+# IPFS, and records the resulting CID on-chain via the contract's `set_evidence`.
+#
+# The artifacts stay off-chain; only the CID + a ledger timestamp are stored on
+# chain. See website/docs/developers/evidence.mdx and tools/evidence/.
+#
+# Required configuration (repository environment `publish-evidence`):
+#   secrets.TANSU_SECRET_KEY   Stellar secret key (S...) of a project maintainer
+#   secrets.FILEBASE_TOKEN     Filebase IPFS pinning token (reused from SBOM workflow)
+#   vars.TANSU_CONTRACT_ID     Deployed Tansu contract id (C...)
+#   vars.TANSU_PROJECT_KEY     Project key (hex), i.e. keccak256(project name)
+#   vars.TANSU_MAINTAINER      Maintainer address (G...) matching TANSU_SECRET_KEY
+#   vars.TANSU_NETWORK         Stellar network name (defaults to "testnet")
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-evidence:
+    name: Generate and publish commit evidence
+    runs-on: ubuntu-latest
+    environment:
+      name: publish-evidence
+    permissions:
+      contents: read
+      id-token: write      # OIDC token for build-provenance attestation
+      attestations: write
+
+    env:
+      STELLAR_CLI_VERSION: "27.0.0"
+      TANSU_NETWORK: ${{ vars.TANSU_NETWORK || 'testnet' }}
+      TANSU_CONTRACT_ID: ${{ vars.TANSU_CONTRACT_ID }}
+      TANSU_PROJECT_KEY: ${{ vars.TANSU_PROJECT_KEY }}
+      TANSU_MAINTAINER: ${{ vars.TANSU_MAINTAINER }}
+      TANSU_SOURCE_ACCOUNT: ${{ secrets.TANSU_SECRET_KEY }}
+      FILEBASE_TOKEN: ${{ secrets.FILEBASE_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve commit hash
+        id: commit
+        run: echo "hash=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Trivy
+        run: |
+          wget -qO - https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Install Stellar CLI
+        run: |
+          curl -fsSL -o stellar-cli.tar.gz \
+            "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf stellar-cli.tar.gz
+          sudo install -m 0755 stellar /usr/local/bin/stellar
+          stellar --version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Generate evidence artifacts
+        run: |
+          mkdir -p artifacts
+          # SBOM (CycloneDX JSON)
+          trivy fs --format cyclonedx --output artifacts/sbom.cyclonedx.json .
+          # Vulnerability scan (Trivy JSON)
+          trivy fs --format json --output artifacts/trivy-results.json .
+
+      - name: Attest evidence artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            artifacts/sbom.cyclonedx.json
+            artifacts/trivy-results.json
+
+      - name: Build attestation manifest
+        run: |
+          cat > artifacts/attestation-manifest.json <<EOF
+          {
+            "kind": "github-artifact-attestation",
+            "repository": "${GITHUB_REPOSITORY}",
+            "commit": "${GITHUB_SHA}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "subjects": [
+              "artifacts/sbom.cyclonedx.json",
+              "artifacts/trivy-results.json"
+            ],
+            "verification": {
+              "tool": "gh",
+              "command": "gh attestation verify <artifact> --repo ${GITHUB_REPOSITORY}"
+            }
+          }
+          EOF
+
+      - name: Publish SBOM evidence
+        run: |
+          uv run tools/evidence/publish_evidence.py \
+            --project-key "${TANSU_PROJECT_KEY}" \
+            --commit-hash "${{ steps.commit.outputs.hash }}" \
+            --kind sbom \
+            --file artifacts/sbom.cyclonedx.json
+
+      - name: Publish CVE evidence
+        run: |
+          uv run tools/evidence/publish_evidence.py \
+            --project-key "${TANSU_PROJECT_KEY}" \
+            --commit-hash "${{ steps.commit.outputs.hash }}" \
+            --kind cve \
+            --file artifacts/trivy-results.json
+
+      - name: Publish attestation evidence
+        run: |
+          uv run tools/evidence/publish_evidence.py \
+            --project-key "${TANSU_PROJECT_KEY}" \
+            --commit-hash "${{ steps.commit.outputs.hash }}" \
+            --kind attestation \
+            --file artifacts/attestation-manifest.json
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commit-evidence-${{ steps.commit.outputs.hash }}
+          path: artifacts/
+          retention-days: 90

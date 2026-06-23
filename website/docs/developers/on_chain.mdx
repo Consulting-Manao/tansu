@@ -44,7 +44,7 @@ stellar contract invoke \
 
 ![transactions](/assets/docs/transactions.png)
 
-Maintainers can also attach generic supply-chain evidence to a specific commit. Evidence is keyed by project, commit hash, and kind (`Sbom`, `Cve`, or `Attestation`). The contract stores only an off-chain content identifier; it does not upload artifacts, parse evidence contents, or verify attestations on-chain.
+Maintainers can also attach generic supply-chain evidence to a specific commit. Evidence is keyed by project, commit hash, and kind (`Sbom`, `Cve`, or `Attestation`). The contract stores only an off-chain content identifier; it does not upload artifacts, parse evidence contents, or verify attestations on-chain. See [Commit Evidence](./evidence.mdx) for the automated producer path (generate artifact → upload to IPFS → record CID).
 
 ```bash
 stellar contract invoke \

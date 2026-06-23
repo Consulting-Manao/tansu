@@ -39,6 +39,20 @@ export const queryKeys = {
   membership: {
     detail: (address: string): QueryKey => ["membership", address],
   },
+  evidence: {
+    all: (projectId: string): QueryKey => ["evidence", projectId],
+    commit: (projectId: string, commitHash: string): QueryKey => [
+      "evidence",
+      projectId,
+      commitHash,
+    ],
+    byKind: (projectId: string, commitHash: string, kind: string): QueryKey => [
+      "evidence",
+      projectId,
+      commitHash,
+      kind,
+    ],
+  },
   ipfs: {
     response: (cid: string, path: string): QueryKey => ["ipfs", cid, path],
     json: (cid: string, path: string): QueryKey => ["ipfs", cid, path, "json"],

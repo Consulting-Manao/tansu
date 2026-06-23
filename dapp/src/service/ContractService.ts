@@ -3,7 +3,12 @@
  * No backward compatibility - uses latest Stellar SDK patterns only
  */
 
-import { type Badge, type Vote, type VoteChoice } from "../../packages/tansu";
+import {
+  type Badge,
+  type EvidenceKind,
+  type Vote,
+  type VoteChoice,
+} from "../../packages/tansu";
 import Tansu from "../contracts/soroban_tansu";
 import { loadedPublicKey } from "./walletService";
 import { loadedProjectId } from "./StateService";
@@ -25,6 +30,11 @@ import {
 import { parseContractOptionString } from "../utils/utils";
 import { invalidateQuery } from "./cache/cacheStore";
 import { queryKeys } from "./cache/cacheKeys";
+import {
+  type EvidenceKindTag,
+  invalidateEvidenceCache,
+  toEvidenceKind,
+} from "./EvidenceService";
 
 export interface VotingPowerResult {
   maxWeight: number;
@@ -136,6 +146,36 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
   await submitTransaction(assembledTx);
   invalidateQuery(queryKeys.project.byId(projectKey.toString("hex")));
   invalidateQuery(queryKeys.project.hash(projectKey.toString("hex")));
+  return true;
+}
+
+/**
+ * Store an off-chain evidence pointer for a specific project commit.
+ */
+export async function setEvidence(
+  project_name: string,
+  commit_hash: string,
+  kind: EvidenceKind | EvidenceKindTag,
+  cid: string,
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.set_evidence({
+    maintainer,
+    project_key: projectKey,
+    commit_hash,
+    kind: toEvidenceKind(kind),
+    cid,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  invalidateEvidenceCache(projectKey, commit_hash);
   return true;
 }
 
