@@ -2,16 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Buffer } from "buffer";
 
 const getEvidenceMock = vi.hoisted(() => vi.fn());
+const getEvidenceCountMock = vi.hoisted(() => vi.fn());
+const getEvidenceAtMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
   default: {
     get_evidence: getEvidenceMock,
+    get_evidence_count: getEvidenceCountMock,
+    get_evidence_at: getEvidenceAtMock,
   },
 }));
 
 import {
   getEvidenceByKind,
   getEvidenceForCommit,
+  getEvidenceHistory,
   invalidateEvidenceCache,
 } from "../../../src/service/EvidenceService";
 
@@ -149,5 +154,40 @@ describe("EvidenceService", () => {
       created_at: 2,
     });
     expect(getEvidenceMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the full append-only history oldest-first", async () => {
+    getEvidenceCountMock.mockResolvedValue({ result: 2 });
+    getEvidenceAtMock.mockImplementation(({ index }: { index: number }) =>
+      Promise.resolve({
+        result: { cid: `bafy-v${index}`, created_at: index },
+      }),
+    );
+
+    const history = await getEvidenceHistory(
+      "evidence-service-history",
+      "commit-a",
+      "Cve",
+    );
+
+    expect(history).toEqual([
+      { kind: "Cve", cid: "bafy-v0", created_at: 0 },
+      { kind: "Cve", cid: "bafy-v1", created_at: 1 },
+    ]);
+    expect(getEvidenceCountMock).toHaveBeenCalledTimes(1);
+    expect(getEvidenceAtMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns an empty history when no evidence exists", async () => {
+    getEvidenceCountMock.mockResolvedValue({ result: 0 });
+
+    const history = await getEvidenceHistory(
+      "evidence-service-history-empty",
+      "commit-a",
+      "Sbom",
+    );
+
+    expect(history).toEqual([]);
+    expect(getEvidenceAtMock).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,7 @@ fn set_evidence_stores_retrieves_and_emits_event() {
         commit_hash: commit_hash.clone(),
         kind: kind.clone(),
         cid: cid.clone(),
+        version: 0,
     };
 
     assert_eq!(
@@ -49,6 +50,129 @@ fn set_evidence_stores_retrieves_and_emits_event() {
         .get_evidence(&project_key, &commit_hash, &kind);
     assert_eq!(stored.cid, cid);
     assert_eq!(stored.created_at, 12_345);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_evidence_count(&project_key, &commit_hash, &kind),
+        1
+    );
+}
+
+#[test]
+fn set_evidence_appends_history_and_get_evidence_returns_latest() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = commit_hash(&setup.env, "commit-a");
+    let kind = EvidenceKind::Cve;
+
+    let first_cid = cid(&setup.env, "bafybeigfirst");
+    let second_cid = cid(&setup.env, "bafybeigsecond");
+
+    // A later re-scan of the same commit must not overwrite the first entry.
+    setup
+        .contract
+        .set_evidence(&setup.mando, &project_key, &commit_hash, &kind, &first_cid);
+    setup
+        .contract
+        .set_evidence(&setup.mando, &project_key, &commit_hash, &kind, &second_cid);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_evidence_count(&project_key, &commit_hash, &kind),
+        2
+    );
+
+    // History is preserved and ordered.
+    let entry_0 = setup
+        .contract
+        .get_evidence_at(&project_key, &commit_hash, &kind, &0);
+    let entry_1 = setup
+        .contract
+        .get_evidence_at(&project_key, &commit_hash, &kind, &1);
+    assert_eq!(entry_0.cid, first_cid);
+    assert_eq!(entry_1.cid, second_cid);
+
+    // get_evidence returns the latest entry.
+    let latest = setup
+        .contract
+        .get_evidence(&project_key, &commit_hash, &kind);
+    assert_eq!(latest.cid, second_cid);
+}
+
+#[test]
+fn get_evidence_count_is_zero_when_no_evidence() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    assert_eq!(
+        setup.contract.get_evidence_count(
+            &project_key,
+            &commit_hash(&setup.env, "commit-a"),
+            &EvidenceKind::Sbom,
+        ),
+        0
+    );
+}
+
+#[test]
+fn get_evidence_at_fails_for_missing_index() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = commit_hash(&setup.env, "commit-a");
+    let kind = EvidenceKind::Sbom;
+
+    setup.contract.set_evidence(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &kind,
+        &cid(&setup.env, "bafybeigdyrzt"),
+    );
+
+    let err = setup
+        .contract
+        .try_get_evidence_at(&project_key, &commit_hash, &kind, &1)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::NoEvidenceFound.into());
+}
+
+#[test]
+fn bump_evidence_keeps_entry_and_requires_existing_entry() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = commit_hash(&setup.env, "commit-a");
+    let kind = EvidenceKind::Sbom;
+
+    setup.contract.set_evidence(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &kind,
+        &cid(&setup.env, "bafybeigdyrzt"),
+    );
+
+    // Permissionless keep-alive succeeds for an existing entry.
+    setup
+        .contract
+        .bump_evidence(&project_key, &commit_hash, &kind, &0);
+
+    // Still readable afterwards.
+    let stored = setup
+        .contract
+        .get_evidence_at(&project_key, &commit_hash, &kind, &0);
+    assert_eq!(stored.cid, cid(&setup.env, "bafybeigdyrzt"));
+
+    // Bumping a non-existent entry fails.
+    let err = setup
+        .contract
+        .try_bump_evidence(&project_key, &commit_hash, &kind, &5)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::NoEvidenceFound.into());
 }
 
 #[test]

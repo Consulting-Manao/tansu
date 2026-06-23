@@ -80,31 +80,23 @@ jobs:
           trivy fs --format json --output artifacts/trivy-results.json .
 
       - name: Attest evidence artifacts
+        id: attest
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
             artifacts/sbom.cyclonedx.json
             artifacts/trivy-results.json
 
-      - name: Build attestation manifest
+      - name: Assemble attestation bundle
+        # Pin the actual Sigstore attestation bundle (not a pointer) so it can be
+        # verified offline from IPFS alone, plus the trust anchor needed to do so.
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          cat > artifacts/attestation-manifest.json <<EOF
-          {
-            "kind": "github-artifact-attestation",
-            "repository": "${GITHUB_REPOSITORY}",
-            "commit": "${GITHUB_SHA}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "run_id": "${GITHUB_RUN_ID}",
-            "subjects": [
-              "artifacts/sbom.cyclonedx.json",
-              "artifacts/trivy-results.json"
-            ],
-            "verification": {
-              "tool": "gh",
-              "command": "gh attestation verify <artifact> --repo ${GITHUB_REPOSITORY}"
-            }
-          }
-          EOF
+          mkdir -p artifacts/attestation
+          cp "$BUNDLE_PATH" artifacts/attestation/attestation.sigstore.jsonl
+          gh attestation trusted-root > artifacts/attestation/trusted_root.jsonl
 
       - name: Publish SBOM evidence
         run: |
@@ -128,7 +120,7 @@ jobs:
             --project-key "${TANSU_PROJECT_KEY}" \
             --commit-hash "${GITHUB_SHA}" \
             --kind attestation \
-            --file artifacts/attestation-manifest.json
+            --file artifacts/attestation
 
       - name: Upload artifacts
         if: always()

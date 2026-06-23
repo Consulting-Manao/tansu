@@ -106,6 +106,56 @@ export async function getEvidenceByKind(
 }
 
 /**
+ * Read the full append-only evidence history for one commit and kind.
+ *
+ * Evidence is stored on-chain as an append-only log keyed by index, so the
+ * complete timeline (e.g. successive CVE re-scans of the same commit) is
+ * recoverable directly from the contract — no backend or event indexer needed.
+ * Entries are returned oldest-first; the last element is the latest.
+ */
+export async function getEvidenceHistory(
+  project: string | Buffer,
+  commitHash: string,
+  kind: EvidenceKind | EvidenceKindTag,
+): Promise<CommitEvidence[]> {
+  if (!commitHash.trim()) return [];
+
+  const projectKey = projectKeyFromInput(project);
+  const projectId = projectKey.toString("hex");
+  const kindTag = evidenceKindTag(kind);
+  const contractKind = toEvidenceKind(kind);
+
+  return await fetchWithCache(
+    queryKeys.evidence.history(projectId, commitHash, kindTag),
+    async () => {
+      const countRes = await Tansu.get_evidence_count({
+        project_key: projectKey,
+        commit_hash: commitHash,
+        kind: contractKind,
+      });
+      checkSimulationError(countRes);
+
+      const count = Number(countRes.result ?? 0);
+      if (count === 0) return [];
+
+      return await Promise.all(
+        Array.from({ length: count }, async (_, index) => {
+          const res = await Tansu.get_evidence_at({
+            project_key: projectKey,
+            commit_hash: commitHash,
+            kind: contractKind,
+            index,
+          });
+          checkSimulationError(res);
+          return { kind: kindTag, ...(res.result as Evidence) };
+        }),
+      );
+    },
+    { ttlMs: TTL_4H },
+  );
+}
+
+/**
  * Read all known evidence kinds for a commit.
  *
  * Missing kinds are omitted from the returned array.

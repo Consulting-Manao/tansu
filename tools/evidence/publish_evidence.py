@@ -110,11 +110,42 @@ def _parse_filebase_cid(stdout: str) -> str:
     return cid
 
 
+def _filebase_upload(token: str, path: Path) -> str:
+    """Upload a file or directory to Filebase's IPFS pinning RPC, return the CID."""
+    cmd = [
+        "curl",
+        "--silent",
+        "--show-error",
+        "--fail",
+        "-X",
+        "POST",
+        "-H",
+        f"Authorization: Bearer {token}",
+    ]
+    if path.is_dir():
+        files = sorted(p for p in path.rglob("*") if p.is_file())
+        if not files:
+            raise EvidenceError(f"directory is empty: {path}")
+        # wrap-with-directory preserves the layout; the last response line is the
+        # wrapping directory CID.
+        cmd.append(f"{FILEBASE_ADD_URL}&wrap-with-directory=true")
+        for file in files:
+            rel = file.relative_to(path)
+            cmd += ["-F", f"file=@{file};filename={rel}"]
+    else:
+        cmd.append(FILEBASE_ADD_URL)
+        cmd += ["-F", f"file=@{path};filename={path.name}"]
+
+    result = _run(cmd)
+    return _parse_filebase_cid(result.stdout)
+
+
 def upload_to_ipfs(path: Path) -> str:
-    """Upload ``path`` to IPFS and return its CID.
+    """Upload ``path`` (a file or directory) to IPFS and return its CID.
 
     Uses ``TANSU_IPFS_UPLOAD_COMMAND`` when set, otherwise falls back to Filebase
-    when ``FILEBASE_TOKEN`` is present.
+    when ``FILEBASE_TOKEN`` is present. For directories, configure the custom
+    command to recurse and print only the root CID (e.g. ``ipfs add -r -Q``).
     """
     custom = os.environ.get("TANSU_IPFS_UPLOAD_COMMAND", "").strip()
     if custom:
@@ -127,21 +158,7 @@ def upload_to_ipfs(path: Path) -> str:
 
     token = os.environ.get("FILEBASE_TOKEN", "").strip()
     if token:
-        cmd = [
-            "curl",
-            "--silent",
-            "--show-error",
-            "--fail",
-            "-X",
-            "POST",
-            "-H",
-            f"Authorization: Bearer {token}",
-            FILEBASE_ADD_URL,
-            "-F",
-            f"file=@{path};filename={path.name}",
-        ]
-        result = _run(cmd)
-        return _parse_filebase_cid(result.stdout)
+        return _filebase_upload(token, path)
 
     raise EvidenceError(
         "no IPFS upload method configured: set TANSU_IPFS_UPLOAD_COMMAND "
@@ -222,7 +239,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--file",
         required=True,
         type=Path,
-        help="Path to the artifact to upload.",
+        help="Path to the artifact to upload (a file, or a directory to pin as a bundle).",
     )
     parser.add_argument(
         "--network",
@@ -259,14 +276,19 @@ def run(args: argparse.Namespace) -> int:
         raise EvidenceError("missing --source-account (or $TANSU_SOURCE_ACCOUNT)")
 
     path: Path = args.file
-    if not path.is_file():
+    if path.is_dir():
+        if not any(p.is_file() for p in path.rglob("*")):
+            raise EvidenceError(f"directory is empty: {path}")
+        digest = "n/a (directory)"
+    elif path.is_file():
+        if path.stat().st_size == 0:
+            raise EvidenceError(f"artifact is empty: {path}")
+        digest = compute_digest(path)
+    else:
         raise EvidenceError(f"artifact not found: {path}")
-    if path.stat().st_size == 0:
-        raise EvidenceError(f"artifact is empty: {path}")
 
     kind_variant = KIND_MAP[args.kind]
 
-    digest = compute_digest(path)
     print(f"artifact: {path}", file=sys.stderr)
     print(f"digest:   {digest} (informational; not stored on-chain)", file=sys.stderr)
 

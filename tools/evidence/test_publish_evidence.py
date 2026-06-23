@@ -114,6 +114,58 @@ def test_custom_upload_command_invoked_and_cid_parsed(artifact: Path, monkeypatc
     assert recorded == [["ipfs", "add", "--cid-version=1", "--quieter", str(artifact)]]
 
 
+def test_custom_upload_command_handles_directory(tmp_path: Path, monkeypatch):
+    bundle = tmp_path / "attestation"
+    bundle.mkdir()
+    (bundle / "attestation.sigstore.jsonl").write_text("{}")
+    (bundle / "trusted_root.jsonl").write_text("{}")
+
+    monkeypatch.setenv("TANSU_IPFS_UPLOAD_COMMAND", "ipfs add -r -Q")
+    monkeypatch.delenv("FILEBASE_TOKEN", raising=False)
+    recorded: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        recorded.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="bafyDIRCID\n", stderr="")
+
+    monkeypatch.setattr(pe, "_run", fake_run)
+
+    cid = pe.upload_to_ipfs(bundle)
+
+    assert cid == "bafyDIRCID"
+    assert recorded == [["ipfs", "add", "-r", "-Q", str(bundle)]]
+
+
+def test_filebase_directory_upload_wraps_files(tmp_path: Path, monkeypatch):
+    bundle = tmp_path / "attestation"
+    bundle.mkdir()
+    (bundle / "attestation.sigstore.jsonl").write_text("{}")
+    (bundle / "trusted_root.jsonl").write_text("{}")
+
+    recorded: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        recorded.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout='{"Name":"trusted_root.jsonl","Hash":"bafyFILE"}\n'
+            '{"Name":"attestation","Hash":"bafyWRAPDIR"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr(pe, "_run", fake_run)
+
+    cid = pe._filebase_upload("tok", bundle)
+
+    # Wrapping directory CID (last line) is returned.
+    assert cid == "bafyWRAPDIR"
+    cmd = recorded[0]
+    assert any("wrap-with-directory=true" in part for part in cmd)
+    # One -F per file in the directory.
+    assert sum(1 for part in cmd if part == "-F") == 2
+
+
 def test_no_upload_method_configured_raises(artifact: Path, monkeypatch):
     monkeypatch.delenv("TANSU_IPFS_UPLOAD_COMMAND", raising=False)
     monkeypatch.delenv("FILEBASE_TOKEN", raising=False)

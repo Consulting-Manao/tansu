@@ -22,11 +22,32 @@ An IPFS CIDv1 is itself a content-addressed multihash of the bytes, so fetching 
 
 ## Storage model
 
+Evidence is an **append-only log**, keyed by index, so recording evidence again for the same commit and kind (for example a later CVE re-scan) adds an entry instead of overwriting the previous one:
+
 ```text
-ProjectKey::Evidence(project_key, commit_hash, kind) -> Evidence { cid, created_at }
+ProjectKey::EvidenceCount(project_key, commit_hash, kind)   -> u32   (number of entries)
+ProjectKey::Evidence(project_key, commit_hash, kind, index) -> Evidence { cid, created_at }
 ```
 
-Setting evidence emits an `EvidenceSet` event so the chain history can be observed directly, with no backend required.
+`set_evidence` appends; `get_evidence` returns the latest entry; `get_evidence_count` and `get_evidence_at` expose the full history. Each call also emits an `EvidenceSet` event (carrying the entry `version`) so the timeline can be reconstructed from events too.
+
+## Historical data and durability
+
+The append-only log keeps the complete on-chain timeline with **no backend and no event indexer** — the dApp reads `get_evidence_count`, then `get_evidence_at` for each index.
+
+Evidence lives in Soroban _persistent_ storage and is bumped towards the maximum TTL on every write, so entries survive state rent for as long as the protocol allows. Anyone can extend a specific entry's lifetime permissionlessly:
+
+```bash
+stellar contract invoke \
+  --network testnet --id "$TANSU_CONTRACT_ID" \
+  -- bump_evidence \
+  --project_key "$TANSU_PROJECT_KEY" \
+  --commit_hash "$COMMIT_HASH" \
+  --kind Cve \
+  --index 0
+```
+
+If rent still lapses, persistent entries are _archived, not deleted_, and can be restored on-chain — so historical evidence is never lost.
 
 ## Publishing evidence
 
@@ -73,7 +94,7 @@ make contract_get_evidence commit=<hash>
 
 ## CI workflow
 
-`.github/workflows/evidence.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags. For each commit it generates an SBOM and a vulnerability scan with Trivy, builds a GitHub attestation manifest, uploads each artifact to IPFS, and records the CIDs on-chain.
+`.github/workflows/evidence.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags. For each commit it generates an SBOM and a vulnerability scan with Trivy, produces a Sigstore build-provenance attestation and pins its bundle (plus the trust anchor) for offline verification, uploads each artifact to IPFS, and records the CIDs on-chain.
 
 It expects the following repository configuration in the `publish-evidence` environment:
 
@@ -107,4 +128,11 @@ Then run artifact-specific checks:
 
 - **SBOM** — inspect the CycloneDX JSON with your SBOM tooling.
 - **CVE** — inspect the Trivy JSON output.
-- **Attestation** — verify the referenced subjects with `gh attestation verify <artifact> --repo <owner>/<repo>`.
+- **Attestation** — the CID points to a directory holding the Sigstore bundle and its trust anchor, so verification is fully offline (no GitHub round-trip):
+
+  ```bash
+  ipfs get "$CID" -o attestation
+  gh attestation verify <artifact> \
+    --bundle attestation/attestation.sigstore.jsonl \
+    --custom-trusted-root attestation/trusted_root.jsonl
+  ```

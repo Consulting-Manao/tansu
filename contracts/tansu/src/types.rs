@@ -186,11 +186,12 @@ pub struct Evidence {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectKey {
-    Key(Bytes),                            // UUID of the project from keccak256(name)
-    Badges(Bytes),                         // badges of the project
-    LastHash(Bytes),                       // last hash of the project
-    Evidence(Bytes, String, EvidenceKind), // evidence for a project commit and kind
-    Dao(Bytes, u32),                       // Decentralized organization, pagination
+    Key(Bytes),                                 // UUID of the project from keccak256(name)
+    Badges(Bytes),                              // badges of the project
+    LastHash(Bytes),                            // last hash of the project
+    Evidence(Bytes, String, EvidenceKind, u32), // evidence entry at an index (append-only history)
+    EvidenceCount(Bytes, String, EvidenceKind), // number of evidence entries for a commit and kind
+    Dao(Bytes, u32),                            // Decentralized organization, pagination
     DaoTotalProposals(Bytes),
     Voters(Bytes, u32),        // Voter addresses for proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter

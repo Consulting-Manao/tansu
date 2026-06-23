@@ -5,6 +5,67 @@ use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, 
 const MAX_PROJECTS_PER_PAGE: u32 = 10;
 const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 
+// Durability for evidence entries. Evidence is meant to be a long-lived,
+// backend-less historical record, so each entry is bumped towards the network
+// maximum persistent TTL on write (and can be re-bumped permissionlessly via
+// `bump_evidence`). Values stay below the protocol `max_entry_ttl` (6_312_000
+// ledgers, ~1 year) to avoid overflowing it. If rent still lapses, persistent
+// entries are archived (not deleted) and remain restorable on-chain.
+const EVIDENCE_BUMP_THRESHOLD: u32 = 2_592_000; // re-extend when remaining TTL drops below ~150 days
+const EVIDENCE_BUMP_AMOUNT: u32 = 6_000_000; // extend live window to ~347 days
+
+impl Tansu {
+    /// Panic with `InvalidKey` if the project does not exist.
+    fn require_project(env: &Env, project_key: &Bytes) {
+        if env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, types::Project>(&types::ProjectKey::Key(project_key.clone()))
+            .is_none()
+        {
+            panic_with_error!(env, &errors::ContractErrors::InvalidKey);
+        }
+    }
+
+    /// Number of evidence entries stored for a commit and kind (0 if none).
+    fn evidence_count(
+        env: &Env,
+        project_key: &Bytes,
+        commit_hash: &String,
+        kind: &types::EvidenceKind,
+    ) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::EvidenceCount(
+                project_key.clone(),
+                commit_hash.clone(),
+                kind.clone(),
+            ))
+            .unwrap_or(0)
+    }
+
+    /// Read the evidence entry at `index`, panicking with `NoEvidenceFound` if absent.
+    fn evidence_at(
+        env: &Env,
+        project_key: &Bytes,
+        commit_hash: &String,
+        kind: &types::EvidenceKind,
+        index: u32,
+    ) -> types::Evidence {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::Evidence(
+                project_key.clone(),
+                commit_hash.clone(),
+                kind.clone(),
+                index,
+            ))
+            .unwrap_or_else(|| {
+                panic_with_error!(env, &errors::ContractErrors::NoEvidenceFound);
+            })
+    }
+}
+
 #[contractimpl]
 impl VersioningTrait for Tansu {
     /// Register a new project.
@@ -224,6 +285,12 @@ impl VersioningTrait for Tansu {
     ///
     /// Stores only the verifiable IPFS pointer. Evidence contents remain off-chain.
     ///
+    /// Evidence is append-only: each call adds a new entry to the history for
+    /// `(project_key, commit_hash, kind)` rather than overwriting the previous
+    /// one. This keeps a full, backend-less, on-chain timeline (e.g. successive
+    /// CVE re-scans of the same commit). `get_evidence` returns the latest entry;
+    /// `get_evidence_count` / `get_evidence_at` expose the history.
+    ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `maintainer` - The address of the maintainer calling this function
@@ -253,26 +320,44 @@ impl VersioningTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::InvalidEvidence);
         }
 
+        let count_key = types::ProjectKey::EvidenceCount(
+            project_key.clone(),
+            commit_hash.clone(),
+            kind.clone(),
+        );
+        let version: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
+
         let evidence = types::Evidence {
             cid: cid.clone(),
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage().persistent().set(
-            &types::ProjectKey::Evidence(project_key.clone(), commit_hash.clone(), kind.clone()),
-            &evidence,
+        let entry_key = types::ProjectKey::Evidence(
+            project_key.clone(),
+            commit_hash.clone(),
+            kind.clone(),
+            version,
         );
+        let storage = env.storage().persistent();
+        storage.set(&entry_key, &evidence);
+        storage.set(&count_key, &(version + 1));
+
+        // Bump both the new entry and the counter towards the maximum TTL so the
+        // historical record survives state rent for as long as possible.
+        storage.extend_ttl(&entry_key, EVIDENCE_BUMP_THRESHOLD, EVIDENCE_BUMP_AMOUNT);
+        storage.extend_ttl(&count_key, EVIDENCE_BUMP_THRESHOLD, EVIDENCE_BUMP_AMOUNT);
 
         events::EvidenceSet {
             project_key,
             commit_hash,
             kind,
             cid,
+            version,
         }
         .publish(&env);
     }
 
-    /// Get generic external evidence for a specific project commit and evidence kind.
+    /// Get the latest external evidence for a specific project commit and kind.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -281,7 +366,7 @@ impl VersioningTrait for Tansu {
     /// * `kind` - The evidence category
     ///
     /// # Returns
-    /// * `types::Evidence` - Stored evidence pointer data
+    /// * `types::Evidence` - The most recent stored evidence pointer
     ///
     /// # Panics
     /// * If the project doesn't exist
@@ -292,23 +377,71 @@ impl VersioningTrait for Tansu {
         commit_hash: String,
         kind: types::EvidenceKind,
     ) -> types::Evidence {
-        let project_storage_key = types::ProjectKey::Key(project_key.clone());
+        Self::require_project(&env, &project_key);
 
-        if env
-            .storage()
-            .persistent()
-            .get::<types::ProjectKey, types::Project>(&project_storage_key)
-            .is_none()
-        {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidKey);
+        let count = Self::evidence_count(&env, &project_key, &commit_hash, &kind);
+        if count == 0 {
+            panic_with_error!(&env, &errors::ContractErrors::NoEvidenceFound);
         }
 
-        env.storage()
-            .persistent()
-            .get(&types::ProjectKey::Evidence(project_key, commit_hash, kind))
-            .unwrap_or_else(|| {
-                panic_with_error!(&env, &errors::ContractErrors::NoEvidenceFound);
-            })
+        Self::evidence_at(&env, &project_key, &commit_hash, &kind, count - 1)
+    }
+
+    /// Get the number of evidence entries stored for a commit and kind.
+    ///
+    /// Returns 0 when no evidence has been recorded yet.
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    fn get_evidence_count(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+    ) -> u32 {
+        Self::require_project(&env, &project_key);
+        Self::evidence_count(&env, &project_key, &commit_hash, &kind)
+    }
+
+    /// Get a specific historical evidence entry by its zero-based index.
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    /// * If no evidence exists at that index
+    fn get_evidence_at(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+        index: u32,
+    ) -> types::Evidence {
+        Self::require_project(&env, &project_key);
+        Self::evidence_at(&env, &project_key, &commit_hash, &kind, index)
+    }
+
+    /// Extend the TTL of a historical evidence entry, keeping it alive on-chain.
+    ///
+    /// Permissionless on purpose: anyone may pay to preserve a project's evidence
+    /// history. It can only extend rent, never modify or read out the data.
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    /// * If no evidence exists at that index
+    fn bump_evidence(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        kind: types::EvidenceKind,
+        index: u32,
+    ) {
+        Self::require_project(&env, &project_key);
+
+        let entry_key = types::ProjectKey::Evidence(project_key, commit_hash, kind, index);
+        let storage = env.storage().persistent();
+        if !storage.has(&entry_key) {
+            panic_with_error!(&env, &errors::ContractErrors::NoEvidenceFound);
+        }
+        storage.extend_ttl(&entry_key, EVIDENCE_BUMP_THRESHOLD, EVIDENCE_BUMP_AMOUNT);
     }
 
     /// Get project information including configuration and maintainers.

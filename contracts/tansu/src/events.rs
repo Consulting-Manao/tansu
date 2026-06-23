@@ -37,6 +37,10 @@ pub struct EvidenceSet {
     pub commit_hash: String,
     pub kind: EvidenceKind,
     pub cid: String,
+    /// Zero-based index of this entry in the append-only history for
+    /// (project_key, commit_hash, kind). Lets consumers reconstruct the full
+    /// timeline from events alone.
+    pub version: u32,
 }
 
 #[contractevent]

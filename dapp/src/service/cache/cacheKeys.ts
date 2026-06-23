@@ -52,6 +52,11 @@ export const queryKeys = {
       commitHash,
       kind,
     ],
+    history: (
+      projectId: string,
+      commitHash: string,
+      kind: string,
+    ): QueryKey => ["evidence", projectId, commitHash, kind, "history"],
   },
   ipfs: {
     response: (cid: string, path: string): QueryKey => ["ipfs", cid, path],
