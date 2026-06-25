@@ -146,12 +146,16 @@ export async function fetchWithCache<T>(
       if (entry.requestId !== requestId) throw error;
 
       const err = error instanceof Error ? error : new Error(String(error));
+      // Set a 30-second cooldown before retrying on error to avoid
+      // infinite retry loops when the RPC endpoint is slow or unresponsive.
+      const cooldownMs = 30_000;
       updateStore(entry, {
         error: err,
         isLoading: false,
         isFetching: false,
         status: entry.snapshot.data !== undefined ? "success" : "error",
         isStale: false,
+        expiresAt: Date.now() + cooldownMs,
       });
       throw err;
     } finally {

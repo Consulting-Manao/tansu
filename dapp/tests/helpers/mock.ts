@@ -269,58 +269,66 @@ export async function applyAllMocks(page) {
   // ──────────────────────────────────────────────
   // Mock ReadContractService functions
   // ──────────────────────────────────────────────
-  await page.addInitScript(() => {
-    // Signal test mode to the app for deterministic flows
-    (window as any).__TEST_MODE__ = true;
-    // Force missing anonymous config path by default when requested in tests
-    (window as any).__mockAnonymousConfigMissing = true;
-    // Define WALLET_PK in window context for mocks to use
-    (window as any).WALLET_PK = "${WALLET_PK}";
+  await page.addInitScript(
+    ({ walletPk }: { walletPk: string }) => {
+      // Signal test mode to the app for deterministic flows
+      (window as any).__TEST_MODE__ = true;
+      // Force missing anonymous config path by default when requested in tests
+      (window as any).__mockAnonymousConfigMissing = true;
+      // Define WALLET_PK in window context for mocks to use
+      (window as any).WALLET_PK = walletPk;
 
-    // Mock funding-related functions
-    (window as any).checkAndNotifyFunding = async () => {
-      console.log("🧪 Mocked checkAndNotifyFunding called");
-    };
-
-    (window as any).getWalletHealth = async () => ({
-      exists: true,
-      balance: 100,
-    });
-
-    // Mock getProjectFromName globally
-    (window as any).getProjectFromName = async (name) => {
-      const result = {
-        name: name || "demo",
-        maintainers: ["G".padEnd(56, "A"), "G".padEnd(56, "C"), "${WALLET_PK}"],
-        config: { url: "${MOCK_PROJECT.config_url}", ipfs: "abc123" },
+      // Mock funding-related functions
+      (window as any).checkAndNotifyFunding = async () => {
+        console.log("🧪 Mocked checkAndNotifyFunding called");
       };
-      console.log(
-        "Mock getProjectFromName called with:",
-        name,
-        "returning:",
-        result,
-      );
-      return result;
-    };
 
-    // Mock other ReadContractService functions needed by governance components
-    (window as any).getProposalPages = async (projectName: string) => {
-      return 1; // Return 1 page
-    };
+      (window as any).getWalletHealth = async () => ({
+        exists: true,
+        balance: 100,
+      });
 
-    (window as any).getProposals = async (
-      projectName: string,
-      page: number,
-    ) => {
-      return [MOCK_PROPOSAL]; // Return mock proposal
-    };
+      // Mock getProjectFromName globally
+      (window as any).getProjectFromName = async (name: string) => {
+        const result = {
+          name: name || "demo",
+          maintainers: [
+            "G".padEnd(56, "A"),
+            "G".padEnd(56, "C"),
+            walletPk,
+          ],
+          config: {
+            url: "${MOCK_PROJECT.config_url}",
+            ipfs: "abc123",
+          },
+        };
+        return result;
+      };
 
-    // Mock getMember function
+      // Mock other ReadContractService functions needed by governance components
+      (window as any).getProposalPages = async (_projectName: string) => {
+        return 1; // Return 1 page
+      };
+
+      (window as any).getProposals = async (
+        _projectName: string,
+        _page: number,
+      ) => {
+        return [];
+      };
+    },
+    { walletPk: WALLET_PK },
+  );
+
+  // Set MOCK_MEMBER on window separately via evaluate — avoids serialization
+  // issues with complex objects in addInitScript.
+  await page.evaluate((mockMember) => {
+    (window as any).MOCK_MEMBER = mockMember;
     (window as any).getMember = async (memberAddress: string) => {
       if (!memberAddress) return null;
-      return MOCK_MEMBER;
+      return (window as any).MOCK_MEMBER;
     };
-  });
+  }, JSON.parse(JSON.stringify(MOCK_MEMBER)));
 
   // Route interception to inject our mock into imports
   await page.route("**/@service/ReadContractService*", async (route) => {
@@ -793,25 +801,68 @@ url = "${MOCK_PROJECT.config_url}"
   });
 
   // Soroban RPC base URL used by the app (@stellar/stellar-sdk rpc.Server)
-  await page.route("https://soroban-testnet.stellar.org/**", (route) => {
+  await page.route("https://soroban-testnet.stellar.org/**", async (route) => {
     const url = route.request().url();
-    if (url.endsWith("/sendTransaction")) {
-      route.fulfill({
-        status: 200,
-        body: JSON.stringify({
-          status: "SUCCESS",
-          hash: "mock",
-          returnValue: "AAAAAA==",
-        }),
-      });
-      return;
-    }
-    if (url.includes("getTransaction")) {
-      route.fulfill({
-        status: 200,
-        body: JSON.stringify({ status: "SUCCESS", returnValue: "AAAAAA==" }),
-      });
-      return;
+    // Check the POST body for the RPC method name, since the SDK posts all
+    // methods to the same /soroban/rpc endpoint with the method in JSON body.
+    const body = route.request().postData();
+    if (body) {
+      try {
+        const jsonBody = JSON.parse(body);
+        if (jsonBody.method === "simulateTransaction") {
+          route.fulfill({
+            status: 200,
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: jsonBody.id || 1,
+              result: {
+                results: [
+                  {
+                    auth: [],
+                    events: [],
+                    footprint: "AAAAAA==",
+                    returnValue: "AAAAAA==",
+                    xdr: "AAAAAA==",
+                  },
+                ],
+                cost: { cpuInsns: 0, memBytes: 0 },
+                latestLedger: "12345",
+              },
+            }),
+          });
+          return;
+        }
+        if (jsonBody.method === "sendTransaction") {
+          route.fulfill({
+            status: 200,
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: jsonBody.id || 1,
+              result: {
+                hash: "mock",
+                status: "SUCCESS",
+              },
+            }),
+          });
+          return;
+        }
+        if (jsonBody.method === "getTransaction") {
+          route.fulfill({
+            status: 200,
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: jsonBody.id || 1,
+              result: {
+                status: "SUCCESS",
+                returnValue: "AAAAAA==",
+              },
+            }),
+          });
+          return;
+        }
+      } catch {
+        // Not JSON, fall through
+      }
     }
     route.fulfill({ status: 200, body: JSON.stringify({ status: "SUCCESS" }) });
   });

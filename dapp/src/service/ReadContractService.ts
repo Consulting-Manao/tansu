@@ -12,32 +12,6 @@ import { queryKeys } from "./cache/cacheKeys";
 const TTL_4H = 4 * 60 * 60 * 1000;
 const TTL_1H = 60 * 60 * 1000;
 
-async function hydrateProposalFromDaoItem(
-  project_name: string,
-  project_key: Buffer,
-  daoProposal: Proposal,
-): Promise<Proposal> {
-  try {
-    return await fetchWithCache(
-      queryKeys.proposal.raw(project_name, Number(daoProposal.id)),
-      async () => {
-        const proposalRes = await Tansu.get_proposal({
-          project_key,
-          proposal_id: Number(daoProposal.id),
-        });
-        checkSimulationError(proposalRes);
-        return proposalRes.result as Proposal;
-      },
-      {
-        ttlMs: TTL_1H,
-      },
-    );
-  } catch {
-    // Keep list rendering resilient when a single hydration fails.
-    return daoProposal;
-  }
-}
-
 async function getProjectHash(): Promise<string | null> {
   const projectId = loadedProjectId();
 
@@ -198,23 +172,45 @@ async function getProposals(
     async () => {
       const project_key = deriveProjectKey(project_name);
 
-      const res = await Tansu.get_dao({
-        project_key: project_key,
-        page: page,
-      });
+      // Try get_dao first (fast path for projects without outcome_contracts issues).
+      // get_dao may fail with an XDR decode error in @stellar/stellar-sdk v16 when
+      // proposals have OutcomeContract.args that use Vec<scSpecTypeVal>
+      // (GitHub issue #1178). Fall back to individual get_proposal calls.
+      try {
+        const res = await Tansu.get_dao({
+          project_key: project_key,
+          page: page,
+        });
 
-      // Check for simulation errors
-      checkSimulationError(res);
+        // Check for simulation errors
+        checkSimulationError(res);
 
-      const hydratedProposals = await Promise.all(
-        (res.result.proposals as Proposal[]).map((proposal) =>
-          hydrateProposalFromDaoItem(project_name, project_key, proposal),
-        ),
-      );
+        return (res.result.proposals as Proposal[]).map((proposal) =>
+          modifyProposalFromContract(proposal),
+        );
+      } catch {
+        // get_dao failed — likely an XDR decode error for proposals with
+        // outcome_contracts args. Fall back to fetching each proposal
+        // individually via get_proposal, skipping any that also fail.
+        const MAX_PER_PAGE = 9;
+        const proposals: ModifiedProposal[] = [];
+        const startId = page * MAX_PER_PAGE;
+        const endId = startId + MAX_PER_PAGE;
 
-      return hydratedProposals.map((proposal) =>
-        modifyProposalFromContract(proposal),
-      );
+        for (let proposalId = startId; proposalId < endId; proposalId++) {
+          try {
+            const raw = await getProposalRaw(project_name, proposalId);
+            if (!raw) continue;
+            const modified = modifyProposalFromContract(raw);
+            proposals.push(modified);
+          } catch {
+            // Skip proposals whose data can't be decoded.
+            continue;
+          }
+        }
+
+        return proposals;
+      }
     },
     { ttlMs: TTL_4H },
   ).catch(() => null);

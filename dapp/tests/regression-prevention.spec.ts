@@ -325,10 +325,55 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
   }) => {
     await applyAllMocks(page);
 
+    // Override setBadges to avoid Soroban RPC mock complexity (XDR encoding in
+    // simulateTransaction response). This is a contract write function, and the
+    // mock RPC can't provide valid XDR for the SDK to decode.
+    await page.route("**/src/service/ContractService*", async (route) => {
+      const response = await route.fetch();
+      let body = await response.text();
+      body = body.replace(
+        /export async function setBadges\([\s\S]*?^\}/m,
+        `export async function setBadges(member_address, badges) {
+          window.dispatchEvent(new CustomEvent("badgesUpdated"));
+          return true;
+        }`,
+      );
+      await route.fulfill({
+        status: response.status(),
+        headers: response.headers(),
+        body,
+      });
+    });
+    await page.route("**/@service/ContractService*", async (route) => {
+      const response = await route.fetch();
+      let body = await response.text();
+      body = body.replace(
+        /export async function setBadges\([\s\S]*?^\}/m,
+        `export async function setBadges(member_address, badges) {
+          window.dispatchEvent(new CustomEvent("badgesUpdated"));
+          return true;
+        }`,
+      );
+      await route.fulfill({
+        status: response.status(),
+        headers: response.headers(),
+        body,
+      });
+    });
+
+    // Accept ToS and set wallet as connected before navigation
+    await page.addInitScript(() => {
+      localStorage.setItem("tansu_tos_accepted", "true");
+    });
+
     await page.goto("/project?name=demo", {
       waitUntil: "domcontentloaded",
       timeout: 10000,
     });
+
+    // Wait for the page to finish loading and React to hydrate
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
 
     // Check for the Add Badge button
     const badgeButton = page.locator("#badge-button");
@@ -337,10 +382,10 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     if (badgeButtonCount > 0) {
       await badgeButton.click();
 
-      // Fill in badge form
+      // Fill in badge form — must be a valid Stellar address (base32 checksum)
       await page
         .locator('input[placeholder="Member address as G..."]')
-        .fill("G".padEnd(56, "B"));
+        .fill("GAIH3ULLFQ4DGSECF2AR555KZ4KNDGEKN4AFI4SU2M7B43MGK3QJZNSR");
 
       // Select a badge
       const checkbox = page.locator('input[type="checkbox"]').first();
@@ -357,10 +402,10 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
       const successMessage = page.locator("text=Badges added successfully");
       await expect(successMessage).toBeVisible({ timeout: 5000 });
     } else {
-      // No badge button on this page — verify the project page rendered with expected content
-      await expect(page.getByText(/demo|Project/i).first()).toBeVisible({
-        timeout: 5000,
-      });
+      // No badge button on this page — verify the project page rendered
+      await expect(
+        page.locator("h1, h2, h3, [class*='title']").filter({ hasText: /demo/i }).first(),
+      ).toBeVisible({ timeout: 8000 });
     }
   });
 });

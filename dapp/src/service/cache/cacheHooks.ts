@@ -24,6 +24,11 @@ function shouldFetch(snapshot: {
   status: string;
 }): boolean {
   if (snapshot.isFetching) return false;
+  // If a cooldown or TTL is still active, don't fetch (covers both
+  // fresh data and error cooldown windows).
+  if (snapshot.expiresAt !== null && snapshot.expiresAt > Date.now()) {
+    return false;
+  }
   if (snapshot.status === "idle") return true;
   if (snapshot.status === "error" && snapshot.data === undefined) return true;
   if (snapshot.data === undefined) return true;
