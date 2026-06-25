@@ -372,7 +372,9 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     });
 
     // Wait for the page to finish loading and React to hydrate
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    await page
+      .waitForLoadState("networkidle", { timeout: 15000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     // Check for the Add Badge button
@@ -404,7 +406,10 @@ test.describe("🚨 Regression Prevention - Critical Error Detection", () => {
     } else {
       // No badge button on this page — verify the project page rendered
       await expect(
-        page.locator("h1, h2, h3, [class*='title']").filter({ hasText: /demo/i }).first(),
+        page
+          .locator("h1, h2, h3, [class*='title']")
+          .filter({ hasText: /demo/i })
+          .first(),
       ).toBeVisible({ timeout: 8000 });
     }
   });

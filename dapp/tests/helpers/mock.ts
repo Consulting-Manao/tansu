@@ -292,11 +292,7 @@ export async function applyAllMocks(page) {
       (window as any).getProjectFromName = async (name: string) => {
         const result = {
           name: name || "demo",
-          maintainers: [
-            "G".padEnd(56, "A"),
-            "G".padEnd(56, "C"),
-            walletPk,
-          ],
+          maintainers: ["G".padEnd(56, "A"), "G".padEnd(56, "C"), walletPk],
           config: {
             url: "${MOCK_PROJECT.config_url}",
             ipfs: "abc123",
@@ -322,13 +318,16 @@ export async function applyAllMocks(page) {
 
   // Set MOCK_MEMBER on window separately via evaluate — avoids serialization
   // issues with complex objects in addInitScript.
-  await page.evaluate((mockMember) => {
-    (window as any).MOCK_MEMBER = mockMember;
-    (window as any).getMember = async (memberAddress: string) => {
-      if (!memberAddress) return null;
-      return (window as any).MOCK_MEMBER;
-    };
-  }, JSON.parse(JSON.stringify(MOCK_MEMBER)));
+  await page.evaluate(
+    (mockMember) => {
+      (window as any).MOCK_MEMBER = mockMember;
+      (window as any).getMember = async (memberAddress: string) => {
+        if (!memberAddress) return null;
+        return (window as any).MOCK_MEMBER;
+      };
+    },
+    JSON.parse(JSON.stringify(MOCK_MEMBER)),
+  );
 
   // Route interception to inject our mock into imports
   await page.route("**/@service/ReadContractService*", async (route) => {
