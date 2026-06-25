@@ -202,9 +202,7 @@ test.describe("Tansu dApp – Happy-path User Flows", () => {
       });
 
       // Fill minimal required fields
-      await page
-        .locator("input[placeholder='Write the address as G...']")
-        .fill("G".padEnd(56, "B"));
+      // (Address is now disabled and populated by the wallet upon connection)
       await page
         .locator("input[placeholder='https://twitter.com/yourhandle']")
         .fill("https://twitter.com/test");

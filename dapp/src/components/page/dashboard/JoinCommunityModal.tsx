@@ -3,7 +3,7 @@ import Input from "components/utils/Input";
 import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import { loadedPublicKey, setConnection } from "@service/walletService";
-import { validateStellarAddress, validateUrl } from "utils/validations";
+import { validateUrl } from "utils/validations";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 
 interface ProfileImageFile {
@@ -104,9 +104,9 @@ const JoinCommunityModal: FC<{
     name.trim() || social.trim() || description.trim() || profileImage;
 
   const validateAddressField = (): boolean => {
-    const err = validateStellarAddress(address);
-    setAddressError(err);
-    return err === null;
+    // Address is read-only and provided by wallet; skip validation
+    setAddressError(null);
+    return true;
   };
 
   const validateSocialField = (): boolean => {
@@ -175,7 +175,7 @@ const JoinCommunityModal: FC<{
       try {
         setIsLoading(true);
         setStep(6);
-        await doJoinFlow(address || publicKey);
+        await doJoinFlow(publicKey);
       } catch (err: any) {
         console.error("Join community error:", err);
         setError(err?.message || "Something went wrong");
@@ -199,6 +199,9 @@ const JoinCommunityModal: FC<{
           detail: { address: connectedAddress },
         }),
       );
+
+      // Reflect the actual connected address in the UI
+      setAddress(connectedAddress);
 
       try {
         setIsLoading(true);
@@ -248,12 +251,9 @@ const JoinCommunityModal: FC<{
 
           <Input
             label="Member Address *"
-            placeholder="Write the address as G..."
+            placeholder="Address will be filled upon connection"
             value={address}
-            onChange={(e) => {
-              setAddress(e.target.value);
-              setAddressError(null);
-            }}
+            disabled={true}
             error={addressError}
           />
 
