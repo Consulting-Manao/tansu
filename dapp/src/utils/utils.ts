@@ -108,6 +108,9 @@ export const modifyProposalStatusToView = (
   if (status === "approved") {
     return "approved";
   }
+  if (status === "malicious") {
+    return "malicious";
+  }
   if (status === "active") {
     if (endDate !== null) {
       const endDateTimestamp = new Date(endDate * 1000);
@@ -195,7 +198,7 @@ function normalizeProposalStatus(status: unknown): ProposalStatus {
           ? status[0]
           : "";
   const normalized = (typeof tag === "string" ? tag : "").toLocaleLowerCase();
-  if (normalized === "malicious") return "cancelled";
+  if (normalized === "malicious") return "malicious";
   if (["active", "approved", "rejected", "cancelled"].includes(normalized)) {
     return normalized as ProposalStatus;
   }

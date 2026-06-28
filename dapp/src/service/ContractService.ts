@@ -467,6 +467,31 @@ export async function removeConflictOfInterest(
 }
 
 /**
+ * Revoke a proposal and mark it as malicious.
+ */
+export async function revokeProposal(
+  project_name: string,
+  proposal_id: number,
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.revoke_proposal({
+    maintainer,
+    project_key: projectKey,
+    proposal_id: Number(proposal_id),
+  });
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  invalidateProposalCache(project_name, proposal_id);
+  return true;
+}
+
+/**
  * Setup anonymous voting
  */
 export async function setupAnonymousVoting(

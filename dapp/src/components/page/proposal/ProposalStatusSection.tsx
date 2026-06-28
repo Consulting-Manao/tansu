@@ -38,7 +38,9 @@ const ProposalStatusSection: React.FC<Props> = ({ proposal }) => {
           ? "pending execution"
           : status == "active"
             ? "active"
-            : "finished",
+            : status == "malicious"
+              ? "revoked"
+              : "finished",
       voteResult,
       endDate: status == "active" ? proposal.endDate : undefined,
     };

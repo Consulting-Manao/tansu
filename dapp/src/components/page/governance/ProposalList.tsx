@@ -47,6 +47,7 @@ const ProposalList: React.FC = () => {
 
       return proposals
         .map((proposal) => modifyProposalToView(proposal, projectName))
+        .filter((proposal) => proposal.status !== "malicious")
         .sort((a, b) => b.id - a.id);
     },
     ttlMs: 4 * 60 * 60 * 1000,
