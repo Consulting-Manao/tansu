@@ -175,7 +175,9 @@ const JoinCommunityModal: FC<{
       try {
         setIsLoading(true);
         setStep(6);
-        await doJoinFlow(address || publicKey);
+        // Always use the connected wallet's address since member_address.require_auth() 
+        // requires the member to authorize their own registration
+        await doJoinFlow(publicKey);
       } catch (err: any) {
         console.error("Join community error:", err);
         setError(err?.message || "Something went wrong");
@@ -246,16 +248,24 @@ const JoinCommunityModal: FC<{
             Join the Community
           </h2>
 
-          <Input
-            label="Member Address *"
-            placeholder="Write the address as G..."
-            value={address}
-            onChange={(e) => {
-              setAddress(e.target.value);
-              setAddressError(null);
-            }}
-            error={addressError}
-          />
+          <div>
+            <Input
+              label="Member Address *"
+              placeholder="Write the address as G..."
+              value={address}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setAddressError(null);
+              }}
+              error={addressError}
+              disabled={!!loadedPublicKey()}
+            />
+            {loadedPublicKey() && (
+              <p className="text-sm text-secondary mt-2">
+                Using your connected wallet address. You can only join as yourself.
+              </p>
+            )}
+          </div>
 
           <div className="pt-2 md:pt-4">
             <p className="text-base font-medium text-primary mb-3 md:mb-4">
