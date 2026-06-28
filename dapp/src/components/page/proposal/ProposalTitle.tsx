@@ -181,16 +181,17 @@ const ProposalTitle: React.FC<Props> = ({
                       Finalize Vote
                     </Button>
                   )}
-                  {proposal?.status == "active" && isMaintainer && (
-                    <Button
-                      size="sm"
-                      type="tertiary"
-                      className="border-red-500! text-red-500!"
-                      onClick={() => setShowMarkMaliciousModal(true)}
-                    >
-                      Mark as Malicious
-                    </Button>
-                  )}
+                  {(proposal?.status == "active" || proposal?.status == "voted") &&
+                    isMaintainer && (
+                      <Button
+                        size="sm"
+                        type="tertiary"
+                        className="border-red-500! text-red-500!"
+                        onClick={() => setShowMarkMaliciousModal(true)}
+                      >
+                        Mark as Malicious
+                      </Button>
+                    )}
                 </div>
                 {proposal?.status == "active" && (
                   <div className="flex gap-3">
