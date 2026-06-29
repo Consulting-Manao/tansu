@@ -32,7 +32,6 @@ pub enum ContractErrors {
     NoProposalorPageFound = 301,
     NoProjectPageFound = 302,
     NoAnonymousVotingConfig = 303,
-    NoEvidenceFound = 304,
 
     // Execution/Timing (400-499)
     AlreadyVoted = 400,

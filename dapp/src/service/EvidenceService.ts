@@ -40,21 +40,17 @@ function evidenceKindTag(
   return typeof kind === "string" ? kind : kind.tag;
 }
 
-function isMissingEvidenceError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes("#304") ||
-    message.includes("Contract error #304") ||
-    message.includes("No evidence was found") ||
-    message.includes("NoEvidenceFound")
-  );
-}
-
+/**
+ * Read the stored evidence history for one project commit and kind.
+ *
+ * The contract returns the entries oldest-first (the last element is the
+ * latest), or an empty array when nothing has been recorded.
+ */
 async function readEvidenceFromContract(
   projectKey: Buffer,
   commitHash: string,
   kind: EvidenceKind,
-): Promise<Evidence> {
+): Promise<Evidence[]> {
   const res = await Tansu.get_evidence({
     project_key: projectKey,
     commit_hash: commitHash,
@@ -62,14 +58,15 @@ async function readEvidenceFromContract(
   });
 
   checkSimulationError(res);
-  return res.result as Evidence;
+  return (res.result as Evidence[] | undefined) ?? [];
 }
 
 /**
  * Read the latest evidence pointer for one project commit and evidence kind.
  *
- * The contract stores the latest value at (project_key, commit_hash, kind), so
- * this remains backend-less and does not require event indexing.
+ * The contract stores a bounded, append-only history at
+ * (project_key, commit_hash, kind), so this remains backend-less and does not
+ * require event indexing. Returns `null` when no evidence has been recorded.
  */
 export async function getEvidenceByKind(
   project: string | Buffer,
@@ -86,32 +83,27 @@ export async function getEvidenceByKind(
   return await fetchWithCache(
     queryKeys.evidence.byKind(projectId, commitHash, kindTag),
     async () => {
-      try {
-        const evidence = await readEvidenceFromContract(
-          projectKey,
-          commitHash,
-          contractKind,
-        );
-        return {
-          kind: kindTag,
-          ...evidence,
-        };
-      } catch (error) {
-        if (isMissingEvidenceError(error)) return null;
-        throw error;
-      }
+      const history = await readEvidenceFromContract(
+        projectKey,
+        commitHash,
+        contractKind,
+      );
+      const latest = history.at(-1);
+      return latest ? { kind: kindTag, ...latest } : null;
     },
     { ttlMs: TTL_4H },
   );
 }
 
 /**
- * Read the full append-only evidence history for one commit and kind.
+ * Read the on-chain evidence history for one commit and kind.
  *
- * Evidence is stored on-chain as an append-only log keyed by index, so the
- * complete timeline (e.g. successive CVE re-scans of the same commit) is
- * recoverable directly from the contract — no backend or event indexer needed.
- * Entries are returned oldest-first; the last element is the latest.
+ * Evidence is stored on-chain as a bounded, append-only log keyed by
+ * (project_key, commit_hash, kind), so the recent timeline (e.g. successive CVE
+ * re-scans of the same commit) is recoverable directly from the contract — no
+ * backend needed. Entries are returned oldest-first; the last element is the
+ * latest. Older entries beyond the on-chain cap remain available from
+ * `EvidenceSet` events via an indexer.
  */
 export async function getEvidenceHistory(
   project: string | Buffer,
@@ -128,28 +120,12 @@ export async function getEvidenceHistory(
   return await fetchWithCache(
     queryKeys.evidence.history(projectId, commitHash, kindTag),
     async () => {
-      const countRes = await Tansu.get_evidence_count({
-        project_key: projectKey,
-        commit_hash: commitHash,
-        kind: contractKind,
-      });
-      checkSimulationError(countRes);
-
-      const count = Number(countRes.result ?? 0);
-      if (count === 0) return [];
-
-      return await Promise.all(
-        Array.from({ length: count }, async (_, index) => {
-          const res = await Tansu.get_evidence_at({
-            project_key: projectKey,
-            commit_hash: commitHash,
-            kind: contractKind,
-            index,
-          });
-          checkSimulationError(res);
-          return { kind: kindTag, ...(res.result as Evidence) };
-        }),
+      const history = await readEvidenceFromContract(
+        projectKey,
+        commitHash,
+        contractKind,
       );
+      return history.map((evidence) => ({ kind: kindTag, ...evidence }));
     },
     { ttlMs: TTL_4H },
   );

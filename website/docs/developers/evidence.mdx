@@ -22,39 +22,26 @@ An IPFS CIDv1 is itself a content-addressed multihash of the bytes, so fetching 
 
 ## Storage model
 
-Evidence is an **append-only log**, keyed by index, so recording evidence again for the same commit and kind (for example a later CVE re-scan) adds an entry instead of overwriting the previous one:
+Evidence is an **append-only history**, so recording evidence again for the same commit and kind (for example a later CVE re-scan) adds an entry instead of overwriting the previous one. Each `(project_key, commit_hash, kind)` maps to a bounded list of entries:
 
 ```text
-ProjectKey::EvidenceCount(project_key, commit_hash, kind)   -> u32   (number of entries)
-ProjectKey::Evidence(project_key, commit_hash, kind, index) -> Evidence { cid, created_at }
+ProjectKey::Evidence(project_key, commit_hash, kind) -> Vec<Evidence { cid, created_at }>
 ```
 
-`set_evidence` appends; `get_evidence` returns the latest entry; `get_evidence_count` and `get_evidence_at` expose the full history. Each call also emits an `EvidenceSet` event (carrying the entry `version`) so the timeline can be reconstructed from events too.
+`set_evidence` appends a new entry; `get_evidence` returns the whole list, oldest-first (the last element is the latest), or an empty list when nothing has been recorded. Each call also emits an `EvidenceSet` event, so the complete timeline — including entries beyond the on-chain cap — can be reconstructed from events.
 
 ## Historical data and durability
 
-The append-only log keeps the complete on-chain timeline with **no backend and no event indexer** — the dApp reads `get_evidence_count`, then `get_evidence_at` for each index.
+To keep the contract small and predictable, at most **10 entries** per `(project_key, commit_hash, kind)` are kept on-chain; once that cap is reached, the oldest entry rolls off on each new write. This bounds storage cost while still exposing the recent timeline with **no backend** — the dApp simply reads `get_evidence`. For the full history (or richer queries), index the `EvidenceSet` events off-chain.
 
-Evidence lives in Soroban _persistent_ storage and is bumped towards the maximum TTL on every write, so entries survive state rent for as long as the protocol allows. Anyone can extend a specific entry's lifetime permissionlessly:
-
-```bash
-stellar contract invoke \
-  --network testnet --id "$TANSU_CONTRACT_ID" \
-  -- bump_evidence \
-  --project_key "$TANSU_PROJECT_KEY" \
-  --commit_hash "$COMMIT_HASH" \
-  --kind Cve \
-  --index 0
-```
-
-If rent still lapses, persistent entries are _archived, not deleted_, and can be restored on-chain — so historical evidence is never lost.
+Evidence lives in Soroban _persistent_ storage, like the rest of the contract's state. If rent lapses, persistent entries are _archived, not deleted_, and can be restored on-chain by paying the rent — so historical evidence is never lost.
 
 ## Publishing evidence
 
-The full producer path — generate an artifact, upload it to IPFS, and record the CID on-chain — is automated by `tools/evidence/publish_evidence.py`.
+The full producer path — generate an artifact, upload it to IPFS, and record the CID on-chain — is automated by `tools/evidence/publish.sh`.
 
 ```bash
-uv run tools/evidence/publish_evidence.py \
+tools/evidence/publish.sh \
   --project-key "$TANSU_PROJECT_KEY" \
   --commit-hash "$GITHUB_SHA" \
   --kind sbom \
@@ -64,7 +51,7 @@ uv run tools/evidence/publish_evidence.py \
   --source-account tansu-testnet
 ```
 
-The tool:
+The script:
 
 1. validates the kind and artifact file,
 2. computes a `sha256` digest (informational, printed to the log),
@@ -94,7 +81,7 @@ make contract_get_evidence commit=<hash>
 
 ## CI workflow
 
-`.github/workflows/evidence.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags. For each commit it generates an SBOM and a vulnerability scan with Trivy, produces a Sigstore build-provenance attestation and pins its bundle (plus the trust anchor) for offline verification, uploads each artifact to IPFS, and records the CIDs on-chain.
+The `publish-evidence` job in `.github/workflows/sbom.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags, alongside the SBOM-to-IPFS job. For each commit it generates an SBOM and a vulnerability scan with Trivy, produces a Sigstore build-provenance attestation and pins its bundle (plus the trust anchor) for offline verification, uploads each artifact to IPFS, and records the CIDs on-chain.
 
 It expects the following repository configuration in the `publish-evidence` environment:
 
@@ -112,7 +99,8 @@ It expects the following repository configuration in the `publish-evidence` envi
 Anyone can read the pointer back and verify the artifact:
 
 ```bash
-# 1. fetch the CID from the chain
+# 1. fetch the evidence history from the chain (oldest-first; the last
+#    entry is the latest) and pick a CID
 stellar contract invoke \
   --network testnet --id "$TANSU_CONTRACT_ID" \
   -- get_evidence \

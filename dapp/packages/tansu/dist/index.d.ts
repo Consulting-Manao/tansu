@@ -103,10 +103,6 @@ export type ProjectKey =
     }
   | {
       tag: "Evidence";
-      values: readonly [Buffer, string, EvidenceKind, u32];
-    }
-  | {
-      tag: "EvidenceCount";
       values: readonly [Buffer, string, EvidenceKind];
     }
   | {
@@ -312,9 +308,6 @@ export declare const ContractErrors: {
     message: string;
   };
   303: {
-    message: string;
-  };
-  304: {
     message: string;
   };
   400: {
@@ -1248,7 +1241,12 @@ export interface Client {
   ) => Promise<AssembledTransaction<Project>>;
   /**
    * Construct and simulate a get_evidence transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the latest external evidence for a specific project commit and kind.
+   * Get the stored evidence history for a specific project commit and kind.
+   *
+   * Entries are returned oldest-first (the last element is the latest), and at
+   * most `MAX_EVIDENCE` are kept on-chain. Returns an empty vector when no
+   * evidence has been recorded; consumers reconstruct the full history from
+   * `EvidenceSet` events via an indexer.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1257,11 +1255,7 @@ export interface Client {
    * * `kind` - The evidence category
    *
    * # Returns
-   * * `types::Evidence` - The most recent stored evidence pointer
-   *
-   * # Panics
-   * * If the project doesn't exist
-   * * If no evidence exists for the project, commit, and kind
+   * * `Vec<types::Evidence>` - The stored evidence pointers, oldest-first
    */
   get_evidence: (
     {
@@ -1274,7 +1268,7 @@ export interface Client {
       kind: EvidenceKind;
     },
     options?: MethodOptions,
-  ) => Promise<AssembledTransaction<Evidence>>;
+  ) => Promise<AssembledTransaction<Array<Evidence>>>;
   /**
    * Construct and simulate a get_projects transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get a page of projects.
@@ -1302,9 +1296,9 @@ export interface Client {
    *
    * Evidence is append-only: each call adds a new entry to the history for
    * `(project_key, commit_hash, kind)` rather than overwriting the previous
-   * one. This keeps a full, backend-less, on-chain timeline (e.g. successive
-   * CVE re-scans of the same commit). `get_evidence` returns the latest entry;
-   * `get_evidence_count` / `get_evidence_at` expose the history.
+   * one (e.g. successive CVE re-scans of the same commit). At most
+   * `MAX_EVIDENCE` entries are kept on-chain; older ones roll off but remain
+   * recoverable from `EvidenceSet` events via an indexer.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1333,31 +1327,6 @@ export interface Client {
       commit_hash: string;
       kind: EvidenceKind;
       cid: string;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-  /**
-   * Construct and simulate a bump_evidence transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Extend the TTL of a historical evidence entry, keeping it alive on-chain.
-   *
-   * Permissionless on purpose: anyone may pay to preserve a project's evidence
-   * history. It can only extend rent, never modify or read out the data.
-   *
-   * # Panics
-   * * If the project doesn't exist
-   * * If no evidence exists at that index
-   */
-  bump_evidence: (
-    {
-      project_key,
-      commit_hash,
-      kind,
-      index,
-    }: {
-      project_key: Buffer;
-      commit_hash: string;
-      kind: EvidenceKind;
-      index: u32;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1395,28 +1364,6 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
-  /**
-   * Construct and simulate a get_evidence_at transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get a specific historical evidence entry by its zero-based index.
-   *
-   * # Panics
-   * * If the project doesn't exist
-   * * If no evidence exists at that index
-   */
-  get_evidence_at: (
-    {
-      project_key,
-      commit_hash,
-      kind,
-      index,
-    }: {
-      project_key: Buffer;
-      commit_hash: string;
-      kind: EvidenceKind;
-      index: u32;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<Evidence>>;
   /**
    * Construct and simulate a get_sub_projects transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get sub-projects for a project (if it's an organization).
@@ -1468,27 +1415,6 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
-  /**
-   * Construct and simulate a get_evidence_count transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the number of evidence entries stored for a commit and kind.
-   *
-   * Returns 0 when no evidence has been recorded yet.
-   *
-   * # Panics
-   * * If the project doesn't exist
-   */
-  get_evidence_count: (
-    {
-      project_key,
-      commit_hash,
-      kind,
-    }: {
-      project_key: Buffer;
-      commit_hash: string;
-      kind: EvidenceKind;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u32>>;
 }
 export declare class Client extends ContractClient {
   readonly options: ContractClientOptions;
@@ -1552,14 +1478,11 @@ export declare class Client extends ContractClient {
     register: (json: string) => AssembledTransaction<Buffer>;
     get_commit: (json: string) => AssembledTransaction<string>;
     get_project: (json: string) => AssembledTransaction<Project>;
-    get_evidence: (json: string) => AssembledTransaction<Evidence>;
+    get_evidence: (json: string) => AssembledTransaction<Evidence[]>;
     get_projects: (json: string) => AssembledTransaction<Project[]>;
     set_evidence: (json: string) => AssembledTransaction<null>;
-    bump_evidence: (json: string) => AssembledTransaction<null>;
     update_config: (json: string) => AssembledTransaction<null>;
-    get_evidence_at: (json: string) => AssembledTransaction<Evidence>;
     get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
-    get_evidence_count: (json: string) => AssembledTransaction<number>;
   };
 }

@@ -41,7 +41,6 @@ export const contractErrorMessages = {
   301: "Proposal or page could not be found.",
   302: "Project page could not be found.",
   303: "This is not the anonymous voting config.",
-  304: "No evidence was found for that commit and evidence kind.",
 
   // Execution/Timing (400-499)
   400: "You have already voted.",

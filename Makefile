@@ -346,7 +346,7 @@ ifndef file
 endif
 
 contract_set_evidence:  ## Upload an evidence artifact to IPFS and record its CID on-chain
-	uv run tools/evidence/publish_evidence.py \
+	tools/evidence/publish.sh \
 		--project-key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
 		--commit-hash $(commit) \
 		--kind $(kind) \
@@ -356,7 +356,7 @@ contract_set_evidence:  ## Upload an evidence artifact to IPFS and record its CI
 		--source-account $(admin) \
 		--maintainer $(shell stellar keys address $(admin))
 
-contract_get_evidence:  ## Read the latest stored evidence pointer for a commit and kind
+contract_get_evidence:  ## Read the stored evidence history for a commit and kind
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -366,29 +366,6 @@ contract_get_evidence:  ## Read the latest stored evidence pointer for a commit 
     	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
     	--commit_hash $(commit) \
     	--kind Sbom
-
-contract_get_evidence_count:  ## Read the number of evidence entries for a commit and kind
-	stellar contract invoke \
-    	--source-account $(admin) \
-    	--network $(network) \
-    	--id $(tansu_id) \
-    	-- \
-    	get_evidence_count \
-    	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
-    	--commit_hash $(commit) \
-    	--kind Sbom
-
-contract_bump_evidence:  ## Extend the TTL of a historical evidence entry (index=0 by default)
-	stellar contract invoke \
-    	--source-account $(admin) \
-    	--network $(network) \
-    	--id $(tansu_id) \
-    	-- \
-    	bump_evidence \
-    	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
-    	--commit_hash $(commit) \
-    	--kind Sbom \
-    	--index $(or $(index),0)
 
 # --------- Hook --------- #
 

@@ -1,27 +1,30 @@
 # Evidence publishing tool
 
-`publish_evidence.py` is the producer side of the Tansu commit-evidence feature. It
-takes an off-chain artifact (SBOM, vulnerability scan, attestation manifest, ...),
+`publish.sh` is the producer side of the Tansu commit-evidence feature. It takes
+an off-chain artifact (SBOM, vulnerability scan, attestation bundle, ...),
 uploads it to IPFS, and records the resulting CID on-chain via the contract's
 `set_evidence`.
 
 The contract stores only the CID and a ledger timestamp — the artifact stays
 off-chain. An IPFS CIDv1 is a content-addressed multihash, so fetching by CID is
-self-verifying; the tool prints a `sha256` for human-readable logs but does **not**
-send it on-chain.
+self-verifying; the tool prints a `sha256` for human-readable logs but does
+**not** send it on-chain.
 
 ## Usage
 
 ```bash
-uv run tools/evidence/publish_evidence.py \
+tools/evidence/publish.sh \
   --project-key <hex> \
   --commit-hash <hash> \
   --kind sbom|cve|attestation \
   --file path/to/artifact.json \
   --network testnet \
   --contract-id C... \
-  --source-account <stellar key alias or secret>
+  --source-account <stellar key alias>
 ```
+
+`--file` may be a single file or a directory (pinned as a bundle, e.g. the
+attestation + trusted-root pair).
 
 Network / contract / account / maintainer can also come from the environment:
 `TANSU_NETWORK`, `TANSU_CONTRACT_ID`, `TANSU_SOURCE_ACCOUNT`, `TANSU_MAINTAINER`.
@@ -33,16 +36,9 @@ Network / contract / account / maintainer can also come from the environment:
   (e.g. `ipfs add --cid-version=1 --quieter`).
 - `FILEBASE_TOKEN` — fallback that uploads to Filebase's IPFS pinning RPC.
 
-Use `--dry-run` to upload but print the `set_evidence` command instead of running it.
+Use `--dry-run` to upload but print the `set_evidence` command instead of running
+it. Requires `bash`, `curl`, `jq`, `sha256sum`, and the `stellar` CLI on `PATH`.
 
-## Tests
-
-```bash
-uv run --with pytest pytest tools/evidence/test_publish_evidence.py
-```
-
-The tests stub every shell-out (`publish_evidence._run`), so they need no network,
-IPFS endpoint, or Stellar account.
-
-See `website/docs/developers/evidence.mdx` for the full feature documentation and the
-`.github/workflows/evidence.yml` CI workflow.
+See `website/docs/developers/evidence.mdx` for the full feature documentation. The
+SBOM/vulnerability-scan generation and on-chain publishing run as the
+`publish-evidence` job in `.github/workflows/sbom.yml`.

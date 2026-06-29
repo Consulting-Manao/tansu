@@ -2,14 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Buffer } from "buffer";
 
 const getEvidenceMock = vi.hoisted(() => vi.fn());
-const getEvidenceCountMock = vi.hoisted(() => vi.fn());
-const getEvidenceAtMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
   default: {
     get_evidence: getEvidenceMock,
-    get_evidence_count: getEvidenceCountMock,
-    get_evidence_at: getEvidenceAtMock,
   },
 }));
 
@@ -35,22 +31,15 @@ describe("EvidenceService", () => {
     vi.clearAllMocks();
   });
 
-  it("returns all existing evidence for a commit and omits missing kinds", async () => {
+  it("returns the latest evidence for each kind and omits empty kinds", async () => {
     getEvidenceMock.mockImplementation(
       ({ kind }: { kind: { tag: string } }) => {
         if (kind.tag === "Attestation") {
-          return Promise.resolve({
-            simulation: {
-              error: "HostError: Error(Contract, #304)",
-            },
-          });
+          return Promise.resolve({ result: [] });
         }
 
         return Promise.resolve({
-          result: {
-            cid: `bafy-${kind.tag.toLowerCase()}`,
-            created_at: 42,
-          },
+          result: [{ cid: `bafy-${kind.tag.toLowerCase()}`, created_at: 42 }],
         });
       },
     );
@@ -67,21 +56,30 @@ describe("EvidenceService", () => {
     expect(getEvidenceMock).toHaveBeenCalledTimes(3);
   });
 
-  it("returns null when one evidence kind is missing", async () => {
-    getEvidenceMock.mockResolvedValue({
-      simulation: {
-        error: "HostError: Error(Contract, #304)",
-      },
-    });
+  it("returns null when an evidence kind has no entries", async () => {
+    getEvidenceMock.mockResolvedValue({ result: [] });
 
     await expect(
       getEvidenceByKind("evidence-service-missing", "commit-a", "Sbom"),
     ).resolves.toBeNull();
   });
 
+  it("returns the most recent entry of the history", async () => {
+    getEvidenceMock.mockResolvedValue({
+      result: [
+        { cid: "bafy-old", created_at: 1 },
+        { cid: "bafy-latest", created_at: 2 },
+      ],
+    });
+
+    await expect(
+      getEvidenceByKind("evidence-service-latest", "commit-a", "Sbom"),
+    ).resolves.toEqual({ kind: "Sbom", cid: "bafy-latest", created_at: 2 });
+  });
+
   it("deduplicates concurrent lookups for the same project commit and kind", async () => {
     const deferred = createDeferred<{
-      result: { cid: string; created_at: number };
+      result: { cid: string; created_at: number }[];
     }>();
     getEvidenceMock.mockReturnValue(deferred.promise);
 
@@ -91,12 +89,7 @@ describe("EvidenceService", () => {
 
     expect(getEvidenceMock).toHaveBeenCalledTimes(1);
 
-    deferred.resolve({
-      result: {
-        cid: "bafy-deduped",
-        created_at: 1,
-      },
-    });
+    deferred.resolve({ result: [{ cid: "bafy-deduped", created_at: 1 }] });
 
     await expect(first).resolves.toEqual({
       kind: "Sbom",
@@ -114,18 +107,8 @@ describe("EvidenceService", () => {
     const projectKey = Buffer.from("5678", "hex");
 
     getEvidenceMock
-      .mockResolvedValueOnce({
-        result: {
-          cid: "bafy-old",
-          created_at: 1,
-        },
-      })
-      .mockResolvedValueOnce({
-        result: {
-          cid: "bafy-new",
-          created_at: 2,
-        },
-      });
+      .mockResolvedValueOnce({ result: [{ cid: "bafy-old", created_at: 1 }] })
+      .mockResolvedValueOnce({ result: [{ cid: "bafy-new", created_at: 2 }] });
 
     await expect(
       getEvidenceByKind(projectKey, "commit-a", "Sbom"),
@@ -157,12 +140,12 @@ describe("EvidenceService", () => {
   });
 
   it("returns the full append-only history oldest-first", async () => {
-    getEvidenceCountMock.mockResolvedValue({ result: 2 });
-    getEvidenceAtMock.mockImplementation(({ index }: { index: number }) =>
-      Promise.resolve({
-        result: { cid: `bafy-v${index}`, created_at: index },
-      }),
-    );
+    getEvidenceMock.mockResolvedValue({
+      result: [
+        { cid: "bafy-v0", created_at: 0 },
+        { cid: "bafy-v1", created_at: 1 },
+      ],
+    });
 
     const history = await getEvidenceHistory(
       "evidence-service-history",
@@ -174,12 +157,11 @@ describe("EvidenceService", () => {
       { kind: "Cve", cid: "bafy-v0", created_at: 0 },
       { kind: "Cve", cid: "bafy-v1", created_at: 1 },
     ]);
-    expect(getEvidenceCountMock).toHaveBeenCalledTimes(1);
-    expect(getEvidenceAtMock).toHaveBeenCalledTimes(2);
+    expect(getEvidenceMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns an empty history when no evidence exists", async () => {
-    getEvidenceCountMock.mockResolvedValue({ result: 0 });
+    getEvidenceMock.mockResolvedValue({ result: [] });
 
     const history = await getEvidenceHistory(
       "evidence-service-history-empty",
@@ -188,6 +170,5 @@ describe("EvidenceService", () => {
     );
 
     expect(history).toEqual([]);
-    expect(getEvidenceAtMock).not.toHaveBeenCalled();
   });
 });

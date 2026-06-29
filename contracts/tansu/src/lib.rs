@@ -110,30 +110,7 @@ pub trait VersioningTrait {
         project_key: Bytes,
         commit_hash: String,
         kind: types::EvidenceKind,
-    ) -> types::Evidence;
-
-    fn get_evidence_count(
-        env: Env,
-        project_key: Bytes,
-        commit_hash: String,
-        kind: types::EvidenceKind,
-    ) -> u32;
-
-    fn get_evidence_at(
-        env: Env,
-        project_key: Bytes,
-        commit_hash: String,
-        kind: types::EvidenceKind,
-        index: u32,
-    ) -> types::Evidence;
-
-    fn bump_evidence(
-        env: Env,
-        project_key: Bytes,
-        commit_hash: String,
-        kind: types::EvidenceKind,
-        index: u32,
-    );
+    ) -> Vec<types::Evidence>;
 
     fn get_project(env: Env, project_key: Bytes) -> types::Project;
 
