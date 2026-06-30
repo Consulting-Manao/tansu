@@ -132,7 +132,6 @@ const VotingModal: React.FC<VotersModalProps> = ({
       toast.success("Congratulations!", "Your vote was submitted successfully.");
       onClose();
     } catch (error: any) {
-      setIsLoading(false);
 
       let errorMessage = "Failed to cast vote";
 
