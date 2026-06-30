@@ -21,6 +21,7 @@ interface Props {
   maintainers: string[];
   submitVote: () => void;
   executeProposal: () => void;
+  onProposalMarkedMalicious: () => void;
 }
 
 const ProposalTitle: React.FC<Props> = ({
@@ -28,6 +29,7 @@ const ProposalTitle: React.FC<Props> = ({
   maintainers,
   submitVote,
   executeProposal,
+  onProposalMarkedMalicious,
 }) => {
   const connectedAddress = useStore(connectedPublicKey);
   const [showVotingResultModal, setShowVotingResultModal] = useState(false);
@@ -268,7 +270,7 @@ const ProposalTitle: React.FC<Props> = ({
           onClose={() => setShowMarkMaliciousModal(false)}
           onMarked={() => {
             setShowMarkMaliciousModal(false);
-            window.location.reload();
+            onProposalMarkedMalicious();
           }}
         />
       )}

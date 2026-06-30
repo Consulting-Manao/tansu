@@ -152,6 +152,9 @@ const ProposalPage: React.FC = () => {
             maintainers={projectMaintainers}
             submitVote={() => openVotingModal()}
             executeProposal={() => openExecuteProposalModal()}
+            onProposalMarkedMalicious={() =>
+              proposalQuery.refetch({ force: true })
+            }
           />
           <ProposalDetail
             ipfsLink={proposal?.ipfsLink || null}
