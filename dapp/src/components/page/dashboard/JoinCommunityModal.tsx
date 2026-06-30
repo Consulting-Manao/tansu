@@ -115,8 +115,11 @@ const JoinCommunityModal: FC<{
     return err === null;
   };
 
-  const validateForm = (): boolean =>
-    validateAddressField() && validateSocialField();
+  const validateForm = (): boolean => {
+    // Skip address validation if no wallet is connected (address will be set during connection)
+    const addressValid = loadedPublicKey() ? validateAddressField() : true;
+    return addressValid && validateSocialField();
+  };
 
   const doJoinFlow = async (memberAddress: string) => {
     if (!hasProfileData()) {
@@ -249,20 +252,26 @@ const JoinCommunityModal: FC<{
           </h2>
 
           <div>
-            <Input
-              label="Member Address *"
-              placeholder="Write the address as G..."
-              value={address}
-              onChange={(e) => {
-                setAddress(e.target.value);
-                setAddressError(null);
-              }}
-              error={addressError}
-              disabled={!!loadedPublicKey()}
-            />
-            {loadedPublicKey() && (
+            {loadedPublicKey() ? (
+              <>
+                <Input
+                  label="Member Address *"
+                  placeholder="Write the address as G..."
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    setAddressError(null);
+                  }}
+                  error={addressError}
+                  disabled={true}
+                />
+                <p className="text-sm text-secondary mt-2">
+                  Using your connected wallet address. You can only join as yourself.
+                </p>
+              </>
+            ) : (
               <p className="text-sm text-secondary mt-2">
-                Using your connected wallet address. You can only join as yourself.
+                Please connect your wallet to join the community. The address field will be automatically filled with your wallet address.
               </p>
             )}
           </div>
