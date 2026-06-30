@@ -39,6 +39,7 @@ Network / contract / account / maintainer can also come from the environment:
 Use `--dry-run` to upload but print the `set_evidence` command instead of running
 it. Requires `bash`, `curl`, `jq`, `sha256sum`, and the `stellar` CLI on `PATH`.
 
-See `website/docs/developers/evidence.mdx` for the full feature documentation. The
-SBOM/vulnerability-scan generation and on-chain publishing run as the
-`publish-evidence` job in `.github/workflows/sbom.yml`.
+See `website/docs/developers/evidence.mdx` for the full feature documentation. In
+CI, the `record-evidence` job in `.github/workflows/sbom.yml` records the SBOM CID
+(already pinned to IPFS by the SBOM job) on-chain; use this script to publish other
+kinds (`cve`, `attestation`) or any artifact manually.

@@ -230,28 +230,22 @@ fn set_evidence_bounds_history_and_rolls_off_oldest() {
 }
 
 #[test]
-fn get_evidence_is_empty_when_missing() {
+fn get_evidence_is_empty_when_absent() {
     let setup = create_test_data();
+    let commit_hash = String::from_str(&setup.env, "commit-a");
+
+    // No evidence recorded yet for an existing project.
     let project_key = init_contract(&setup);
-
-    let history = setup.contract.get_evidence(
-        &project_key,
-        &String::from_str(&setup.env, "commit-a"),
-        &EvidenceKind::Sbom,
-    );
+    let history = setup
+        .contract
+        .get_evidence(&project_key, &commit_hash, &EvidenceKind::Sbom);
     assert!(history.is_empty());
-}
 
-#[test]
-fn get_evidence_is_empty_for_unknown_project() {
-    let setup = create_test_data();
-    let project_key = Bytes::from_array(&setup.env, &[7; 32]);
-
-    let history = setup.contract.get_evidence(
-        &project_key,
-        &String::from_str(&setup.env, "commit-a"),
-        &EvidenceKind::Sbom,
-    );
+    // Unknown project: still an empty history rather than a panic.
+    let unknown = Bytes::from_array(&setup.env, &[7; 32]);
+    let history = setup
+        .contract
+        .get_evidence(&unknown, &commit_hash, &EvidenceKind::Sbom);
     assert!(history.is_empty());
 }
 

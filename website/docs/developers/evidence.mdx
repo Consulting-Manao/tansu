@@ -81,14 +81,15 @@ make contract_get_evidence commit=<hash>
 
 ## CI workflow
 
-The `publish-evidence` job in `.github/workflows/sbom.yml` runs the whole path on demand (`workflow_dispatch`) and on version tags, alongside the SBOM-to-IPFS job. For each commit it generates an SBOM and a vulnerability scan with Trivy, produces a Sigstore build-provenance attestation and pins its bundle (plus the trust anchor) for offline verification, uploads each artifact to IPFS, and records the CIDs on-chain.
+`.github/workflows/sbom.yml` already generates the SBOM and pins it to IPFS on version tags (`v*`) and on demand (`workflow_dispatch`). A small follow-up `record-evidence` job reuses that artifact's CID and records it on-chain with a single `set_evidence` call — it does not regenerate anything.
 
-It expects the following repository configuration in the `publish-evidence` environment:
+Other evidence kinds (`Cve`, `Attestation`) are not produced in CI; publish them with `tools/evidence/publish.sh` whenever you have the artifact.
+
+The `record-evidence` job expects the following configuration in the `publish-evidence` environment:
 
 | Setting | Type | Purpose |
 | --- | --- | --- |
 | `TANSU_SECRET_KEY` | secret | Maintainer Stellar secret key (`S...`) used to sign |
-| `FILEBASE_TOKEN` | secret | Filebase IPFS pinning token |
 | `TANSU_CONTRACT_ID` | var | Deployed Tansu contract id (`C...`) |
 | `TANSU_PROJECT_KEY` | var | Project key (hex) |
 | `TANSU_MAINTAINER` | var | Maintainer address (`G...`) matching the secret key |

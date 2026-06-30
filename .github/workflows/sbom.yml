@@ -1,16 +1,12 @@
 name: SBOM and commit evidence
 
-# Two related supply-chain jobs, triggered together on release tags:
-#   * generate-sbom    - generate SPDX + CycloneDX SBOMs and pin them to IPFS.
-#   * publish-evidence - generate SBOM / vulnerability scan / build attestation
-#     for the tagged commit, pin each to IPFS, and record the CID on-chain via
-#     the contract's `set_evidence`. Artifacts stay off-chain; only the CID + a
-#     ledger timestamp are stored on chain. See website/docs/developers/evidence.mdx
-#     and tools/evidence/.
+# Generate SPDX + CycloneDX SBOMs, pin them to IPFS, then record the resulting
+# IPFS CID on-chain as commit evidence via the contract's `set_evidence`. The
+# evidence step reuses the artifact the SBOM job already produced — it does not
+# regenerate anything, just a single CLI call with the existing CID.
 #
-# publish-evidence configuration (repository environment `publish-evidence`):
+# record-evidence configuration (repository environment `publish-evidence`):
 #   secrets.TANSU_SECRET_KEY   Stellar secret key (S...) of a project maintainer
-#   secrets.FILEBASE_TOKEN     Filebase IPFS pinning token (reused from the SBOM job)
 #   vars.TANSU_CONTRACT_ID     Deployed Tansu contract id (C...)
 #   vars.TANSU_PROJECT_KEY     Project key (hex), i.e. keccak256(project name)
 #   vars.TANSU_MAINTAINER      Maintainer address (G...) matching TANSU_SECRET_KEY
@@ -37,6 +33,8 @@ jobs:
     container: alpine:latest
     environment:
       name: sbom-ipfs
+    outputs:
+      cid: ${{ steps.filebase.outputs.cid }}
 
     steps:
       - name: Install dependencies
@@ -112,15 +110,12 @@ jobs:
           STEPS_FILEBASE_OUTPUTS_CID: ${{ steps.filebase.outputs.cid }}
           STEPS_FILEBASE_OUTPUTS_URL: ${{ steps.filebase.outputs.url }}
 
-  publish-evidence:
-    name: Generate and publish commit evidence
+  record-evidence:
+    name: Record SBOM evidence on-chain
+    needs: generate-sbom
     runs-on: ubuntu-latest
     environment:
       name: publish-evidence
-    permissions:
-      contents: read
-      id-token: write      # OIDC token for build-provenance attestation
-      attestations: write
 
     env:
       STELLAR_CLI_VERSION: "27.0.0"
@@ -129,19 +124,9 @@ jobs:
       TANSU_PROJECT_KEY: ${{ vars.TANSU_PROJECT_KEY }}
       TANSU_MAINTAINER: ${{ vars.TANSU_MAINTAINER }}
       TANSU_SOURCE_ACCOUNT: ${{ secrets.TANSU_SECRET_KEY }}
-      FILEBASE_TOKEN: ${{ secrets.FILEBASE_TOKEN }}
+      SBOM_CID: ${{ needs.generate-sbom.outputs.cid }}
 
     steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install Trivy
-        run: |
-          wget -qO - https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin
-
       - name: Install Stellar CLI
         run: |
           curl -fsSL -o stellar-cli.tar.gz \
@@ -150,61 +135,16 @@ jobs:
           sudo install -m 0755 stellar /usr/local/bin/stellar
           stellar --version
 
-      - name: Generate evidence artifacts
+      - name: Record SBOM evidence on-chain
         run: |
-          mkdir -p artifacts
-          # SBOM (CycloneDX JSON)
-          trivy fs --format cyclonedx --output artifacts/sbom.cyclonedx.json .
-          # Vulnerability scan (Trivy JSON)
-          trivy fs --format json --output artifacts/trivy-results.json .
-
-      - name: Attest evidence artifacts
-        id: attest
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            artifacts/sbom.cyclonedx.json
-            artifacts/trivy-results.json
-
-      - name: Assemble attestation bundle
-        # Pin the actual Sigstore attestation bundle (not a pointer) so it can be
-        # verified offline from IPFS alone, plus the trust anchor needed to do so.
-        env:
-          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p artifacts/attestation
-          cp "$BUNDLE_PATH" artifacts/attestation/attestation.sigstore.jsonl
-          gh attestation trusted-root > artifacts/attestation/trusted_root.jsonl
-
-      - name: Publish SBOM evidence
-        run: |
-          tools/evidence/publish.sh \
-            --project-key "${TANSU_PROJECT_KEY}" \
-            --commit-hash "${GITHUB_SHA}" \
-            --kind sbom \
-            --file artifacts/sbom.cyclonedx.json
-
-      - name: Publish CVE evidence
-        run: |
-          tools/evidence/publish.sh \
-            --project-key "${TANSU_PROJECT_KEY}" \
-            --commit-hash "${GITHUB_SHA}" \
-            --kind cve \
-            --file artifacts/trivy-results.json
-
-      - name: Publish attestation evidence
-        run: |
-          tools/evidence/publish.sh \
-            --project-key "${TANSU_PROJECT_KEY}" \
-            --commit-hash "${GITHUB_SHA}" \
-            --kind attestation \
-            --file artifacts/attestation
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: commit-evidence-${{ github.sha }}
-          path: artifacts/
-          retention-days: 90
+          stellar contract invoke \
+            --source-account "${TANSU_SOURCE_ACCOUNT}" \
+            --network "${TANSU_NETWORK}" \
+            --id "${TANSU_CONTRACT_ID}" \
+            -- \
+            set_evidence \
+            --maintainer "${TANSU_MAINTAINER}" \
+            --project_key "${TANSU_PROJECT_KEY}" \
+            --commit_hash "${GITHUB_SHA}" \
+            --kind Sbom \
+            --cid "${SBOM_CID}"
