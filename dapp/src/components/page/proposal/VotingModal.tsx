@@ -129,10 +129,12 @@ const VotingModal: React.FC<VotersModalProps> = ({
         selectedWeight,
       );
       onVoteSuccess?.();
-      toast.success("Congratulations!", "Your vote was submitted successfully.");
+      toast.success(
+        "Congratulations!",
+        "Your vote was submitted successfully.",
+      );
       onClose();
     } catch (error: any) {
-
       let errorMessage = "Failed to cast vote";
 
       if (typeof error === "string") {
@@ -219,9 +221,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                     setSelectedWeight(0);
                     return;
                   }
-                  setSelectedWeight(
-                    Math.round((percentage / 100) * maxWeight),
-                  );
+                  setSelectedWeight(Math.round((percentage / 100) * maxWeight));
                 }}
                 className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-primary"
                 style={{
@@ -267,8 +267,8 @@ const VotingModal: React.FC<VotersModalProps> = ({
                 </>
               ) : (
                 <>
-                  ℹ️ Casting a vote requires a 2 XLM collateral. This
-                  collateral is refunded when the vote is executed
+                  ℹ️ Casting a vote requires a 2 XLM collateral. This collateral
+                  is refunded when the vote is executed
                 </>
               )}
             </p>
