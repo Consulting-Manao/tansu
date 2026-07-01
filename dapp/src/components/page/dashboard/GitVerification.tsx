@@ -7,6 +7,7 @@ export interface GitIdentityData {
   gitIdentity: string; // "<provider>:<username>"
   gitPubkey: Buffer; // raw Ed25519 public key (32 bytes)
   gitSig: Buffer; // Ed25519 signature (64 bytes) over the plain message
+  gitNamespace?: string; // SSH namespace (e.g. "file"), defaults to "file"
 }
 
 interface Props {
@@ -83,10 +84,11 @@ export function buildMessage(
 }
 
 /** Build the SSHSIG tosign payload that the contract verifies:
- *  "SSHSIG" + string("file") + string("") + string("sha256") + string(SHA-256(message))
+ *  "SSHSIG" + string(namespace) + string("") + string("sha256") + string(SHA-256(message))
  *  (mirrors `verify_git_signature` in contract_membership.rs) */
 export async function buildSshsigPayload(
   msgBytes: Uint8Array,
+  namespace = "file",
 ): Promise<Uint8Array> {
   const hash = await crypto.subtle.digest("SHA-256", msgBytes as BufferSource);
   const hashBytes = new Uint8Array(hash);
@@ -103,7 +105,7 @@ export async function buildSshsigPayload(
   const enc = new TextEncoder();
   const parts = [
     enc.encode("SSHSIG"),
-    sshString(enc.encode("file")),
+    sshString(enc.encode(namespace)),
     sshString(new Uint8Array(0)), // reserved
     sshString(enc.encode("sha256")),
     sshString(hashBytes),
@@ -284,7 +286,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
 
       if (!sigBytes || sigBytes.length !== 64) {
         throw new Error(
-          "Invalid signature. Paste a base64 signature or the full `ssh-keygen -Y sign -O hashalg=sha256` output.",
+          "Invalid signature. Paste the raw base64-encoded 64-byte signature.",
         );
       }
 
@@ -295,7 +297,8 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         const msgBytes = buildMessage(signingAccount, pubkey, gitIdentity);
 
         // Build the SSHSIG tosign payload (same format as contract)
-        const tosign = await buildSshsigPayload(msgBytes);
+        // Namespace defaults to "file" (the most common choice for ssh-keygen -Y sign -n)
+        const tosign = await buildSshsigPayload(msgBytes, "file");
 
         // Verify Ed25519 signature against the SSHSIG payload
         const valid = ed25519.verify(sigBytes, tosign, pubkey);
@@ -493,14 +496,16 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
                 {`# Save the message as binary from hex
 printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg
 
-# Sign with your Ed25519 SSH key using OpenSSH
-ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg
+# Sign with your Ed25519 SSH key using OpenSSH and extract the raw 64-byte sig
+ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg \\
+  | tail -n +2 | head -n -1 | base64 -d \\
+  | tail -c 64 | base64 | pbcopy
 
-# Paste the full output (including -----BEGIN SSH SIGNATURE-----) below`}
+# The raw base64 signature is now in your clipboard — paste it below`}
               </pre>
               <button
                 onClick={() => {
-                  const cmd = `printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg && ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg`;
+                  const cmd = `printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg && ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg | tail -n +2 | head -n -1 | base64 -d | tail -c 64 | base64 | pbcopy`;
                   navigator.clipboard.writeText(cmd);
                   const btn = document.getElementById("sshkg-copy-btn");
                   if (btn) {
@@ -542,8 +547,9 @@ ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-ident
 printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg
 
 # 2. Sign with your Ed25519 SSH key (requires Python + cryptography)
+#    Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n file)
 python3 -c "
-import sys, base64
+import hashlib, struct, base64
 from cryptography.hazmat.primitives.serialization import load_ssh_private_key
 
 with open('$HOME/.ssh/id_ed25519', 'rb') as f:
@@ -552,14 +558,28 @@ with open('$HOME/.ssh/id_ed25519', 'rb') as f:
 with open('/tmp/git-identity-msg', 'rb') as f:
     msg = f.read()
 
-sig = key.sign(msg)
+# SHA-256 of the raw message
+digest = hashlib.sha256(msg).digest()
+
+# Build SSHSIG payload:
+# 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+def ssh_string(d):
+    return struct.pack('>I', len(d)) + d
+
+tosign = b'SSHSIG'
+tosign += ssh_string(b'file')
+tosign += ssh_string(b'')        # reserved
+tosign += ssh_string(b'sha256')
+tosign += ssh_string(digest)
+
+sig = key.sign(tosign)
 print(base64.b64encode(sig).decode())
 " | pbcopy`}
               </pre>
               <button
                 onClick={() => {
                   const cmd = `printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg && python3 -c "
-import sys, base64
+import hashlib, struct, base64
 from cryptography.hazmat.primitives.serialization import load_ssh_private_key
 
 with open('$HOME/.ssh/id_ed25519', 'rb') as f:
@@ -568,7 +588,21 @@ with open('$HOME/.ssh/id_ed25519', 'rb') as f:
 with open('/tmp/git-identity-msg', 'rb') as f:
     msg = f.read()
 
-sig = key.sign(msg)
+# SHA-256 of the raw message
+digest = hashlib.sha256(msg).digest()
+
+# Build SSHSIG payload:
+# 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+def ssh_string(d):
+    return struct.pack('>I', len(d)) + d
+
+tosign = b'SSHSIG'
+tosign += ssh_string(b'file')
+tosign += ssh_string(b'')        # reserved
+tosign += ssh_string(b'sha256')
+tosign += ssh_string(digest)
+
+sig = key.sign(tosign)
 print(base64.b64encode(sig).decode())
 " | pbcopy`;
                   navigator.clipboard.writeText(cmd);
@@ -612,11 +646,31 @@ print(base64.b64encode(sig).decode())
 npm install @noble/curves
 
 # Sign
+# Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n file)
 node -e "
 const { ed25519 } = require('@noble/curves/ed25519');
+const { createHash } = require('crypto');
+
 const msg = Buffer.from('${messageForSigning}', 'hex');
+const hash = createHash('sha256').update(msg).digest();
+
+// Build SSHSIG payload:
+// 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+const sshString = (d) => {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(d.length);
+  return Buffer.concat([len, d]);
+};
+const tosign = Buffer.concat([
+  Buffer.from('SSHSIG'),
+  sshString(Buffer.from('file')),
+  sshString(Buffer.alloc(0)),        // reserved
+  sshString(Buffer.from('sha256')),
+  sshString(hash),
+]);
+
 const seed = new Uint8Array(32); // ← replace with your 32-byte key seed
-const sig = ed25519.sign(msg, seed);
+const sig = ed25519.sign(tosign, seed);
 console.log(Buffer.from(sig).toString('base64'));
 "`}
               </pre>
@@ -625,9 +679,28 @@ console.log(Buffer.from(sig).toString('base64'));
                   const cmd = `npm install @noble/curves
 node -e "
 const { ed25519 } = require('@noble/curves/ed25519');
+const { createHash } = require('crypto');
+
 const msg = Buffer.from('${messageForSigning}', 'hex');
+const hash = createHash('sha256').update(msg).digest();
+
+// Build SSHSIG payload:
+// 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+const sshString = (d) => {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(d.length);
+  return Buffer.concat([len, d]);
+};
+const tosign = Buffer.concat([
+  Buffer.from('SSHSIG'),
+  sshString(Buffer.from('file')),
+  sshString(Buffer.alloc(0)),        // reserved
+  sshString(Buffer.from('sha256')),
+  sshString(hash),
+]);
+
 const seed = new Uint8Array(32); // ← replace with your 32-byte key seed
-const sig = ed25519.sign(msg, seed);
+const sig = ed25519.sign(tosign, seed);
 console.log(Buffer.from(sig).toString('base64'));
 "`;
                   navigator.clipboard.writeText(cmd);
@@ -664,18 +737,12 @@ console.log(Buffer.from(sig).toString('base64'));
 
         <p className="text-xs text-secondary">
           Sign the raw message above with your Ed25519 private key using one of
-          the methods shown, then paste the result below — either a base64
-          signature or the full
-          <code className="font-mono"> -----BEGIN SSH SIGNATURE-----</code>{" "}
-          block from{" "}
-          <code className="font-mono">
-            ssh-keygen -Y sign -O hashalg=sha256
-          </code>
-          .
+          the methods shown, then paste the raw base64-encoded 64-byte signature
+          below.
         </p>
 
         <textarea
-          placeholder={`Paste the full ssh-keygen output or a raw base64 signature`}
+          placeholder={`Paste the raw base64 signature`}
           value={signatureInput}
           onChange={(e) => {
             setSignatureInput(e.target.value);

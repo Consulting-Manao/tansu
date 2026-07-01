@@ -74,7 +74,7 @@ function buildOpenSshArmor(): string {
   const pk = sshWireStr(pubkeyBlob(TEST_PUBKEY_BYTES));
   const ns = sshWireStr(enc.encode("file"));
   const reserved = sshWireStr(new Uint8Array(0));
-  const hashAlg = sshWireStr(enc.encode("sha512"));
+  const hashAlg = sshWireStr(enc.encode("sha256"));
   const sig = sshWireStr(sigBlob(TEST_SIG_BYTES));
 
   const payload = new Uint8Array(
@@ -228,10 +228,10 @@ async function setupJoinModal(page: Page) {
 
 /**
  * Signature textarea selector — matches the textarea inside the GitVerification
- * verify step by its placeholder text (contains "ssh-keygen").
+ * verify step by its placeholder text (contains "base64").
  * Avoids the Description textarea (SimpleMarkdownEditor) which appears first.
  */
-const SIG_TEXTAREA = 'textarea[placeholder*="ssh-keygen"]';
+const SIG_TEXTAREA = 'textarea[placeholder*="base64"]';
 
 /**
  * Expand the Git verification section (click the "+ Link Git Handle" button),
@@ -423,7 +423,7 @@ test.describe("Git Identity Binding Flow", () => {
 
     const sigTextarea = page.locator(SIG_TEXTAREA);
     await expect(sigTextarea).toBeVisible({ timeout: 5000 });
-    await expect(sigTextarea).toHaveAttribute("placeholder", /ssh-keygen/);
+    await expect(sigTextarea).toHaveAttribute("placeholder", /base64/);
 
     const verifyButton = page
       .locator("button")

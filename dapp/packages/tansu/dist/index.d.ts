@@ -1026,12 +1026,14 @@ export interface Client {
       git_identity,
       git_pubkey,
       git_sig,
+      git_namespace,
     }: {
       member_address: string;
       meta: string;
       git_identity: Option<string>;
       git_pubkey: Option<Buffer>;
       git_sig: Option<Buffer>;
+      git_namespace: Option<string>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1137,12 +1139,14 @@ export interface Client {
       git_identity,
       git_pubkey,
       git_sig,
+      git_namespace,
     }: {
       member_address: string;
       meta: string;
       git_identity: Option<string>;
       git_pubkey: Option<Buffer>;
       git_sig: Option<Buffer>;
+      git_namespace: Option<string>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;

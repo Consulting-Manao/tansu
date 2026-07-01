@@ -18,7 +18,7 @@ fn membership_badges() {
     let meta = String::from_str(&setup.env, "abcd");
     setup
         .contract
-        .add_member(&member, &meta, &None, &None, &None);
+        .add_member(&member, &meta, &None, &None, &None, &None);
 
     // Verify member added event
     let all_events = setup
@@ -101,7 +101,7 @@ fn membership_double_set_badges() {
     let meta = String::from_str(&setup.env, "abcd");
     setup
         .contract
-        .add_member(&member, &meta, &None, &None, &None);
+        .add_member(&member, &meta, &None, &None, &None, &None);
 
     let badges = vec![&setup.env, Badge::Community];
     setup
@@ -140,7 +140,7 @@ fn membership_multiple_different_badges() {
     let meta = String::from_str(&setup.env, "abcd");
     setup
         .contract
-        .add_member(&member, &meta, &None, &None, &None);
+        .add_member(&member, &meta, &None, &None, &None, &None);
 
     // Set both Community and Triage badges in a single call
     let both_badges = vec![&setup.env, Badge::Community, Badge::Triage];
@@ -212,12 +212,12 @@ fn membership_errors() {
     let meta = String::from_str(&setup.env, "abcd");
     setup
         .contract
-        .add_member(&member, &meta, &None, &None, &None);
+        .add_member(&member, &meta, &None, &None, &None, &None);
 
     // Adding the same twice
     let error = setup
         .contract
-        .try_add_member(&member, &meta, &None, &None, &None)
+        .try_add_member(&member, &meta, &None, &None, &None, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(error, ContractErrors::MemberAlreadyExist.into());
@@ -231,23 +231,17 @@ fn membership_errors() {
         .unwrap();
     assert_eq!(error, ContractErrors::UnknownMember.into());
 }
-/// Build signed Git identity parameters.
-///
-/// Builds the message:
-///   "Stellar Signed Message:\n" || member_address || git_pubkey || git_identity
-/// and signs it directly with a deterministic Ed25519 keypair (fixed seed
-/// `0x42`) so tests are reproducible.
 fn signed_git_params(
     env: &soroban_sdk::Env,
     member_address: &Address,
     identity: &str,
+    namespace: &str,
 ) -> (Option<String>, Option<BytesN<32>>, Option<BytesN<64>>) {
     let secret = [0x42u8; 32];
     let signing_key = SigningKey::from_bytes(&secret);
     let verifying_key = signing_key.verifying_key();
     let pubkey_bytes = verifying_key.to_bytes();
 
-    // Build the raw message: "Stellar Signed Message:\n" || member_address || pubkey || identity
     let member_str: soroban_sdk::String = member_address.to_string();
     let mut msg = soroban_sdk::Bytes::new(env);
     msg.append(&soroban_sdk::Bytes::from_slice(
@@ -264,23 +258,19 @@ fn signed_git_params(
         msg_rust.push(b);
     }
 
-    // SHA-256 of the raw message
     use sha2::{Digest, Sha256};
     let hash = Sha256::digest(&msg_rust);
 
-    // Build the SSHSIG tosign payload (matches verify_git_signature):
-    // "SSHSIG" + string("file") + string("") + string("sha256") + string(hash)
     let mut tosign = Vec::new();
     tosign.extend_from_slice(b"SSHSIG");
-    tosign.extend_from_slice(&4u32.to_be_bytes());
-    tosign.extend_from_slice(b"file");
+    tosign.extend_from_slice(&(namespace.len() as u32).to_be_bytes());
+    tosign.extend_from_slice(namespace.as_bytes());
     tosign.extend_from_slice(&0u32.to_be_bytes());
     tosign.extend_from_slice(&6u32.to_be_bytes());
     tosign.extend_from_slice(b"sha256");
     tosign.extend_from_slice(&32u32.to_be_bytes());
     tosign.extend_from_slice(&hash);
 
-    // Sign the SSHSIG tosign payload
     let signature: ed25519_dalek::Signature = signing_key.sign(&tosign);
     let sig_bytes = signature.to_bytes();
 
@@ -302,13 +292,12 @@ fn add_member_with_git_identity() {
     let meta = String::from_str(&setup.env, "abcd");
 
     let (git_identity, git_pubkey, git_sig) =
-        signed_git_params(&setup.env, &member, "github:testuser");
+        signed_git_params(&setup.env, &member, "github:testuser", "file");
 
     setup
         .contract
-        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig);
+        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig, &None);
 
-    // Verify the event includes the git identity
     let all_events = setup
         .env
         .events()
@@ -322,7 +311,6 @@ fn add_member_with_git_identity() {
 
     assert_eq!(all_events, [event.to_xdr(&setup.env, &setup.contract_id)]);
 
-    // Verify the stored member has git identity fields
     let info = setup.contract.get_member(&member);
     assert_eq!(
         info.git_identity,
@@ -339,11 +327,11 @@ fn add_member_with_git_identity_gitlab() {
     let meta = String::from_str(&setup.env, "meta");
 
     let (git_identity, git_pubkey, git_sig) =
-        signed_git_params(&setup.env, &member, "gitlab:devuser");
+        signed_git_params(&setup.env, &member, "gitlab:devuser", "file");
 
     setup
         .contract
-        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig);
+        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig, &None);
 
     let info = setup.contract.get_member(&member);
     assert_eq!(
@@ -362,7 +350,7 @@ fn add_member_without_git_identity_still_works() {
 
     setup
         .contract
-        .add_member(&member, &meta, &None, &None, &None);
+        .add_member(&member, &meta, &None, &None, &None, &None);
 
     let info = setup.contract.get_member(&member);
     assert_eq!(info.git_identity, None);
@@ -378,12 +366,11 @@ fn add_member_git_identity_missing_pubkey() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, _, git_sig) = signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, _, git_sig) = signed_git_params(&setup.env, &member, "github:bob", "file");
 
-    // Pass identity but None pubkey → InvalidGitIdentity
     let error = setup
         .contract
-        .try_add_member(&member, &meta, &git_identity, &None, &git_sig)
+        .try_add_member(&member, &meta, &git_identity, &None, &git_sig, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(error, ContractErrors::InvalidGitIdentity.into());
@@ -396,11 +383,12 @@ fn add_member_git_identity_missing_sig() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, _) = signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, _) =
+        signed_git_params(&setup.env, &member, "github:bob", "file");
 
     let error = setup
         .contract
-        .try_add_member(&member, &meta, &git_identity, &git_pubkey, &None)
+        .try_add_member(&member, &meta, &git_identity, &git_pubkey, &None, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(error, ContractErrors::InvalidGitIdentity.into());
@@ -413,15 +401,20 @@ fn add_member_git_identity_bad_signature() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, _) = signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, _) =
+        signed_git_params(&setup.env, &member, "github:bob", "file");
 
     // Use a random/invalid signature (all zeros)
     let bad_sig = BytesN::from_array(&setup.env, &[0u8; 64]);
 
-    let result =
-        setup
-            .contract
-            .try_add_member(&member, &meta, &git_identity, &git_pubkey, &Some(bad_sig));
+    let result = setup.contract.try_add_member(
+        &member,
+        &meta,
+        &git_identity,
+        &git_pubkey,
+        &Some(bad_sig),
+        &None,
+    );
 
     // ed25519_verify panics at the host level — we get HostError, not ContractError
     assert!(result.is_err(), "expected host error from ed25519_verify");
@@ -435,7 +428,7 @@ fn add_member_git_identity_wrong_pubkey() {
     let meta = String::from_str(&setup.env, "x");
 
     // Create signature with key A but pass a different pubkey
-    let (_, _, git_sig) = signed_git_params(&setup.env, &member, "github:bob");
+    let (_, _, git_sig) = signed_git_params(&setup.env, &member, "github:bob", "file");
 
     let wrong_pubkey = BytesN::from_array(&setup.env, &[0x99u8; 32]);
 
@@ -445,6 +438,7 @@ fn add_member_git_identity_wrong_pubkey() {
         &Some(String::from_str(&setup.env, "github:bob")),
         &Some(wrong_pubkey),
         &git_sig,
+        &None,
     );
 
     // ed25519_verify panics at the host level — we get HostError, not ContractError
@@ -461,11 +455,11 @@ fn add_member_git_identity_then_get_member() {
     let meta = String::from_str(&setup.env, "ipfs_cid");
 
     let (git_identity, git_pubkey, git_sig) =
-        signed_git_params(&setup.env, &member, "github:alice42");
+        signed_git_params(&setup.env, &member, "github:alice42", "file");
 
     setup
         .contract
-        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig);
+        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig, &None);
 
     let info = setup.contract.get_member(&member);
     assert_eq!(info.meta, String::from_str(&setup.env, "ipfs_cid"));
@@ -541,6 +535,7 @@ fn add_member_git_identity_known_keypair() {
         &Some(String::from_str(&setup.env, identity)),
         &Some(BytesN::from_array(&setup.env, &pubkey_bytes)),
         &Some(BytesN::from_array(&setup.env, &sig_bytes)),
+        &None,
     );
 
     // Verify it was stored correctly
@@ -564,16 +559,16 @@ fn add_member_git_identity_duplicate_fails() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, git_sig) = signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, git_sig) =
+        signed_git_params(&setup.env, &member, "github:bob", "file");
 
     setup
         .contract
-        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig);
+        .add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig, &None);
 
-    // Try adding the same member again
     let error = setup
         .contract
-        .try_add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig)
+        .try_add_member(&member, &meta, &git_identity, &git_pubkey, &git_sig, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(error, ContractErrors::MemberAlreadyExist.into());
