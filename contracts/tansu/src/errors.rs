@@ -49,4 +49,6 @@ pub enum ContractErrors {
     UpgradeError = 601,
     ContractValidation = 602,
     CollateralError = 603,
+
+    InvalidGitIdentity = 700,
 }

@@ -43,6 +43,7 @@ pub struct EvidenceSet {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MemberAdded {
     pub member_address: Address,
+    pub git_identity: Option<String>,
 }
 
 #[contractevent]

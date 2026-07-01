@@ -58,6 +58,9 @@ export const contractErrorMessages = {
   601: "Contract upgrade error.",
   602: "Contract validation error.",
   603: "Collateral error.",
+
+  // Git Identity (700-799)
+  700: "Invalid Git identity. The signature could not be verified against the provided Git public key.",
 };
 
 export type ContractErrorMessageKey = keyof typeof contractErrorMessages;

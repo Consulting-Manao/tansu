@@ -308,6 +308,35 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
                   </a>
                 )}
 
+                {/* Git Identity */}
+                {member?.git_identity ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    <svg
+                      className="h-4 w-4 text-green-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span className="text-sm font-medium text-green-700">
+                      Git: {member.git_identity}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                      Verified
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-secondary text-center mt-2">
+                    No Git handle linked
+                  </p>
+                )}
+
                 {/* IPFS metadata link */}
                 {member?.meta && hasValidMetadata && (
                   <a

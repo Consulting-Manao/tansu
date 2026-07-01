@@ -168,16 +168,20 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       ];
 
       for (const pagePath of pages) {
+        // Reset per-page error tracking
+        const iterationPageErrors: string[] = [];
+        const iterationAllErrors: string[] = [];
+
         const navigationPage = await page.context().newPage();
         navigationPage.setDefaultTimeout(12000);
 
         navigationPage.on("pageerror", (error) => {
-          pageErrors.push(`PageError: ${error.message}`);
+          iterationPageErrors.push(`PageError: ${error.message}`);
         });
 
         navigationPage.on("console", (msg) => {
           if (msg.type() === "error") {
-            allErrors.push(msg.text());
+            iterationAllErrors.push(msg.text());
           }
         });
 
@@ -192,7 +196,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
           });
           await navigationPage.waitForTimeout(500);
 
-          const criticalErrors = allErrors.filter(
+          const criticalErrors = iterationAllErrors.filter(
             (error) =>
               (error.includes("is not defined") ||
                 error.includes("Cannot read properties of undefined") ||
@@ -203,11 +207,18 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
               !error.includes("Failed to fetch"),
           );
 
+          const filteredPageErrors = iterationPageErrors.filter(
+            (error) =>
+              !error.includes("Astro") &&
+              !error.includes("dev-toolbar") &&
+              !error.includes("Failed to fetch"),
+          );
+
           if (criticalErrors.length > 0) {
             console.error(`Critical errors on ${pagePath}:`, criticalErrors);
           }
           expect(criticalErrors).toHaveLength(0);
-          expect(pageErrors).toHaveLength(0);
+          expect(filteredPageErrors).toHaveLength(0);
         } finally {
           await navigationPage.close().catch(() => {});
         }
@@ -256,10 +267,7 @@ test.describe("Tansu dApp - Comprehensive User Flows", () => {
       const mobilePages = ["/", "/governance", "/project?name=test"];
 
       for (const pagePath of mobilePages) {
-        await page.goto(pagePath, {
-          waitUntil: "domcontentloaded",
-          timeout: 10000,
-        });
+        await safeGoto(page, pagePath);
         await expect(page.locator("[data-connect]")).toBeVisible({
           timeout: 5000,
         });

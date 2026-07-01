@@ -39,6 +39,14 @@ export interface Config {
   url: string;
 }
 export interface Member {
+  /**
+   * Git identity bound to this member (e.g. "github:alice").
+   */
+  git_identity: Option<string>;
+  /**
+   * Ed25519 public key registered on the Git account.
+   */
+  git_pubkey: Option<Buffer>;
   meta: string;
   projects: Array<ProjectBadges>;
 }
@@ -341,6 +349,12 @@ export declare const ContractErrors: {
     message: string;
   };
   603: {
+    message: string;
+  };
+  700: {
+    message: string;
+  };
+  701: {
     message: string;
   };
 };
@@ -979,21 +993,45 @@ export interface Client {
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
    *
+   * Optionally binds a Git identity (GitHub/GitLab handle) using
+   * message signing. When `git_identity` is `Some`:
+   * - `git_pubkey` must be the Ed25519 public key from the Git account.
+   * - `git_sig` is the Ed25519 signature over the message:
+   * The message format verified by the contract is:
+   * `"Stellar Signed Message:\n" || member_address || git_pubkey || git_identity`
+   *
+   * The contract verifies:
+   * 1. ed25519_verify(git_pubkey, message, git_sig) where message is
+   * reconstructed from the member_address, git_pubkey, and git_identity.
+   *
+   * Only `git_identity` and `git_pubkey` are persisted on the `Member`.
+   *
    * # Arguments
    * * `env` - The environment object
    * * `member_address` - The address of the member to add
-   * * `meta` - Metadata string associated with the member (e.g., IPFS hash)
+   * * `meta` - Metadata string (e.g., IPFS hash)
+   * * `git_identity` - Optional Git handle (e.g., "github:alice")
+   * * `git_pubkey` - Optional Ed25519 public key
+   * * `git_sig` - Optional Ed25519 signature of the message
    *
    * # Panics
    * * If the member already exists
+   * * If git params are incomplete (identity + key + sig must all be Some or None)
+   * * If the signature verification fails
    */
   add_member: (
     {
       member_address,
       meta,
+      git_identity,
+      git_pubkey,
+      git_sig,
     }: {
       member_address: string;
       meta: string;
+      git_identity: Option<string>;
+      git_pubkey: Option<Buffer>;
+      git_sig: Option<Buffer>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1077,23 +1115,34 @@ export interface Client {
   ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a update_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Update the metadata of an existing member.
+   * Update the metadata and optionally the Git identity of an existing member.
    *
    * # Arguments
    * * `env` - The environment object
    * * `member_address` - The address of the member to update
-   * * `meta` - New metadata string associated with the member (e.g., IPFS hash)
+   * * `meta` - New metadata string
+   * * `git_identity` - Optional new Git handle
+   * * `git_pubkey` - Optional new Ed25519 public key
+   *   * `git_sig` - Optional Ed25519 signature (required if git_identity is provided)
    *
    * # Panics
    * * If the member doesn't exist
+   * * If git params are incomplete
+   * * If the signature verification fails
    */
   update_member: (
     {
       member_address,
       meta,
+      git_identity,
+      git_pubkey,
+      git_sig,
     }: {
       member_address: string;
       meta: string;
+      git_identity: Option<string>;
+      git_pubkey: Option<Buffer>;
+      git_sig: Option<Buffer>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1455,7 +1504,7 @@ export declare class Client extends ContractClient {
     remove_conflict_of_interest: (json: string) => AssembledTransaction<null>;
     build_commitments_from_votes: (
       json: string,
-    ) => AssembledTransaction<Buffer[]>;
+    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
@@ -1475,14 +1524,16 @@ export declare class Client extends ContractClient {
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
     commit: (json: string) => AssembledTransaction<null>;
-    register: (json: string) => AssembledTransaction<Buffer>;
+    register: (json: string) => AssembledTransaction<Buffer<ArrayBufferLike>>;
     get_commit: (json: string) => AssembledTransaction<string>;
     get_project: (json: string) => AssembledTransaction<Project>;
     get_evidence: (json: string) => AssembledTransaction<Evidence[]>;
     get_projects: (json: string) => AssembledTransaction<Project[]>;
     set_evidence: (json: string) => AssembledTransaction<null>;
     update_config: (json: string) => AssembledTransaction<null>;
-    get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
+    get_sub_projects: (
+      json: string,
+    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
   };
 }

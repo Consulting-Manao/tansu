@@ -31,6 +31,11 @@ interface JoinCommunityFlowParams {
   memberAddress: string;
   profileFiles: File[];
   onProgress?: (step: number) => void;
+  gitIdentity?: {
+    gitIdentity: string;
+    gitPubkey: Buffer;
+    gitSig: Buffer;
+  };
 }
 
 interface UpdateMemberFlowParams {
@@ -124,11 +129,16 @@ async function createSignedProposalTransaction(
 }
 
 /**
- * Create and sign an add member transaction
+ * Create and sign an add member transaction, optionally with Git identity binding.
  */
 async function createSignedAddMemberTransaction(
   memberAddress: string,
   meta: string,
+  gitIdentity?: {
+    gitIdentity: string;
+    gitPubkey: Buffer;
+    gitSig: Buffer;
+  },
 ): Promise<string> {
   const address = memberAddress || connectedPublicKey.get();
   if (!address) throw new Error("Please connect your wallet first");
@@ -143,6 +153,9 @@ async function createSignedAddMemberTransaction(
   const tx = await Tansu.add_member({
     member_address: address,
     meta: meta,
+    git_identity: gitIdentity?.gitIdentity ?? undefined,
+    git_pubkey: gitIdentity?.gitPubkey ?? undefined,
+    git_sig: gitIdentity?.gitSig ?? undefined,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -232,6 +245,7 @@ export async function joinCommunityFlow({
   memberAddress,
   profileFiles,
   onProgress,
+  gitIdentity,
 }: JoinCommunityFlowParams): Promise<boolean> {
   let cid = "";
   let carBlob: Blob | undefined;
@@ -248,6 +262,7 @@ export async function joinCommunityFlow({
   const signedTxXdr = await createSignedAddMemberTransaction(
     memberAddress,
     cid,
+    gitIdentity,
   );
 
   if (profileFiles.length > 0 && carBlob) {
@@ -289,6 +304,9 @@ async function createSignedUpdateMemberTransaction(
   const tx = await Tansu.update_member({
     member_address: address,
     meta: meta,
+    git_identity: undefined,
+    git_pubkey: undefined,
+    git_sig: undefined,
   });
 
   checkSimulationError(tx as any);

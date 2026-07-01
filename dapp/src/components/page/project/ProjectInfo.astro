@@ -201,20 +201,41 @@ import Button from "components/utils/Button";
       }
     });
 
-    // Dynamically import React components
-    const [
-      { default: React },
-      { createRoot },
-      { default: LastHashModal },
-      { default: ReadMoreModal },
-      { default: ContributionMetrics },
-    ] = await Promise.all([
+    // Dynamically import React components with per-module error handling
+    const [{ default: React }, { createRoot }] = await Promise.all([
       import("react"),
       import("react-dom/client"),
-      import("./LastHashModal"),
-      import("./ReadMoreModal"),
-      import("./ContributionMetrics"),
+    ]).catch((e) => {
+      console.error("Failed to load React core modules:", e);
+      throw e;
+    });
+
+    const loadModule = <T,>(name: string, path: string) =>
+      import(path)
+        .then((m) => ({ name, module: m as T }))
+        .catch((e) => {
+          console.warn(`Failed to load ${name}, skipping:`, e);
+          return null;
+        });
+
+    const modules = await Promise.all([
+      loadModule<{ default: typeof import("./LastHashModal").default }>(
+        "LastHashModal",
+        "./LastHashModal",
+      ),
+      loadModule<{ default: typeof import("./ReadMoreModal").default }>(
+        "ReadMoreModal",
+        "./ReadMoreModal",
+      ),
+      loadModule<{ default: typeof import("./ContributionMetrics").default }>(
+        "ContributionMetrics",
+        "./ContributionMetrics",
+      ),
     ]);
+
+    const LastHashModal = modules[0]?.module?.default;
+    const ReadMoreModal = modules[1]?.module?.default;
+    const ContributionMetrics = modules[2]?.module?.default;
 
     // Create React roots for modals and components with retry logic
     let lastHashContainer = document.getElementById(
@@ -269,27 +290,31 @@ import Button from "components/utils/Button";
 
     // Render function for modals
     const renderModals = () => {
-      lastHashRoot.render(
-        React.createElement(LastHashModal, {
-          isOpen: isLastHashModalOpen,
-          onClose: () => {
-            isLastHashModalOpen = false;
-            renderModals();
-          },
-          commitData,
-        }),
-      );
+      if (LastHashModal) {
+        lastHashRoot.render(
+          React.createElement(LastHashModal, {
+            isOpen: isLastHashModalOpen,
+            onClose: () => {
+              isLastHashModalOpen = false;
+              renderModals();
+            },
+            commitData,
+          }),
+        );
+      }
 
-      readMoreRoot.render(
-        React.createElement(ReadMoreModal, {
-          isOpen: isReadMoreModalOpen,
-          onClose: () => {
-            isReadMoreModalOpen = false;
-            renderModals();
-          },
-          projectData,
-        }),
-      );
+      if (ReadMoreModal) {
+        readMoreRoot.render(
+          React.createElement(ReadMoreModal, {
+            isOpen: isReadMoreModalOpen,
+            onClose: () => {
+              isReadMoreModalOpen = false;
+              renderModals();
+            },
+            projectData,
+          }),
+        );
+      }
     };
 
     // Initial render
@@ -632,7 +657,11 @@ import Button from "components/utils/Button";
             }
           }
 
-          if (projectInfo?.name && projectInfo?.config?.url) {
+          if (
+            projectInfo?.name &&
+            projectInfo?.config?.url &&
+            ContributionMetrics
+          ) {
             contributionMetricsRoot.render(
               React.createElement(ContributionMetrics, {
                 projectName: projectInfo.name,
@@ -694,7 +723,11 @@ import Button from "components/utils/Button";
             }
           }
 
-          if (projectInfo?.name && projectInfo?.config?.url) {
+          if (
+            projectInfo?.name &&
+            projectInfo?.config?.url &&
+            ContributionMetrics
+          ) {
             contributionMetricsRoot.render(
               React.createElement(ContributionMetrics, {
                 projectName: projectInfo.name,

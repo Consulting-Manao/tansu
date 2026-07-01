@@ -284,7 +284,6 @@ test.describe("Mark as Malicious – UX Flow", () => {
     // Track if window.location.reload is called (page reload indicator)
     await page.addInitScript(() => {
       (window as any).__reloadCalled = false;
-      const originalReload = window.location.reload.bind(window.location);
       try {
         Object.defineProperty(window.location, "reload", {
           configurable: true,

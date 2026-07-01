@@ -54,9 +54,24 @@ pub trait TansuTrait {
 }
 
 pub trait MembershipTrait {
-    fn add_member(env: Env, member_address: Address, meta: String);
+    #[allow(clippy::too_many_arguments)]
+    fn add_member(
+        env: Env,
+        member_address: Address,
+        meta: String,
+        git_identity: Option<String>,
+        git_pubkey: Option<BytesN<32>>,
+        git_sig: Option<BytesN<64>>,
+    );
 
-    fn update_member(env: Env, member_address: Address, meta: String);
+    fn update_member(
+        env: Env,
+        member_address: Address,
+        meta: String,
+        git_identity: Option<String>,
+        git_pubkey: Option<BytesN<32>>,
+        git_sig: Option<BytesN<64>>,
+    );
 
     fn get_member(env: Env, member_address: Address) -> types::Member;
 

@@ -1,10 +1,11 @@
-import { useState, type FC, useEffect } from "react";
+import { useState, type FC, useEffect, useRef } from "react";
 import Input from "components/utils/Input";
 import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import { loadedPublicKey, setConnection } from "@service/walletService";
 import { validateStellarAddress, validateUrl } from "utils/validations";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
+import GitVerification, { type GitIdentityData } from "./GitVerification";
 
 interface ProfileImageFile {
   localUrl: string;
@@ -36,6 +37,10 @@ const JoinCommunityModal: FC<{
   const [addressError, setAddressError] = useState<string | null>(null);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  // Git identity state
+  const [showGitSection, setShowGitSection] = useState(false);
+  const gitDataRef = useRef<GitIdentityData | null>(null);
 
   useEffect(() => {
     if (prefillAddress) setAddress(prefillAddress);
@@ -119,13 +124,16 @@ const JoinCommunityModal: FC<{
     validateAddressField() && validateSocialField();
 
   const doJoinFlow = async (memberAddress: string) => {
-    if (!hasProfileData()) {
+    const gitIdentity = gitDataRef.current;
+
+    if (!hasProfileData() && !gitIdentity) {
       const { joinCommunityFlow } = await import("@service/FlowService");
-      await joinCommunityFlow({
+      const flowParams: Parameters<typeof joinCommunityFlow>[0] = {
         memberAddress,
         profileFiles: [],
         onProgress: setStep,
-      });
+      };
+      await joinCommunityFlow(flowParams);
       onJoined?.();
       setUpdateSuccessful(true);
       setStep(0);
@@ -152,11 +160,15 @@ const JoinCommunityModal: FC<{
         );
       }
       const { joinCommunityFlow } = await import("@service/FlowService");
-      await joinCommunityFlow({
+      const withGit: Parameters<typeof joinCommunityFlow>[0] = {
         memberAddress,
         profileFiles: files,
         onProgress: setStep,
-      });
+      };
+      if (gitIdentity) {
+        withGit.gitIdentity = gitIdentity;
+      }
+      await joinCommunityFlow(withGit);
       onJoined?.();
       setUpdateSuccessful(true);
       setStep(0);
@@ -358,6 +370,26 @@ const JoinCommunityModal: FC<{
               </div>
             </div>
           </div>
+
+          {/* Git Identity Section */}
+          {showGitSection || gitDataRef.current ? (
+            <GitVerification
+              signingAccount={address || loadedPublicKey() || ""}
+              onVerified={(data) => {
+                gitDataRef.current = data;
+              }}
+              onSkip={() => {
+                setShowGitSection(false);
+                gitDataRef.current = null;
+              }}
+            />
+          ) : (
+            <div className="pt-2">
+              <Button type="secondary" onClick={() => setShowGitSection(true)}>
+                + Link Git Handle (optional)
+              </Button>
+            </div>
+          )}
 
           <div className="flex justify-end gap-[18px]">
             <Button type="secondary" onClick={onClose}>

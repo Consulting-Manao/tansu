@@ -55,6 +55,7 @@ export default defineConfig({
     "**/governance-flows.spec.ts",
     "**/happy-flows.spec.ts",
     "**/anonymous-*.spec.ts",
+    "**/git-identity-flows.spec.ts",
   ],
 
   // Performance optimizations

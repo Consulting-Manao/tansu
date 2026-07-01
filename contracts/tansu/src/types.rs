@@ -56,6 +56,8 @@ pub struct ProjectBadges {
 pub struct Member {
     pub projects: Vec<ProjectBadges>,
     pub meta: String,
+    pub git_identity: Option<String>, // Git identity bound to this member (e.g. "github:alice")
+    pub git_pubkey: Option<BytesN<32>>, // Ed25519 public key registered on the Git account
 }
 
 #[contracttype]
