@@ -183,7 +183,8 @@ const ProposalTitle: React.FC<Props> = ({
                       Finalize Vote
                     </Button>
                   )}
-                  {(proposal?.status == "active" || proposal?.status == "voted") &&
+                  {(proposal?.status == "active" ||
+                    proposal?.status == "voted") &&
                     isMaintainer && (
                       <Button
                         size="sm"

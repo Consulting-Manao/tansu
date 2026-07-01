@@ -1,6 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import { applyAllMocks } from "./helpers/mock";
-import { WALLET_PK, MOCK_PROPOSAL, MOCK_PROJECT, MOCK_MEMBER } from "./helpers/data";
+import {
+  WALLET_PK,
+  MOCK_PROPOSAL,
+  MOCK_PROJECT,
+  MOCK_MEMBER,
+} from "./helpers/data";
 
 const MOCK_RAW_PROPOSAL = {
   id: 1,
@@ -175,7 +180,9 @@ test.describe("Mark as Malicious – UX Flow", () => {
 
     if (btnCount === 0) {
       // Proposal page may not have loaded fully — verify the page at least rendered
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
@@ -198,26 +205,36 @@ test.describe("Mark as Malicious – UX Flow", () => {
       .first();
     const btnCount = await markMaliciousBtn.count().catch(() => 0);
     if (btnCount === 0) {
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
     await markMaliciousBtn.click();
 
     // Modal should appear with confirmation text
-    await expect(
-      page.getByText("Mark Proposal as Malicious"),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Mark Proposal as Malicious")).toBeVisible({
+      timeout: 5000,
+    });
 
     // Modal should contain proposal title
-    await expect(page.getByText("Test Proposal")).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText("Test Proposal")).toBeVisible({
+      timeout: 3000,
+    });
 
     // Both Cancel and Mark as Malicious buttons should be in the modal
     await expect(
-      page.locator("button").filter({ hasText: /^Cancel$/ }).first(),
+      page
+        .locator("button")
+        .filter({ hasText: /^Cancel$/ })
+        .first(),
     ).toBeVisible();
     await expect(
-      page.locator("button").filter({ hasText: /^Mark as Malicious$/ }).first(),
+      page
+        .locator("button")
+        .filter({ hasText: /^Mark as Malicious$/ })
+        .first(),
     ).toBeVisible();
   });
 
@@ -237,7 +254,9 @@ test.describe("Mark as Malicious – UX Flow", () => {
       .first();
     const btnCount = await markMaliciousBtn.count().catch(() => 0);
     if (btnCount === 0) {
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
@@ -247,7 +266,11 @@ test.describe("Mark as Malicious – UX Flow", () => {
     });
 
     // Click Cancel
-    await page.locator("button").filter({ hasText: /^Cancel$/ }).first().click();
+    await page
+      .locator("button")
+      .filter({ hasText: /^Cancel$/ })
+      .first()
+      .click();
 
     // Modal should close
     await expect(page.getByText("Mark Proposal as Malicious")).not.toBeVisible({
@@ -289,7 +312,9 @@ test.describe("Mark as Malicious – UX Flow", () => {
       .first();
     const btnCount = await markMaliciousBtn.count().catch(() => 0);
     if (btnCount === 0) {
-      await expect(page.locator("[data-connect]")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("[data-connect]")).toBeVisible({
+        timeout: 5000,
+      });
       return;
     }
 
