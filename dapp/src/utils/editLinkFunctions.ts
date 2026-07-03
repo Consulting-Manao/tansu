@@ -35,12 +35,7 @@ const RADICLE_EXPLORER_NODE_PATH_PATTERN =
   /^\/nodes\/([^/]+)\/(rad:(z[1-9A-HJ-NP-Za-km-z]+))\/?$/;
 
 export type RepositoryProvider =
-  | "github"
-  | "gitlab"
-  | "bitbucket"
-  | "codeberg"
-  | "gitea"
-  | "radicle";
+  "github" | "gitlab" | "bitbucket" | "codeberg" | "gitea" | "radicle";
 
 export const SUPPORTED_REPOSITORY_PROVIDERS: RepositoryProvider[] = [
   "github",
@@ -124,8 +119,7 @@ interface ParsedRadicleRepositoryUrl {
 }
 
 export type ParsedRepositoryUrl =
-  | ParsedHostedRepositoryUrl
-  | ParsedRadicleRepositoryUrl;
+  ParsedHostedRepositoryUrl | ParsedRadicleRepositoryUrl;
 
 function decodeRepositoryPathSegment(segment: string): string {
   try {

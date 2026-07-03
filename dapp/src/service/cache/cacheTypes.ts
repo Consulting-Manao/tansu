@@ -1,12 +1,7 @@
 import type { WritableAtom } from "nanostores";
 
 export type QueryKeyPart =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | bigint;
+  string | number | boolean | null | undefined | bigint;
 
 export type QueryKey = readonly QueryKeyPart[];
 

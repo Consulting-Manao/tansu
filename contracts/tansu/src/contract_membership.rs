@@ -50,15 +50,12 @@ impl MembershipTrait for Tansu {
             if git_pubkey.is_none() || git_sig.is_none() {
                 panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
             }
-            let identity = git_identity.as_ref();
-            let pubkey = git_pubkey.as_ref();
-            let sig = git_sig.as_ref();
             verify_git_signature(
                 &env,
                 &member_address,
-                pubkey.unwrap(),
-                identity.unwrap(),
-                sig.unwrap(),
+                &git_pubkey.clone().unwrap(),
+                &git_identity.clone().unwrap(),
+                &git_sig.clone().unwrap(),
             );
         }
 
@@ -120,15 +117,12 @@ impl MembershipTrait for Tansu {
                     if git_pubkey.is_none() || git_sig.is_none() {
                         panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
                     }
-                    let identity = git_identity.as_ref();
-                    let pubkey = git_pubkey.as_ref();
-                    let sig = git_sig.as_ref();
                     verify_git_signature(
                         &env,
                         &member_address,
-                        pubkey.unwrap(),
-                        identity.unwrap(),
-                        sig.unwrap(),
+                        &git_pubkey.clone().unwrap(),
+                        &git_identity.clone().unwrap(),
+                        &git_sig.clone().unwrap(),
                     );
 
                     member.git_identity = git_identity.clone();
@@ -391,9 +385,6 @@ fn verify_git_signature(
     msg.append(&Bytes::from_slice(env, &git_pubkey.to_array()));
     msg.append(&git_identity.clone().into());
 
-    let hash = env.crypto().sha256(&msg);
-    let hash_bytes: [u8; 32] = hash.to_array();
-
     let mut tosign = Bytes::new(env);
     tosign.append(&Bytes::from_slice(env, b"SSHSIG"));
     tosign.append(&Bytes::from_slice(env, &5u32.to_be_bytes()));
@@ -402,7 +393,7 @@ fn verify_git_signature(
     tosign.append(&Bytes::from_slice(env, &6u32.to_be_bytes()));
     tosign.append(&Bytes::from_slice(env, b"sha256"));
     tosign.append(&Bytes::from_slice(env, &32u32.to_be_bytes()));
-    tosign.append(&Bytes::from_slice(env, &hash_bytes));
+    tosign.append(&env.crypto().sha256(&msg).into());
 
     env.crypto().ed25519_verify(git_pubkey, &tosign, sig);
 }

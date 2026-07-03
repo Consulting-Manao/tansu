@@ -35,7 +35,6 @@ interface JoinCommunityFlowParams {
     gitIdentity: string;
     gitPubkey: Buffer;
     gitSig: Buffer;
-    gitNamespace?: string;
   };
 }
 
@@ -139,7 +138,6 @@ async function createSignedAddMemberTransaction(
     gitIdentity: string;
     gitPubkey: Buffer;
     gitSig: Buffer;
-    gitNamespace?: string;
   },
 ): Promise<string> {
   const address = memberAddress || connectedPublicKey.get();

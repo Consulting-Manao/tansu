@@ -24,11 +24,7 @@ interface GitCommitDetails {
 }
 
 type SupportedProvider =
-  | "github"
-  | "gitlab"
-  | "bitbucket"
-  | "gitea"
-  | "radicle";
+  "github" | "gitlab" | "bitbucket" | "gitea" | "radicle";
 
 interface ParsedHostedRepositoryInfo {
   provider: Exclude<SupportedProvider, "radicle">;
@@ -47,8 +43,7 @@ interface ParsedRadicleRepositoryInfo {
 }
 
 type ParsedRepositoryInfo =
-  | ParsedHostedRepositoryInfo
-  | ParsedRadicleRepositoryInfo;
+  ParsedHostedRepositoryInfo | ParsedRadicleRepositoryInfo;
 
 interface RadicleRepoPayload {
   payloads?: {

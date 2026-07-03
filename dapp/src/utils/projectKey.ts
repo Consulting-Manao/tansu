@@ -30,11 +30,7 @@ function toProjectKeyBuffer(key: Buffer | Uint8Array | string): Buffer {
  * decoders return a single Buffer/Uint8Array when the vec has one element.
  */
 export type GetSubProjectsRawResult =
-  | Array<Buffer>
-  | Buffer
-  | Uint8Array
-  | null
-  | undefined;
+  Array<Buffer> | Buffer | Uint8Array | null | undefined;
 
 /**
  * Normalizes get_sub_projects result to an array of 32-byte key Buffers.

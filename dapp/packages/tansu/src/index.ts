@@ -128,8 +128,7 @@ export type VoteChoice =
   | { tag: "Abstain"; values: void };
 
 export type ContractKey =
-  | { tag: "Collateral"; values: void }
-  | { tag: "Nqg"; values: void };
+  { tag: "Collateral"; values: void } | { tag: "Nqg"; values: void };
 
 export interface ContractRef {
   address: string;

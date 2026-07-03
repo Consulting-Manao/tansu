@@ -7,7 +7,6 @@ export interface GitIdentityData {
   gitIdentity: string; // "<provider>:<username>"
   gitPubkey: Buffer; // raw Ed25519 public key (32 bytes)
   gitSig: Buffer; // Ed25519 signature (64 bytes) over the plain message
-  gitNamespace?: string; // SSH namespace (e.g. "file"), defaults to "file"
 }
 
 interface Props {
@@ -84,11 +83,10 @@ export function buildMessage(
 }
 
 /** Build the SSHSIG tosign payload that the contract verifies:
- *  "SSHSIG" + string(namespace) + string("") + string("sha256") + string(SHA-256(message))
+ *  "SSHSIG" + string("tansu") + string("") + string("sha256") + string(SHA-256(message))
  *  (mirrors `verify_git_signature` in contract_membership.rs) */
 export async function buildSshsigPayload(
   msgBytes: Uint8Array,
-  namespace = "file",
 ): Promise<Uint8Array> {
   const hash = await crypto.subtle.digest("SHA-256", msgBytes as BufferSource);
   const hashBytes = new Uint8Array(hash);
@@ -105,7 +103,7 @@ export async function buildSshsigPayload(
   const enc = new TextEncoder();
   const parts = [
     enc.encode("SSHSIG"),
-    sshString(enc.encode(namespace)),
+    sshString(enc.encode("tansu")),
     sshString(new Uint8Array(0)), // reserved
     sshString(enc.encode("sha256")),
     sshString(hashBytes),
@@ -297,8 +295,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         const msgBytes = buildMessage(signingAccount, pubkey, gitIdentity);
 
         // Build the SSHSIG tosign payload (same format as contract)
-        // Namespace defaults to "file" (the most common choice for ssh-keygen -Y sign -n)
-        const tosign = await buildSshsigPayload(msgBytes, "file");
+        const tosign = await buildSshsigPayload(msgBytes);
 
         // Verify Ed25519 signature against the SSHSIG payload
         const valid = ed25519.verify(sigBytes, tosign, pubkey);
@@ -497,7 +494,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
 printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg
 
 # Sign with your Ed25519 SSH key using OpenSSH and extract the raw 64-byte sig
-ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg \\
+ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n tansu -O hashalg=sha256 /tmp/git-identity-msg \\
   | tail -n +2 | head -n -1 | base64 -d \\
   | tail -c 64 | base64 | pbcopy
 
@@ -505,7 +502,7 @@ ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-ident
               </pre>
               <button
                 onClick={() => {
-                  const cmd = `printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg && ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-identity-msg | tail -n +2 | head -n -1 | base64 -d | tail -c 64 | base64 | pbcopy`;
+                  const cmd = `printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg && ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n tansu -O hashalg=sha256 /tmp/git-identity-msg | tail -n +2 | head -n -1 | base64 -d | tail -c 64 | base64 | pbcopy`;
                   navigator.clipboard.writeText(cmd);
                   const btn = document.getElementById("sshkg-copy-btn");
                   if (btn) {
@@ -547,7 +544,7 @@ ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file -O hashalg=sha256 /tmp/git-ident
 printf '${messageForSigning}' | xxd -r -p > /tmp/git-identity-msg
 
 # 2. Sign with your Ed25519 SSH key (requires Python + cryptography)
-#    Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n file)
+#    Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n tansu)
 python3 -c "
 import hashlib, struct, base64
 from cryptography.hazmat.primitives.serialization import load_ssh_private_key
@@ -562,12 +559,12 @@ with open('/tmp/git-identity-msg', 'rb') as f:
 digest = hashlib.sha256(msg).digest()
 
 # Build SSHSIG payload:
-# 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+# 'SSHSIG' + string('tansu') + string('') + string('sha256') + string(SHA-256(msg))
 def ssh_string(d):
     return struct.pack('>I', len(d)) + d
 
 tosign = b'SSHSIG'
-tosign += ssh_string(b'file')
+tosign += ssh_string(b'tansu')
 tosign += ssh_string(b'')        # reserved
 tosign += ssh_string(b'sha256')
 tosign += ssh_string(digest)
@@ -592,12 +589,12 @@ with open('/tmp/git-identity-msg', 'rb') as f:
 digest = hashlib.sha256(msg).digest()
 
 # Build SSHSIG payload:
-# 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+# 'SSHSIG' + string('tansu') + string('') + string('sha256') + string(SHA-256(msg))
 def ssh_string(d):
     return struct.pack('>I', len(d)) + d
 
 tosign = b'SSHSIG'
-tosign += ssh_string(b'file')
+tosign += ssh_string(b'tansu')
 tosign += ssh_string(b'')        # reserved
 tosign += ssh_string(b'sha256')
 tosign += ssh_string(digest)
@@ -646,7 +643,7 @@ print(base64.b64encode(sig).decode())
 npm install @noble/curves
 
 # Sign
-# Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n file)
+# Note: builds the SSHSIG payload (matching ssh-keygen -Y sign -O hashalg=sha256 -n tansu)
 node -e "
 const { ed25519 } = require('@noble/curves/ed25519');
 const { createHash } = require('crypto');
@@ -655,7 +652,7 @@ const msg = Buffer.from('${messageForSigning}', 'hex');
 const hash = createHash('sha256').update(msg).digest();
 
 // Build SSHSIG payload:
-// 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+// 'SSHSIG' + string('tansu') + string('') + string('sha256') + string(SHA-256(msg))
 const sshString = (d) => {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(d.length);
@@ -663,7 +660,7 @@ const sshString = (d) => {
 };
 const tosign = Buffer.concat([
   Buffer.from('SSHSIG'),
-  sshString(Buffer.from('file')),
+  sshString(Buffer.from('tansu')),
   sshString(Buffer.alloc(0)),        // reserved
   sshString(Buffer.from('sha256')),
   sshString(hash),
@@ -685,7 +682,7 @@ const msg = Buffer.from('${messageForSigning}', 'hex');
 const hash = createHash('sha256').update(msg).digest();
 
 // Build SSHSIG payload:
-// 'SSHSIG' + string('file') + string('') + string('sha256') + string(SHA-256(msg))
+// 'SSHSIG' + string('tansu') + string('') + string('sha256') + string(SHA-256(msg))
 const sshString = (d) => {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(d.length);
@@ -693,7 +690,7 @@ const sshString = (d) => {
 };
 const tosign = Buffer.concat([
   Buffer.from('SSHSIG'),
-  sshString(Buffer.from('file')),
+  sshString(Buffer.from('tansu')),
   sshString(Buffer.alloc(0)),        // reserved
   sshString(Buffer.from('sha256')),
   sshString(hash),
