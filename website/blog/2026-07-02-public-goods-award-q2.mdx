@@ -1,0 +1,27 @@
+---
+slug: public-goods-award-q2
+title: "Public Goods Award Q2: 17 projects, privacy-preserving votes on Stellar"
+date: 2026-07-02
+authors: pamphile
+tags: [scf, dao]
+---
+
+Q2 of the Stellar Community Fund Public Goods Award wrapped with **17 projects funded** and **more than USD 400,000** disbursed. For us, the milestone is simpler: this was the first round where award voting ran as **privacy-preserving on-chain governance on Stellar**, with tallies anyone can verify and individual ballots that stay secret.
+
+{/* truncate */}
+
+## What ran on Tansu
+
+The award program uses a dedicated Tansu project on testnet ([testnet.tansu.dev](https://testnet.tansu.dev), `stellarpg` project). Proposals, vote commitments, and execution all land on-chain. Voters were weighted through the [Neural Quorum Governance](https://scf-public-goods-maintenance.github.io/public-goods-award/) (NQG) contract integration we built for this project — not the default badge table.
+
+Anonymous voting followed the Pedersen commitment scheme we [documented last year](/blog/annonymous_voting): votes are encrypted client-side, commitments are stored on-chain, and maintainers upload tallies at execution time. The contract verifies the math before accepting the outcome. You get an auditable election without publishing who voted for what.
+
+If you want the protocol-level detail, the award maintainers published [Tansu modifications for the program](https://scf-public-goods-maintenance.github.io/pg-award/tansu-modifications/) and [proposer instructions](https://scf-public-goods-maintenance.github.io/pg-award/proposer-instructions/). Intake numbers and funded project lists live in the [program repository](https://github.com/SCF-Public-Goods-Maintenance/scf-public-goods-maintenance.github.io).
+
+## What we learned
+
+Running a real funding round at this scale surfaced the usual sharp edges — wallet UX, weight edge cases around the NQG threshold, execution timing — but nothing that blocked the round. The collaboration with SDF Community (thank you **Anke Liu** and **Alex Olieman**) kept the process grounded in what pilots actually needed rather than what looked neat in a diagram.
+
+- **Award overview:** https://scf-public-goods-maintenance.github.io/public-goods-award/
+
+Q3 intake is already in motion. We will keep tightening the operator path and the docs as more projects adopt the same stack.

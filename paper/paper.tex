@@ -1,0 +1,463 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=2.6cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[numbers]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+% Allow line breaks inside long URLs (bibliography entries contain
+% unbreakable content identifiers and query strings).
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks%
+  \do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m
+  \do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z
+  \do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M
+  \do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z
+  \do\0\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9\do\=\do\?\do\&}
+
+% Ragged-right bibliography: long URLs justify poorly.
+\usepackage{etoolbox}
+\apptocmd{\thebibliography}{\raggedright}{}{}
+
+\newcommand{\tansu}{Tansu}
+\newcommand{\mainnetcontract}{CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI}
+
+\title{\tansu{}: decentralized project governance\\for open-source software on Stellar}
+
+\author{%
+  Pamphile T. Roy\\[2pt]
+  \small Consulting Manao GmbH, Austria\\
+  \small \href{https://orcid.org/0000-0001-9816-1416}{ORCID: 0000-0001-9816-1416}
+}
+
+\date{July 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Open-source projects still lack an auditable, community-weighted record of
+which commits are \emph{released} or \emph{revoked}.
+CVE-2024-3094 showed maintainer capture can beat pipeline
+attestation~\citep{cve2024xz,wolves2025xz}; TUF, in-toto, Sigstore, and SLSA
+trace artefacts to source revisions~\citep{tuf,in_toto,newman2022sigstore,slsa}
+but record no equivalent governance outcome.
+\tansu{} closes that gap with Soroban contracts on Stellar
+that store maintainer lists, commit hashes, weighted outcomes, and IPFS pointers
+to SBOMs, CVE reports, and attestations keyed by commit. Ballots may be public
+or hidden behind Pedersen commitments over BLS12-381, with the weighted tally
+verified on-chain. Members may bind a Git SSH key to their Stellar account at
+registration. On Stellar mainnet the contracts administer the Public Goods
+Award; anonymous mode still depends on a designated tallying party for ballot
+secrecy.
+
+\medskip
+\noindent\textbf{Keywords:} decentralized governance; open-source software;
+software supply chain; anonymous voting; smart contracts; Stellar
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Most software still pulls code from a central forge. Compromise the
+maintainer account or CI job and you can ship malicious releases without
+touching the provenance tooling downstream users trust. Ohm et al.\ counted
+174 malicious packages on npm, PyPI, and RubyGems over four
+years~\citep{ohm2020backstabber}; Ladisa et al.\ later listed 107 attack
+vectors across the open-source supply chain~\citep{ladisa2023taxonomy}. The
+2024 XZ Utils incident is a sharper example: the attacker spent years earning
+maintainer access and only then planted the
+backdoor~\citep{cve2024xz,wolves2025xz}.
+
+Artifact signing and pipeline attestation are necessary, but the XZ attack
+exploited maintainer trust rather than missing signatures. Section~\ref{sec:related}
+surveys TUF, in-toto, Sigstore, and SLSA; none stores a project vote that
+marks a commit as \emph{released} or \emph{revoked}.
+
+A separate risk is operational. Sigstore entries are published through operated
+services such as Rekor and Fulcio~\citep{newman2022sigstore,sigstore_rekor};
+TUF deployments rely on maintained metadata mirrors; the global CVE namespace
+is curated under a U.S.\ government contract with
+MITRE~\citep{cveprogram}. In April 2025 MITRE warned that CVE program funding
+was about to lapse, which would have halted new assignments until CISA granted
+a short extension~\citep{mitre_cve_funding2025}. Neither case is on-chain
+fraud, but both show how much of the stack can pause when a single operator or
+sponsor falters. \tansu{} does not replace those registries; it records project
+votes and evidence pointers on a public ledger where, once written, the anchors
+are replicated with the chain rather than held behind one vendor's uptime.
+
+\tansu{} fills that gap with Soroban contracts written in
+Rust~\citep{stellar_soroban}. Source code remains on conventional git forges
+(GitHub, GitLab, Codeberg, Gitea, Bitbucket, Radicle, and others); the
+ledger stores registrations, maintainer lists, commit hashes, proposals, votes,
+and outcomes that any observer can read from public ledger data. We describe
+contract layout, anonymous voting, commit-anchored evidence, and the Public
+Goods Award deployment on mainnet.
+
+Within those contracts, code finality attaches trust states to commits through
+weighted votes; maintainers record SBOM, CVE, and attestation CIDs per commit
+hash; anonymous voting hides individual choices behind Pedersen commitments
+while verifying the aggregate tally on-chain; and member registration checks an
+SSH signature against SEP-53. The contracts are deployed on Stellar
+mainnet~\citep{stellar_expert_tansu}.
+
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Supply-chain provenance.}
+The Update Framework introduced survivable key compromise for software update
+systems~\citep{tuf} and underpins several package managers. in-toto extends
+provenance to whole pipelines by having each step sign metadata about its
+inputs and outputs~\citep{in_toto}. Sigstore removes long-lived signing keys
+by binding ephemeral certificates to OpenID
+identities~\citep{newman2022sigstore}, and SLSA defines provenance levels that
+build systems can claim and verify~\citep{slsa}. In practice, consumers still
+reach much of this material through operated registries: Sigstore's transparency
+log~\citep{sigstore_rekor}, TUF metadata hosts, and the CVE program run by
+MITRE under federal contract~\citep{cveprogram,mitre_cve_funding2025}. When
+those services pause or their funding is uncertain, downstream tools lose a
+shared reference even though the underlying signatures may still exist
+offline.
+
+\paragraph{Cryptographic voting.}
+Helios demonstrated practical open-audit elections on the
+web~\citep{adida2008helios}. The Open Vote Network implemented a
+self-tallying, maximally private boardroom protocol as an Ethereum
+contract~\citep{mccorry2017smart}. Both target a different deployment model
+than a live governance contract with badge-weighted votes and collateral
+deposits.
+
+\paragraph{On-chain governance.}
+Snapshot provides off-chain, gasless voting for token
+communities~\citep{snapshot}, and OpenZeppelin's Governor contracts are widely
+used for on-chain DAO governance on
+Ethereum~\citep{openzeppelin_governor}. Fritsch et al.\ found voting power in
+major DAOs concentrated in a handful of
+addresses~\citep{fritsch2024dao}. Spychiger et al.\ ran a controlled DAO
+experiment for project management~\citep{spychiger2023dapo}.
+
+\tansu{} sits between the last two groups. Governance runs on-chain, and a
+passed proposal can write a commit hash into contract state. Weights come from
+maintainer badges or Neural Quorum Governance scores rather than token
+balances. Evidence and votes are indexed by commit alongside the provenance
+artefacts that TUF, in-toto, Sigstore, and SLSA help produce. Table~\ref{tab:comparison}
+summarises how \tansu{} differs from adjacent governance and provenance systems.
+
+\begin{table}[t]
+\centering
+\caption{Comparison with adjacent provenance and governance systems. Provenance
+frameworks trace build artefacts; governance platforms record votes. Sigstore,
+TUF mirrors, and the CVE program depend on operated registries whose uptime is
+not guaranteed~\citep{sigstore_rekor,mitre_cve_funding2025}. \tansu{}
+combines on-chain governance with commit-keyed evidence anchors.}
+\label{tab:comparison}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+System & On-chain & Commit & Evidence & Private \\
+       & governance & anchor & per commit & ballots \\
+\midrule
+TUF~\citep{tuf} & -- & -- & -- & -- \\
+in-toto~\citep{in_toto} & -- & partial & attestations & -- \\
+Sigstore~\citep{newman2022sigstore} & -- & partial & signatures & -- \\
+Snapshot~\citep{snapshot} & off-chain & -- & -- & -- \\
+OpenZeppelin Governor~\citep{openzeppelin_governor} & yes & -- & -- & -- \\
+\textbf{\tansu{}} & yes & yes & yes & optional \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{System overview}
+\label{sec:overview}
+
+\tansu{} consists of a main governance contract and an auxiliary membership
+contract, both written in Rust against the Soroban SDK, plus a web client,
+command-line tooling, and continuous-integration recipes. The code is
+released under the BSD 3-Clause License~\citep{tansu_repo}.
+
+\noindent\textbf{Architecture.}
+The forge stays the forge: Git history, pull requests, and review threads are
+not copied to the chain. On-chain state is limited
+to the facts a third party needs to audit governance---maintainer addresses,
+the current commit hash, proposal metadata, vote weights, and results.
+Proposal bodies, member profiles, and evidence files reside on IPFS while the
+contract stores only their CIDs. Each state transition emits an event, so
+indexers can reconstruct the full history even when the contract retains only
+the latest value, such as the current commit hash.
+
+\paragraph{Projects and commits.}
+A project registers under a short name; the contract derives its key as the
+Keccak-256 hash of the name and stores the maintainer set, the forge URL, and
+the CID of a metadata file. Registration requires a collateral deposit, which
+deters name squatting. Any maintainer can then update the project's current
+commit hash. The contract keeps only the latest hash and emits an event per
+update, so the full sequence of attested hashes remains recoverable from the
+event stream.
+
+\paragraph{Membership and voting weight.}
+Members register themselves with a profile CID. Maintainers assign
+per-project badges that determine the maximum voting weight of a member
+(Table~\ref{tab:badges}). Alternatively, a proposal can be token-based, in
+which case weight equals the amount of a designated token the voter locks
+for the duration of the vote. A third mode delegates weights to an external
+contract: for the Stellar Community Fund deployment, weights come from Neural
+Quorum Governance (NQG) scores queried live from the fund's scoring contract,
+with a minimum threshold that restricts voting to community
+pilots~\citep{pg_award_proposer}. A separate soulbound NFT contract (SEP-50
+\citep{sep50}) exposes each member's role and NQG score as token traits.
+
+\begin{table}[t]
+\centering
+\caption{Badge types and their voting weights in the main contract.}
+\label{tab:badges}
+\begin{tabular}{lr}
+\toprule
+Badge & Weight \\
+\midrule
+Developer & $10{,}000{,}000$ \\
+Triage    & $5{,}000{,}000$ \\
+Community & $1{,}000{,}000$ \\
+Verified  & $500{,}000$ \\
+Default (no badge) & $1$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Proposals and code finality.}
+A proposal carries a title, the CID of its full text, a voting deadline, and
+optionally a list of \emph{outcome contracts}: cross-contract calls executed
+when the proposal is approved, rejected, or cancelled. Code finality uses this
+hook. A project defines trust states for its releases (for example
+\emph{released}, \emph{security-reviewed}, or \emph{revoked}) and records each
+state change against a commit hash through a proposal whose outcome contract
+writes the new state. The decision rule is a supermajority. With weighted
+tallies $T_a$, $T_r$, and $T_{ab}$ for approve, reject, and abstain, a
+proposal passes only if $T_a > T_r + T_{ab}$, is rejected only if
+$T_r > T_a + T_{ab}$, and is cancelled otherwise.
+Execution waits for a timelock after the voting deadline. Proposal creation and
+voting require collateral deposits refunded on execution; maintainers may revoke
+a malicious proposal or remove an abusive vote and withhold the collateral.
+They may also bar addresses with a declared conflict of interest from voting on
+a specific proposal.
+
+\section{Commit-anchored evidence}
+\label{sec:evidence}
+
+SBOMs, CVE write-ups, and attestation bundles still reach users through
+release pages, mailing lists, and vendor portals, where they are scattered and
+difficult to audit after publication. Central registries compound the problem:
+if Sigstore's log or the CVE feed is unreachable, consumers lose the default
+discovery path even when a project already has the document. \tansu{} assigns
+each project-maintained document a fixed on-chain slot keyed by the commit it
+describes. The slot stores a CID and timestamp on the ledger; anyone can read
+that anchor from chain history without asking a particular operator to stay
+online.
+
+The contract exposes two functions. A maintainer calls \texttt{set\_evidence}
+with a project key, a commit hash, an evidence kind, and a CID; anyone calls
+\texttt{get\_evidence} to retrieve the recorded history for a given commit
+and kind. Three kinds are supported: \texttt{Sbom} for software
+bills of materials (e.g., CycloneDX~\citep{cyclonedx} or
+SPDX~\citep{spdx} documents), \texttt{Cve} for vulnerability reports
+referencing CVE identifiers~\citep{cveprogram}, and \texttt{Attestation} for
+build attestations such as SLSA provenance bundles~\citep{slsa}. The
+evidence itself lives on IPFS; the contract stores only the CID and a
+timestamp.
+
+Evidence is append-only. Each call adds an entry to the history for the
+triple (project, commit, kind) rather than overwriting it, so successive
+vulnerability re-scans of the same commit accumulate: a commit that was clean
+at release time and gained a CVE report two years later carries both records.
+The contract keeps the most recent ten entries per triple; older entries roll
+off on-chain but remain recoverable from the emitted events, which indexers
+retain in full.
+
+\noindent
+In our own repository, a continuous-integration workflow generates an SBOM on
+every release tag, uploads it to IPFS, and records the CID on-chain in the
+same run. A single query against the contract
+and an IPFS gateway returns the release commit, its SBOM, and any posted
+attestations without depending on the forge remaining available or trustworthy.
+
+The contract records who published each entry and when; only maintainers can
+write. It does not parse SBOM syntax, check CVE applicability, or walk an
+attestation chain, and it does not require the commit to be the project's
+current head, so historical commits remain valid targets. Consumers perform
+that validation off-chain. On-chain, the contract provides an append-only,
+tamper-evident log of what the project asserted about each commit: later
+maintainers cannot silently rewrite an earlier entry, though they can add new
+ones.
+
+\section{Anonymous voting}
+\label{sec:voting}
+
+Public voting is the default and requires no cryptography: votes are posted in
+the clear and tallied by the contract. Funding rounds and personnel votes in
+the Public Goods Award required ballot secrecy that public tallies could not
+provide. \tansu{}'s anonymous mode never publishes individual choices, yet the
+aggregate tally is still verified on-chain.
+
+\paragraph{Setup.}
+A maintainer configures anonymous voting once per project. The contract
+derives two generators $G$ and $H$ of the BLS12-381 $\mathbb{G}_1$ group by
+hashing two fixed labels to the curve under distinct domain-separation tags.
+No discrete-logarithm relation between $G$ and $H$ is known to any party, and
+no trusted setup is required. The maintainer also registers a project-level
+RSA-OAEP public key (2048-bit, SHA-256) used to encrypt ballot payloads
+client-side.
+
+\paragraph{Ballots.}
+A ballot is a one-hot vector $v = (v_a, v_r, v_{ab}) \in \{0,1\}^3$ over the
+choices approve, reject, abstain. For each component $i$ the voter samples a
+random seed $r_i$ and computes a Pedersen commitment~\citep{pedersen}
+\begin{equation}
+C_i = v_i\, G + r_i\, H .
+\label{eq:commitment}
+\end{equation}
+The voter submits the three commitments together with RSA-OAEP ciphertexts of
+$v$ and $r$ under the project public key. The contract checks that each $C_i$ is a
+valid point in the prime-order subgroup of $\mathbb{G}_1$, stores the
+ciphertexts without processing them, and folds the weighted commitments into
+running aggregates
+\begin{equation}
+A_i \;\leftarrow\; A_i + w\, C_i ,
+\label{eq:aggregate}
+\end{equation}
+where $w$ is the voter's weight at the time of the vote. Commitments are
+computed client-side; the contract offers the same computation as a read-only
+simulation helper, which must never be submitted as a transaction.
+
+\paragraph{Tally and verification.}
+After the deadline, the tallying party (a maintainer holding the decryption
+key) decrypts all ballots and computes the weighted sums
+$T_i = \sum_j w_j\, v_{j,i}$ and $S_i = \sum_j w_j\, r_{j,i}$. It submits
+$(T, S)$ to the contract, which accepts the tally if and only if
+\begin{equation}
+T_i\, G + S_i\, H \;=\; A_i \qquad \text{for } i \in \{a, r, ab\}.
+\label{eq:verify}
+\end{equation}
+By the homomorphism of \eqref{eq:commitment}, equation \eqref{eq:verify}
+holds exactly when the submitted tallies are consistent with every recorded
+ballot; under the discrete-logarithm assumption the commitments are binding,
+so the tallying party cannot substitute a different result. The seeds provide
+information-theoretic hiding, so the commitments reveal nothing about
+individual choices. The supermajority rule of Section~\ref{sec:overview} is
+then applied to $T$.
+
+\paragraph{Trust model.}
+Ballot privacy is not trustless in this mode. The tallying key holder can
+decrypt individual votes and can stall execution by refusing to submit
+$(T,S)$; lost keys freeze a proposal. The chain nonetheless enforces that any
+announced tally matches the recorded commitments, which a trusted tallier
+without cryptographic checks could falsify. In practice we rotate who holds
+the key, and public voting remains available when the threat model permits it.
+
+\section{Git identity binding}
+\label{sec:identity}
+
+Votes count on Stellar addresses while patches land under Git handles. Members
+bind the two during \texttt{add\_member} or \texttt{update\_member} by
+submitting a forge handle, an Ed25519 public key, a challenge message, and an
+SSH signature over that message per SEP-53~\citep{sep53}. The contract invokes
+the native Ed25519 verifier; on success it stores the handle and key and emits
+an event.
+
+The signature proves key possession at registration time. Matching the key to
+the handle is left to clients: GitHub publishes
+\texttt{github.com/\textless{}user\textgreater{}.keys}, GitLab provides an
+equivalent endpoint, and Radicle aliases in \texttt{tansu.toml} can be checked
+against repository metadata. Anyone can compare the result. The contract does not
+call a forge API.
+
+\section{Deployment and adoption}
+\label{sec:deployment}
+
+\tansu{} runs on Stellar mainnet~\citep{stellar_expert_tansu}. The contract
+reports version~2; upgrades are gated by an M-of-N admin threshold and a
+timelock. Development was funded through the Stellar Community Fund's
+Activation and Build tracks~\citep{scf_rec_activation, scf_rec_build}.
+
+Its main production workload is the Public Goods Award: proposal submission,
+NQG-weighted voting, and outcome execution on
+\tansu{}~\citep{pg_award_overview,pg_award_tansu_mods,pg_award_proposer}.
+Contract changes for that process were funded
+separately~\citep{scf_rec_pg}. The project also participates in Drips
+Wave~\citep{drips_wave_docs}, a recurring funding programme for open-source
+contributors, and each release tag in our repository triggers the evidence
+workflow of Section~\ref{sec:evidence}.
+
+\subsection{Evaluation}
+\label{sec:evaluation}
+
+The mainnet contract address is listed on Stellar
+Expert~\citep{stellar_expert_tansu}; \texttt{version()} returns~2. Contract
+source, client code, and integration tests are available in the public
+repository~\citep{tansu_repo}. Proposals, votes, evidence entries, and commit
+updates each emit events, so the history is reconstructible from ledger
+archives without privileged access.
+
+The Public Goods Award is the primary production workload on that contract.
+Table~\ref{tab:pg-award} reports round outcomes verified against intake records
+in the working-group repository~\citep{pg_award_intake,pg_award_overview}.
+Seventeen projects received funding; total disbursement was approximately
+USD~400{,}000. Individual proposal text, vote tallies, and execution
+transactions remain on-chain and in the archived intake forms cited above.
+
+\begin{table}[t]
+\centering
+\caption{Public Goods Award outcomes (verified from intake records in the
+working-group repository~\citep{pg_award_intake}).}
+\label{tab:pg-award}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Funded projects & 17 \\
+Total disbursed & ${\sim}$USD~400{,}000 \\
+Governance contract & mainnet v2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations}
+\label{sec:limitations}
+
+Anonymous voting trusts the tallying party for ballot secrecy
+(Section~\ref{sec:voting}). Commit hashes reflect whatever maintainers post; a
+dishonest quorum could misstate the current head, and the contract would not
+detect the discrepancy unless a client compared against the forge. Evidence CIDs
+are not validated, so a maintainer can anchor arbitrary content. Bulk files
+still depend on IPFS pinning; the chain records pointers, not bytes, and does
+not replace the CVE program or Sigstore---it complements them when operated
+registries are slow or unavailable. Badge assignment, NQG scores, and NFT
+admission all sit upstream of the contracts: the chain records who granted whom
+weight, not whether that weight was justified.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+\tansu{} records on Stellar what a forge cannot: weighted votes, commit
+pointers, and evidence references tied to specific revisions. The Public Goods
+Award deployment funded seventeen projects for roughly USD~400{,}000, with
+intake records published in the working-group
+repository~\citep{pg_award_intake}. Provenance frameworks trace build
+artefacts to source; \tansu{} adds a governance vote and document index on the
+same commit hash. Open items include threshold decryption for anonymous
+voting, more evidence kinds, and finer-grained turnout statistics.
+
+\section*{Acknowledgements}
+
+Funded by the Stellar Community Fund (Activation and Build tracks). Thanks to
+the Public Goods Award working group for running the first production
+workload on the contracts. Parts of the web client and this manuscript were
+edited with generative AI tools; the smart contracts were not.
+
+\bibliographystyle{plainnat}
+\bibliography{paper}
+
+\end{document}

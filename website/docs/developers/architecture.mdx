@@ -25,7 +25,7 @@ The Soroban contract handles all on-chain features of the projects from registra
 
 When maintainers register their projects, a unique hash based on the project name is created. This serves as a `project_key` to uniquely identify a project and is stored as a data entry on the ledger.
 
-Behind the scene, it uses [Soroban Domain](https://sorobandomains.org/) to prevent name squatting and malicious registrations. The community has tools to report issues and prevent contract misuse.
+Behind the scene, registration locks a **5 XLM collateral deposit** (via the configured collateral token) and checks that the project name is unique on-chain. Misuse or impersonation can be reported and addressed through governance, including collateral forfeiture.
 
 Each project stores these elements on-chain:
 
@@ -83,7 +83,7 @@ The contract emits events for all state changes:
 **Admin Events:**
 
 - `ContractPaused` - Contract paused or unpaused
-- `ContractUpdated` - Domain or collateral contract changed
+- `ContractUpdated` - Collateral contract changed
 - `UpgradeProposed` - Contract upgrade proposed
 - `UpgradeApproved` - Upgrade approval recorded
 - `UpgradeStatus` - Upgrade executed or cancelled
@@ -109,7 +109,7 @@ Tansu uses IPFS for decentralized content storage:
 
 The dApp provides essential project management features.
 
-Built with Astro, `stellar-wallets-kit`, and `sorobandomains-sdk`. The dApp is fully non-custodial and never accesses private keys.
+Built with Astro and `stellar-wallets-kit`. The dApp is fully non-custodial and never accesses private keys.
 
 Maintainers can handle all aspects of their projects: add or remove maintainers, update metadata, and set commit hashes.
 

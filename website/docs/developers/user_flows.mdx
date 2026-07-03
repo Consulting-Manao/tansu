@@ -26,7 +26,7 @@ flowchart TD
     K["Horizon / RPC"]
   end
   subgraph External
-    L["GitHub Raw Content"]
+    L["Repository metadata"]
     M["IPFS"]
   end
 
@@ -47,7 +47,7 @@ flowchart TD
 
 ### Overview
 
-Maintainers register projects with domain verification and metadata storage.
+Maintainers register projects with a collateral deposit, name uniqueness check, and metadata storage.
 
 ### Flow Diagram
 
@@ -56,22 +56,21 @@ sequenceDiagram
   participant U as User
   participant W as Wallet
   participant D as dApp
-  participant SD as SorobanDomains
   participant IPFS as IPFS
   participant SC as SorobanContract
 
   U->>W: Connect Wallet
   W->>D: Provide Address
   U->>D: Fill Project Form
-  D->>SD: Check Domain Availability
-  SD-->>D: Domain Status
+  D->>SC: Check Name Availability
+  SC-->>D: Name Status
   U->>D: Submit Registration
   D->>IPFS: Upload tansu.toml
   IPFS-->>D: Return CID
   D->>W: Sign register() Transaction
+  Note over W,SC: Locks 5 XLM collateral
   W-->>D: Signed Transaction
   D->>SC: Submit Transaction
-  SC->>SD: Verify Domain Ownership
   SC-->>D: Registration Success
   D->>U: Show Success
 ```
@@ -82,7 +81,7 @@ sequenceDiagram
 
 - **CreateProjectModal**: Multi-step form with validation
 - **FlowService.createProjectFlow()**: Orchestrates the registration process
-- **Domain Validation**: Real-time domain availability checking
+- **Name validation**: Real-time name availability checking via contract
 
 #### Validation Steps
 
@@ -93,7 +92,8 @@ sequenceDiagram
 
 #### Security Features
 
-- **Domain Squatting Prevention**: Integration with Soroban Domains
+- **Collateral deposit**: 5 XLM locked on registration
+- **Name uniqueness**: On-chain check prevents duplicate project names
 - **Input Sanitization**: All user inputs sanitized against XSS
 - **Transaction Simulation**: All contract calls simulated before signing
 - **IPFS Integrity**: CID verification ensures uploaded content matches
@@ -101,7 +101,7 @@ sequenceDiagram
 ### Error Handling
 
 - **Network Failures**: Graceful retry mechanisms with exponential backoff
-- **Domain Conflicts**: Clear error messages with alternative suggestions
+- **Name conflicts**: Clear error messages when the project name is already taken
 - **Transaction Failures**: Detailed error parsing from contract responses
 - **IPFS Failures**: Automatic retries with fallback error states
 
@@ -252,9 +252,11 @@ sequenceDiagram
 
 ### Badge System
 
-- **Role Badges**: Developer, Designer, Auditor, Community Manager
-- **Achievement Badges**: Contributor, Reviewer, Bug Hunter
-- **Custom Badges**: Project-specific roles and achievements
+Contract badges (see [Membership & Badges](./membership.mdx)):
+
+- **Developer**, **Triage**, **Community**, **Verified**, **Default**
+
+Voting weight may also come from locked tokens (token-weighted proposals) or from the NQG contract (SCF Public Goods project).
 
 ---
 
@@ -270,12 +272,12 @@ Maintainers can update project commit hashes to track code versions on-chain. Th
 sequenceDiagram
   participant M as Maintainer
   participant D as dApp
-  participant GH as GitHub
+  participant R as Repository
   participant SC as SorobanContract
 
   M->>D: Update Commit Hash
-  D->>GH: Verify Commit Exists
-  GH-->>D: Commit Verification
+  D->>R: Verify Commit Exists
+  R-->>D: Commit Verification
   M->>SC: Submit commit()
   SC-->>D: Commit Updated
   D->>M: Show Success
@@ -283,7 +285,7 @@ sequenceDiagram
 
 ### Commit Verification
 
-- **GitHub API Integration**: Verify commit hashes exist in specified repository
+- **Repository provider integration**: Verify commit hashes via hosted forge APIs or Radicle seed (GitHub, GitLab, Bitbucket, Codeberg, Gitea, Radicle)
 - **Hash Format Validation**: Ensure 40-character hexadecimal format
 - **Authorization Check**: Only project maintainers can update commits
 

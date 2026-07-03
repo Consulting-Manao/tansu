@@ -79,6 +79,20 @@ make contract_set_evidence kind=cve commit=<hash> file=artifacts/trivy-results.j
 make contract_get_evidence commit=<hash>
 ```
 
+## Release workflow
+
+```mermaid
+flowchart LR
+  Tag["Release tag v*"] --> Trivy["Trivy: SPDX + CycloneDX"]
+  Trivy --> IPFS["Upload to IPFS"]
+  IPFS --> CID["Directory CID"]
+  CID --> Invoke["set_evidence kind=Sbom"]
+  Invoke --> Chain["Tansu contract"]
+```
+
+On every version tag, CI generates SBOMs with Trivy, pins the bundle on IPFS
+(Filebase), and records the directory CID on-chain via `set_evidence`.
+
 ## CI workflow
 
 `.github/workflows/sbom.yml` already generates the SBOM and pins it to IPFS on version tags (`v*`) and on demand (`workflow_dispatch`). A small follow-up `record-evidence` job reuses that artifact's CID and records it on-chain with a single `set_evidence` call — it does not regenerate anything.
@@ -117,7 +131,7 @@ Then run artifact-specific checks:
 
 - **SBOM** — inspect the CycloneDX JSON with your SBOM tooling.
 - **CVE** — inspect the Trivy JSON output.
-- **Attestation** — the CID points to a directory holding the Sigstore bundle and its trust anchor, so verification is fully offline (no GitHub round-trip):
+- **Attestation** — the CID points to a directory holding the Sigstore bundle and its trust anchor, so verification is fully offline (no forge round-trip):
 
   ```bash
   ipfs get "$CID" -o attestation

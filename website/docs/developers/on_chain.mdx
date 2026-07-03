@@ -8,7 +8,7 @@ The Stellar smart contract can be directly used and inspected either using an ex
 
 ## Typical flow
 
-The first step is to register a project by providing some information. This will notably check that the maintainer doing this action owns a [Soroban Domain](https://sorobandomains.org/) for the project's name. If that's not the case, it will attempt to register one for a year.
+The first step is to register a project by providing some information. This requires a **5 XLM collateral deposit** and checks that the project name is unique on-chain.
 
 ```bash
 stellar contract invoke \
@@ -23,6 +23,8 @@ stellar contract invoke \
 	--url https://github.com/your_project \
 	--ipfs QmYourTansuTomlCID...
 ```
+
+`--url` accepts any supported git forge URL (GitHub, GitLab, Bitbucket, Codeberg, Gitea, …) or a Radicle identifier (`rad:<RID>`).
 
 ![Contract on-chain](/assets/docs/contract.png)
 

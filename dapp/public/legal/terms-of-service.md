@@ -39,11 +39,11 @@ To help you understand these Terms, we've defined key terms used throughout this
 
 **Smart Contract**: Self-executing contracts deployed on the Stellar blockchain that govern platform operations.
 
-**Soroban Domains**: A naming service on Stellar that prevents project name squatting and ensures authenticity.
+**Registration Collateral**: A 5 XLM deposit locked on-chain when registering a project, refundable under normal use and subject to governance forfeiture for misuse.
 
 **Stellar Network**: The decentralized blockchain network on which Tansu operates.
 
-**Voting Weight**: The influence a member has in governance decisions, determined by their assigned badges.
+**Voting Weight**: The influence a member has in governance decisions, determined by badges (default), locked tokens (token-weighted proposals), or NQG scores (SCF Public Goods project).
 
 **Wallet**: A third-party application that manages Stellar accounts and private keys.
 
@@ -63,7 +63,7 @@ To use Tansu's services, you must meet the following requirements:
 
 Tansu provides a comprehensive governance platform with the following core functionalities:
 
-**Project Registration**: On-chain project tracking with domain integration, commit hash verification, and maintainer management. Note: Project registration fees are handled by Soroban Domains, not Tansu.
+**Project Registration**: On-chain project tracking with a 5 XLM collateral deposit, unique project name, commit hash verification, and maintainer management.
 
 **Membership System**: Community registration with badge-based roles, voting weight assignment, and profile management.
 
@@ -102,7 +102,7 @@ You acknowledge and accept the following risks:
 
 **Cryptocurrency Volatility**: XLM prices fluctuate significantly.
 
-**Network Dependencies**: Services rely on Stellar Network, IPFS, Soroban Domains, and other third-party services beyond our control.
+**Network Dependencies**: Services rely on Stellar Network, IPFS, git forge APIs, and other third-party services beyond our control.
 
 **Smart Contract Risks**: Contracts may contain bugs or unexpected behavior.
 
@@ -195,15 +195,15 @@ You acknowledge and accept the following risks:
 
 **Appeals**: Revocation decisions are final and cannot be appealed through our platform.
 
-### 8.3 Soroban Domains Escalation
+### 8.3 Registration Collateral and Name Disputes
 
-**Domain Disputes**: For projects using Soroban Domains, disputes may be escalated to the Soroban Domains system.
+**Collateral Deposit**: Project registration locks a 5 XLM collateral deposit via the Tansu smart contract.
 
-**Domain Authority**: Soroban Domains maintainers have ultimate authority over domain-related decisions.
+**Misuse and Impersonation**: Governance processes may address reports of misuse, impersonation, or Terms violations, including collateral forfeiture.
 
-**Platform Compliance**: We will comply with Soroban Domains decisions regarding domain ownership and usage.
+**Name Uniqueness**: Project names are unique on-chain identifiers (up to 15 characters). Disputes over project identity or maintainer authority are resolved through governance and maintainer actions described in this section, not through a separate domain registrar.
 
-**Registration Fees**: Project registration fees and related costs are handled by Soroban Domains, not Tansu. We are not responsible for Soroban Domains' fee structure or payment processing.
+**Registration Fees**: The collateral deposit is defined and enforced by the Tansu smart contract, not by third-party naming services.
 
 ## 9. Intellectual Property
 
@@ -327,7 +327,7 @@ See Section 7 for technical details on content removal limitations.
 
 - **Project Deletion**: Removing projects from the platform for Terms violations, legal compliance, court orders, or regulatory requirements
 - **Project Suspension**: Temporarily disabling projects pending investigation or dispute resolution
-- **Maintainer Changes**: Modifying project maintainer lists to resolve disputes, comply with Soroban Domains decisions, or address security concerns
+- **Maintainer Changes**: Modifying project maintainer lists to resolve disputes, address impersonation reports, or address security concerns
 
 **Proposal Management**:
 
@@ -412,11 +412,9 @@ Our platform integrates with various third-party services:
 
 - Privacy Policy: https://storacha.com/privacy
 
-**Soroban Domains**: Domain name registration
+**Git forges** (GitHub, GitLab, Bitbucket, Codeberg, Gitea, Radicle): Code hosting and version control — subject to each provider's terms
 
-- Privacy Policy: https://sorobandomains.com/privacy
-
-**GitHub**: Code hosting and version control
+**GitHub**: Example code hosting provider
 
 - Privacy Policy: https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
 

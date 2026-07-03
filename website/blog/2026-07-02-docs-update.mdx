@@ -1,0 +1,31 @@
+---
+slug: docs-update-collateral-forges-weights
+title: "Docs catch-up: collateral registration, multi-forge, voting weights"
+date: 2026-07-02
+authors: pamphile
+tags: [docs, dao]
+---
+
+We refreshed the product docs to match what the contracts and dApp actually do today. Three themes if you have not visited in a while.
+
+{/* truncate */}
+
+## Collateral, not domains
+
+Project registration locks **5 XLM collateral** and checks that the name is unique on-chain. We removed the old Soroban Domains narrative from the docs and terms — that integration is gone from the registration path.
+
+Start here: [Register a new project](/docs/new_project) and [On-chain registration](/docs/developers/on_chain).
+
+## Any forge you already use
+
+The dApp accepts **GitHub, GitLab, Bitbucket, Codeberg, Gitea, and Radicle** repository URLs (plus `rad:<RID>` for Radicle). Commit links and metadata fetching are provider-aware; you are not stuck on GitHub.
+
+See [User flows](/docs/developers/user_flows) and the [Tansu information file](/docs/developers/project_information_file) for `tansu.toml` field notes.
+
+## Three ways to weigh a vote
+
+Default projects use **badge weights** (`Developer`, `Triage`, `Community`, `Verified`, `Default`). Proposals can opt into **token-weighted** voting by passing a token contract at creation. The SCF Public Goods deployment uses **NQG scores** via a dedicated project key.
+
+The table and CLI examples live in [Membership & Badges](/docs/developers/membership); governance execution rules are in [Governance & Proposals](/docs/developers/governance).
+
+Historical blog posts from 2024–2025 are unchanged — they reflect what we shipped at the time. These docs are the current source of truth.

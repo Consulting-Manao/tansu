@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Membership & Badges
 
-The smart-contract powering Tansu keeps track of community members **on-chain** and assigns them _badges_. These badges are more than simple labels – they carry a **numerical weight** that is later used for weighted voting inside a project's DAO.
+The smart-contract powering Tansu keeps track of community members **on-chain** and assigns them _badges_. These badges are more than simple labels – they carry a **numerical weight** that is used for weighted voting in the default governance mode.
 
 ## Registering as a member
 
@@ -30,7 +30,7 @@ The dApp will automatically render this information in the **Member profile** mo
 
 ## Badges
 
-Maintainers can assign one or several badges to a member for a given project. Badges are stored on-chain and influence the maximum weight a member's vote can carry.
+Maintainers can assign one or several badges to a member for a given project. Badges are stored on-chain and influence the maximum weight a member's vote can carry in **badge-based** proposals.
 
 | Badge     | Weight     | Typical use-case                |
 | --------- | ---------- | ------------------------------- |
@@ -61,12 +61,30 @@ stellar contract invoke \
 
 The dApp exposes a convenient **"Add badge"** modal that wraps this call.
 
+## Voting weight modes
+
+Effective vote weight depends on the proposal type and project configuration. The contract's `get_max_weight` helper applies to badge-based and NQG-weighted projects; token-based proposals use a different path at vote time.
+
+| Mode | When it applies | How weight is determined |
+| ---- | --------------- | ---------------------- |
+| **Badge-based** | Default; `create_proposal` with `token_contract: None` on a normal project | Sum of assigned badge enum values (default **1** if unregistered or no badges) |
+| **Token-based** | `create_proposal` passes a `token_contract` | Voter chooses `weight` in whole token units (locked as collateral); badge cap is skipped |
+| **NQG contract** | Project key matches admin-configured `NqgProjectKey` (SCF Public Goods deployment) | `get_max_weight` calls the external NQG contract; returns **0** if score ≤ 4M (pilots only) |
+
+### NQG contract weight
+
+One designated project — the Stellar Community Fund Public Goods Award deployment — uses live Neural Quorum Governance scores instead of badges. The Tansu admin configures the NQG contract via `set_nqg_contract`. Voters below the 4M score threshold receive zero weight (pilots only).
+
+### Token-based proposals
+
+When a proposal is created with a `token_contract`, voting weight equals the amount of tokens the voter locks as collateral, not `get_max_weight`. See [Governance & Proposals](./governance.mdx) for proposal creation and vote validation.
+
 ## Query helpers
 
 Smart-contract helpers make it easy to retrieve information:
 
 - `get_member` → full `Member` structure (projects + badges + meta)
 - `get_badges` → badge holders for a project
-- `get_max_weight` → compute effective voting weight for an address
+- `get_max_weight` → badge sum or NQG score depending on project; token proposals bypass this at vote time
 
 These endpoints are all used by the dApp and are public – anyone can call them from an RPC or another contract.

@@ -20,7 +20,7 @@ The web interface at [https://testnet.tansu.dev](https://testnet.tansu.dev) is t
 1. Go to **Projects ▶ Register**.
 2. Fill in:
 
-- **Name** – 15 characters max (must be available as a Soroban Domain)
+- **Name** – 15 characters max, unique on-chain
 - **Maintainers** – comma-separated list of Stellar addresses
 - **Metadata** – The rest is metadata such as the link to the code repository.
 
@@ -30,7 +30,7 @@ The dApp shows a **pending** status until the transaction is confirmed. Once don
 
 ## 3. Update your commit hash
 
-Inside a project page click **Set commit hash**, paste the 40-character Git commit SHA and sign. The commit is stored on-chain and displayed alongside a link to the corresponding GitHub commit.
+Inside a project page click **Set commit hash**, paste the 40-character Git commit SHA and sign. The commit is stored on-chain and displayed alongside a link to the corresponding commit on the project's registered repository.
 
 For an automated workflow, install the pre-push hook described in the [Git Hooks](developers/on_chain.mdx#git-hooks) section.
 
@@ -39,7 +39,7 @@ For an automated workflow, install the pre-push hook described in the [Git Hooks
 - **Add Member** – registers a contributor on-chain so they can receive badges.
 - **Add Badge** – maintainers can grant `Developer`, `Triage`, `Community`, `Verified` or `Default` badges to any member.
 
-See the [Membership](developers/membership.mdx) page for details.
+Badge weight is the default voting mode. Token-weighted proposals and NQG contract weight (for the SCF Public Goods project) are configured per proposal or per project — see [Membership](developers/membership.mdx).
 
 ## 5. Create a proposal
 

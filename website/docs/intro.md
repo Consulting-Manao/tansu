@@ -4,26 +4,26 @@ sidebar_position: 1
 
 # Welcome to Tansu!
 
-Tansu is a governance and versioning layer for open source projects, built on the Stellar blockchain. It brings transparency, security, and decentralized decision-making to software development by combining on-chain project tracking, a powerful DAO, and a flexible badge-based membership system.
+Tansu is a governance and versioning layer for open source projects, built on the Stellar blockchain. It brings transparency, security, and decentralized decision-making to software development by combining on-chain project tracking, a powerful DAO, and a flexible membership system.
 
 ## What is Tansu?
 
-Tansu complements platforms like GitHub by providing:
+Tansu complements **git forges** (GitHub, GitLab, Codeberg, Gitea, Bitbucket, Radicle, and others) by providing:
 
 - **On-chain project registration**: Projects are registered and tracked on Stellar, with commit hashes and metadata verifiable by anyone.
 - **Decentralized Autonomous Organization (DAO)**: Every project gets its own DAO, enabling maintainers and contributors to propose, vote, and execute decisions transparently.
-- **Badge-based membership**: Roles and voting power are managed through on-chain badges, reflecting real project contributions.
+- **Flexible voting weight**: Badges by default; optional token-weighted proposals; NQG contract scores for the SCF Public Goods deployment.
 - **Collateral-based registration**: Project creation requires a 5 XLM collateral deposit, preventing spam and name squatting.
 - **Open, auditable governance**: All actions—adding maintainers, updating metadata, voting—are recorded on-chain.
 
-## Distinction with GitHub
+## Distinction with git forges
 
-Tansu does not replace GitHub (or your preferred hosting solution) – it complements it. While GitHub excels at hosting, sharing code, and managing change requests, Tansu brings on-chain governance, versioning, and decentralized decision-making. In other words, Tansu adds a transparent, auditable layer for project governance and commit verification, so you can build with confidence on open source.
+Tansu does not replace your forge — it complements it. While GitHub, GitLab, Codeberg, and similar platforms excel at hosting code and managing change requests, Tansu brings on-chain governance, versioning, and decentralized decision-making. In other words, Tansu adds a transparent, auditable layer for project governance and commit verification, so you can build with confidence on open source.
 
 ## Key Features
 
 - **Project versioning**: Track and verify the latest commit hash for any project, with links to the canonical code repository.
-- **DAO proposals**: Submit, discuss, and vote on proposals (public or anonymous voting), with weighted votes based on badges.
+- **DAO proposals**: Submit, discuss, and vote on proposals (public or anonymous voting), with weighted votes (badges, tokens, or NQG scores).
 - **Membership & badges**: Register as a member, earn badges for your contributions, and participate in governance.
 - **Automated workflows**: Use Git hooks to sync commit hashes on-chain, and let the dApp handle signatures and wallet integration.
 - **Anonymous voting**: Advanced cryptographic voting with BLS12-381 commitments for privacy-preserving governance.
