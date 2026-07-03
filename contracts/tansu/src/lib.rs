@@ -62,7 +62,6 @@ pub trait MembershipTrait {
         git_identity: Option<String>,
         git_pubkey: Option<BytesN<32>>,
         git_sig: Option<BytesN<64>>,
-        git_namespace: Option<String>,
     );
 
     fn update_member(
@@ -72,7 +71,6 @@ pub trait MembershipTrait {
         git_identity: Option<String>,
         git_pubkey: Option<BytesN<32>>,
         git_sig: Option<BytesN<64>>,
-        git_namespace: Option<String>,
     );
 
     fn get_member(env: Env, member_address: Address) -> types::Member;

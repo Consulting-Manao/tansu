@@ -158,7 +158,6 @@ async function createSignedAddMemberTransaction(
     git_identity: gitIdentity?.gitIdentity ?? undefined,
     git_pubkey: gitIdentity?.gitPubkey ?? undefined,
     git_sig: gitIdentity?.gitSig ?? undefined,
-    git_namespace: gitIdentity?.gitNamespace ?? undefined,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -310,7 +309,6 @@ async function createSignedUpdateMemberTransaction(
     git_identity: undefined,
     git_pubkey: undefined,
     git_sig: undefined,
-    git_namespace: undefined,
   });
 
   checkSimulationError(tx as any);

@@ -31,7 +31,6 @@ impl MembershipTrait for Tansu {
         git_identity: Option<String>,
         git_pubkey: Option<BytesN<32>>,
         git_sig: Option<BytesN<64>>,
-        git_namespace: Option<String>,
     ) {
         Tansu::require_not_paused(env.clone());
 
@@ -47,15 +46,17 @@ impl MembershipTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::MemberAlreadyExist)
         }
 
-        if let Some(identity) = &git_identity {
-            let pubkey = git_pubkey.as_ref().unwrap_or_else(|| {
+        if git_identity.is_some() {
+            if git_pubkey.is_none() || git_sig.is_none() {
                 panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-            });
-            let sig = git_sig.as_ref().unwrap_or_else(|| {
-                panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-            });
-
-            verify_git_signature(&env, &member_address, pubkey, identity, sig, &git_namespace);
+            }
+            verify_git_signature(
+                &env,
+                &member_address,
+                git_pubkey.as_ref().unwrap(),
+                git_identity.as_ref().unwrap(),
+                git_sig.as_ref().unwrap(),
+            );
         }
 
         events::MemberAdded {
@@ -97,7 +98,6 @@ impl MembershipTrait for Tansu {
         git_identity: Option<String>,
         git_pubkey: Option<BytesN<32>>,
         git_sig: Option<BytesN<64>>,
-        git_namespace: Option<String>,
     ) {
         Tansu::require_not_paused(env.clone());
 
@@ -113,27 +113,20 @@ impl MembershipTrait for Tansu {
             Some(mut member) => {
                 member.meta = meta;
 
-                if let Some(identity) = &git_identity {
-                    let pubkey = git_pubkey.as_ref().unwrap_or_else(|| {
+                if git_identity.is_some() {
+                    if git_pubkey.is_none() || git_sig.is_none() {
                         panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-                    });
-                    let sig = git_sig.as_ref().unwrap_or_else(|| {
-                        panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-                    });
-
-                    // Verify the git signature. The member_address is embedded in
-                    // the signed message to prevent replay attacks.
+                    }
                     verify_git_signature(
                         &env,
                         &member_address,
-                        pubkey,
-                        identity,
-                        sig,
-                        &git_namespace,
+                        git_pubkey.as_ref().unwrap(),
+                        git_identity.as_ref().unwrap(),
+                        git_sig.as_ref().unwrap(),
                     );
 
-                    member.git_identity = Some(identity.clone());
-                    member.git_pubkey = Some(pubkey.clone());
+                    member.git_identity = git_identity.clone();
+                    member.git_pubkey = git_pubkey.clone();
                 }
 
                 env.storage().persistent().set(&member_key_, &member);
@@ -385,7 +378,6 @@ fn verify_git_signature(
     git_pubkey: &BytesN<32>,
     git_identity: &String,
     sig: &BytesN<64>,
-    git_namespace: &Option<String>,
 ) {
     let mut msg = Bytes::new(env);
     msg.append(&Bytes::from_slice(env, b"Stellar Signed Message:\n"));
@@ -396,15 +388,10 @@ fn verify_git_signature(
     let hash = env.crypto().sha256(&msg);
     let hash_bytes: [u8; 32] = hash.to_array();
 
-    let ns_bytes: soroban_sdk::Bytes = match git_namespace {
-        Some(ns) => ns.clone().into(),
-        None => soroban_sdk::Bytes::from_slice(env, b"file"),
-    };
-
     let mut tosign = Bytes::new(env);
     tosign.append(&Bytes::from_slice(env, b"SSHSIG"));
-    tosign.append(&Bytes::from_slice(env, &ns_bytes.len().to_be_bytes()));
-    tosign.append(&ns_bytes);
+    tosign.append(&Bytes::from_slice(env, &5u32.to_be_bytes()));
+    tosign.append(&Bytes::from_slice(env, b"tansu"));
     tosign.append(&Bytes::from_slice(env, &0u32.to_be_bytes()));
     tosign.append(&Bytes::from_slice(env, &6u32.to_be_bytes()));
     tosign.append(&Bytes::from_slice(env, b"sha256"));

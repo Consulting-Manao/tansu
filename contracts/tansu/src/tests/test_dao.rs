@@ -277,7 +277,7 @@ fn dao_anonymous() {
     let meta = String::from_str(&setup.env, "abcd");
     setup
         .contract
-        .add_member(&kuiil, &meta, &None, &None, &None, &None);
+        .add_member(&kuiil, &meta, &None, &None, &None);
     let badges = vec![&setup.env, Badge::Community];
     setup
         .contract
@@ -513,7 +513,7 @@ fn voting_errors() {
     let meta = String::from_str(&setup.env, "test");
     setup
         .contract
-        .add_member(&kuiil, &meta, &None, &None, &None, &None);
+        .add_member(&kuiil, &meta, &None, &None, &None);
 
     let err = setup
         .contract
@@ -633,7 +633,7 @@ fn proposal_execution() {
     let meta = String::from_str(&setup.env, "test");
     setup
         .contract
-        .add_member(&kuiil, &meta, &None, &None, &None, &None);
+        .add_member(&kuiil, &meta, &None, &None, &None);
     let badges = vec![&setup.env, Badge::Community];
     setup
         .contract
@@ -771,7 +771,7 @@ fn voter_weight_validation() {
     let meta = String::from_str(&setup.env, "test");
     setup
         .contract
-        .add_member(&kuiil, &meta, &None, &None, &None, &None);
+        .add_member(&kuiil, &meta, &None, &None, &None);
 
     // Cannot vote with weight higher than max allowed
     let err = setup
@@ -896,7 +896,7 @@ fn outcomes_execution() {
     let meta = String::from_str(&setup.env, "test");
     setup
         .contract
-        .add_member(&kuiil, &meta, &None, &None, &None, &None);
+        .add_member(&kuiil, &meta, &None, &None, &None);
     let badges = vec![&setup.env, Badge::Community];
     setup
         .contract
@@ -1248,7 +1248,7 @@ fn remove_vote_public_flips_outcome() {
     let meta = String::from_str(&setup.env, "rex");
     setup
         .contract
-        .add_member(&rex, &meta, &None, &None, &None, &None);
+        .add_member(&rex, &meta, &None, &None, &None);
     setup
         .contract
         .set_badges(&setup.mando, &id, &rex, &vec![&setup.env, Badge::Community]);
@@ -1317,7 +1317,6 @@ fn remove_vote_anonymous_flips_outcome() {
         &None,
         &None,
         &None,
-        &None,
     );
     setup.contract.set_badges(
         &setup.mando,
@@ -1331,7 +1330,6 @@ fn remove_vote_anonymous_flips_outcome() {
     setup.contract.add_member(
         &rex,
         &String::from_str(&setup.env, "rex"),
-        &None,
         &None,
         &None,
         &None,

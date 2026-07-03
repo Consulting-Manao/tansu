@@ -187,7 +187,7 @@ fn test_cost_add_member_and_badges() {
 
     setup
         .contract
-        .add_member(&new_member, &meta, &None, &None, &None, &None);
+        .add_member(&new_member, &meta, &None, &None, &None);
 
     let badges = vec![&setup.env, Badge::Verified];
     setup
@@ -231,12 +231,10 @@ fn test_cost_comprehensive_dao_workflow() {
         &None,
         &None,
         &None,
-        &None,
     );
     setup.contract.add_member(
         &member2,
         &String::from_str(&setup.env, "Member 2"),
-        &None,
         &None,
         &None,
         &None,
