@@ -14,7 +14,7 @@
         "@noble/curves": "^2.2.0",
         "@stellar/freighter-api": "^6.0.1",
         "@stellar/stellar-sdk": "^16.0.0",
-        "@stellar/stellar-xdr-json": "^26.0.0",
+        "@stellar/stellar-xdr-json": "^27.0.0",
         "astro": "^6.4.8",
         "astro-seo": "1.1.0",
         "axios": "^1.18.0",
@@ -1043,7 +1043,7 @@
 
     "@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.0.1", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.16.1", "base32.js": "^0.1.0", "bignumber.js": "^11.1.1", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-bxKohaiyKVqoudRhbOOHeHhHIaeYV5Zab4rCjxhP4Ty1h1ozTLBOv8lWFnZz9ilBzXG8Bb7usQI3rlEcfvUynA=="],
 
-    "@stellar/stellar-xdr-json": ["@stellar/stellar-xdr-json@26.0.0", "", {}, "sha512-yopCAdWndVkArd2908K4jSf5lr/k/CCVPxxhz4s3PHPZKAr/P/et+HyWgBIc3kk/SPeKgj4dKs1XexS8u3wpLg=="],
+    "@stellar/stellar-xdr-json": ["@stellar/stellar-xdr-json@27.0.0", "", {}, "sha512-K29zkrO935iW/JLG7bvFvqj0rOUS/73AUZShOjCAigFcaJwDujTn7EIR7H1EZrTqRShzWOXV9munlFpw59+Rbw=="],
 
     "@sveltejs/acorn-typescript": ["@sveltejs/acorn-typescript@1.0.10", "", { "peerDependencies": { "acorn": "^8.9.0" } }, "sha512-4WfKk68eTih+MiJD4fSbxN7E8kVBmTMPWHUPYjvl2N0rMs53YLTT8/YjKU5Dtnz5LqDjl7LEw4U7lXR2W3J5WA=="],
 
