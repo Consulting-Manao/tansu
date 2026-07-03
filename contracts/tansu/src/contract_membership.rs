@@ -50,12 +50,15 @@ impl MembershipTrait for Tansu {
             if git_pubkey.is_none() || git_sig.is_none() {
                 panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
             }
+            let identity = git_identity.as_ref();
+            let pubkey = git_pubkey.as_ref();
+            let sig = git_sig.as_ref();
             verify_git_signature(
                 &env,
                 &member_address,
-                git_pubkey.as_ref().unwrap(),
-                git_identity.as_ref().unwrap(),
-                git_sig.as_ref().unwrap(),
+                pubkey.unwrap(),
+                identity.unwrap(),
+                sig.unwrap(),
             );
         }
 
@@ -117,12 +120,15 @@ impl MembershipTrait for Tansu {
                     if git_pubkey.is_none() || git_sig.is_none() {
                         panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
                     }
+                    let identity = git_identity.as_ref();
+                    let pubkey = git_pubkey.as_ref();
+                    let sig = git_sig.as_ref();
                     verify_git_signature(
                         &env,
                         &member_address,
-                        git_pubkey.as_ref().unwrap(),
-                        git_identity.as_ref().unwrap(),
-                        git_sig.as_ref().unwrap(),
+                        pubkey.unwrap(),
+                        identity.unwrap(),
+                        sig.unwrap(),
                     );
 
                     member.git_identity = git_identity.clone();

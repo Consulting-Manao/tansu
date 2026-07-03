@@ -382,8 +382,7 @@ fn add_member_git_identity_missing_sig() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, _) =
-        signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, _) = signed_git_params(&setup.env, &member, "github:bob");
 
     let error = setup
         .contract
@@ -400,19 +399,15 @@ fn add_member_git_identity_bad_signature() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, _) =
-        signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, _) = signed_git_params(&setup.env, &member, "github:bob");
 
     // Use a random/invalid signature (all zeros)
     let bad_sig = BytesN::from_array(&setup.env, &[0u8; 64]);
 
-    let result = setup.contract.try_add_member(
-        &member,
-        &meta,
-        &git_identity,
-        &git_pubkey,
-        &Some(bad_sig),
-    );
+    let result =
+        setup
+            .contract
+            .try_add_member(&member, &meta, &git_identity, &git_pubkey, &Some(bad_sig));
 
     // ed25519_verify panics at the host level — we get HostError, not ContractError
     assert!(result.is_err(), "expected host error from ed25519_verify");
@@ -555,8 +550,7 @@ fn add_member_git_identity_duplicate_fails() {
     let member = Address::generate(&setup.env);
     let meta = String::from_str(&setup.env, "x");
 
-    let (git_identity, git_pubkey, git_sig) =
-        signed_git_params(&setup.env, &member, "github:bob");
+    let (git_identity, git_pubkey, git_sig) = signed_git_params(&setup.env, &member, "github:bob");
 
     setup
         .contract

@@ -1246,9 +1246,7 @@ fn remove_vote_public_flips_outcome() {
         .token_stellar
         .mint(&rex, &(1_000_000_000 * 10_000_000));
     let meta = String::from_str(&setup.env, "rex");
-    setup
-        .contract
-        .add_member(&rex, &meta, &None, &None, &None);
+    setup.contract.add_member(&rex, &meta, &None, &None, &None);
     setup
         .contract
         .set_badges(&setup.mando, &id, &rex, &vec![&setup.env, Badge::Community]);
