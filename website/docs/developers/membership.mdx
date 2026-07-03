@@ -66,7 +66,7 @@ The dApp exposes a convenient **"Add badge"** modal that wraps this call.
 Effective vote weight depends on the proposal type and project configuration. The contract's `get_max_weight` helper applies to badge-based and NQG-weighted projects; token-based proposals use a different path at vote time.
 
 | Mode | When it applies | How weight is determined |
-| ---- | --------------- | ---------------------- |
+| --- | --- | --- |
 | **Badge-based** | Default; `create_proposal` with `token_contract: None` on a normal project | Sum of assigned badge enum values (default **1** if unregistered or no badges) |
 | **Token-based** | `create_proposal` passes a `token_contract` | Voter chooses `weight` in whole token units (locked as collateral); badge cap is skipped |
 | **NQG contract** | Project key matches admin-configured `NqgProjectKey` (SCF Public Goods deployment) | `get_max_weight` calls the external NQG contract; returns **0** if score ≤ 4M (pilots only) |
