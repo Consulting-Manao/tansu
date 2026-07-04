@@ -372,6 +372,16 @@ impl MembershipTrait for Tansu {
 ///
 /// # Panics
 /// * If the signature does not verify
+const SSHSIG_PREFIX: [u8; 33] = [
+    b'S', b'S', b'H', b'S', b'I', b'G', // magic
+    0, 0, 0, 5, // len("tansu")
+    b't', b'a', b'n', b's', b'u', // namespace
+    0, 0, 0, 0, // reserved
+    0, 0, 0, 6, // len("sha256")
+    b's', b'h', b'a', b'2', b'5', b'6', // hash algorithm
+    0, 0, 0, 32, // len(sha256 output)
+];
+
 fn verify_git_signature(
     env: &Env,
     member_address: &Address,
@@ -385,14 +395,7 @@ fn verify_git_signature(
     msg.append(&Bytes::from_slice(env, &git_pubkey.to_array()));
     msg.append(&git_identity.clone().into());
 
-    let mut tosign = Bytes::new(env);
-    tosign.append(&Bytes::from_slice(env, b"SSHSIG"));
-    tosign.append(&Bytes::from_slice(env, &5u32.to_be_bytes()));
-    tosign.append(&Bytes::from_slice(env, b"tansu"));
-    tosign.append(&Bytes::from_slice(env, &0u32.to_be_bytes()));
-    tosign.append(&Bytes::from_slice(env, &6u32.to_be_bytes()));
-    tosign.append(&Bytes::from_slice(env, b"sha256"));
-    tosign.append(&Bytes::from_slice(env, &32u32.to_be_bytes()));
+    let mut tosign = Bytes::from_slice(env, &SSHSIG_PREFIX);
     tosign.append(&env.crypto().sha256(&msg).into());
 
     env.crypto().ed25519_verify(git_pubkey, &tosign, sig);
