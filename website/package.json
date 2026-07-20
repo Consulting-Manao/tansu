@@ -39,7 +39,7 @@
     "@docusaurus/types": "3.10.1",
     "@stellar/prettier-config": "^1.2.0",
     "prettier": "^3.9.5",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "overrides": {
     "serialize-javascript": "^7.0.3"
