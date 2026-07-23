@@ -201,6 +201,7 @@ pub enum ProjectKey {
     ProjectKeys(u32),               // List of project keys, pagination
     TotalProjects,                  // Total number of projects
     ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
+    Attestation(Bytes, String, AttestationTarget), // List of attestations for an evidence
 }
 
 #[contracttype]
@@ -217,4 +218,20 @@ pub struct Project {
     pub config: Config,
     pub maintainers: Vec<Address>,
     pub sub_projects: Option<Vec<Bytes>>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AttestationTarget {
+    Commit,
+    Evidence(EvidenceKind, String),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Attestation {
+    pub attester: Address,
+    pub weight: u32,
+    pub created_at: u64,
+    pub note: Option<String>,
 }
