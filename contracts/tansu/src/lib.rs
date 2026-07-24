@@ -140,6 +140,15 @@ pub trait VersioningTrait {
         sub_projects: Vec<Bytes>,
     );
 
+    fn attest(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+        note: Option<String>,
+    );
+
     fn get_attestations(
         env: Env,
         project_key: Bytes,

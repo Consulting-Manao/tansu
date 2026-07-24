@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error, token};
 
 use crate::{
-    Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events,
+    MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events,
     types::{self, DEFAULT_FINALITY_THRESHOLD_PERCENT},
 };
 
@@ -12,6 +12,8 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 /// Older entries roll off once this is exceeded; the full history stays
 /// recoverable from `EvidenceSet` events via an indexer.
 const MAX_EVIDENCE: u32 = 10;
+
+const MAX_ATTESTATIONS: u32 = 25;
 
 const LEDGERS_PER_DAY: u32 = 17280;
 const PERSISTENT_EXTEND_TO: u32 = 30 * LEDGERS_PER_DAY;
@@ -551,6 +553,95 @@ impl VersioningTrait for Tansu {
             total,
             is_final,
         }
+    }
+
+    /// Record an endorsement (attestation) of a commit or evidence artifact.
+    ///
+    /// A multi-party primitive: independent maintainers vouch that they verified the
+    /// target. Attestations are deduped by attester (last-writer-wins) — re-attesting
+    /// refreshes the caller's entry rather than adding a duplicate. At most
+    /// `MAX_ATTESTATIONS` are kept on-chain; older entries roll off but stay
+    /// recoverable from `Attested` events via an indexer.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `attester` - The maintainer recording the attestation
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash being endorsed
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    /// * `note` - Optional pointer (e.g. a reproducibility report CID)
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the attester is not a maintainer
+    /// * If `commit_hash` is empty, or the target is `Evidence` with an empty CID
+    fn attest(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+        note: Option<String>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &attester, &project_key);
+
+        if commit_hash.is_empty() {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        if let types::AttestationTarget::Evidence(_, cid) = &target
+            && cid.is_empty()
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        let weight = <Tansu as MembershipTrait>::get_max_weight(
+            env.clone(),
+            project_key.clone(),
+            attester.clone(),
+        );
+
+        let key = types::ProjectKey::Attestation(
+            project_key.clone(),
+            commit_hash.clone(),
+            target.clone(),
+        );
+
+        let storage = env.storage().persistent();
+
+        let mut attestations: Vec<types::Attestation> =
+            storage.get(&key).unwrap_or_else(|| Vec::new(&env));
+
+        let attestation = types::Attestation {
+            attester: attester.clone(),
+            weight,
+            created_at: env.ledger().timestamp(),
+            note,
+        };
+
+        match attestations.iter().position(|a| a.attester == attester) {
+            Some(index) => attestations.set(index as u32, attestation),
+            None => attestations.push_back(attestation),
+        }
+
+        while attestations.len() > MAX_ATTESTATIONS {
+            attestations.remove(0);
+        }
+
+        storage.set(&key, &attestations);
+
+        extend_persistent_ttl(&env, &key);
+
+        events::Attested {
+            project_key,
+            commit_hash,
+            target,
+            attester,
+            weight,
+        }
+        .publish(&env);
     }
 
     /// Get the attestations recorded for a project's commit or evidence target.
