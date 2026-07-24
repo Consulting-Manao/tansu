@@ -35,6 +35,8 @@ export const contractErrorMessages = {
   210: "Too many voters already.",
   211: "Your address has a declared conflict of interest for this proposal.",
   212: "Evidence must include a commit hash and CID.",
+  213: "The attestation is invalid.",
+  214: "The finality threshold must be between 50 and 100.",
 
   // State (300-399)
   300: "No hash was found.",
