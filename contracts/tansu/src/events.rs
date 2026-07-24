@@ -174,3 +174,11 @@ pub struct Attested {
     pub attester: Address,
     pub weight: u32,
 }
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationThresholdSet {
+    #[topic]
+    pub project_key: Bytes,
+    pub percent: u32,
+}

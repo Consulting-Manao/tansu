@@ -2,6 +2,8 @@ use soroban_sdk::{Address, Bytes, BytesN, String, Symbol, Val, Vec, contracttype
 
 // Constants
 pub const TIMELOCK_DELAY: u64 = 24 * 3600; // 24 hours in seconds
+pub const DEFAULT_FINALITY_THRESHOLD_PERCENT: u32 = 66;
+pub const MIN_FINALITY_THRESHOLD_PERCENT: u32 = 50;
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -202,6 +204,7 @@ pub enum ProjectKey {
     TotalProjects,                  // Total number of projects
     ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
     Attestation(Bytes, String, AttestationTarget), // List of attestations for an evidence
+    AttestationFinalityThreshold(Bytes), // Attestation finality threshold for the project
 }
 
 #[contracttype]
@@ -234,4 +237,12 @@ pub struct Attestation {
     pub weight: u32,
     pub created_at: u64,
     pub note: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FinalityStatus {
+    pub attested: u32,
+    pub total: u32,
+    pub is_final: bool, // attested * 100 >= FINALITY_THRESHOLD_PERCENT * total
 }

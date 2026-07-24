@@ -139,6 +139,24 @@ pub trait VersioningTrait {
         project_key: Bytes,
         sub_projects: Vec<Bytes>,
     );
+
+    fn get_attestations(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> Vec<types::Attestation>;
+
+    fn set_attestation_threshold(env: Env, maintainer: Address, project_key: Bytes, percent: u32);
+
+    fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32;
+
+    fn get_attestation_finality(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> types::FinalityStatus;
 }
 
 pub trait DaoTrait {

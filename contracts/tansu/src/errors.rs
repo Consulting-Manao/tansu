@@ -27,6 +27,7 @@ pub enum ContractErrors {
     VoterConflicted = 211,
     InvalidEvidence = 212,
     InvalidAttestation = 213,
+    InvalidAttestationThreshold = 214,
 
     // State (300-399)
     NoHashFound = 300,
