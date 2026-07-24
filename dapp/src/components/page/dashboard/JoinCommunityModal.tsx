@@ -46,6 +46,8 @@ const JoinCommunityModal: FC<{
     if (prefillAddress) setAddress(prefillAddress);
   }, [prefillAddress]);
 
+  const isSafeObjectUrl = (url: string): boolean => url.startsWith("blob:");
+
   const handleClose = () => {
     // Reload page if joining was successful to show fresh data
     if (updateSuccessful) window.location.reload();
@@ -321,7 +323,11 @@ const JoinCommunityModal: FC<{
                 {profileImage ? (
                   <div className="flex items-center gap-4">
                     <img
-                      src={profileImage.localUrl}
+                      src={
+                        isSafeObjectUrl(profileImage.localUrl)
+                          ? profileImage.localUrl
+                          : undefined
+                      }
                       alt="Profile preview"
                       className="w-24 h-24 object-cover rounded-full border-2 border-primary"
                     />
