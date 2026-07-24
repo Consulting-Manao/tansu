@@ -10,39 +10,38 @@ interface Props {
 const ProposalStatusSection: React.FC<Props> = ({ proposal }) => {
   const { status, voteResult, endDate } = useMemo(() => {
     if (!proposal) return {};
-    const status = proposal.status;
-    const voteStatus = proposal.voteStatus;
+    const viewStatus = proposal.status;
 
-    // Executed proposal result comes from on-chain status.
+    // Check if voting period has ended directly from endDate as a safety net
+    // beyond what modifyProposalStatusToView already computes.
+    const isExpired =
+      proposal.endDate != null &&
+      new Date(proposal.endDate * 1000) < new Date();
+
+    // Result only comes from on-chain execution status — never computed
+    // from vote scores for unexecuted proposals.
     let voteResult: VoteResultType | undefined = undefined;
     if (
-      status === "approved" ||
-      status === "rejected" ||
-      status === "cancelled"
+      viewStatus === "approved" ||
+      viewStatus === "rejected" ||
+      viewStatus === "cancelled"
     ) {
-      voteResult = status as VoteResultType;
-    } else if (voteStatus) {
-      const { approve, abstain, reject } = voteStatus;
-      if (approve.score > abstain.score + reject.score) {
-        voteResult = VoteResultType.APPROVE;
-      } else if (approve.score + abstain.score < reject.score) {
-        voteResult = VoteResultType.REJECT;
-      } else if (approve.score + abstain.score + reject.score > 0) {
-        voteResult = VoteResultType.CANCEL;
-      }
+      voteResult = viewStatus as VoteResultType;
     }
 
+    const displayedStatus =
+      viewStatus == "voted" || (viewStatus == "active" && isExpired)
+        ? "pending execution"
+        : viewStatus == "active"
+          ? "active"
+          : viewStatus == "malicious"
+            ? "revoked"
+            : "finished";
+
     return {
-      status:
-        status == "voted"
-          ? "pending execution"
-          : status == "active"
-            ? "active"
-            : status == "malicious"
-              ? "revoked"
-              : "finished",
+      status: displayedStatus,
       voteResult,
-      endDate: status == "active" ? proposal.endDate : undefined,
+      endDate: viewStatus == "active" && !isExpired ? proposal.endDate : undefined,
     };
   }, [proposal]);
 
