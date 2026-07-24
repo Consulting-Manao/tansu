@@ -1,4 +1,5 @@
 pub mod test_anonym_votes;
+pub mod test_attestation;
 pub mod test_cost_estimates;
 pub mod test_dao;
 pub mod test_membership;
