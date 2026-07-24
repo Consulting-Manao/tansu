@@ -1,6 +1,9 @@
 use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error, token};
 
-use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events, types};
+use crate::{
+    Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events,
+    types::{self, DEFAULT_FINALITY_THRESHOLD_PERCENT},
+};
 
 const MAX_PROJECTS_PER_PAGE: u32 = 10;
 const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
@@ -9,6 +12,10 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 /// Older entries roll off once this is exceeded; the full history stays
 /// recoverable from `EvidenceSet` events via an indexer.
 const MAX_EVIDENCE: u32 = 10;
+
+const LEDGERS_PER_DAY: u32 = 17280;
+const PERSISTENT_EXTEND_TO: u32 = 30 * LEDGERS_PER_DAY;
+const PERSISTENT_LIFETIME_THRESHOLD: u32 = PERSISTENT_EXTEND_TO - LEDGERS_PER_DAY;
 
 #[contractimpl]
 impl VersioningTrait for Tansu {
@@ -431,4 +438,157 @@ impl VersioningTrait for Tansu {
         }
         .publish(&env);
     }
+
+    /// Set the attestation finality threshold (percent) for a project.
+    ///
+    /// A commit is considered final once the share of current maintainers that
+    /// have attested it reaches this percentage. Every project defaults to
+    /// `DEFAULT_FINALITY_THRESHOLD_PERCENT` until its maintainers set a value here.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - The address of the maintainer calling this function
+    /// * `project_key` - The project key identifier
+    /// * `percent` - The threshold percent (in `MIN_FINALITY_THRESHOLD_PERCENT..=100`)
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the maintainer is not authorized
+    /// * If `percent` is below `MIN_FINALITY_THRESHOLD_PERCENT` or above 100
+    fn set_attestation_threshold(env: Env, maintainer: Address, project_key: Bytes, percent: u32) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestationThreshold);
+        }
+
+        let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
+
+        env.storage().persistent().set(&key, &percent);
+
+        extend_persistent_ttl(&env, &key);
+
+        events::AttestationThresholdSet {
+            project_key,
+            percent,
+        }
+        .publish(&env);
+    }
+
+    /// Get the attestation finality threshold (percent) for a project.
+    ///
+    /// Returns the project's stored threshold, or `DEFAULT_FINALITY_THRESHOLD_PERCENT`
+    /// when the project has not set one.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    ///
+    /// # Returns
+    /// * `u32` - The finality threshold percent for the project
+    fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32 {
+        let key = types::ProjectKey::AttestationFinalityThreshold(project_key);
+
+        match env.storage().persistent().get::<_, u32>(&key) {
+            Some(percent) => {
+                extend_persistent_ttl(&env, &key);
+
+                percent
+            }
+            None => DEFAULT_FINALITY_THRESHOLD_PERCENT,
+        }
+    }
+
+    /// Compute whether an attestation target is final (canonical), on-chain.
+    ///
+    /// A target is final once the share of the project's *current* maintainers
+    /// that have attested it reaches the project's finality threshold. The target
+    /// is either the commit itself (`Commit`) or a specific evidence artifact
+    /// (`Evidence(kind, cid)`) tied to that commit. Attestations from addresses
+    /// that are no longer maintainers are ignored, so a removed maintainer's stale
+    /// vouch cannot inflate the count.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash being evaluated
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Returns
+    /// * `types::FinalityStatus` - `{ attested, total, is_final }`
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    fn get_attestation_finality(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> types::FinalityStatus {
+        let project = Self::get_project(env.clone(), project_key.clone());
+
+        let total = project.maintainers.len();
+
+        let attestations =
+            Self::get_attestations(env.clone(), project_key.clone(), commit_hash, target);
+
+        let mut attested: u32 = 0;
+
+        for attestation in attestations.iter() {
+            if project.maintainers.contains(&attestation.attester) {
+                attested += 1;
+            }
+        }
+
+        let threshold = Self::get_attestation_threshold(env.clone(), project_key.clone());
+
+        let is_final = total > 0 && attested * 100 >= threshold * total;
+
+        types::FinalityStatus {
+            attested,
+            total,
+            is_final,
+        }
+    }
+
+    /// Get the attestations recorded for a project's commit or evidence target.
+    ///
+    /// Entries are returned oldest-first (the last element is the most recent) and
+    /// are deduped by attester. At most `MAX_ATTESTATIONS` are kept on-chain; the
+    /// full history stays recoverable from `Attested` events via an indexer.
+    /// Returns an empty vector when nothing has been attested for the target.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash the attestations relate to
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Returns
+    /// * `Vec<types::Attestation>` - The stored attestations, oldest-first
+    fn get_attestations(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> Vec<types::Attestation> {
+        let key = types::ProjectKey::Attestation(project_key, commit_hash, target);
+
+        match env.storage().persistent().get(&key) {
+            Some(list) => {
+                extend_persistent_ttl(&env, &key);
+
+                list
+            }
+            None => Vec::new(&env),
+        }
+    }
+}
+
+fn extend_persistent_ttl(env: &Env, key: &types::ProjectKey) {
+    env.storage()
+        .persistent()
+        .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_EXTEND_TO);
 }
