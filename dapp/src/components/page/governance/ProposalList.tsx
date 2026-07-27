@@ -1,12 +1,25 @@
 import { getProposalPages, getProposals } from "@service/ReadContractService";
 import Loading from "components/utils/Loading";
-import { useEffect, useState } from "react";
-import { modifyProposalToView } from "utils/utils";
+import { useEffect, useMemo, useState } from "react";
+import { hasUserVoted, modifyProposalToView } from "utils/utils";
+import { connectedPublicKey } from "utils/store";
+import { useStore } from "@nanostores/react";
 import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
 import { queryKeys } from "@service/cache/cacheKeys";
 import { useCachedQuery } from "@service/cache/cacheHooks";
+
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffled[i]!;
+    shuffled[i] = shuffled[j]!;
+    shuffled[j] = temp;
+  }
+  return shuffled;
+}
 
 const ProposalList: React.FC = () => {
   const projectName =
@@ -15,6 +28,7 @@ const ProposalList: React.FC = () => {
   const [showVotingModal, setShowVotingModal] = useState(false);
   const [proposalId, setProposalId] = useState<number>();
   const [proposalTitle, setProposalTitle] = useState<string>();
+  const connectedAddress = useStore(connectedPublicKey);
 
   const proposalPagesQuery = useCachedQuery({
     queryKey: queryKeys.proposals.pages(projectName),
@@ -45,14 +59,20 @@ const ProposalList: React.FC = () => {
         )
       ).flatMap((pageProposals) => pageProposals ?? []);
 
-      return proposals
-        .map((proposal) => modifyProposalToView(proposal, projectName))
-        .filter((proposal) => proposal.status !== "malicious")
-        .sort((a, b) => b.id - a.id);
+      return proposals;
     },
     ttlMs: 4 * 60 * 60 * 1000,
     enabled: projectName.length > 0 && proposalPagesQuery.data !== undefined,
   });
+
+  // Compute ProposalView on every render so modifyProposalStatusToView uses
+  // current time (new Date()) — matching how ProposalPage.tsx does it.
+  // This ensures proposals whose voting period ended since the last cache
+  // are correctly shown as "pending execution".
+  const rawProposals = proposalDataQuery.data ?? [];
+  const proposalViews = rawProposals
+    .map((proposal) => modifyProposalToView(proposal, projectName))
+    .filter((proposal) => proposal.status !== "malicious");
 
   useEffect(() => {
     setCurrentPage((previousPage) =>
@@ -69,7 +89,27 @@ const ProposalList: React.FC = () => {
     proposalPagesQuery.isLoading ||
     proposalPagesQuery.data === undefined ||
     proposalDataQuery.isLoading;
-  const proposalData = proposalDataQuery.data ?? [];
+
+  // For logged-in users: active+unvoted proposals (randomized) first, then rest sorted by newest
+  // For logged-out users: normal sort (newest first, no shuffle)
+  const sortedProposals = useMemo(() => {
+    if (connectedAddress) {
+      const activeUnvoted = proposalViews.filter(
+        (p) =>
+          p.status === "active" &&
+          !hasUserVoted(p.voteStatus, connectedAddress),
+      );
+      const rest = proposalViews.filter(
+        (p) =>
+          p.status !== "active" || hasUserVoted(p.voteStatus, connectedAddress),
+      );
+      return [
+        ...shuffleArray(activeUnvoted),
+        ...rest.sort((a, b) => b.id - a.id),
+      ];
+    }
+    return [...proposalViews].sort((a, b) => b.id - a.id);
+  }, [proposalViews, connectedAddress]);
 
   return (
     <>
@@ -78,7 +118,7 @@ const ProposalList: React.FC = () => {
       ) : (
         <div className="w-full flex flex-col gap-12">
           <div className="flex flex-col gap-[18px]">
-            {proposalData.map((proposal) => (
+            {sortedProposals.map((proposal) => (
               <ProposalCard
                 key={proposal.id}
                 proposal={proposal}
