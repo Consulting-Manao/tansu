@@ -27,7 +27,14 @@ import Button from "components/utils/Button";
 import CopyButton from "components/utils/CopyButton";
 import Modal from "components/utils/Modal";
 import { setEvidenceWithIpfsUpload } from "@service/EvidenceUploadFlow";
-import { commitHash } from "@service/ContractService";
+import { attest, commitHash } from "@service/ContractService";
+import {
+  evidenceTarget,
+  getCommitFinality,
+  type CommitFinality,
+} from "@service/AttestationService";
+import CommitFinalitySection from "./CommitFinalitySection";
+import { isUiMock, mockEvidence, mockFinality } from "./attestationMocks";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getProject } from "@service/ReadContractService";
 import { setProject } from "@service/StateService";
@@ -64,7 +71,16 @@ const CommitEvidenceModal = () => {
   const [selectedKind, setSelectedKind] = useState<EvidenceKindTag>("Sbom");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [lastUploadedCid, setLastUploadedCid] = useState<string | null>(null);
+  const [lastUploaded, setLastUploaded] = useState<{
+    cid: string;
+    kind: EvidenceKindTag;
+    commitHash: string;
+  } | null>(null);
+
+  const [evidenceFinality, setEvidenceFinality] =
+    useState<CommitFinality | null>(null);
+  const [isAttestingEvidence, setIsAttestingEvidence] = useState(false);
+  const [hasAttestedEvidence, setHasAttestedEvidence] = useState(false);
 
   // Derived
   const projectInfo = isProjectInfoLoaded ? loadProjectInfo() : null;
@@ -74,9 +90,10 @@ const CommitEvidenceModal = () => {
 
   const connectedPublicKey = loadedPublicKey();
   const isMaintainer =
-    connectedPublicKey && projectInfo
+    isUiMock() ||
+    (connectedPublicKey && projectInfo
       ? projectInfo.maintainers.includes(connectedPublicKey)
-      : false;
+      : false);
 
   // Track whether hash was manually changed by the user
   const [, setHashManuallyChanged] = useState(false);
@@ -121,6 +138,12 @@ const CommitEvidenceModal = () => {
   }, [projectName, repositoryUrl]);
 
   const loadEvidence = useCallback(async () => {
+    if (isUiMock()) {
+      setEvidence(mockEvidence);
+      setEvidenceError(null);
+      return;
+    }
+
     if (!projectName || !commitHashValue.trim()) {
       setEvidence([]);
       return;
@@ -166,6 +189,82 @@ const CommitEvidenceModal = () => {
     items: evidence.filter((e) => e.kind === kindInfo.tag),
   }));
 
+  const resetLastUpload = () => {
+    setLastUploaded(null);
+    setEvidenceFinality(null);
+    setHasAttestedEvidence(false);
+  };
+
+  /**
+   * Attestations are stored per `(project, commit_hash, target)`, so the
+   * evidence target below is always scoped to the commit it was attached to.
+   */
+  const loadEvidenceFinality = async (
+    commitHashForEvidence: string,
+    kind: EvidenceKindTag,
+    cid: string,
+  ) => {
+    if (isUiMock()) {
+      setEvidenceFinality(mockFinality);
+      return;
+    }
+
+    if (!projectName) {
+      return;
+    }
+
+    try {
+      const result = await getCommitFinality(
+        projectName,
+        commitHashForEvidence,
+        evidenceTarget(kind, cid),
+      );
+
+      setEvidenceFinality(result);
+    } catch {
+      setEvidenceFinality(null);
+    }
+  };
+
+  const handleAttestEvidence = async () => {
+    if (!lastUploaded) {
+      return;
+    }
+
+    if (isUiMock()) {
+      setEvidenceFinality(mockFinality);
+      setHasAttestedEvidence(true);
+
+      return;
+    }
+
+    if (!projectName) {
+      return;
+    }
+
+    setIsAttestingEvidence(true);
+
+    try {
+      await attest(
+        projectName,
+        lastUploaded.commitHash,
+        evidenceTarget(lastUploaded.kind, lastUploaded.cid),
+      );
+
+      await loadEvidenceFinality(
+        lastUploaded.commitHash,
+        lastUploaded.kind,
+        lastUploaded.cid,
+      );
+
+      setHasAttestedEvidence(true);
+    } catch (err: any) {
+      toast.error("Attestation", err?.message || "Failed to attest evidence.");
+    } finally {
+      setIsAttestingEvidence(false);
+    }
+  };
+
   // ── Add evidence handler ────────────────────────────────────────────
 
   const handleAddEvidence = async () => {
@@ -191,7 +290,13 @@ const CommitEvidenceModal = () => {
         selectedFile,
       );
 
-      setLastUploadedCid(cid);
+      setLastUploaded({
+        cid,
+        kind: selectedKind,
+        commitHash: commitHashValue,
+      });
+      setHasAttestedEvidence(false);
+      loadEvidenceFinality(commitHashValue, selectedKind, cid);
 
       toast.success(
         "Evidence Added",
@@ -266,7 +371,7 @@ const CommitEvidenceModal = () => {
 
   const handleClose = () => {
     setIsOpen(false);
-    setLastUploadedCid(null);
+    resetLastUpload();
     setSelectedFile(null);
     setHashManuallyChanged(false);
     setIsEditing(false);
@@ -278,7 +383,7 @@ const CommitEvidenceModal = () => {
 
   const handleHashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCommitHashValue(e.target.value);
-    setLastUploadedCid(null);
+    resetLastUpload();
     setHashManuallyChanged(true);
   };
 
@@ -573,6 +678,15 @@ const CommitEvidenceModal = () => {
                 )}
             </div>
 
+            <div className="border-t border-zinc-200 pt-4">
+              <CommitFinalitySection
+                projectName={projectName}
+                commitHash={commitHashValue}
+                isMaintainer={isMaintainer}
+                maintainers={projectInfo?.maintainers ?? []}
+              />
+            </div>
+
             {/* ── Add Evidence (maintainers only) ─────────────────────── */}
             {isMaintainer && (
               <div className="flex flex-col gap-4 border-t border-zinc-200 pt-4">
@@ -642,8 +756,8 @@ const CommitEvidenceModal = () => {
                 </div>
 
                 {/* Success banner – shown after a CID is uploaded */}
-                {lastUploadedCid && !isUploading && (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-green-100 border-2 border-green-400 rounded-lg">
+                {lastUploaded && !isUploading && (
+                  <div className="flex items-start gap-3 px-4 py-3 bg-green-100 border-2 border-green-400 rounded-lg">
                     <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
                       <svg
                         className="w-5 h-5 text-white"
@@ -665,9 +779,48 @@ const CommitEvidenceModal = () => {
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <code className="text-xs sm:text-sm font-mono text-green-700 bg-green-50 px-2 py-1 rounded break-all">
-                          {lastUploadedCid}
+                          {lastUploaded.cid}
                         </code>
-                        <CopyButton textToCopy={lastUploadedCid} size="sm" />
+                        <CopyButton textToCopy={lastUploaded.cid} size="sm" />
+                      </div>
+
+                      <p className="text-xs text-green-800">
+                        {lastUploaded.kind} evidence linked to commit{" "}
+                        <span className="font-mono">
+                          {lastUploaded.commitHash.slice(0, 12)}…
+                        </span>
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        {hasAttestedEvidence ? (
+                          <span
+                            className={`text-xs font-bold rounded-sm px-1.5 py-1 ${
+                              evidenceFinality?.isFinal
+                                ? "bg-lime text-primary"
+                                : "bg-zinc-200 text-secondary"
+                            }`}
+                          >
+                            {evidenceFinality?.percent ?? 0}% attested
+                            {evidenceFinality?.isFinal ? " · Final" : ""}
+                          </span>
+                        ) : (
+                          <Button
+                            onClick={handleAttestEvidence}
+                            isLoading={isAttestingEvidence}
+                            disabled={isAttestingEvidence}
+                            size="sm"
+                            type="secondary"
+                          >
+                            {isAttestingEvidence
+                              ? "Attesting…"
+                              : "Attest this evidence"}
+                          </Button>
+                        )}
+                        {evidenceFinality && (
+                          <span className="text-xs text-green-800">
+                            {evidenceFinality.attested} of{" "}
+                            {evidenceFinality.total} maintainers
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

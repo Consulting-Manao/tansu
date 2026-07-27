@@ -5,13 +5,22 @@ import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts"
 import {
   loadConfigData,
   loadProjectInfo,
+  loadProjectName,
 } from "../../../service/StateService.ts";
+import {
+  commitTarget,
+  getCommitFinality,
+} from "../../../service/AttestationService.ts";
+import { attest } from "../../../service/ContractService.ts";
+import { loadedPublicKey } from "../../../service/walletService.ts";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
+import { toast } from "../../../utils/utils.ts";
 import {
   configData as configDataStore,
   latestCommit,
   projectInfoLoaded,
 } from "../../../utils/store.ts";
+import { isUiMock, mockFinality } from "./attestationMocks.ts";
 import CommitPeriod from "./CommitPeriod.jsx";
 import CommitRecord from "../../CommitRecord";
 
@@ -24,6 +33,16 @@ const CommitHistory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [finalityBySha, setFinalityBySha] = useState({});
+  const [attestingSha, setAttestingSha] = useState(null);
+  const [attestedShas, setAttestedShas] = useState(() => new Set());
+
+  const connectedPublicKey = loadedPublicKey();
+  const canAttest =
+    isUiMock() ||
+    (connectedPublicKey
+      ? (loadProjectInfo()?.maintainers?.includes(connectedPublicKey) ?? false)
+      : false);
 
   const fetchCommitHistory = async (page = 1) => {
     setLoadError(null);
@@ -41,6 +60,8 @@ const CommitHistory = () => {
           if (history.length > 0 && history[0].commits.length > 0) {
             latestCommit.set(history[0].commits[0].sha);
           }
+
+          loadFinality(history);
         } else {
           setCommitHistory([]);
         }
@@ -53,6 +74,70 @@ const CommitHistory = () => {
     } else {
       setLoadError("Project repository URL not available.");
       setIsLoading(false);
+    }
+  };
+
+  const loadFinality = async (history) => {
+    const projectName = loadProjectName();
+
+    if (!projectName) {
+      return;
+    }
+
+    const shas = history.flatMap((day) => day.commits.map((c) => c.sha));
+
+    const entries = await Promise.all(
+      shas.map(async (sha) => {
+        try {
+          const finality = await getCommitFinality(projectName, sha);
+          return [sha, finality];
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
+
+    setFinalityBySha(Object.fromEntries(entries.filter(Boolean)));
+  };
+
+  const refreshFinalityForSha = async (projectName, sha) => {
+    try {
+      const finality = await getCommitFinality(projectName, sha);
+      setFinalityBySha((prev) => ({ ...prev, [sha]: finality }));
+    } catch (_) {
+      setFinalityBySha((prev) => prev);
+    }
+  };
+
+  const handleAttest = async (sha) => {
+    if (finalityBySha[sha]?.isFinal) {
+      return;
+    }
+
+    if (isUiMock()) {
+      setFinalityBySha((prev) => ({ ...prev, [sha]: mockFinality }));
+      setAttestedShas((prev) => new Set(prev).add(sha));
+
+      return;
+    }
+
+    const projectName = loadProjectName();
+
+    if (!projectName || !sha) {
+      return;
+    }
+
+    setAttestingSha(sha);
+
+    try {
+      await attest(projectName, sha, commitTarget());
+      await refreshFinalityForSha(projectName, sha);
+
+      setAttestedShas((prev) => new Set(prev).add(sha));
+    } catch (err) {
+      toast.error("Attestation", err?.message ?? "Failed to attest.");
+    } finally {
+      setAttestingSha(null);
     }
   };
 
@@ -158,6 +243,16 @@ const CommitHistory = () => {
                                 )
                               : false
                           }
+                          attestationPercent={
+                            finalityBySha[commit.sha]?.attested > 0
+                              ? finalityBySha[commit.sha].percent
+                              : undefined
+                          }
+                          isFinal={finalityBySha[commit.sha]?.isFinal ?? false}
+                          onAttest={() => handleAttest(commit.sha)}
+                          canAttest={canAttest}
+                          isAttesting={attestingSha === commit.sha}
+                          hasAttested={attestedShas.has(commit.sha)}
                         />
                       </div>
                     ))}

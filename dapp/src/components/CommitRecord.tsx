@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { navigate } from "astro:transitions/client";
 import JsonView from "react18-json-view";
 import CopyButton from "components/utils/CopyButton";
+import Button from "components/utils/Button";
 import { loadProjectLatestSha } from "../service/StateService";
 
 interface CommitRecordProps {
@@ -27,6 +28,18 @@ interface CommitRecordProps {
   showXDR?: unknown | null;
   /** Optional link to related proposal page */
   proposalLink?: string | null | undefined;
+  /** Percent of maintainers who attested this commit */
+  attestationPercent?: number;
+  /** Whether the commit has reached finality on-chain */
+  isFinal?: boolean;
+  /** Called when the user clicks the Attest button for this commit */
+  onAttest?: () => void | Promise<void>;
+  /** Whether the connected user is allowed to attest (maintainer) */
+  canAttest?: boolean;
+  /** Whether an attestation for this commit is in flight */
+  isAttesting?: boolean;
+  /** Whether the connected user has already attested this commit */
+  hasAttested?: boolean;
 }
 
 const CommitRecord: React.FC<CommitRecordProps> = ({
@@ -41,6 +54,12 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   projectName = null,
   showXDR = null,
   proposalLink = null,
+  attestationPercent = undefined,
+  isFinal = false,
+  onAttest = undefined,
+  canAttest = false,
+  isAttesting = false,
+  hasAttested = false,
 }) => {
   const messageRef = useRef<HTMLAnchorElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -81,6 +100,10 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   // Helpers
   // ---------------------------------------------------------------------------
 
+  // The attestation percentage is rendered next to the author row once the user
+  // has attested (or the commit is final) – avoid showing it twice.
+  const showInlineAttestation = !!onAttest && (hasAttested || isFinal);
+
   const handleNavigateProject = () => {
     if (projectName)
       navigate(`/project?name=${encodeURIComponent(projectName)}`);
@@ -92,11 +115,22 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
     <div
       className={`relative p-[15px] lg:p-[30px] flex flex-col gap-3 ${bgClass}`}
     >
-      {(isLatestCommit || isMaintainer) && (
+      {(isLatestCommit ||
+        isMaintainer ||
+        (attestationPercent !== undefined && !showInlineAttestation)) && (
         <div className="absolute top-0.5 left-1 flex space-x-1">
           {isLatestCommit && (
             <span className="text-xs font-bold leading-3 bg-lime rounded-sm p-0.5">
               verified commit
+            </span>
+          )}
+          {attestationPercent !== undefined && !showInlineAttestation && (
+            <span
+              className={`text-xs font-bold leading-3 rounded-sm p-0.5 ${
+                isFinal ? "bg-lime text-primary" : "bg-zinc-200 text-secondary"
+              }`}
+            >
+              {attestationPercent}% attested{isFinal ? " · Final" : ""}
             </span>
           )}
         </div>
@@ -176,7 +210,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
 
       {/* Author (no date – grouping done by parent) */}
       {authorName && (
-        <div className="mt-1 text-sm text-gray-600 flex items-center gap-2">
+        <div className="mt-1 text-sm text-gray-600 flex items-center justify-between gap-2">
           <a
             href={authorLink}
             target="_blank"
@@ -189,6 +223,49 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
             <span className="text-xs font-medium bg-lime px-1 rounded-sm">
               maintainer
             </span>
+          )}
+
+          {onAttest && (
+            <div className="flex items-center justify-end gap-2">
+              {hasAttested || isFinal ? (
+                <span
+                  className={`text-xs font-bold leading-3 rounded-sm px-1.5 py-1 ${
+                    isFinal
+                      ? "bg-lime text-primary"
+                      : "bg-zinc-200 text-secondary"
+                  }`}
+                  title={
+                    isFinal
+                      ? "This commit reached the attestation threshold."
+                      : "Share of maintainers who attested this commit."
+                  }
+                >
+                  {attestationPercent ?? 0}% attested{isFinal ? " · Final" : ""}
+                </span>
+              ) : (
+                <>
+                  {!canAttest && (
+                    <span className="text-xs text-tertiary">
+                      Only maintainers can attest
+                    </span>
+                  )}
+                  <Button
+                    onClick={onAttest}
+                    isLoading={isAttesting}
+                    disabled={isAttesting || !canAttest}
+                    size="sm"
+                    type="secondary"
+                    {...(canAttest
+                      ? {}
+                      : {
+                          title: "Only project maintainers can attest commits.",
+                        })}
+                  >
+                    {isAttesting ? "Attesting…" : "Attest"}
+                  </Button>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}
