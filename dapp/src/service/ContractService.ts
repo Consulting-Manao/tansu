@@ -4,6 +4,7 @@
  */
 
 import {
+  type AttestationTarget,
   type Badge,
   type EvidenceKind,
   type Vote,
@@ -35,6 +36,7 @@ import {
   invalidateEvidenceCache,
   toEvidenceKind,
 } from "./EvidenceService";
+import { invalidateAttestationCache } from "./AttestationService";
 
 export interface VotingPowerResult {
   maxWeight: number;
@@ -176,6 +178,72 @@ export async function setEvidence(
 
   await submitTransaction(assembledTx);
   invalidateEvidenceCache(projectKey, commit_hash);
+  return true;
+}
+
+/**
+ * Record an attestation endorsing a commit or a specific evidence artifact.
+ */
+export async function attest(
+  project_name: string,
+  commit_hash: string,
+  target: AttestationTarget,
+  note: string | null = null,
+): Promise<boolean> {
+  const client = getClient();
+  const attester = client.options.publicKey;
+
+  if (!attester) {
+    throw new Error("Wallet not connected");
+  }
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.attest({
+    attester,
+    project_key: projectKey,
+    commit_hash,
+    target,
+    note: note ?? undefined,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+
+  invalidateAttestationCache(projectKey, commit_hash);
+
+  return true;
+}
+
+/**
+ * Set the per-project attestation finality threshold (percent).
+ */
+export async function setAttestationThreshold(
+  project_name: string,
+  percent: number,
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+
+  if (!maintainer) {
+    throw new Error("Wallet not connected");
+  }
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.set_attestation_threshold({
+    maintainer,
+    project_key: projectKey,
+    percent,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+
+  invalidateQuery(queryKeys.attestations.threshold(projectKey.toString("hex")));
+
   return true;
 }
 
