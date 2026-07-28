@@ -53,45 +53,8 @@ interface CreateProjectFlowParams {
   additionalFiles?: File[]; // Optional files like README.md for non-software projects
 }
 
-/** Patch the SDK's Spec to handle scSpecTypeVal for raw JS types.
- *
- * The bundled @stellar/stellar-sdk v15's Spec.nativeToScVal has no handling
- * for raw JS values (string, number, boolean) when the target Soroban type
- * is scSpecTypeVal (value 0).  ScVal instances don't work either because
- * Astro/Vite bundling creates different class references, so instanceof
- * checks always fail.
- *
- * We monkey-patch Spec.prototype.nativeToScVal to intercept scSpecTypeVal
- * and convert JS primitives directly using the same bundled xdr module.
- */
-import { xdr, Address } from "@stellar/stellar-sdk";
-import { Spec } from "@stellar/stellar-sdk/contract";
-
-const ORIG_NATIVE_TO_SC_VAL = Spec.prototype.nativeToScVal;
-Spec.prototype.nativeToScVal = function patchNativeToScVal(
-  val: any,
-  ty: any,
-): any {
-  // scSpecTypeVal switch() returns value 0.
-  if (ty.switch().value === 0) {
-    if (typeof val === "string") {
-      if (/^[GC][A-Z0-9]{55}$/.test(val)) {
-        return Address.fromString(val).toScVal();
-      }
-      return xdr.ScVal.scvString(val);
-    }
-    if (typeof val === "number" || typeof val === "bigint") {
-      const v = BigInt(val);
-      const lo = new xdr.Uint64(v & BigInt("0xFFFFFFFFFFFFFFFF"));
-      const hi = new xdr.Int64(v >> 64n);
-      return xdr.ScVal.scvI128(new xdr.Int128Parts({ hi, lo }));
-    }
-    if (typeof val === "boolean") {
-      return xdr.ScVal.scvBool(val);
-    }
-  }
-  return ORIG_NATIVE_TO_SC_VAL.call(this, val, ty);
-};
+// Side-effect: patch Spec for OutcomeContract.args (Vec<Val>) encode/decode.
+import "./stellarSpecPatches";
 
 /**
  * Create and sign a proposal transaction

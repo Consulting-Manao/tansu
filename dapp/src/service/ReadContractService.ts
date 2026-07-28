@@ -9,6 +9,8 @@ import { checkSimulationError } from "utils/contractErrors";
 import { fetchWithCache, invalidateQuery } from "./cache/cacheStore";
 import { queryKeys } from "./cache/cacheKeys";
 import { scValToNative } from "@stellar/stellar-sdk";
+// Side-effect: patch Spec so get_proposal can decode OutcomeContract.args (Vec<Val>).
+import "./stellarSpecPatches";
 
 const TTL_4H = 4 * 60 * 60 * 1000;
 const TTL_1H = 60 * 60 * 1000;
@@ -270,11 +272,10 @@ async function getProposalRaw(
 
   // ---- Fast path: typed result from Client bindings ----
   // .result calls parseResultXdr (spec-based typed decoder).
-  // This can fail when OutcomeContract.args contains Vec<Val> with
-  // complex ScVal types — the spec-based decoder struggles with
-  // Val-typed fields in responses (unlike nativeToScVal/encoding,
-  // which was fixed in js-stellar-sdk PR #1485).
-  // Fall through to scValToNative below, which handles all ScVal.
+  // OutcomeContract.args is Vec<Val>; Spec.scValToNative historically
+  // threw on scSpecTypeVal (see stellarSpecPatches). With the patch,
+  // typed decode should succeed. Fall through to free scValToNative
+  // if anything still blows up.
   try {
     checkSimulationError(at as any);
     const result = (at as any).result;
@@ -290,11 +291,11 @@ async function getProposalRaw(
   }
 
   // ---- Fallback: raw ScVal decode via simulation data ----
-  // The raw simulation retval IS available even when typed decode fails,
-  // because simulate() stores it BEFORE calling parseResultXdr.
-  // Decode it directly with scValToNative which handles all ScVal types.
+  // Prefer simulationData (cached ScVal) over the raw RPC simulation object.
   try {
-    const rawRetval = (at as any).simulation?.result?.retval;
+    const rawRetval =
+      (at as any).simulationData?.result?.retval ??
+      (at as any).simulation?.result?.retval;
     if (rawRetval) {
       const decoded = scValToNative(rawRetval);
       return decoded as Proposal;

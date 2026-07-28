@@ -6,7 +6,7 @@
       "name": "ipfs-proxy-worker",
       "dependencies": {
         "@ipld/car": "^5.4.5",
-        "@stellar/stellar-sdk": "^16.0.0",
+        "@stellar/stellar-sdk": "^16.1.0",
         "ipfs-car": "^3.1.0",
       },
       "devDependencies": {
@@ -203,7 +203,7 @@
 
     "@stellar/js-xdr": ["@stellar/js-xdr@4.0.0", "", {}, "sha512-+NmNa7Tk5BI5XFdy/6xGTqAN4J9a9KgCrCGhj2uEUTCBhLkch0M+QbKzNH8zEnejWe0p8w+0q5hUVX6L3OzoVA=="],
 
-    "@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.0.1", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.16.1", "base32.js": "^0.1.0", "bignumber.js": "^11.1.1", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-bxKohaiyKVqoudRhbOOHeHhHIaeYV5Zab4rCjxhP4Ty1h1ozTLBOv8lWFnZz9ilBzXG8Bb7usQI3rlEcfvUynA=="],
+    "@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.1.0", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.18.0", "base32.js": "^0.1.0", "bignumber.js": "^11.1.4", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-MOIrUvbzuTnSvUurL+9nrS1UW6Ko+QTW00RggSomm4WaWkE8onKPo2MRJMd89X7qPaGPjYjxNX6B671AEQlzxQ=="],
 
     "@types/node": ["@types/node@25.5.2", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-tO4ZIRKNC+MDWV4qKVZe3Ql/woTnmHDr5JD8UI5hn2pwBrHEwOEMZK7WlNb5RKB6EoJ02gwmQS9OrjuFnZYdpg=="],
 

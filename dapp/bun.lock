@@ -5,78 +5,78 @@
     "": {
       "name": "dapp",
       "dependencies": {
-        "@astrojs/check": "latest",
-        "@astrojs/netlify": "latest",
-        "@astrojs/react": "latest",
-        "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@latest",
-        "@creit.tech/sorobandomains-sdk": "latest",
-        "@nanostores/react": "latest",
-        "@noble/curves": "latest",
-        "@noble/hashes": "latest",
-        "@stellar/freighter-api": "latest",
-        "@stellar/stellar-sdk": "latest",
-        "@stellar/stellar-xdr-json": "latest",
-        "astro": "latest",
-        "astro-seo": "latest",
-        "axios": "latest",
-        "buffer": "latest",
-        "classnames": "latest",
-        "d3-array": "latest",
-        "d3-color": "latest",
-        "d3-format": "latest",
-        "d3-interpolate": "latest",
-        "d3-path": "latest",
-        "d3-scale": "latest",
-        "d3-shape": "latest",
-        "d3-time": "latest",
-        "d3-time-format": "latest",
-        "devalue": "latest",
-        "dompurify": "latest",
-        "github-markdown-css": "latest",
-        "internmap": "latest",
-        "ipfs-car": "latest",
-        "js-sha3": "latest",
-        "lossless-json": "latest",
-        "markdown-to-jsx": "latest",
-        "multiformats": "latest",
-        "nanostores": "latest",
-        "react": "latest",
-        "react-dom": "latest",
-        "react18-json-view": "latest",
-        "recharts": "latest",
-        "toml": "latest",
-        "typescript": "latest",
+        "@astrojs/check": "^0.9.9",
+        "@astrojs/netlify": "^8.1.2",
+        "@astrojs/react": "^6.0.1",
+        "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
+        "@creit.tech/sorobandomains-sdk": "^0.1.6",
+        "@nanostores/react": "^1.1.0",
+        "@noble/curves": "^2.2.0",
+        "@noble/hashes": "^2.2.0",
+        "@stellar/freighter-api": "^6.0.1",
+        "@stellar/stellar-sdk": "^16.1.0",
+        "@stellar/stellar-xdr-json": "^27.0.0",
+        "astro": "^7.1.2",
+        "astro-seo": "1.1.0",
+        "axios": "^1.18.1",
+        "buffer": "^6.0.3",
+        "classnames": "^2.5.1",
+        "d3-array": "^3.2.4",
+        "d3-color": "^3.1.0",
+        "d3-format": "^3.1.2",
+        "d3-interpolate": "^3.0.1",
+        "d3-path": "^3.1.0",
+        "d3-scale": "^4.0.2",
+        "d3-shape": "^3.2.0",
+        "d3-time": "^3.1.0",
+        "d3-time-format": "^4.1.0",
+        "devalue": "^5.8.1",
+        "dompurify": "^3.4.12",
+        "github-markdown-css": "^5.9.0",
+        "internmap": "^2.0.3",
+        "ipfs-car": "^3.1.0",
+        "js-sha3": "^0.12.0",
+        "lossless-json": "^4.3.0",
+        "markdown-to-jsx": "^9.9.0",
+        "multiformats": "^14.0.4",
+        "nanostores": "^1.4.0",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
+        "react18-json-view": "0.2.10",
+        "recharts": "3.9.2",
+        "toml": "^5.0.0",
+        "typescript": "^7.0.2",
       },
       "devDependencies": {
-        "@eslint/js": "latest",
-        "@playwright/test": "latest",
-        "@tailwindcss/postcss": "latest",
-        "@types/bn.js": "latest",
-        "@types/react": "latest",
-        "@types/react-dom": "latest",
-        "@typescript-eslint/eslint-plugin": "latest",
-        "@typescript-eslint/parser": "latest",
-        "autoprefixer": "latest",
-        "dotenv": "latest",
-        "eslint": "latest",
-        "eslint-plugin-react": "latest",
-        "glob": "latest",
-        "lighthouse": "latest",
-        "netlify-cli": "latest",
-        "postcss": "latest",
-        "prettier": "latest",
-        "prettier-plugin-astro": "latest",
-        "tailwindcss": "latest",
-        "ts-prune": "latest",
-        "vitest": "latest",
-        "zod": "latest",
+        "@eslint/js": "^10.0.1",
+        "@playwright/test": "1.61.1",
+        "@tailwindcss/postcss": "^4.3.3",
+        "@types/bn.js": "^5.2.0",
+        "@types/react": "^19.2.17",
+        "@types/react-dom": "^19.2.3",
+        "@typescript-eslint/eslint-plugin": "8.64.0",
+        "@typescript-eslint/parser": "8.64.0",
+        "autoprefixer": "^10.5.4",
+        "dotenv": "^17.4.2",
+        "eslint": "^10.7.0",
+        "eslint-plugin-react": "^7.37.5",
+        "glob": "^13.0.6",
+        "lighthouse": "^13.4.0",
+        "netlify-cli": "^26.2.0",
+        "postcss": "^8.5.20",
+        "prettier": "^3.9.5",
+        "prettier-plugin-astro": "^0.14.1",
+        "tailwindcss": "^4.3.3",
+        "ts-prune": "^0.10.3",
+        "vitest": "4.1.10",
+        "zod": "^4.4.3",
       },
     },
     "packages/scf-membership": {
       "name": "scf-membership",
       "version": "0.0.0",
       "dependencies": {
-        "@stellar/stellar-sdk": "^16.0.1",
+        "@stellar/stellar-sdk": "^16.1.0",
         "buffer": "6.0.3",
       },
       "devDependencies": {
@@ -87,7 +87,7 @@
       "name": "tansu",
       "version": "0.0.0",
       "dependencies": {
-        "@stellar/stellar-sdk": "^16.0.1",
+        "@stellar/stellar-sdk": "^16.1.0",
         "buffer": "6.0.3",
       },
       "devDependencies": {
@@ -1087,7 +1087,7 @@
 
     "@stellar/stellar-base": ["@stellar/stellar-base@14.1.0", "", { "dependencies": { "@noble/curves": "^1.9.6", "@stellar/js-xdr": "^3.1.2", "base32.js": "^0.1.0", "bignumber.js": "^9.3.1", "buffer": "^6.0.3", "sha.js": "^2.4.12" } }, "sha512-A8kFli6QGy22SRF45IjgPAJfUNGjnI+R7g4DF5NZYVsD1kGf7B4ITyc4OPclLV9tqNI4/lXxafGEw0JEUbHixw=="],
 
-    "@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.0.1", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.16.1", "base32.js": "^0.1.0", "bignumber.js": "^11.1.1", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-bxKohaiyKVqoudRhbOOHeHhHIaeYV5Zab4rCjxhP4Ty1h1ozTLBOv8lWFnZz9ilBzXG8Bb7usQI3rlEcfvUynA=="],
+    "@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.1.0", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.18.0", "base32.js": "^0.1.0", "bignumber.js": "^11.1.4", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-MOIrUvbzuTnSvUurL+9nrS1UW6Ko+QTW00RggSomm4WaWkE8onKPo2MRJMd89X7qPaGPjYjxNX6B671AEQlzxQ=="],
 
     "@stellar/stellar-xdr-json": ["@stellar/stellar-xdr-json@27.0.0", "", {}, "sha512-K29zkrO935iW/JLG7bvFvqj0rOUS/73AUZShOjCAigFcaJwDujTn7EIR7H1EZrTqRShzWOXV9munlFpw59+Rbw=="],
 
@@ -3829,6 +3829,8 @@
 
     "@creit-tech/stellar-wallets-kit/@stellar/freighter-api": ["@stellar/freighter-api@6.0.0", "", { "dependencies": { "buffer": "6.0.3", "semver": "7.7.1" } }, "sha512-8CTQcKQmTq/wL715ZUzn1x1POpR0eYhYPKEiaeA7AT0WYBOauOGTxfWPFtSidX3ohAlJZP5HFXy1kG29cVjqxw=="],
 
+    "@creit-tech/stellar-wallets-kit/@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.0.1", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.16.1", "base32.js": "^0.1.0", "bignumber.js": "^11.1.1", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-bxKohaiyKVqoudRhbOOHeHhHIaeYV5Zab4rCjxhP4Ty1h1ozTLBOv8lWFnZz9ilBzXG8Bb7usQI3rlEcfvUynA=="],
+
     "@creit.tech/sorobandomains-sdk/js-sha3": ["js-sha3@0.9.3", "", {}, "sha512-BcJPCQeLg6WjEx3FE591wVAevlli8lxsxm9/FzV4HXkV49TmBH38Yvrpce6fjbADGMKFrBMGTqrVz3qPIZ88Gg=="],
 
     "@cspotcode/source-map-support/@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
@@ -4116,8 +4118,6 @@
     "@stellar/stellar-base/@stellar/js-xdr": ["@stellar/js-xdr@3.1.2", "", {}, "sha512-VVolPL5goVEIsvuGqDc5uiKxV03lzfWdvYg1KikvwheDmTBO68CKDji3bAZ/kppZrx5iTA8z3Ld5yuytcvhvOQ=="],
 
     "@stellar/stellar-base/bignumber.js": ["bignumber.js@9.3.1", "", {}, "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ=="],
-
-    "@stellar/stellar-sdk/axios": ["axios@1.17.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.5", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-J8SwNxprqqpbfenehxWYXE7CW+wM1BB4w3+N+g+/Wx40xM4rsLrfPmHHxSWIxJLYDgSY/HqlFPIYb2/S3rxafw=="],
 
     "@stellar/stellar-sdk/commander": ["commander@14.0.3", "", {}, "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw=="],
 
@@ -4697,6 +4697,10 @@
 
     "@creit-tech/stellar-wallets-kit/@stellar/freighter-api/semver": ["semver@7.7.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-hlq8tAfn0m/61p4BVRcPzIGr6LKiMwo4VM6dGi6pt4qcRkmNzTcWq6eCEjEh+qXjkMDvPlOFFSGwQjoEa6gyMA=="],
 
+    "@creit-tech/stellar-wallets-kit/@stellar/stellar-sdk/axios": ["axios@1.17.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.5", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-J8SwNxprqqpbfenehxWYXE7CW+wM1BB4w3+N+g+/Wx40xM4rsLrfPmHHxSWIxJLYDgSY/HqlFPIYb2/S3rxafw=="],
+
+    "@creit-tech/stellar-wallets-kit/@stellar/stellar-sdk/commander": ["commander@14.0.3", "", {}, "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw=="],
+
     "@fastify/ajv-compiler/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
 
     "@isaacs/cliui/string-width/emoji-regex": ["emoji-regex@9.2.2", "", {}, "sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg=="],
@@ -4914,8 +4918,6 @@
     "@solana/web3.js/bs58/base-x": ["base-x@3.0.11", "", { "dependencies": { "safe-buffer": "^5.0.1" } }, "sha512-xz7wQ8xDhdyP7tQxwdteLYeFfS68tSMNCZ/Y37WJ4bhGfKPpqEIlmIyueQHqOyoPhE6xNUqjzRr8ra0eF9VRvA=="],
 
     "@stellar/stellar-base/@noble/curves/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
-
-    "@stellar/stellar-sdk/axios/https-proxy-agent": ["https-proxy-agent@5.0.1", "", { "dependencies": { "agent-base": "6", "debug": "4" } }, "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA=="],
 
     "@trezor/analytics/@trezor/utils/bignumber.js": ["bignumber.js@9.3.1", "", {}, "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ=="],
 
@@ -5273,6 +5275,8 @@
 
     "@coinbase/cdp-sdk/axios/https-proxy-agent/agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 
+    "@creit-tech/stellar-wallets-kit/@stellar/stellar-sdk/axios/https-proxy-agent": ["https-proxy-agent@5.0.1", "", { "dependencies": { "agent-base": "6", "debug": "4" } }, "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA=="],
+
     "@netlify/build/execa/npm-run-path/path-key": ["path-key@4.0.0", "", {}, "sha512-haREypq7xkM7ErfgIyA0z+Bj4AGKlMSdlQE2jvJo6huWD1EdkKYV+G/T4nq0YEF2vgTT8kqMFKo1uHn950r4SQ=="],
 
     "@netlify/build/string-width/strip-ansi/ansi-regex": ["ansi-regex@6.2.2", "", {}, "sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg=="],
@@ -5334,8 +5338,6 @@
     "@solana/instruction-plans/@solana/transaction-messages/@solana/rpc-types/@solana/codecs-strings": ["@solana/codecs-strings@5.5.1", "", { "dependencies": { "@solana/codecs-core": "5.5.1", "@solana/codecs-numbers": "5.5.1", "@solana/errors": "5.5.1" }, "peerDependencies": { "fastestsmallesttextencoderdecoder": "^1.0.22", "typescript": "^5.0.0" }, "optionalPeers": ["fastestsmallesttextencoderdecoder", "typescript"] }, "sha512-7klX4AhfHYA+uKKC/nxRGP2MntbYQCR3N6+v7bk1W/rSxYuhNmt+FN8aoThSZtWIKwN6BEyR1167ka8Co1+E7A=="],
 
     "@solana/instruction-plans/@solana/transactions/@solana/addresses/@solana/assertions": ["@solana/assertions@5.5.1", "", { "dependencies": { "@solana/errors": "5.5.1" }, "peerDependencies": { "typescript": "^5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-YTCSWAlGwSlVPnWtWLm3ukz81wH4j2YaCveK+TjpvUU88hTy6fmUqxi0+hvAMAe4zKXpJyj3Az7BrLJRxbIm4Q=="],
-
-    "@stellar/stellar-sdk/axios/https-proxy-agent/agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 
     "@trezor/blockchain-link-utils/@stellar/stellar-sdk/axios/https-proxy-agent": ["https-proxy-agent@5.0.1", "", { "dependencies": { "agent-base": "6", "debug": "4" } }, "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA=="],
 
@@ -5436,6 +5438,8 @@
     "@coinbase/cdp-sdk/@solana/kit/@solana/transaction-confirmation/@solana/codecs-strings/@solana/codecs-core": ["@solana/codecs-core@5.5.1", "", { "dependencies": { "@solana/errors": "5.5.1" }, "peerDependencies": { "typescript": "^5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-TgBt//bbKBct0t6/MpA8ElaOA3sa8eYVvR7LGslCZ84WiAwwjCY0lW/lOYsFHJQzwREMdUyuEyy5YWBKtdh8Rw=="],
 
     "@coinbase/cdp-sdk/@solana/kit/@solana/transaction-confirmation/@solana/codecs-strings/@solana/codecs-numbers": ["@solana/codecs-numbers@5.5.1", "", { "dependencies": { "@solana/codecs-core": "5.5.1", "@solana/errors": "5.5.1" }, "peerDependencies": { "typescript": "^5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-rllMIZAHqmtvC0HO/dc/21wDuWaD0B8Ryv8o+YtsICQBuiL/0U4AGwH7Pi5GNFySYk0/crSuwfIqQFtmxNSPFw=="],
+
+    "@creit-tech/stellar-wallets-kit/@stellar/stellar-sdk/axios/https-proxy-agent/agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 
     "@netlify/vite-plugin/@netlify/dev/@netlify/blobs/@netlify/otel/@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
