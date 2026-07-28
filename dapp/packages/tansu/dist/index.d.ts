@@ -300,6 +300,9 @@ export declare const ContractErrors: {
   212: {
     message: string;
   };
+  213: {
+    message: string;
+  };
   300: {
     message: string;
   };

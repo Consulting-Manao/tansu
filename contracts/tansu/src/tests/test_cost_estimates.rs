@@ -292,7 +292,7 @@ fn test_cost_comprehensive_dao_workflow() {
         .execute(&setup.mando, &project_id, &proposal_id, &None, &None);
 
     // Step 6: Commit new hash
-    let hash = String::from_str(&setup.env, "abc123def456789");
+    let hash = String::from_str(&setup.env, "abc123def4567890abcdef1234567890abcdef12");
     setup.contract.commit(&setup.mando, &project_id, &hash);
 
     let budget = setup.env.cost_estimate().budget();

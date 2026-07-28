@@ -14,6 +14,7 @@ import { loadedPublicKey } from "./walletService";
 import { loadedProjectId } from "./StateService";
 import { Buffer } from "buffer";
 import { deriveProjectKey } from "../utils/projectKey";
+import { isValidCommitHash } from "../utils/contentHashes";
 import {
   parseContractError,
   checkSimulationError,
@@ -123,6 +124,15 @@ function getProjectKey(projectName: string): Buffer {
  * The hash is stored on-chain and serves as a verifiable record of project updates.
  */
 export async function commitHash(commit_hash: string): Promise<boolean> {
+  // Guard against malformed input before it is written on-chain. Accepts both
+  // SHA-1 (40 hex) and SHA-256 (64 hex) object names so the check stays valid
+  // through Git's SHA-256 transition.
+  if (!isValidCommitHash(commit_hash)) {
+    throw new Error(
+      "Invalid commit hash: expected a 40-character (SHA-1) or 64-character (SHA-256) hex string",
+    );
+  }
+
   const projectId = loadedProjectId();
   if (!projectId) throw new Error("No project defined");
 

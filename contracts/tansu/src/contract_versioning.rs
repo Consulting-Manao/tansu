@@ -10,6 +10,23 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 /// recoverable from `EvidenceSet` events via an indexer.
 const MAX_EVIDENCE: u32 = 10;
 
+/// Length of a hex-encoded SHA-1 Git object name (Git's current default).
+const GIT_SHA1_HEX_LENGTH: u32 = 40;
+/// Length of a hex-encoded SHA-256 Git object name (Git's SHA-256 object format).
+const GIT_SHA256_HEX_LENGTH: u32 = 64;
+
+/// Structural check for a Git commit hash: a hex-encoded SHA-1 (40 chars) or
+/// SHA-256 (64 chars) object name. Both lengths are accepted so validation
+/// stays correct through Git's SHA-256 ("git v3") transition; hex is matched
+/// case-insensitively. Bytes equal chars here because the input is ASCII hex.
+fn is_valid_commit_hash(hash: &String) -> bool {
+    let len = hash.len();
+    if len != GIT_SHA1_HEX_LENGTH && len != GIT_SHA256_HEX_LENGTH {
+        return false;
+    }
+    hash.to_bytes().iter().all(|b| b.is_ascii_hexdigit())
+}
+
 #[contractimpl]
 impl VersioningTrait for Tansu {
     /// Register a new project.
@@ -184,10 +201,18 @@ impl VersioningTrait for Tansu {
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If the hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
     fn commit(env: Env, maintainer: Address, project_key: Bytes, hash: String) {
         Tansu::require_not_paused(env.clone());
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        // Guard against malformed hashes before they are written on-chain.
+        // Accepts SHA-1 (40 hex) and SHA-256 (64 hex) object names.
+        if !is_valid_commit_hash(&hash) {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidCommitHash);
+        }
+
         env.storage()
             .persistent()
             .set(&types::ProjectKey::LastHash(project_key.clone()), &hash);
@@ -247,7 +272,8 @@ impl VersioningTrait for Tansu {
     /// * If the contract is paused
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
-    /// * If commit_hash or cid is empty
+    /// * If commit_hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
+    /// * If cid is empty
     fn set_evidence(
         env: Env,
         maintainer: Address,
@@ -260,7 +286,12 @@ impl VersioningTrait for Tansu {
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        if commit_hash.is_empty() || cid.is_empty() {
+        // Evidence must reference a real commit, so the hash is validated with
+        // the same rule as commit(); an empty hash fails this check too.
+        if !is_valid_commit_hash(&commit_hash) {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidCommitHash);
+        }
+        if cid.is_empty() {
             panic_with_error!(&env, &errors::ContractErrors::InvalidEvidence);
         }
 
