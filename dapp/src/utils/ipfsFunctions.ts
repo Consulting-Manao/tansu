@@ -2,7 +2,7 @@
 
 import toml from "toml";
 
-const VALID_CID_PATTERN = /^(bafy|Qm)[a-zA-Z0-9]{44,}$/;
+import { isValidCid } from "./contentHashes";
 
 type IpfsCache = {
   responses: Record<string, Response>;
@@ -80,7 +80,7 @@ export async function fetchFromIpfs(
   path: string,
   options: FetchFromIpfsOptions = {},
 ): Promise<Response> {
-  if (!cid || !VALID_CID_PATTERN.test(cid)) {
+  if (!isValidCid(cid)) {
     throw new Error("Invalid IPFS CID");
   }
   const pathNorm = normalizePath(path);
@@ -149,7 +149,7 @@ export async function fetchJsonFromIpfs(
   path: string,
   options: FetchFromIpfsOptions = {},
 ): Promise<any | null> {
-  if (!cid || !VALID_CID_PATTERN.test(cid)) return null;
+  if (!isValidCid(cid)) return null;
   const pathNorm = normalizePath(path);
   const cache = getGlobalIpfsCache();
   const key = cacheKey(cid, pathNorm);
@@ -176,7 +176,7 @@ export async function fetchTomlFromIpfs(
   cid: string,
   options: FetchFromIpfsOptions = {},
 ): Promise<any | undefined> {
-  if (!cid || !VALID_CID_PATTERN.test(cid)) return undefined;
+  if (!isValidCid(cid)) return undefined;
 
   const cache = getGlobalIpfsCache();
   const cachedToml = cache.toml[cid];
@@ -208,13 +208,13 @@ export const fetchTomlFromCid = fetchTomlFromIpfs;
 // --- URL helpers (display only; do not use for fetch) ---
 
 export const getIpfsBasicLink = (cid: string): string => {
-  if (!cid || !VALID_CID_PATTERN.test(cid)) return "";
+  if (!isValidCid(cid)) return "";
   return GATEWAYS[0]!.buildUrl(cid, "");
 };
 
 /** Build gateway URL for CID and optional path (e.g. for links). */
 export function getIpfsUrl(cid: string, path: string = ""): string {
-  if (!cid || !VALID_CID_PATTERN.test(cid)) return "";
+  if (!isValidCid(cid)) return "";
   const pathNorm = path ? normalizePath(path) : "";
   return GATEWAYS[0]!.buildUrl(cid, pathNorm);
 }

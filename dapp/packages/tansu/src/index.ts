@@ -206,6 +206,7 @@ export const ContractErrors = {
   210: { message: "VoteLimitExceeded" },
   211: { message: "VoterConflicted" },
   212: { message: "InvalidEvidence" },
+  213: { message: "InvalidCommitHash" },
   300: { message: "NoHashFound" },
   301: { message: "NoProposalorPageFound" },
   302: { message: "NoProjectPageFound" },

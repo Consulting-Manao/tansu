@@ -57,6 +57,52 @@ fn commit_unregistered_maintainer_error() {
 }
 
 #[test]
+fn commit_rejects_wrong_length_hash() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // 8 hex chars: valid hex, but neither a SHA-1 (40) nor SHA-256 (64) length.
+    let hash = String::from_str(&setup.env, "deadbeef");
+    let err = setup
+        .contract
+        .try_commit(&setup.mando, &id, &hash)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidCommitHash.into());
+}
+
+#[test]
+fn commit_rejects_non_hex_hash() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // Correct length (40) but contains non-hex characters.
+    let hash = String::from_str(&setup.env, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+    let err = setup
+        .contract
+        .try_commit(&setup.mando, &id, &hash)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidCommitHash.into());
+}
+
+#[test]
+fn commit_accepts_sha256_hash() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // 64 hex chars: a Git SHA-256 object name must be accepted.
+    let hash = String::from_str(
+        &setup.env,
+        "6663520bd9e6ede248fef8157b2af0b6b6b410466663520bd9e6ede248fef815",
+    );
+    setup.contract.commit(&setup.mando, &id, &hash);
+
+    let stored = setup.contract.get_commit(&id);
+    assert_eq!(stored, hash);
+}
+
+#[test]
 fn test_anonymous_vote_commitment_validation() {
     let setup = create_test_data();
     let id = init_contract(&setup);
@@ -171,7 +217,7 @@ fn set_evidence_appends_history_oldest_first() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
 
-    let commit_hash = String::from_str(&setup.env, "commit-a");
+    let commit_hash = String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     let kind = EvidenceKind::Cve;
     let first_cid = String::from_str(&setup.env, "bafybeigfirst");
     let second_cid = String::from_str(&setup.env, "bafybeigsecond");
@@ -197,7 +243,7 @@ fn set_evidence_bounds_history_and_rolls_off_oldest() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
 
-    let commit_hash = String::from_str(&setup.env, "commit-a");
+    let commit_hash = String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     let kind = EvidenceKind::Sbom;
 
     // Record more than the on-chain cap (MAX_EVIDENCE = 10).
@@ -232,7 +278,7 @@ fn set_evidence_bounds_history_and_rolls_off_oldest() {
 #[test]
 fn get_evidence_is_empty_when_absent() {
     let setup = create_test_data();
-    let commit_hash = String::from_str(&setup.env, "commit-a");
+    let commit_hash = String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
     // No evidence recorded yet for an existing project.
     let project_key = init_contract(&setup);
@@ -260,7 +306,7 @@ fn set_evidence_requires_project_maintainer() {
         .try_set_evidence(
             &outsider,
             &project_key,
-            &String::from_str(&setup.env, "commit-a"),
+            &String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
             &EvidenceKind::Sbom,
             &String::from_str(&setup.env, "bafybeigdyrzt"),
         )
@@ -270,11 +316,13 @@ fn set_evidence_requires_project_maintainer() {
 }
 
 #[test]
-fn set_evidence_rejects_empty_commit_hash_or_cid() {
+fn set_evidence_rejects_invalid_commit_hash() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
     let kind = EvidenceKind::Sbom;
+    let cid = String::from_str(&setup.env, "bafybeigdyrzt");
 
+    // Empty hash fails the format check (before the cid check).
     let err = setup
         .contract
         .try_set_evidence(
@@ -282,18 +330,40 @@ fn set_evidence_rejects_empty_commit_hash_or_cid() {
             &project_key,
             &String::from_str(&setup.env, ""),
             &kind,
-            &String::from_str(&setup.env, "bafybeigdyrzt"),
+            &cid,
         )
         .unwrap_err()
         .unwrap();
-    assert_eq!(err, ContractErrors::InvalidEvidence.into());
+    assert_eq!(err, ContractErrors::InvalidCommitHash.into());
 
+    // Non-empty but not a valid Git object name.
     let err = setup
         .contract
         .try_set_evidence(
             &setup.mando,
             &project_key,
-            &String::from_str(&setup.env, "commit-a"),
+            &String::from_str(&setup.env, "not-a-real-commit-hash"),
+            &kind,
+            &cid,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidCommitHash.into());
+}
+
+#[test]
+fn set_evidence_rejects_empty_cid() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let kind = EvidenceKind::Sbom;
+
+    // Valid hash but empty cid still fails with InvalidEvidence.
+    let err = setup
+        .contract
+        .try_set_evidence(
+            &setup.mando,
+            &project_key,
+            &String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
             &kind,
             &String::from_str(&setup.env, ""),
         )
@@ -307,8 +377,8 @@ fn evidence_is_scoped_per_commit_hash() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
 
-    let first_commit = String::from_str(&setup.env, "commit-a");
-    let second_commit = String::from_str(&setup.env, "commit-b");
+    let first_commit = String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let second_commit = String::from_str(&setup.env, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     let first_cid = String::from_str(&setup.env, "bafybeigfirst");
     let second_cid = String::from_str(&setup.env, "bafybeigsecond");
 
@@ -342,7 +412,7 @@ fn evidence_is_scoped_per_commit_hash() {
 fn evidence_is_scoped_per_kind() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
-    let commit_hash = String::from_str(&setup.env, "commit-a");
+    let commit_hash = String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
     let sbom_cid = String::from_str(&setup.env, "bafybeigsbom");
     let cve_cid = String::from_str(&setup.env, "bafybeigcve");
@@ -390,7 +460,7 @@ fn set_evidence_fails_when_contract_is_paused() {
         .try_set_evidence(
             &setup.mando,
             &project_key,
-            &String::from_str(&setup.env, "commit-a"),
+            &String::from_str(&setup.env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
             &EvidenceKind::Sbom,
             &String::from_str(&setup.env, "bafybeigdyrzt"),
         )
