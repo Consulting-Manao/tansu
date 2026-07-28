@@ -2,6 +2,9 @@ import { useStore } from "@nanostores/react";
 import {
   fetchProposalOutcomeData,
   fetchProposalFromIPFS,
+  fetchProposalDiscussionFromIPFS,
+  fetchProposalDiscussionSummaryFromIPFS,
+  resolveDiscussionCid,
 } from "@service/ProposalService";
 import {
   getProjectFromName,
@@ -12,7 +15,11 @@ import { queryKeys } from "@service/cache/cacheKeys";
 import Loading from "components/utils/Loading";
 import React, { useEffect, useState } from "react";
 import type { Proposal as ContractProposal } from "../../../../packages/tansu";
-import type { ProposalOutcome, ProposalView } from "types/proposal";
+import type {
+  ProposalOutcome,
+  ProposalView,
+  DiscussionPost,
+} from "types/proposal";
 import { deriveProjectKey } from "utils/projectKey";
 import { connectedPublicKey } from "utils/store";
 import {
@@ -21,6 +28,7 @@ import {
   modifyProposalToView,
   toast,
 } from "utils/utils";
+import DiscussionSection from "./DiscussionSection";
 import ExecuteProposalModal from "./ExecuteProposalModal";
 import ProposalDetail from "./ProposalDetail";
 import ProposalTitle from "./ProposalTitle";
@@ -37,6 +45,12 @@ const ProposalPage: React.FC = () => {
   const [description, setDescription] = useState("");
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [projectMaintainers, setProjectMaintainers] = useState<string[]>([]);
+  const [discussion, setDiscussion] = useState<DiscussionPost[] | null>(null);
+  const [discussionSummary, setDiscussionSummary] = useState<string | null>(
+    null,
+  );
+  const [discussionCid, setDiscussionCid] = useState<string | null>(null);
+  const [isDiscussionLoading, setIsDiscussionLoading] = useState(false);
 
   const isValidProposalId =
     Number.isInteger(id) && id >= 0 && projectName.length > 0;
@@ -108,6 +122,11 @@ const ProposalPage: React.FC = () => {
     const loadProposalDetails = async () => {
       setDescription("");
       setOutcome(null);
+      setDiscussion(null);
+      setDiscussionSummary(null);
+      setDiscussionCid(null);
+
+      const appProposal = modifyProposalFromContract(proposalData);
 
       if (proposalData.ipfs) {
         const fetchedDescription = await fetchProposalFromIPFS(
@@ -117,11 +136,27 @@ const ProposalPage: React.FC = () => {
       }
 
       try {
-        const outcomeProposal = modifyProposalFromContract(proposalData);
-        const outcomeData = await fetchProposalOutcomeData(outcomeProposal);
+        const outcomeData = await fetchProposalOutcomeData(appProposal);
         if (!ignore) setOutcome(outcomeData);
       } catch {
         if (!ignore) setOutcome({});
+      }
+
+      const cid = resolveDiscussionCid(appProposal);
+      if (cid) {
+        if (!ignore) {
+          setDiscussionCid(cid);
+          setIsDiscussionLoading(true);
+        }
+        const [thread, summary] = await Promise.all([
+          fetchProposalDiscussionFromIPFS(cid),
+          fetchProposalDiscussionSummaryFromIPFS(cid),
+        ]);
+        if (!ignore) {
+          setDiscussion(thread);
+          setDiscussionSummary(summary);
+          setIsDiscussionLoading(false);
+        }
       }
     };
 
@@ -162,6 +197,12 @@ const ProposalPage: React.FC = () => {
             outcome={outcome}
             voteStatus={proposal.voteStatus}
             status={proposal.status}
+          />
+          <DiscussionSection
+            discussion={discussion}
+            summary={discussionSummary}
+            isLoading={isDiscussionLoading}
+            ipfsCid={discussionCid}
           />
           {isVotingModalOpen && (
             <VotingModal

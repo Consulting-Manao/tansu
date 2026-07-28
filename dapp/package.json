@@ -40,7 +40,7 @@
     "react18-json-view": "0.2.10",
     "recharts": "3.9.2",
     "toml": "^5.0.0",
-    "typescript": "^7.0.2"
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

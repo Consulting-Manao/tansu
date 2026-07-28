@@ -13,6 +13,9 @@ vi.mock("../../../src/utils/ipfsFunctions", () => ({
 import {
   fetchProposalOutcomeData,
   fetchProposalFromIPFS,
+  fetchProposalDiscussionFromIPFS,
+  fetchProposalDiscussionSummaryFromIPFS,
+  resolveDiscussionCid,
 } from "../../../src/service/ProposalService";
 import type { Proposal, OutcomeContract } from "../../../src/types/proposal";
 
@@ -291,5 +294,126 @@ describe("fetchProposalFromIPFS", () => {
     mockFetchTextFromIpfs.mockRejectedValue(new Error("network error"));
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBeNull();
+  });
+});
+
+describe("resolveDiscussionCid", () => {
+  it("prefers an explicit discussionIpfs CID", () => {
+    const proposal = makeProposal({
+      ipfs: "bafyproposal",
+      discussionIpfs: "bafydiscussion",
+    });
+    expect(resolveDiscussionCid(proposal)).toBe("bafydiscussion");
+  });
+
+  it("falls back to the proposal's own IPFS directory", () => {
+    const proposal = makeProposal({ ipfs: "bafyproposal" });
+    expect(resolveDiscussionCid(proposal)).toBe("bafyproposal");
+  });
+
+  it("returns null when neither CID is present", () => {
+    const proposal = makeProposal({ ipfs: "" });
+    expect(resolveDiscussionCid(proposal)).toBeNull();
+  });
+});
+
+describe("fetchProposalDiscussionFromIPFS", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("parses a bare array of posts", async () => {
+    mockFetchJsonFromIpfs.mockResolvedValue([
+      { author: "alice", timestamp: "2024-01-01T00:00:00Z", body: "Hi" },
+    ]);
+    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
+    expect(mockFetchJsonFromIpfs).toHaveBeenCalledWith(
+      "bafyabc123",
+      "/discussion.json",
+    );
+    expect(result).toEqual([
+      { author: "alice", timestamp: "2024-01-01T00:00:00Z", body: "Hi" },
+    ]);
+  });
+
+  it("parses a { posts: [...] } wrapper and keeps source", async () => {
+    mockFetchJsonFromIpfs.mockResolvedValue({
+      posts: [
+        {
+          author: "bob",
+          timestamp: 1700000000,
+          body: "Yo",
+          source: "https://x/1",
+        },
+      ],
+    });
+    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
+    expect(result).toEqual([
+      {
+        author: "bob",
+        timestamp: 1700000000,
+        body: "Yo",
+        source: "https://x/1",
+      },
+    ]);
+  });
+
+  it("drops posts with empty bodies and defaults missing authors", async () => {
+    mockFetchJsonFromIpfs.mockResolvedValue([
+      { author: "", body: "  " },
+      { body: "kept" },
+    ]);
+    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
+    expect(result).toEqual([
+      { author: "Unknown", timestamp: "", body: "kept" },
+    ]);
+  });
+
+  it("returns null for malformed or empty data", async () => {
+    mockFetchJsonFromIpfs.mockResolvedValue({ nope: true });
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+
+    mockFetchJsonFromIpfs.mockResolvedValue(null);
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
+
+  it("returns null when fetch throws", async () => {
+    mockFetchJsonFromIpfs.mockRejectedValue(new Error("boom"));
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
+});
+
+describe("fetchProposalDiscussionSummaryFromIPFS", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns summary text and rewrites relative images", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("## Summary\n![x](img.png)");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
+    );
+    const result = await fetchProposalDiscussionSummaryFromIPFS("bafyabc123");
+    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
+      "bafyabc123",
+      "/summary.md",
+    );
+    expect(result).toBe(
+      "## Summary\n![x](https://ipfs.filebase.io/ipfs/bafyabc123/img.png)",
+    );
+  });
+
+  it("returns null for empty/whitespace content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("   ");
+    expect(
+      await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
+    ).toBeNull();
+  });
+
+  it("returns null when fetch throws", async () => {
+    mockFetchTextFromIpfs.mockRejectedValue(new Error("net"));
+    expect(
+      await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
+    ).toBeNull();
   });
 });

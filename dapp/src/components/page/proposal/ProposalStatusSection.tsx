@@ -41,7 +41,8 @@ const ProposalStatusSection: React.FC<Props> = ({ proposal }) => {
     return {
       status: displayedStatus,
       voteResult,
-      endDate: viewStatus == "active" && !isExpired ? proposal.endDate : undefined,
+      endDate:
+        viewStatus == "active" && !isExpired ? proposal.endDate : undefined,
     };
   }, [proposal]);
 

@@ -22,6 +22,14 @@ export interface Proposal {
   outcome_contracts?: OutcomeContract[] | null; // Array of [approved, rejected, cancelled] contracts
   /** Set when proposal uses token-weighted voting (SAC contract address). */
   tokenContract?: string | null;
+  discussionIpfs?: string | null;
+}
+
+export interface DiscussionPost {
+  author: string;
+  timestamp: string | number;
+  body: string;
+  source?: string;
 }
 
 export interface ProposalView {

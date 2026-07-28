@@ -3,10 +3,23 @@ import {
   fetchTextFromIpfs,
   fetchJsonFromIpfs,
 } from "utils/ipfsFunctions";
-import type { Proposal, ProposalOutcome } from "types/proposal";
+import type { Proposal, ProposalOutcome, DiscussionPost } from "types/proposal";
 
 const PROPOSAL_MD_PATH = "/proposal.md";
 const OUTCOMES_JSON_PATH = "/outcomes.json";
+const DISCUSSION_JSON_PATH = "/discussion.json";
+const DISCUSSION_SUMMARY_PATH = "/summary.md";
+
+function imagePaths(content: string, cid: string): string {
+  const basicUrl = getIpfsBasicLink(cid);
+  if (!basicUrl) return content;
+  return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return match;
+    }
+    return `![${alt}](${basicUrl}/${path})`;
+  });
+}
 
 /**
  * Fetches proposal markdown content from IPFS
@@ -18,18 +31,61 @@ async function fetchProposalFromIPFS(cid: string) {
   try {
     const content = await fetchTextFromIpfs(cid, PROPOSAL_MD_PATH);
     if (!content) return null;
+    return imagePaths(content, cid);
+  } catch {
+    return null;
+  }
+}
 
-    const basicUrl = getIpfsBasicLink(cid);
-    if (!basicUrl) return content;
+/** Seam for where discussion docs live; defaults to the proposal's IPFS dir. */
+export function resolveDiscussionCid(proposal: Proposal): string | null {
+  return proposal.discussionIpfs?.trim() || proposal.ipfs?.trim() || null;
+}
 
-    // Update relative image paths to absolute IPFS paths.
-    // Keep absolute URLs (http://, https://) unchanged.
-    return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
-      if (path.startsWith("http://") || path.startsWith("https://")) {
-        return match;
-      }
-      return `![${alt}](${basicUrl}/${path})`;
-    });
+function normalizePost(raw: any): DiscussionPost | null {
+  if (!raw || typeof raw !== "object") return null;
+  const body = typeof raw.body === "string" ? raw.body.trim() : "";
+  if (!body) return null;
+  return {
+    author: typeof raw.author === "string" ? raw.author : "Unknown",
+    timestamp:
+      typeof raw.timestamp === "number"
+        ? raw.timestamp
+        : String(raw.timestamp ?? ""),
+    body,
+    ...(typeof raw.source === "string" ? { source: raw.source } : {}),
+  };
+}
+
+/** Fetches the discussion thread (discussion.json) from IPFS. */
+export async function fetchProposalDiscussionFromIPFS(
+  cid: string,
+): Promise<DiscussionPost[] | null> {
+  try {
+    const data = await fetchJsonFromIpfs(cid, DISCUSSION_JSON_PATH);
+    const rawPosts = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.posts)
+        ? data.posts
+        : null;
+    if (!rawPosts) return null;
+    const posts = rawPosts
+      .map(normalizePost)
+      .filter((p: DiscussionPost | null): p is DiscussionPost => p !== null);
+    return posts.length > 0 ? posts : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetches the optional discussion summary (summary.md) from IPFS. */
+export async function fetchProposalDiscussionSummaryFromIPFS(
+  cid: string,
+): Promise<string | null> {
+  try {
+    const content = await fetchTextFromIpfs(cid, DISCUSSION_SUMMARY_PATH);
+    if (!content?.trim()) return null;
+    return imagePaths(content, cid);
   } catch {
     return null;
   }
