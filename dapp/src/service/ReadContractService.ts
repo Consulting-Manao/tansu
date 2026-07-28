@@ -8,6 +8,7 @@ import type { Proposal as ModifiedProposal } from "types/proposal";
 import { checkSimulationError } from "utils/contractErrors";
 import { fetchWithCache, invalidateQuery } from "./cache/cacheStore";
 import { queryKeys } from "./cache/cacheKeys";
+import { scValToNative } from "@stellar/stellar-sdk";
 
 const TTL_4H = 4 * 60 * 60 * 1000;
 const TTL_1H = 60 * 60 * 1000;
@@ -176,6 +177,11 @@ async function getProposals(
       // get_dao may fail with an XDR decode error in @stellar/stellar-sdk v16 when
       // proposals have OutcomeContract.args that use Vec<scSpecTypeVal>
       // (GitHub issue #1178). Fall back to individual get_proposal calls.
+      //
+      // Note: get_dao returns proposals without vote data (votes are stored
+      // separately keyed by voter address in the contract). The individual
+      // get_proposal call loads votes via get_all_votes. We must fetch votes
+      // separately so hasUserVoted works on the governance list page.
       try {
         const res = await Tansu.get_dao({
           project_key: project_key,
@@ -185,9 +191,42 @@ async function getProposals(
         // Check for simulation errors
         checkSimulationError(res);
 
-        return (res.result.proposals as Proposal[]).map((proposal) =>
-          modifyProposalFromContract(proposal),
-        );
+        const rawProposals = res.result.proposals as Proposal[];
+
+        // get_dao does not include vote data — load votes for each proposal
+        // via individual get_proposal calls so hasUserVoted works correctly.
+        const modifiedProposals: ModifiedProposal[] = (
+          await Promise.allSettled(
+            rawProposals.map(async (proposal) => {
+              try {
+                const fullProposal = await getProposalRaw(
+                  project_name,
+                  proposal.id,
+                );
+                if (fullProposal) {
+                  return modifyProposalFromContract(fullProposal);
+                }
+              } catch {
+                // Fall through to basic proposal without votes.
+              }
+              try {
+                return modifyProposalFromContract(proposal);
+              } catch {
+                return null;
+              }
+            }),
+          )
+        )
+          .filter(
+            (
+              result,
+            ): result is PromiseFulfilledResult<ModifiedProposal | null> =>
+              result.status === "fulfilled",
+          )
+          .map((result) => result.value)
+          .filter((x): x is ModifiedProposal => x != null);
+
+        return modifiedProposals;
       } catch {
         // get_dao failed — likely an XDR decode error for proposals with
         // outcome_contracts args. Fall back to fetching each proposal
@@ -220,20 +259,55 @@ async function getProposalRaw(
   projectName: string,
   proposalId: number,
 ): Promise<Proposal | null> {
+  const project_key = deriveProjectKey(projectName);
+
+  // Create the AssembledTransaction. The AT is auto-simulated on
+  // construction (buildWithOp → simulate()), so .simulation is set.
+  const at = await Tansu.get_proposal({
+    project_key,
+    proposal_id: proposalId,
+  });
+
+  // ---- Fast path: typed result from Client bindings ----
+  // .result calls parseResultXdr (spec-based typed decoder).
+  // This can fail when OutcomeContract.args contains Vec<Val> with
+  // complex ScVal types — the spec-based decoder struggles with
+  // Val-typed fields in responses (unlike nativeToScVal/encoding,
+  // which was fixed in js-stellar-sdk PR #1485).
+  // Fall through to scValToNative below, which handles all ScVal.
   try {
-    const project_key = deriveProjectKey(projectName);
-    const res = await Tansu.get_proposal({
-      project_key: project_key,
-      proposal_id: proposalId,
-    });
-
-    // Check for simulation errors
-    checkSimulationError(res);
-
-    return res.result as Proposal;
-  } catch {
-    return null;
+    checkSimulationError(at as any);
+    const result = (at as any).result;
+    if (result) {
+      return result as Proposal;
+    }
+  } catch (err) {
+    console.warn(
+      "getProposalRaw: typed result decode failed for",
+      { projectName, proposalId },
+      err,
+    );
   }
+
+  // ---- Fallback: raw ScVal decode via simulation data ----
+  // The raw simulation retval IS available even when typed decode fails,
+  // because simulate() stores it BEFORE calling parseResultXdr.
+  // Decode it directly with scValToNative which handles all ScVal types.
+  try {
+    const rawRetval = (at as any).simulation?.result?.retval;
+    if (rawRetval) {
+      const decoded = scValToNative(rawRetval);
+      return decoded as Proposal;
+    }
+  } catch (fallbackErr) {
+    console.warn(
+      "getProposalRaw: raw ScVal fallback also failed for",
+      { projectName, proposalId },
+      fallbackErr,
+    );
+  }
+
+  return null;
 }
 
 async function getProposal(
