@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss/index.css";
 @import "github-markdown-css/github-markdown.css";
 
 @theme {
