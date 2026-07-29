@@ -215,6 +215,61 @@ impl VersioningTrait for Tansu {
         .publish(&env);
     }
 
+    /// Update the per-project governance overrides.
+    ///
+    /// Values apply to future proposals only: the minimum voting period is
+    /// checked at proposal creation and the execute timelock is snapshotted
+    /// per proposal at creation, so in-flight proposals keep the timing they
+    /// were created under. `None` clears an override back to the global
+    /// default.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - The address of the maintainer calling this function
+    /// * `key` - The project key identifier
+    /// * `min_voting_period` - Optional minimum voting period override, in seconds
+    /// * `execute_delay` - Optional DAO execute timelock override, in seconds
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    /// * If the maintainer is not authorized
+    /// * If an override is zero or exceeds `MAX_VOTING_PERIOD`
+    fn update_governance(
+        env: Env,
+        maintainer: Address,
+        key: Bytes,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &key);
+
+        for v in [min_voting_period, execute_delay].iter().flatten() {
+            if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+            }
+        }
+
+        let storage = env.storage().persistent();
+        match min_voting_period {
+            Some(v) => storage.set(&types::ProjectKey::MinVotingPeriod(key.clone()), &v),
+            None => storage.remove(&types::ProjectKey::MinVotingPeriod(key.clone())),
+        }
+        match execute_delay {
+            Some(v) => storage.set(&types::ProjectKey::ExecuteDelay(key.clone()), &v),
+            None => storage.remove(&types::ProjectKey::ExecuteDelay(key.clone())),
+        }
+
+        events::ProjectGovernanceUpdated {
+            project_key: key,
+            maintainer,
+            min_voting_period,
+            execute_delay,
+        }
+        .publish(&env);
+    }
+
     /// Set the latest commit hash for a project.
     ///
     /// Updates the current commit hash for the specified project.

@@ -23,6 +23,16 @@ pub struct ProjectConfigUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectGovernanceUpdated {
+    #[topic]
+    pub project_key: Bytes,
+    pub maintainer: Address,
+    pub min_voting_period: Option<u64>,
+    pub execute_delay: Option<u64>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Commit {
     #[topic]
     pub project_key: Bytes,

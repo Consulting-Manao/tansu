@@ -110,6 +110,14 @@ pub trait VersioningTrait {
         hash: String,
     );
 
+    fn update_governance(
+        env: Env,
+        maintainer: Address,
+        key: Bytes,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
+    );
+
     fn commit(env: Env, maintainer: Address, project_key: Bytes, hash: String);
 
     fn get_commit(env: Env, project_key: Bytes) -> String;

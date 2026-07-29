@@ -3,7 +3,7 @@ use super::test_utils::{create_test_data, init_contract};
 use crate::errors::ContractErrors;
 use crate::events::ProjectRegistered;
 use crate::types::{Project, ProjectKey};
-use soroban_sdk::testutils::Events;
+use soroban_sdk::testutils::{Address as _, Events};
 use soroban_sdk::{Address, Bytes, Env, Event, String, Vec, vec};
 
 /// Read a per-project governance override straight from contract storage,
@@ -486,4 +486,92 @@ fn execute_delay_rejects_zero() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn update_governance_sets_and_clears_overrides() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let custom_period = 7 * 24 * 3600u64;
+    let custom_delay = 60u64;
+    setup
+        .contract
+        .update_governance(&setup.grogu, &id, &Some(custom_period), &Some(custom_delay));
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        custom_delay
+    );
+
+    // None clears back to the global defaults.
+    setup
+        .contract
+        .update_governance(&setup.grogu, &id, &None, &None);
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        crate::contract_dao::MIN_VOTING_PERIOD
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        crate::types::TIMELOCK_DELAY
+    );
+}
+
+#[test]
+fn update_governance_rejects_invalid_values() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let err = setup
+        .contract
+        .try_update_governance(&setup.grogu, &id, &Some(0u64), &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+
+    let too_long = 30 * 24 * 3600u64 + 1; // one second past MAX_VOTING_PERIOD
+    let err = setup
+        .contract
+        .try_update_governance(&setup.grogu, &id, &None, &Some(too_long))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn update_governance_requires_maintainer() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let outsider = Address::generate(&setup.env);
+    let err = setup
+        .contract
+        .try_update_governance(&outsider, &id, &Some(60u64), &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
 }

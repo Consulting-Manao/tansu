@@ -150,6 +150,10 @@ export type ProjectKey =
   | {
       tag: "ExecuteDelay";
       values: readonly [Buffer];
+    }
+  | {
+      tag: "ProposalExecuteDelay";
+      values: readonly [Buffer, u32];
     };
 export interface PublicVote {
   address: string;
@@ -1472,6 +1476,42 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
+  /**
+   * Construct and simulate a update_governance transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Update the per-project governance overrides.
+   *
+   * Values apply to future proposals only: the minimum voting period is
+   * checked at proposal creation and the execute timelock is snapshotted
+   * per proposal at creation, so in-flight proposals keep the timing they
+   * were created under. `None` clears an override back to the global
+   * default.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `maintainer` - The address of the maintainer calling this function
+   * * `key` - The project key identifier
+   * * `min_voting_period` - Optional minimum voting period override, in seconds
+   * * `execute_delay` - Optional DAO execute timelock override, in seconds
+   *
+   * # Panics
+   * * If the project doesn't exist
+   * * If the maintainer is not authorized
+   * * If an override is zero or exceeds `MAX_VOTING_PERIOD`
+   */
+  update_governance: (
+    {
+      maintainer,
+      key,
+      min_voting_period,
+      execute_delay,
+    }: {
+      maintainer: string;
+      key: Buffer;
+      min_voting_period: Option<u64>;
+      execute_delay: Option<u64>;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
 }
 export declare class Client extends ContractClient {
   readonly options: ContractClientOptions;
@@ -1541,5 +1581,6 @@ export declare class Client extends ContractClient {
     update_config: (json: string) => AssembledTransaction<null>;
     get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
+    update_governance: (json: string) => AssembledTransaction<null>;
   };
 }

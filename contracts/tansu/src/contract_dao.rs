@@ -318,6 +318,19 @@ impl DaoTrait for Tansu {
             &voters,
         );
 
+        // Snapshot the project's execute timelock so a later update_governance
+        // cannot change the delay for this in-flight proposal.
+        if let Some(delay) = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, u64>(&types::ProjectKey::ExecuteDelay(project_key.clone()))
+        {
+            env.storage().persistent().set(
+                &types::ProjectKey::ProposalExecuteDelay(project_key.clone(), proposal_id),
+                &delay,
+            );
+        }
+
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
         } else {
@@ -756,10 +769,15 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
+        // Snapshotted at proposal creation; proposals without a snapshot use
+        // the global default.
         let execute_delay = env
             .storage()
             .persistent()
-            .get(&types::ProjectKey::ExecuteDelay(project_key.clone()))
+            .get(&types::ProjectKey::ProposalExecuteDelay(
+                project_key.clone(),
+                proposal_id,
+            ))
             .unwrap_or(types::TIMELOCK_DELAY);
         if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
