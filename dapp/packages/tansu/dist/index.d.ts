@@ -1208,7 +1208,7 @@ export interface Client {
    * Register a new project.
    *
    * Creates a new project entry with maintainers, URL, and commit hash.
-   * Also registers the project name in the domain contract if not already registered.
+   * Also registers the name in the domain contract if needed.
    * The project key is generated using keccak256 hash of the project name.
    *
    * # Arguments
@@ -1218,13 +1218,18 @@ export interface Client {
    * * `maintainers` - List of maintainer addresses for the project
    * * `url` - The project's Git repository URL
    * * `ipfs` - CID of the tansu.toml file with associated metadata
-   * * `min_voting_period` - Optional per-project minimum voting period in seconds.
-   * When `None`, the global default is used. When `Some(v)`, `v` must be > 0 and
-   * <= `MAX_VOTING_PERIOD`.
-   * * `execute_delay` - Optional per-project DAO execute timelock in seconds. When
-   * `None`, the global `TIMELOCK_DELAY` is used. When `Some(v)`, `v` must be > 0
-   * and <= `MAX_VOTING_PERIOD`. Only affects DAO proposal `execute()`; the admin
-   * upgrade timelock in `propose_upgr
+   * * `min_voting_period` - Optional minimum voting period override, in seconds
+   * * `execute_delay` - Optional DAO execute timelock override, in seconds
+   *
+   * # Returns
+   * * `Bytes` - The project key (keccak256 hash of the name)
+   *
+   * # Panics
+   * * If the project name is longer than 15 characters
+   * * If the project already exists
+   * * If the maintainer is not authorized
+   * * If the maintainer has insufficient collateral balance
+   * * If an override is zero or exceeds `MAX_VOTING_PERIOD`
    */
   register: (
     {
