@@ -39,6 +39,8 @@ export interface Config {
   url: string;
 }
 export interface Member {
+  git_identity: Option<string>;
+  git_pubkey: Option<Buffer>;
   meta: string;
   projects: Array<ProjectBadges>;
 }
@@ -69,6 +71,10 @@ export interface Project {
   name: string;
   sub_projects: Option<Array<Buffer>>;
 }
+export interface Evidence {
+  cid: string;
+  created_at: u64;
+}
 export interface Proposal {
   id: u32;
   ipfs: string;
@@ -96,6 +102,10 @@ export type ProjectKey =
   | {
       tag: "LastHash";
       values: readonly [Buffer];
+    }
+  | {
+      tag: "Evidence";
+      values: readonly [Buffer, string, EvidenceKind];
     }
   | {
       tag: "Dao";
@@ -185,6 +195,19 @@ export interface AdminsConfig {
   admins: Array<string>;
   threshold: u32;
 }
+export type EvidenceKind =
+  | {
+      tag: "Sbom";
+      values: void;
+    }
+  | {
+      tag: "Cve";
+      values: void;
+    }
+  | {
+      tag: "Attestation";
+      values: void;
+    };
 export interface AnonymousVote {
   address: string;
   commitments: Array<Buffer>;
@@ -285,6 +308,12 @@ export declare const ContractErrors: {
   212: {
     message: string;
   };
+  213: {
+    message: string;
+  };
+  214: {
+    message: string;
+  };
   300: {
     message: string;
   };
@@ -328,6 +357,9 @@ export declare const ContractErrors: {
     message: string;
   };
   603: {
+    message: string;
+  };
+  700: {
     message: string;
   };
 };
@@ -966,21 +998,36 @@ export interface Client {
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
    *
+   * Optionally binds a Git identity. When provided, the identity is verified
+   * by checking an Ed25519 signature against the caller's address, public key,
+   * and identity string. Only `git_identity` and `git_pubkey` are persisted.
+   *
    * # Arguments
    * * `env` - The environment object
    * * `member_address` - The address of the member to add
    * * `meta` - Metadata string associated with the member (e.g., IPFS hash)
+   * * `git_identity` - Git handle (e.g., "github:alice")
+   * * `git_pubkey` - Ed25519 public key
+   * * `git_sig` - Ed25519 signature
    *
    * # Panics
    * * If the member already exists
+   * * If git params are incomplete (identity, key, sig must be all Some or None)
+   * * If the signature verification fails
    */
   add_member: (
     {
       member_address,
       meta,
+      git_identity,
+      git_pubkey,
+      git_sig,
     }: {
       member_address: string;
       meta: string;
+      git_identity: Option<string>;
+      git_pubkey: Option<Buffer>;
+      git_sig: Option<Buffer>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1064,23 +1111,37 @@ export interface Client {
   ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a update_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Update the metadata of an existing member.
+   * Update the metadata and optionally the Git identity of an existing member.
+   *
+   * When `git_identity` is `Some`, the signature is verified the same way
+   * as in `add_member` to prevent identity impersonation.
    *
    * # Arguments
    * * `env` - The environment object
    * * `member_address` - The address of the member to update
-   * * `meta` - New metadata string associated with the member (e.g., IPFS hash)
+   * * `meta` - New metadata string
+   * * `git_identity` - Git handle (e.g., "github:alice")
+   * * `git_pubkey` - Ed25519 public key
+   * * `git_sig` - Ed25519 signature
    *
    * # Panics
    * * If the member doesn't exist
+   * * If git params are incomplete (identity, key, sig must be all Some or None)
+   * * If the signature verification fails
    */
   update_member: (
     {
       member_address,
       meta,
+      git_identity,
+      git_pubkey,
+      git_sig,
     }: {
       member_address: string;
       meta: string;
+      git_identity: Option<string>;
+      git_pubkey: Option<Buffer>;
+      git_sig: Option<Buffer>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1128,6 +1189,7 @@ export interface Client {
    * # Panics
    * * If the project doesn't exist
    * * If the maintainer is not authorized
+   * * If the hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
    */
   commit: (
     {
@@ -1229,6 +1291,36 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Project>>;
   /**
+   * Construct and simulate a get_evidence transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the stored evidence history for a specific project commit and kind.
+   *
+   * Entries are returned oldest-first (the last element is the latest), and at
+   * most `MAX_EVIDENCE` are kept on-chain. Returns an empty vector when no
+   * evidence has been recorded; consumers reconstruct the full history from
+   * `EvidenceSet` events via an indexer.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   * * `commit_hash` - The commit hash this evidence describes
+   * * `kind` - The evidence category
+   *
+   * # Returns
+   * * `Vec<types::Evidence>` - The stored evidence pointers, oldest-first
+   */
+  get_evidence: (
+    {
+      project_key,
+      commit_hash,
+      kind,
+    }: {
+      project_key: Buffer;
+      commit_hash: string;
+      kind: EvidenceKind;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<Array<Evidence>>>;
+  /**
    * Construct and simulate a get_projects transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get a page of projects.
    *
@@ -1247,6 +1339,49 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Array<Project>>>;
+  /**
+   * Construct and simulate a set_evidence transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Store generic external evidence for a specific project commit and evidence kind.
+   *
+   * Stores only the verifiable IPFS pointer. Evidence contents remain off-chain.
+   *
+   * Evidence is append-only: each call adds a new entry to the history for
+   * `(project_key, commit_hash, kind)` rather than overwriting the previous
+   * one (e.g. successive CVE re-scans of the same commit). At most
+   * `MAX_EVIDENCE` entries are kept on-chain; older ones roll off but remain
+   * recoverable from `EvidenceSet` events via an indexer.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `maintainer` - The address of the maintainer calling this function
+   * * `project_key` - The project key identifier
+   * * `commit_hash` - The commit hash this evidence describes
+   * * `kind` - The evidence category
+   * * `cid` - The off-chain content identifier
+   *
+   * # Panics
+   * * If the contract is paused
+   * * If the project doesn't exist
+   * * If the maintainer is not authorized
+   * * If commit_hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
+   * * If cid is empty
+   */
+  set_evidence: (
+    {
+      maintainer,
+      project_key,
+      commit_hash,
+      kind,
+      cid,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      commit_hash: string;
+      kind: EvidenceKind;
+      cid: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a update_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Update the configuration of an existing project.
@@ -1372,7 +1507,7 @@ export declare class Client extends ContractClient {
     remove_conflict_of_interest: (json: string) => AssembledTransaction<null>;
     build_commitments_from_votes: (
       json: string,
-    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
+    ) => AssembledTransaction<Buffer[]>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
@@ -1392,14 +1527,14 @@ export declare class Client extends ContractClient {
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
     commit: (json: string) => AssembledTransaction<null>;
-    register: (json: string) => AssembledTransaction<Buffer<ArrayBufferLike>>;
+    register: (json: string) => AssembledTransaction<Buffer>;
     get_commit: (json: string) => AssembledTransaction<string>;
     get_project: (json: string) => AssembledTransaction<Project>;
+    get_evidence: (json: string) => AssembledTransaction<Evidence[]>;
     get_projects: (json: string) => AssembledTransaction<Project[]>;
+    set_evidence: (json: string) => AssembledTransaction<null>;
     update_config: (json: string) => AssembledTransaction<null>;
-    get_sub_projects: (
-      json: string,
-    ) => AssembledTransaction<Buffer<ArrayBufferLike>[]>;
+    get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
   };
 }
