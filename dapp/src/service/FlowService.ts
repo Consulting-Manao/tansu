@@ -403,6 +403,8 @@ async function createSignedUpdateConfigTransaction(
   maintainers: string[],
   configUrl: string,
   cid: string,
+  minVotingPeriod?: bigint,
+  executeDelay?: bigint,
 ): Promise<string> {
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
@@ -423,6 +425,8 @@ async function createSignedUpdateConfigTransaction(
     maintainers: maintainers,
     url: configUrl,
     ipfs: cid,
+    min_voting_period: minVotingPeriod,
+    execute_delay: executeDelay,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -437,12 +441,18 @@ export async function updateConfigFlow({
   maintainers,
   onProgress,
   additionalFiles,
+  minVotingPeriod,
+  executeDelay,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
   maintainers: string[];
   onProgress?: (step: number) => void;
   additionalFiles?: File[];
+  // Governance overrides; `undefined` leaves the current on-chain values
+  // untouched (contract-side semantics — not "reset to default").
+  minVotingPeriod?: bigint;
+  executeDelay?: bigint;
 }): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
@@ -456,6 +466,8 @@ export async function updateConfigFlow({
     maintainers,
     normalizedRepositoryUrl,
     cid,
+    minVotingPeriod,
+    executeDelay,
   );
 
   // Step 3 – upload

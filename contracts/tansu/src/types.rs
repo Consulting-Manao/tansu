@@ -210,8 +210,8 @@ pub enum ProjectKey {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct PendingGovernance {
-    pub min_voting_period: Option<u64>, // None clears the override back to the global default
-    pub execute_delay: Option<u64>,     // None clears the override back to the global default
+    pub min_voting_period: Option<u64>, // None leaves the current value untouched
+    pub execute_delay: Option<u64>,     // None leaves the current value untouched
     pub activates_at: u64,              // Ledger timestamp at which the update may be applied
 }
 

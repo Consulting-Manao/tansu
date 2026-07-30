@@ -1404,7 +1404,13 @@ export interface Client {
    * Construct and simulate a update_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Update the configuration of an existing project.
    *
-   * Allows maintainers to change the project's URL, IPFS metadata, and maintainer list.
+   * Changes the project's URL, IPFS metadata, and maintainer list, and
+   * optionally its governance overrides. `None` governance params leave
+   * the current values untouched; to restore a default, pass it explicitly.
+   *
+   * Tightening (new >= current) applies immediately; loosening activates
+   * after a notice window of current `min_voting_period + execute_delay`.
+   * In-flight proposals keep their creation-time timelock.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1413,10 +1419,13 @@ export interface Client {
    * * `maintainers` - New list of maintainer addresses
    * * `url` - New Git repository URL
    * * `ipfs` - New CID of the tansu.toml file with metadata
+   * * `min_voting_period` - Optional new minimum voting period, in seconds
+   * * `execute_delay` - Optional new DAO execute timelock, in seconds
    *
    * # Panics
    * * If the project doesn't exist
    * * If the maintainer is not authorized
+   * * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
    */
   update_config: (
     {
@@ -1425,12 +1434,16 @@ export interface Client {
       maintainers,
       url,
       ipfs,
+      min_voting_period,
+      execute_delay,
     }: {
       maintainer: string;
       key: Buffer;
       maintainers: Array<string>;
       url: string;
       ipfs: string;
+      min_voting_period: Option<u64>;
+      execute_delay: Option<u64>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1482,44 +1495,6 @@ export interface Client {
       maintainer: string;
       project_key: Buffer;
       sub_projects: Array<Buffer>;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-  /**
-   * Construct and simulate a update_governance transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Update the per-project governance overrides. `None` clears an
-   * override back to the global default.
-   *
-   * Tightening (every new effective value >= its current one) applies
-   * immediately. Loosening is stored as pending and only takes effect
-   * after a notice window of current `min_voting_period + execute_delay`
-   * seconds, so a rule change can never pass faster than a proposal under
-   * the rules it replaces. Either way, in-flight proposals keep the
-   * timelock snapshotted at their creation.
-   *
-   * # Arguments
-   * * `env` - The environment object
-   * * `maintainer` - The address of the maintainer calling this function
-   * * `key` - The project key identifier
-   * * `min_voting_period` - Optional minimum voting period override, in seconds
-   * * `execute_delay` - Optional DAO execute timelock override, in seconds
-   *
-   * # Panics
-   * * If the project doesn't exist
-   * * If the maintainer is not authorized
-   * * If an override is zero or exceeds `MAX_VOTING_PERIOD`
-   */
-  update_governance: (
-    {
-      maintainer,
-      key,
-      min_voting_period,
-      execute_delay,
-    }: {
-      maintainer: string;
-      key: Buffer;
-      min_voting_period: Option<u64>;
-      execute_delay: Option<u64>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1592,6 +1567,5 @@ export declare class Client extends ContractClient {
     update_config: (json: string) => AssembledTransaction<null>;
     get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
-    update_governance: (json: string) => AssembledTransaction<null>;
   };
 }

@@ -489,16 +489,26 @@ fn execute_delay_rejects_zero() {
 }
 
 #[test]
-fn update_governance_sets_and_clears_overrides() {
+fn update_config_governance_tighten_and_pending_loosen() {
     let setup = create_test_data();
     let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
     // Tightening (raising both effective values) applies immediately.
     let custom_period = 7 * 24 * 3600u64;
     let custom_delay = 48 * 3600u64;
-    setup
-        .contract
-        .update_governance(&setup.grogu, &id, &Some(custom_period), &Some(custom_delay));
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(custom_period),
+        &Some(custom_delay),
+    );
     assert_eq!(
         stored_override(
             &setup.env,
@@ -518,12 +528,32 @@ fn update_governance_sets_and_clears_overrides() {
         custom_delay
     );
 
-    // Clearing is a loosening update: it is stored as pending for
-    // old min + old delay and the base entries are untouched until then.
-    let t0 = setup.env.ledger().timestamp();
+    // A plain config update leaves the overrides untouched.
     setup
         .contract
-        .update_governance(&setup.grogu, &id, &None, &None);
+        .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None, &None);
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+
+    // Restoring the defaults is a loosening update: stored as pending for
+    // old min + old delay, base entries untouched until then.
+    let t0 = setup.env.ledger().timestamp();
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(crate::contract_dao::MIN_VOTING_PERIOD),
+        &Some(crate::types::TIMELOCK_DELAY),
+    );
     assert_eq!(
         stored_override(
             &setup.env,
@@ -541,18 +571,22 @@ fn update_governance_sets_and_clears_overrides() {
             .get(&ProjectKey::PendingGovernance(id.clone()))
             .unwrap()
     });
-    assert_eq!(pending.min_voting_period, None);
-    assert_eq!(pending.execute_delay, None);
+    assert_eq!(
+        pending.min_voting_period,
+        Some(crate::contract_dao::MIN_VOTING_PERIOD)
+    );
+    assert_eq!(pending.execute_delay, Some(crate::types::TIMELOCK_DELAY));
     assert_eq!(pending.activates_at, t0 + custom_period + custom_delay);
 
-    // Past the notice window, the next reader applies the pending update.
+    // Past the notice window, the next update_config applies the pending
+    // values before doing anything else.
     setup
         .env
         .ledger()
         .set_timestamp(t0 + custom_period + custom_delay);
     setup
         .contract
-        .update_governance(&setup.grogu, &id, &None, &None);
+        .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None, &None);
     assert_eq!(
         stored_override(
             &setup.env,
@@ -574,13 +608,25 @@ fn update_governance_sets_and_clears_overrides() {
 }
 
 #[test]
-fn update_governance_rejects_invalid_values() {
+fn update_config_rejects_invalid_governance_values() {
     let setup = create_test_data();
     let id = init_contract(&setup);
 
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
     let err = setup
         .contract
-        .try_update_governance(&setup.grogu, &id, &Some(0u64), &None)
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(0u64),
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
@@ -588,21 +634,41 @@ fn update_governance_rejects_invalid_values() {
     let too_long = 30 * 24 * 3600u64 + 1; // one second past MAX_VOTING_PERIOD
     let err = setup
         .contract
-        .try_update_governance(&setup.grogu, &id, &None, &Some(too_long))
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &Some(too_long),
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
 }
 
 #[test]
-fn update_governance_requires_maintainer() {
+fn update_config_requires_maintainer() {
     let setup = create_test_data();
     let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
     let outsider = Address::generate(&setup.env);
     let err = setup
         .contract
-        .try_update_governance(&outsider, &id, &Some(60u64), &None)
+        .try_update_config(
+            &outsider,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(60u64),
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::UnauthorizedSigner.into());

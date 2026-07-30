@@ -1185,7 +1185,8 @@ impl DaoTrait for Tansu {
     }
 }
 
-/// Write (`Some`) or clear (`None`) both governance override entries.
+/// Write the provided governance override entries; `None` leaves the
+/// current value untouched.
 pub(crate) fn apply_governance(
     env: &Env,
     project_key: &Bytes,
@@ -1193,13 +1194,11 @@ pub(crate) fn apply_governance(
     execute_delay: Option<u64>,
 ) {
     let storage = env.storage().persistent();
-    match min_voting_period {
-        Some(v) => storage.set(&types::ProjectKey::MinVotingPeriod(project_key.clone()), &v),
-        None => storage.remove(&types::ProjectKey::MinVotingPeriod(project_key.clone())),
+    if let Some(v) = min_voting_period {
+        storage.set(&types::ProjectKey::MinVotingPeriod(project_key.clone()), &v);
     }
-    match execute_delay {
-        Some(v) => storage.set(&types::ProjectKey::ExecuteDelay(project_key.clone()), &v),
-        None => storage.remove(&types::ProjectKey::ExecuteDelay(project_key.clone())),
+    if let Some(v) = execute_delay {
+        storage.set(&types::ProjectKey::ExecuteDelay(project_key.clone()), &v);
     }
 }
 

@@ -1565,7 +1565,7 @@ fn execute_delay_override_applies_to_execute() {
 }
 
 #[test]
-fn update_governance_min_voting_period_applies_to_new_proposals() {
+fn update_config_min_voting_period_applies_to_new_proposals() {
     // A floor set after registration binds future proposals; clearing it
     // restores the global default.
     let setup = create_test_data();
@@ -1584,9 +1584,15 @@ fn update_governance_min_voting_period_applies_to_new_proposals() {
         .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
 
     let seven_days = 7 * 24 * 3600u64;
-    setup
-        .contract
-        .update_governance(&setup.grogu, &id, &Some(seven_days), &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(seven_days),
+        &None,
+    );
 
     let title = String::from_str(&setup.env, "Some proposal title");
     let prop_ipfs = String::from_str(
@@ -1611,11 +1617,17 @@ fn update_governance_min_voting_period_applies_to_new_proposals() {
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalInputValidation.into());
 
-    // Clearing the override is a loosening update: it only restores the
-    // global 24h floor after the notice window (old 7d min + 24h delay).
-    setup
-        .contract
-        .update_governance(&setup.grogu, &id, &None, &None);
+    // Restoring the default floor is a loosening update: it only takes
+    // effect after the notice window (old 7d min + 24h delay).
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(24 * 3600u64),
+        &None,
+    );
     let err = setup
         .contract
         .try_create_proposal(
@@ -1695,9 +1707,15 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
 
     // Lengthen the delay after proposal A exists; proposal B inherits it.
     let seven_days = 7 * 24 * 3600u64;
-    setup
-        .contract
-        .update_governance(&setup.grogu, &id, &None, &Some(seven_days));
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(seven_days),
+    );
     let proposal_b = setup.contract.create_proposal(
         &setup.grogu,
         &id,
@@ -1764,9 +1782,15 @@ fn execute_delay_loosening_waits_out_notice() {
 
     let t0 = setup.env.ledger().timestamp();
     let fast_delay = 60u64;
-    setup
-        .contract
-        .update_governance(&setup.grogu, &id, &None, &Some(fast_delay));
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(fast_delay),
+    );
 
     let title = String::from_str(&setup.env, "Some proposal title");
     let prop_ipfs = String::from_str(
