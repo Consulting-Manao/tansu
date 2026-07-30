@@ -204,6 +204,15 @@ pub enum ProjectKey {
     MinVotingPeriod(Bytes),           // Per-project minimum voting period override (seconds)
     ExecuteDelay(Bytes),              // Per-project DAO execute timelock override (seconds)
     ProposalExecuteDelay(Bytes, u32), // Timelock snapshotted at proposal creation (seconds)
+    PendingGovernance(Bytes),         // Loosening governance update waiting out its notice window
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingGovernance {
+    pub min_voting_period: Option<u64>, // None clears the override back to the global default
+    pub execute_delay: Option<u64>,     // None clears the override back to the global default
+    pub activates_at: u64,              // Ledger timestamp at which the update may be applied
 }
 
 #[contracttype]

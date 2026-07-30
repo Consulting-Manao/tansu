@@ -154,6 +154,10 @@ export type ProjectKey =
   | {
       tag: "ProposalExecuteDelay";
       values: readonly [Buffer, u32];
+    }
+  | {
+      tag: "PendingGovernance";
+      values: readonly [Buffer];
     };
 export interface PublicVote {
   address: string;
@@ -254,6 +258,11 @@ export interface UpgradeProposal {
   approvals: Array<string>;
   executable_at: u64;
   wasm_hash: Buffer;
+}
+export interface PendingGovernance {
+  activates_at: u64;
+  execute_delay: Option<u64>;
+  min_voting_period: Option<u64>;
 }
 export interface AnonymousVoteConfig {
   public_key: string;
@@ -1478,13 +1487,15 @@ export interface Client {
   ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a update_governance transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Update the per-project governance overrides.
+   * Update the per-project governance overrides. `None` clears an
+   * override back to the global default.
    *
-   * Values apply to future proposals only: the minimum voting period is
-   * checked at proposal creation and the execute timelock is snapshotted
-   * per proposal at creation, so in-flight proposals keep the timing they
-   * were created under. `None` clears an override back to the global
-   * default.
+   * Tightening (every new effective value >= its current one) applies
+   * immediately. Loosening is stored as pending and only takes effect
+   * after a notice window of current `min_voting_period + execute_delay`
+   * seconds, so a rule change can never pass faster than a proposal under
+   * the rules it replaces. Either way, in-flight proposals keep the
+   * timelock snapshotted at their creation.
    *
    * # Arguments
    * * `env` - The environment object

@@ -2,8 +2,8 @@ extern crate std;
 use super::test_utils::{create_test_data, init_contract};
 use crate::errors::ContractErrors;
 use crate::events::ProjectRegistered;
-use crate::types::{Project, ProjectKey};
-use soroban_sdk::testutils::{Address as _, Events};
+use crate::types::{PendingGovernance, Project, ProjectKey};
+use soroban_sdk::testutils::{Address as _, Events, Ledger};
 use soroban_sdk::{Address, Bytes, Env, Event, String, Vec, vec};
 
 /// Read a per-project governance override straight from contract storage,
@@ -493,8 +493,9 @@ fn update_governance_sets_and_clears_overrides() {
     let setup = create_test_data();
     let id = init_contract(&setup);
 
+    // Tightening (raising both effective values) applies immediately.
     let custom_period = 7 * 24 * 3600u64;
-    let custom_delay = 60u64;
+    let custom_delay = 48 * 3600u64;
     setup
         .contract
         .update_governance(&setup.grogu, &id, &Some(custom_period), &Some(custom_delay));
@@ -517,7 +518,38 @@ fn update_governance_sets_and_clears_overrides() {
         custom_delay
     );
 
-    // None clears back to the global defaults.
+    // Clearing is a loosening update: it is stored as pending for
+    // old min + old delay and the base entries are untouched until then.
+    let t0 = setup.env.ledger().timestamp();
+    setup
+        .contract
+        .update_governance(&setup.grogu, &id, &None, &None);
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+    let pending: PendingGovernance = setup.env.as_contract(&setup.contract_id, || {
+        setup
+            .env
+            .storage()
+            .persistent()
+            .get(&ProjectKey::PendingGovernance(id.clone()))
+            .unwrap()
+    });
+    assert_eq!(pending.min_voting_period, None);
+    assert_eq!(pending.execute_delay, None);
+    assert_eq!(pending.activates_at, t0 + custom_period + custom_delay);
+
+    // Past the notice window, the next reader applies the pending update.
+    setup
+        .env
+        .ledger()
+        .set_timestamp(t0 + custom_period + custom_delay);
     setup
         .contract
         .update_governance(&setup.grogu, &id, &None, &None);

@@ -215,13 +215,15 @@ impl VersioningTrait for Tansu {
         .publish(&env);
     }
 
-    /// Update the per-project governance overrides.
+    /// Update the per-project governance overrides. `None` clears an
+    /// override back to the global default.
     ///
-    /// Values apply to future proposals only: the minimum voting period is
-    /// checked at proposal creation and the execute timelock is snapshotted
-    /// per proposal at creation, so in-flight proposals keep the timing they
-    /// were created under. `None` clears an override back to the global
-    /// default.
+    /// Tightening (every new effective value >= its current one) applies
+    /// immediately. Loosening is stored as pending and only takes effect
+    /// after a notice window of current `min_voting_period + execute_delay`
+    /// seconds, so a rule change can never pass faster than a proposal under
+    /// the rules it replaces. Either way, in-flight proposals keep the
+    /// timelock snapshotted at their creation.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -251,21 +253,41 @@ impl VersioningTrait for Tansu {
             }
         }
 
+        crate::contract_dao::promote_pending_governance(&env, &key);
+
         let storage = env.storage().persistent();
-        match min_voting_period {
-            Some(v) => storage.set(&types::ProjectKey::MinVotingPeriod(key.clone()), &v),
-            None => storage.remove(&types::ProjectKey::MinVotingPeriod(key.clone())),
-        }
-        match execute_delay {
-            Some(v) => storage.set(&types::ProjectKey::ExecuteDelay(key.clone()), &v),
-            None => storage.remove(&types::ProjectKey::ExecuteDelay(key.clone())),
-        }
+        let old_min: u64 = storage
+            .get(&types::ProjectKey::MinVotingPeriod(key.clone()))
+            .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+        let old_delay: u64 = storage
+            .get(&types::ProjectKey::ExecuteDelay(key.clone()))
+            .unwrap_or(types::TIMELOCK_DELAY);
+        let new_min = min_voting_period.unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+        let new_delay = execute_delay.unwrap_or(types::TIMELOCK_DELAY);
+
+        let activates_at = if new_min >= old_min && new_delay >= old_delay {
+            crate::contract_dao::apply_governance(&env, &key, min_voting_period, execute_delay);
+            storage.remove(&types::ProjectKey::PendingGovernance(key.clone()));
+            env.ledger().timestamp()
+        } else {
+            let activates_at = env.ledger().timestamp() + old_min + old_delay;
+            storage.set(
+                &types::ProjectKey::PendingGovernance(key.clone()),
+                &types::PendingGovernance {
+                    min_voting_period,
+                    execute_delay,
+                    activates_at,
+                },
+            );
+            activates_at
+        };
 
         events::ProjectGovernanceUpdated {
             project_key: key,
             maintainer,
             min_voting_period,
             execute_delay,
+            activates_at,
         }
         .publish(&env);
     }
