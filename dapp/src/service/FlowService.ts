@@ -51,6 +51,11 @@ interface CreateProjectFlowParams {
   maintainers: string[];
   onProgress?: (step: number) => void;
   additionalFiles?: File[]; // Optional files like README.md for non-software projects
+  // Per-project governance overrides (added when the contract made the DAO
+  // voting period / execute timelock configurable). `undefined` => contract
+  // defaults. A short minVotingPeriod is handy for demoing governance.
+  minVotingPeriod?: bigint;
+  executeDelay?: bigint;
 }
 
 // Side-effect: patch Spec for OutcomeContract.args (Vec<Val>) encode/decode.
@@ -335,6 +340,8 @@ export async function createProjectFlow({
   maintainers,
   onProgress,
   additionalFiles,
+  minVotingPeriod,
+  executeDelay,
 }: CreateProjectFlowParams): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
@@ -356,6 +363,8 @@ export async function createProjectFlow({
     maintainers,
     url: normalizedRepositoryUrl,
     ipfs: cid,
+    min_voting_period: minVotingPeriod,
+    execute_delay: executeDelay,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -394,6 +403,8 @@ async function createSignedUpdateConfigTransaction(
   maintainers: string[],
   configUrl: string,
   cid: string,
+  minVotingPeriod?: bigint,
+  executeDelay?: bigint,
 ): Promise<string> {
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
@@ -414,6 +425,8 @@ async function createSignedUpdateConfigTransaction(
     maintainers: maintainers,
     url: configUrl,
     ipfs: cid,
+    min_voting_period: minVotingPeriod,
+    execute_delay: executeDelay,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -428,12 +441,18 @@ export async function updateConfigFlow({
   maintainers,
   onProgress,
   additionalFiles,
+  minVotingPeriod,
+  executeDelay,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
   maintainers: string[];
   onProgress?: (step: number) => void;
   additionalFiles?: File[];
+  // Governance overrides; `undefined` leaves the current on-chain values
+  // untouched (contract-side semantics — not "reset to default").
+  minVotingPeriod?: bigint;
+  executeDelay?: bigint;
 }): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
@@ -447,6 +466,8 @@ export async function updateConfigFlow({
     maintainers,
     normalizedRepositoryUrl,
     cid,
+    minVotingPeriod,
+    executeDelay,
   );
 
   // Step 3 – upload

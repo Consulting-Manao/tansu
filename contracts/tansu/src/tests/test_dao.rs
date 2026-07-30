@@ -59,6 +59,7 @@ fn proposal_flow() {
         voting_ends_at,
         public_voting: true,
         token_contract: None,
+        execute_delay: crate::types::TIMELOCK_DELAY,
     };
 
     let contract_events = setup
@@ -154,7 +155,7 @@ fn scf_voting() {
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(
@@ -1420,4 +1421,443 @@ fn remove_vote_anonymous_flips_outcome() {
         &Some(vec![&setup.env, 6u128, 0u128, 0u128]),
     );
     assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn min_voting_period_override_applies_to_create_proposal() {
+    // A project with a per-project minimum of 7 days should reject a 2-day
+    // proposal even though 2 days clears the global 24h default.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "stricter");
+    let url = String::from_str(&setup.env, "github.com/stricter");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let seven_days = 7 * 24 * 3600u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(seven_days),
+        &None,
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let two_days_out = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+
+    let err = setup
+        .contract
+        .try_create_proposal(
+            &setup.grogu,
+            &id,
+            &title,
+            &prop_ipfs,
+            &two_days_out,
+            &true,
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
+
+    // And a proposal that respects the 7-day floor succeeds.
+    let eight_days_out = setup.env.ledger().timestamp() + 8 * 24 * 3600;
+    let _proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &eight_days_out,
+        &true,
+        &None,
+        &None,
+    );
+}
+
+#[test]
+fn execute_delay_override_applies_to_execute() {
+    // A project with a per-project execute delay of 60s should allow execute()
+    // 60s past voting_ends_at, even though TIMELOCK_DELAY is 24h.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "fastdao");
+    let url = String::from_str(&setup.env, "github.com/fastdao");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let fast_delay = 60u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(fast_delay),
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Before per-project delay: execute should panic.
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + fast_delay - 1);
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Exactly at per-project delay: execute should succeed (even though
+    // TIMELOCK_DELAY=24h hasn't elapsed).
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + fast_delay);
+    let status = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(status, ProposalStatus::Approved);
+}
+
+#[test]
+fn update_config_min_voting_period_applies_to_new_proposals() {
+    // A floor set after registration binds future proposals; clearing it
+    // restores the global default.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "latergov");
+    let url = String::from_str(&setup.env, "github.com/latergov");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let id = setup
+        .contract
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
+
+    let seven_days = 7 * 24 * 3600u64;
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(seven_days),
+        &None,
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let two_days_out = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+
+    let err = setup
+        .contract
+        .try_create_proposal(
+            &setup.grogu,
+            &id,
+            &title,
+            &prop_ipfs,
+            &two_days_out,
+            &true,
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
+
+    // Restoring the default floor is a loosening update: it only takes
+    // effect after the notice window (old 7d min + 24h delay).
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(24 * 3600u64),
+        &None,
+    );
+    let err = setup
+        .contract
+        .try_create_proposal(
+            &setup.grogu,
+            &id,
+            &title,
+            &prop_ipfs,
+            &two_days_out,
+            &true,
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
+
+    let notice = seven_days + 24 * 3600;
+    setup
+        .env
+        .ledger()
+        .set_timestamp(setup.env.ledger().timestamp() + notice);
+    let two_days_out = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+    let _proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &two_days_out,
+        &true,
+        &None,
+        &None,
+    );
+}
+
+#[test]
+fn execute_delay_snapshot_shields_in_flight_proposals() {
+    // Changing the project delay after a proposal is created must not change
+    // that proposal's timelock; only proposals created afterwards see it.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "fastdao");
+    let url = String::from_str(&setup.env, "github.com/fastdao");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let fast_delay = 60u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(fast_delay),
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 2 * 24 * 3600;
+    let proposal_a = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Lengthen the delay after proposal A exists; proposal B inherits it.
+    let seven_days = 7 * 24 * 3600u64;
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(seven_days),
+    );
+    let proposal_b = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    for pid in [proposal_a, proposal_b] {
+        setup.contract.vote(
+            &setup.mando,
+            &id,
+            &pid,
+            &Vote::PublicVote(PublicVote {
+                address: setup.mando.clone(),
+                weight: 1,
+                vote_choice: VoteChoice::Approve,
+            }),
+        );
+    }
+
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + fast_delay);
+
+    // A keeps its snapshotted 60s delay.
+    let status = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_a, &None, &None);
+    assert_eq!(status, ProposalStatus::Approved);
+
+    // B was created under the 7-day delay and is still locked.
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_b, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+}
+
+#[test]
+fn execute_delay_loosening_waits_out_notice() {
+    // Lowering the timelock is pending for old min + old delay (24h + 24h);
+    // proposals created before activation keep the old delay, proposals
+    // created after get the new one.
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "slowdao");
+    let url = String::from_str(&setup.env, "github.com/slowdao");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+    setup.token_stellar.mint(&setup.mando, &genesis_amount);
+
+    let id = setup
+        .contract
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
+
+    let t0 = setup.env.ledger().timestamp();
+    let fast_delay = 60u64;
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(fast_delay),
+    );
+
+    let title = String::from_str(&setup.env, "Some proposal title");
+    let prop_ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+
+    // Proposal A is created while the update is still pending: no snapshot,
+    // so it keeps the global 24h delay.
+    let ends_a = t0 + 3 * 24 * 3600;
+    let proposal_a = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &ends_a,
+        &true,
+        &None,
+        &None,
+    );
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_a,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Past the 48h notice window: proposal B picks up the 60s delay.
+    setup.env.ledger().set_timestamp(t0 + 2 * 24 * 3600 + 10);
+    let ends_b = setup.env.ledger().timestamp() + 24 * 3600;
+    let proposal_b = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &prop_ipfs,
+        &ends_b,
+        &true,
+        &None,
+        &None,
+    );
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_b,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    setup.env.ledger().set_timestamp(ends_b + fast_delay);
+    let status = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_b, &None, &None);
+    assert_eq!(status, ProposalStatus::Approved);
+
+    // A (voting ended at ends_a = t0+72h) still needs the full 24h it was
+    // created under, and ends_b + 60 < ends_a + 24h.
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_a, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 }

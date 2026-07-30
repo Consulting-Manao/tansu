@@ -14,8 +14,8 @@ const VOTE_COLLATERAL: i128 = 2 * 10_000_000;
 const MAX_TITLE_LENGTH: u32 = 256;
 const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
-const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
-const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
+pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
+pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
 const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
 
 #[contractimpl]
@@ -182,9 +182,16 @@ impl DaoTrait for Tansu {
     ) -> u32 {
         Tansu::require_not_paused(env.clone());
 
+        promote_pending_governance(&env, &project_key);
+
         // Some input validations
         let curr_timestamp = env.ledger().timestamp();
-        let min_voting_timestamp = curr_timestamp + MIN_VOTING_PERIOD;
+        let min_voting_period = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::MinVotingPeriod(project_key.clone()))
+            .unwrap_or(MIN_VOTING_PERIOD);
+        let min_voting_timestamp = curr_timestamp + min_voting_period;
         let max_voting_timestamp = curr_timestamp + MAX_VOTING_PERIOD;
         let ipfs_len = ipfs.len();
         let title_len = title.len();
@@ -313,6 +320,20 @@ impl DaoTrait for Tansu {
             &voters,
         );
 
+        // Snapshot the project's execute timelock so a later update_governance
+        // cannot change the delay for this in-flight proposal.
+        let delay_override = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, u64>(&types::ProjectKey::ExecuteDelay(project_key.clone()));
+        if let Some(delay) = delay_override {
+            env.storage().persistent().set(
+                &types::ProjectKey::ProposalExecuteDelay(project_key.clone(), proposal_id),
+                &delay,
+            );
+        }
+        let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
+
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
         } else {
@@ -345,6 +366,7 @@ impl DaoTrait for Tansu {
             voting_ends_at,
             public_voting,
             token_contract: token_contract.clone(),
+            execute_delay,
         }
         .publish(&env);
 
@@ -751,7 +773,17 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if curr_timestamp < proposal.vote_data.voting_ends_at + types::TIMELOCK_DELAY {
+        // Snapshotted at proposal creation; proposals without a snapshot use
+        // the global default.
+        let execute_delay = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::ProposalExecuteDelay(
+                project_key.clone(),
+                proposal_id,
+            ))
+            .unwrap_or(types::TIMELOCK_DELAY);
+        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
@@ -1150,6 +1182,42 @@ impl DaoTrait for Tansu {
                 proposal_id,
             ))
             .unwrap_or(Vec::new(&env))
+    }
+}
+
+/// Write the provided governance override entries; `None` leaves the
+/// current value untouched.
+pub(crate) fn apply_governance(
+    env: &Env,
+    project_key: &Bytes,
+    min_voting_period: Option<u64>,
+    execute_delay: Option<u64>,
+) {
+    let storage = env.storage().persistent();
+    if let Some(v) = min_voting_period {
+        storage.set(&types::ProjectKey::MinVotingPeriod(project_key.clone()), &v);
+    }
+    if let Some(v) = execute_delay {
+        storage.set(&types::ProjectKey::ExecuteDelay(project_key.clone()), &v);
+    }
+}
+
+/// Apply a pending (loosening) governance update once its notice window has
+/// elapsed. Called lazily from every reader of the override entries so the
+/// activation needs no dedicated transaction.
+pub(crate) fn promote_pending_governance(env: &Env, project_key: &Bytes) {
+    let storage = env.storage().persistent();
+    let pending_key = types::ProjectKey::PendingGovernance(project_key.clone());
+    if let Some(pending) = storage.get::<types::ProjectKey, types::PendingGovernance>(&pending_key)
+        && env.ledger().timestamp() >= pending.activates_at
+    {
+        apply_governance(
+            env,
+            project_key,
+            pending.min_voting_period,
+            pending.execute_delay,
+        );
+        storage.remove(&pending_key);
     }
 }
 

@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error, token};
 
 use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events, types};
@@ -32,7 +34,7 @@ impl VersioningTrait for Tansu {
     /// Register a new project.
     ///
     /// Creates a new project entry with maintainers, URL, and commit hash.
-    /// Also registers the project name in the domain contract if not already registered.
+    /// Also registers the name in the domain contract if needed.
     /// The project key is generated using keccak256 hash of the project name.
     ///
     /// # Arguments
@@ -42,6 +44,8 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
+    /// * `min_voting_period` - Optional minimum voting period override, in seconds
+    /// * `execute_delay` - Optional DAO execute timelock override, in seconds
     ///
     /// # Returns
     /// * `Bytes` - The project key (keccak256 hash of the name)
@@ -51,6 +55,7 @@ impl VersioningTrait for Tansu {
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
+    /// * If an override is zero or exceeds `MAX_VOTING_PERIOD`
     fn register(
         env: Env,
         maintainer: Address,
@@ -58,8 +63,18 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
     ) -> Bytes {
         Tansu::require_not_paused(env.clone());
+
+        // None -> global defaults (MIN_VOTING_PERIOD / TIMELOCK_DELAY). execute_delay
+        // only governs DAO execute(); the admin upgrade timelock is separate.
+        for v in [min_voting_period, execute_delay].iter().flatten() {
+            if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+            }
+        }
 
         let project = types::Project {
             name: name.clone(),
@@ -132,6 +147,18 @@ impl VersioningTrait for Tansu {
                 .persistent()
                 .set(&types::ProjectKey::TotalProjects, &(total_projects + 1));
 
+            if let Some(v) = min_voting_period {
+                env.storage()
+                    .persistent()
+                    .set(&types::ProjectKey::MinVotingPeriod(key.clone()), &v);
+            }
+
+            if let Some(v) = execute_delay {
+                env.storage()
+                    .persistent()
+                    .set(&types::ProjectKey::ExecuteDelay(key.clone()), &v);
+            }
+
             events::ProjectRegistered {
                 project_key: key.clone(),
                 name,
@@ -145,7 +172,13 @@ impl VersioningTrait for Tansu {
 
     /// Update the configuration of an existing project.
     ///
-    /// Allows maintainers to change the project's URL, IPFS metadata, and maintainer list.
+    /// Changes the project's URL, IPFS metadata, and maintainer list, and
+    /// optionally its governance overrides. `None` governance params leave
+    /// the current values untouched; to restore a default, pass it explicitly.
+    ///
+    /// Tightening (new >= current) applies immediately; loosening activates
+    /// after a notice window of current `min_voting_period + execute_delay`.
+    /// In-flight proposals keep their creation-time timelock.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -154,10 +187,13 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - New list of maintainer addresses
     /// * `url` - New Git repository URL
     /// * `ipfs` - New CID of the tansu.toml file with metadata
+    /// * `min_voting_period` - Optional new minimum voting period, in seconds
+    /// * `execute_delay` - Optional new DAO execute timelock, in seconds
     ///
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
     fn update_config(
         env: Env,
         maintainer: Address,
@@ -165,6 +201,8 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
     ) {
         Tansu::require_not_paused(env.clone());
 
@@ -176,16 +214,62 @@ impl VersioningTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::MissingMaintainer);
         }
 
+        for v in [min_voting_period, execute_delay].iter().flatten() {
+            if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+            }
+        }
+
         let config = types::Config { url, ipfs };
         project.config = config;
         project.maintainers = maintainers;
         env.storage().persistent().set(&key_, &project);
 
         events::ProjectConfigUpdated {
-            project_key: key,
-            maintainer,
+            project_key: key.clone(),
+            maintainer: maintainer.clone(),
         }
         .publish(&env);
+
+        crate::contract_dao::promote_pending_governance(&env, &key);
+
+        if min_voting_period.is_some() || execute_delay.is_some() {
+            let storage = env.storage().persistent();
+            let old_min: u64 = storage
+                .get(&types::ProjectKey::MinVotingPeriod(key.clone()))
+                .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+            let old_delay: u64 = storage
+                .get(&types::ProjectKey::ExecuteDelay(key.clone()))
+                .unwrap_or(types::TIMELOCK_DELAY);
+            let new_min = min_voting_period.unwrap_or(old_min);
+            let new_delay = execute_delay.unwrap_or(old_delay);
+
+            let activates_at = if new_min >= old_min && new_delay >= old_delay {
+                crate::contract_dao::apply_governance(&env, &key, min_voting_period, execute_delay);
+                storage.remove(&types::ProjectKey::PendingGovernance(key.clone()));
+                env.ledger().timestamp()
+            } else {
+                let activates_at = env.ledger().timestamp() + old_min + old_delay;
+                storage.set(
+                    &types::ProjectKey::PendingGovernance(key.clone()),
+                    &types::PendingGovernance {
+                        min_voting_period,
+                        execute_delay,
+                        activates_at,
+                    },
+                );
+                activates_at
+            };
+
+            events::ProjectGovernanceUpdated {
+                project_key: key,
+                maintainer,
+                min_voting_period,
+                execute_delay,
+                activates_at,
+            }
+            .publish(&env);
+        }
     }
 
     /// Set the latest commit hash for a project.
