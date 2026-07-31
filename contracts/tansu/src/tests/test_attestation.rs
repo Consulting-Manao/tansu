@@ -13,7 +13,7 @@ fn register_second_project(setup: &super::test_utils::TestSetup) -> Bytes {
 
     setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs)
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn set_attestation_threshold_stores_and_emits_event() {
 
     setup
         .contract
-        .set_attestation_threshold(&setup.mando, &project_key, &75);
+        .set_attestation_threshold(&setup.mando, &project_key, &Some(75));
 
     let event = AttestationThresholdSet {
         project_key: project_key.clone(),
@@ -267,7 +267,7 @@ fn set_attestation_threshold_accepts_boundary_values() {
     setup.contract.set_attestation_threshold(
         &setup.mando,
         &project_key,
-        &types::MIN_FINALITY_THRESHOLD_PERCENT,
+        &Some(types::MIN_FINALITY_THRESHOLD_PERCENT),
     );
 
     assert_eq!(
@@ -277,7 +277,7 @@ fn set_attestation_threshold_accepts_boundary_values() {
 
     setup
         .contract
-        .set_attestation_threshold(&setup.mando, &project_key, &100);
+        .set_attestation_threshold(&setup.mando, &project_key, &Some(100));
 
     assert_eq!(setup.contract.get_attestation_threshold(&project_key), 100);
 }
@@ -290,7 +290,7 @@ fn set_attestation_threshold_rejects_below_floor() {
     let too_low = types::MIN_FINALITY_THRESHOLD_PERCENT - 1;
     let err = setup
         .contract
-        .try_set_attestation_threshold(&setup.mando, &project_key, &too_low)
+        .try_set_attestation_threshold(&setup.mando, &project_key, &Some(too_low))
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidAttestationThreshold.into());
@@ -303,7 +303,7 @@ fn set_attestation_threshold_rejects_above_100() {
 
     let err = setup
         .contract
-        .try_set_attestation_threshold(&setup.mando, &project_key, &101)
+        .try_set_attestation_threshold(&setup.mando, &project_key, &Some(101))
         .unwrap_err()
         .unwrap();
 
@@ -318,7 +318,7 @@ fn set_attestation_threshold_requires_maintainer() {
     let outsider = Address::generate(&setup.env);
     let err = setup
         .contract
-        .try_set_attestation_threshold(&outsider, &project_key, &70)
+        .try_set_attestation_threshold(&outsider, &project_key, &Some(70))
         .unwrap_err()
         .unwrap();
 
@@ -334,7 +334,7 @@ fn set_attestation_threshold_rejected_when_paused() {
 
     let err = setup
         .contract
-        .try_set_attestation_threshold(&setup.mando, &project_key, &70)
+        .try_set_attestation_threshold(&setup.mando, &project_key, &Some(70))
         .unwrap_err()
         .unwrap();
 
@@ -349,7 +349,7 @@ fn set_attestation_threshold_is_per_project() {
 
     setup
         .contract
-        .set_attestation_threshold(&setup.mando, &project_a, &80);
+        .set_attestation_threshold(&setup.mando, &project_a, &Some(80));
 
     assert_eq!(setup.contract.get_attestation_threshold(&project_a), 80);
     assert_eq!(
@@ -378,7 +378,7 @@ fn get_finality_uses_threshold_with_no_attestations() {
     setup.contract.set_attestation_threshold(
         &setup.mando,
         &project_key,
-        &types::MIN_FINALITY_THRESHOLD_PERCENT,
+        &Some(types::MIN_FINALITY_THRESHOLD_PERCENT),
     );
 
     let status = setup.contract.get_attestation_finality(

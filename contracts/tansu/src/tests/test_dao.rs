@@ -154,7 +154,7 @@ fn scf_voting() {
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
     let id = setup
         .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs);
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(

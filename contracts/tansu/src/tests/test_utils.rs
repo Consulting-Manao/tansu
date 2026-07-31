@@ -81,6 +81,13 @@ pub fn create_test_data() -> TestSetup {
 }
 
 pub fn init_contract(setup: &TestSetup) -> Bytes {
+    init_contract_with_threshold(setup, None)
+}
+
+pub fn init_contract_with_threshold(
+    setup: &TestSetup,
+    attestation_threshold: Option<u32>,
+) -> Bytes {
     let name = String::from_str(&setup.env, "tansu");
     let url = String::from_str(&setup.env, "github.com/tansu");
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
@@ -90,7 +97,12 @@ pub fn init_contract(setup: &TestSetup) -> Bytes {
     setup.token_stellar.mint(&setup.grogu, &genesis_amount);
     setup.token_stellar.mint(&setup.mando, &genesis_amount);
 
-    setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs)
+    setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &attestation_threshold,
+    )
 }
