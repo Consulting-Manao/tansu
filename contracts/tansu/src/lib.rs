@@ -96,6 +96,7 @@ pub trait VersioningTrait {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        attestation_threshold: Option<u32>,
     ) -> Bytes;
 
     fn update_config(
@@ -105,6 +106,7 @@ pub trait VersioningTrait {
         maintainers: Vec<Address>,
         url: String,
         hash: String,
+        attestation_threshold: Option<u32>,
     );
 
     fn commit(env: Env, maintainer: Address, project_key: Bytes, hash: String);
@@ -156,7 +158,12 @@ pub trait VersioningTrait {
         target: types::AttestationTarget,
     ) -> Vec<types::Attestation>;
 
-    fn set_attestation_threshold(env: Env, maintainer: Address, project_key: Bytes, percent: u32);
+    fn set_attestation_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        percent: Option<u32>,
+    );
 
     fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32;
 

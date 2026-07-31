@@ -34,6 +34,9 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
+    /// * `attestation_threshold` - Optional finality threshold percent; when
+    ///   `None` the project is set to `DEFAULT_FINALITY_THRESHOLD_PERCENT`. Can
+    ///   be changed later with `set_attestation_threshold`.
     ///
     /// # Returns
     /// * `Bytes` - The project key (keccak256 hash of the name)
@@ -43,6 +46,7 @@ impl VersioningTrait for Tansu {
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
+    /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn register(
         env: Env,
         maintainer: Address,
@@ -50,6 +54,7 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        attestation_threshold: Option<u32>,
     ) -> Bytes {
         Tansu::require_not_paused(env.clone());
 
@@ -124,6 +129,8 @@ impl VersioningTrait for Tansu {
                 .persistent()
                 .set(&types::ProjectKey::TotalProjects, &(total_projects + 1));
 
+            set_attestation_threshold(&env, &key, attestation_threshold);
+
             events::ProjectRegistered {
                 project_key: key.clone(),
                 name,
@@ -146,10 +153,13 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - New list of maintainer addresses
     /// * `url` - New Git repository URL
     /// * `ipfs` - New CID of the tansu.toml file with metadata
+    /// * `attestation_threshold` - Optional new finality threshold percent;
+    ///   when `None` the project is reset to `DEFAULT_FINALITY_THRESHOLD_PERCENT`
     ///
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn update_config(
         env: Env,
         maintainer: Address,
@@ -157,6 +167,7 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        attestation_threshold: Option<u32>,
     ) {
         Tansu::require_not_paused(env.clone());
 
@@ -172,6 +183,8 @@ impl VersioningTrait for Tansu {
         project.config = config;
         project.maintainers = maintainers;
         env.storage().persistent().set(&key_, &project);
+
+        set_attestation_threshold(&env, &key, attestation_threshold);
 
         events::ProjectConfigUpdated {
             project_key: key,
@@ -457,26 +470,17 @@ impl VersioningTrait for Tansu {
     /// * If the contract is paused
     /// * If the project doesn't exist or the maintainer is not authorized
     /// * If `percent` is below `MIN_FINALITY_THRESHOLD_PERCENT` or above 100
-    fn set_attestation_threshold(env: Env, maintainer: Address, project_key: Bytes, percent: u32) {
+    fn set_attestation_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        attestation_threshold: Option<u32>,
+    ) {
         Tansu::require_not_paused(env.clone());
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestationThreshold);
-        }
-
-        let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
-
-        env.storage().persistent().set(&key, &percent);
-
-        extend_persistent_ttl(&env, &key);
-
-        events::AttestationThresholdSet {
-            project_key,
-            percent,
-        }
-        .publish(&env);
+        set_attestation_threshold(&env, &project_key, attestation_threshold);
     }
 
     /// Get the attestation finality threshold (percent) for a project.
@@ -682,4 +686,24 @@ fn extend_persistent_ttl(env: &Env, key: &types::ProjectKey) {
     env.storage()
         .persistent()
         .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_EXTEND_TO);
+}
+
+fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
+    let percent = percent.unwrap_or(DEFAULT_FINALITY_THRESHOLD_PERCENT);
+
+    if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
+        panic_with_error!(&env, &errors::ContractErrors::InvalidAttestationThreshold);
+    }
+
+    let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
+
+    env.storage().persistent().set(&key, &percent);
+
+    extend_persistent_ttl(env, &key);
+
+    events::AttestationThresholdSet {
+        project_key: project_key.clone(),
+        percent,
+    }
+    .publish(env);
 }
