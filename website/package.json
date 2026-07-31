@@ -38,7 +38,7 @@
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@stellar/prettier-config": "^1.2.0",
-    "prettier": "^3.9.5",
+    "prettier": "^3.9.6",
     "typescript": "7.0.2"
   },
   "overrides": {
