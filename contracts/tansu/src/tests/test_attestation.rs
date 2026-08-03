@@ -1385,3 +1385,363 @@ fn revoke_attestation_fails_without_any_authorization() {
         "revoke_attestation must require the attester's authorization"
     );
 }
+
+fn register_full_project(
+    setup: &super::test_utils::TestSetup,
+) -> (Bytes, soroban_sdk::Vec<Address>) {
+    let name = String::from_str(&setup.env, "capacity");
+    let url = String::from_str(&setup.env, "github.com/capacity");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710994");
+
+    let mut maintainers = soroban_sdk::Vec::new(&setup.env);
+
+    maintainers.push_back(setup.grogu.clone());
+    for _ in 1..25 {
+        maintainers.push_back(Address::generate(&setup.env));
+    }
+
+    setup
+        .token_stellar
+        .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
+
+    let project_key =
+        setup
+            .contract
+            .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
+
+    (project_key, maintainers)
+}
+
+#[test]
+fn attestations_are_capped_at_the_maintainer_count() {
+    let setup = create_test_data();
+    let (project_key, maintainers) = register_full_project(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    for maintainer in maintainers.iter() {
+        setup
+            .contract
+            .attest(&maintainer, &project_key, &commit_hash, &target, &None);
+    }
+
+    let attestations = setup
+        .contract
+        .get_attestations(&project_key, &commit_hash, &target);
+
+    assert_eq!(attestations.len(), 25);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(status.attested, 25);
+    assert_eq!(status.total, 25);
+    assert!(status.is_final);
+}
+
+#[test]
+fn attest_at_capacity_prunes_only_stale_maintainers() {
+    let setup = create_test_data();
+    let (project_key, maintainers) = register_full_project(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    for maintainer in maintainers.iter() {
+        setup
+            .contract
+            .attest(&maintainer, &project_key, &commit_hash, &target, &None);
+    }
+
+    let stale = maintainers.get(7).unwrap();
+    let new_attester = Address::generate(&setup.env);
+
+    let mut swapped = soroban_sdk::Vec::new(&setup.env);
+
+    for maintainer in maintainers.iter() {
+        if maintainer == stale {
+            swapped.push_back(new_attester.clone());
+        } else {
+            swapped.push_back(maintainer);
+        }
+    }
+
+    let url = String::from_str(&setup.env, "github.com/capacity");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710994");
+
+    setup
+        .contract
+        .update_config(&setup.grogu, &project_key, &swapped, &url, &ipfs, &None);
+
+    setup
+        .contract
+        .attest(&new_attester, &project_key, &commit_hash, &target, &None);
+
+    let attestations = setup
+        .contract
+        .get_attestations(&project_key, &commit_hash, &target);
+
+    assert_eq!(attestations.len(), 25);
+
+    let mut attesters = soroban_sdk::Vec::new(&setup.env);
+
+    for attestation in attestations.iter() {
+        attesters.push_back(attestation.attester);
+    }
+
+    assert!(
+        !attesters.contains(&stale),
+        "the stale maintainer's attestation should have been pruned"
+    );
+    assert!(attesters.contains(&new_attester));
+
+    for maintainer in swapped.iter() {
+        assert!(
+            attesters.contains(&maintainer),
+            "no current maintainer's attestation may be evicted"
+        );
+    }
+}
+
+#[test]
+fn revoking_frees_a_slot_at_capacity() {
+    let setup = create_test_data();
+    let (project_key, maintainers) = register_full_project(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    for i in 0..16 {
+        setup.contract.attest(
+            &maintainers.get(i).unwrap(),
+            &project_key,
+            &commit_hash,
+            &target,
+            &None,
+        );
+    }
+
+    assert!(
+        !setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .is_final
+    );
+
+    setup
+        .contract
+        .revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        15
+    );
+
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        16
+    );
+}
+
+#[test]
+fn stale_attestationes_stop_counting_and_resume_when_re_added() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(status.attested, 1);
+    assert_eq!(status.total, 2);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+
+    let without_mando = vec![&setup.env, setup.grogu.clone()];
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &without_mando,
+        &url,
+        &ipfs,
+        &None,
+    );
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(
+        status.attested, 0,
+        "a former maintainer's attestation must not count"
+    );
+    assert_eq!(status.total, 1);
+    assert!(!status.is_final);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+
+    let with_mando = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    setup
+        .contract
+        .update_config(&setup.grogu, &project_key, &with_mando, &url, &ipfs, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(
+        status.attested, 1,
+        "re-adding the maintainer revives the attestation"
+    );
+    assert_eq!(status.total, 2);
+}
+
+#[test]
+fn re_added_maintainer_cannot_attest_twice() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &vec![&setup.env, setup.grogu.clone()],
+        &url,
+        &ipfs,
+        &None,
+    );
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &vec![&setup.env, setup.grogu.clone(), setup.mando.clone()],
+        &url,
+        &ipfs,
+        &None,
+    );
+
+    let err = setup
+        .contract
+        .try_attest(&setup.mando, &project_key, &commit_hash, &target, &None)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AlreadyAttested.into());
+}
+
+#[test]
+fn evidence_kinds_are_independent_targets() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let cid = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+
+    let sbom = types::AttestationTarget::Evidence(types::EvidenceKind::Sbom, cid.clone());
+    let cve = types::AttestationTarget::Evidence(types::EvidenceKind::Cve, cid);
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &sbom, &None);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &sbom)
+            .len(),
+        1
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &cve)
+            .len(),
+        0,
+        "same CID under a different evidence kind must be a distinct target"
+    );
+}
+
+#[test]
+fn attestations_are_independent_across_projects() {
+    let setup = create_test_data();
+    let first = init_contract(&setup);
+    let second = register_second_project(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &first, &commit_hash, &target, &None);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&first, &commit_hash, &target)
+            .len(),
+        1
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&second, &commit_hash, &target)
+            .len(),
+        0,
+        "the same commit in another project must be a distinct target"
+    );
+}
+
+#[test]
+fn attest_rejects_empty_evidence_cid() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    let err = setup
+        .contract
+        .try_attest(
+            &setup.mando,
+            &project_key,
+            &commit_hash,
+            &types::AttestationTarget::Evidence(
+                types::EvidenceKind::Sbom,
+                String::from_str(&setup.env, ""),
+            ),
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::InvalidAttestation.into());
+}
