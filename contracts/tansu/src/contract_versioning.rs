@@ -570,7 +570,7 @@ impl VersioningTrait for Tansu {
     /// A multi-party primitive: independent maintainers vouch that they verified the
     /// target. Each maintainer may attest a given target at most once — a second
     /// call from the same attester is rejected rather than replacing the first, so
-    /// an attestation is never silently rewritten. Withdrawing one is an explicit,
+    /// an attestation is never silently rewritten. Revoking one is an explicit,
     /// separately evented action: see `revoke_attestation`. At most
     /// `MAX_ATTESTATIONS` are kept on-chain; at capacity, vouches from addresses
     /// that are no longer maintainers are pruned, and the call is rejected if
@@ -668,14 +668,14 @@ impl VersioningTrait for Tansu {
         .publish(&env);
     }
 
-    /// Withdraw the caller's own attestation from a target.
+    /// Revoke the caller's own attestation from a target.
     ///
     /// Only the attester can remove their vouch, and only their own: a maintainer
-    /// cannot strike another's. Withdrawal is bounded twice over, so a vouch that
+    /// cannot strike another's. Revocation is bounded twice over, so a vouch that
     /// others have already relied on cannot be pulled out from under them:
     ///
     /// 1. **Not once the target is final.** Finality is the point at which the
-    ///    project has collectively vouched for the target; allowing a withdrawal
+    ///    project has collectively vouched for the target; allowing a Revocation
     ///    after that would let one maintainer retroactively un-finalise it.
     /// 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
     ///    `created_at`. Past that the vouch is permanent.
@@ -687,7 +687,7 @@ impl VersioningTrait for Tansu {
     ///
     /// # Arguments
     /// * `env` - The environment object
-    /// * `attester` - The maintainer withdrawing their attestation
+    /// * `attester` - The maintainer revoking their attestation
     /// * `project_key` - The project key identifier
     /// * `commit_hash` - The commit hash the attestation relates to
     /// * `target` - The attestation target: the commit or a specific evidence artifact
