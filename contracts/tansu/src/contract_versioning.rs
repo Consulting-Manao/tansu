@@ -543,8 +543,12 @@ impl VersioningTrait for Tansu {
 
         let total = project.maintainers.len();
 
-        let attestations =
-            Self::get_attestations(env.clone(), project_key.clone(), commit_hash, target);
+        let attestations = Self::get_attestations(
+            env.clone(),
+            project_key.clone(),
+            commit_hash.clone(),
+            target.clone(),
+        );
 
         let mut attested: u32 = 0;
 
@@ -556,12 +560,20 @@ impl VersioningTrait for Tansu {
 
         let threshold = Self::get_attestation_threshold(env.clone(), project_key.clone());
 
-        let is_final = total > 0 && attested * 100 >= threshold * total;
+        let finalized_at = env.storage().persistent().get::<_, u64>(&finalized_key(
+            &env,
+            &project_key,
+            &commit_hash,
+            &target,
+        ));
+
+        let is_final = finalized_at.is_some() || (total > 0 && attested * 100 >= threshold * total);
 
         types::FinalityStatus {
             attested,
             total,
             is_final,
+            finalized_at,
         }
     }
 
@@ -658,6 +670,8 @@ impl VersioningTrait for Tansu {
 
         extend_persistent_ttl(&env, &key);
 
+        mark_finalized(&env, &project_key, &commit_hash, &target);
+
         events::Attested {
             project_key,
             commit_hash,
@@ -674,9 +688,9 @@ impl VersioningTrait for Tansu {
     /// cannot strike another's. Revocation is bounded twice over, so a vouch that
     /// others have already relied on cannot be pulled out from under them:
     ///
-    /// 1. **Not once the target is final.** Finality is the point at which the
-    ///    project has collectively vouched for the target; allowing a Revocation
-    ///    after that would let one maintainer retroactively un-finalise it.
+    /// 1. **Not once the target is final.** Finality is recorded the first time a
+    ///    target reaches its threshold and is never cleared, so raising the
+    ///    threshold or growing the maintainer set cannot re-open withdrawal.
     /// 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
     ///    `created_at`. Past that the vouch is permanent.
     ///
@@ -707,7 +721,19 @@ impl VersioningTrait for Tansu {
     ) {
         Tansu::require_not_paused(env.clone());
 
-        crate::auth_maintainers(&env, &attester, &project_key);
+        attester.require_auth();
+
+        Self::get_project(env.clone(), project_key.clone());
+
+        if commit_hash.is_empty() {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        if let types::AttestationTarget::Evidence(_, cid) = &target
+            && cid.is_empty()
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
 
         let key = attestation_key(&env, &project_key, &commit_hash, &target);
         let storage = env.storage().persistent();
@@ -837,6 +863,46 @@ fn attestation_key(
     types::ProjectKey::Attestation(env.crypto().keccak256(&buf).into())
 }
 
+fn finalized_key(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) -> types::ProjectKey {
+    match attestation_key(env, project_key, commit_hash, target) {
+        types::ProjectKey::Attestation(digest) => types::ProjectKey::AttestationFinalized(digest),
+        _ => unreachable!(),
+    }
+}
+
+fn mark_finalized(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) {
+    let key = finalized_key(env, project_key, commit_hash, target);
+
+    if env.storage().persistent().has(&key) {
+        return;
+    }
+
+    let status = <Tansu as VersioningTrait>::get_attestation_finality(
+        env.clone(),
+        project_key.clone(),
+        commit_hash.clone(),
+        target.clone(),
+    );
+
+    if status.is_final {
+        env.storage()
+            .persistent()
+            .set(&key, &env.ledger().timestamp());
+
+        extend_persistent_ttl(env, &key);
+    }
+}
+
 fn validate_maintainers(env: &Env, maintainers: &Vec<Address>) {
     if maintainers.is_empty() {
         panic_with_error!(env, &errors::ContractErrors::MissingMaintainer);
@@ -855,7 +921,7 @@ fn validate_maintainers(env: &Env, maintainers: &Vec<Address>) {
     }
 }
 
-pub(crate) fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
+fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
     let percent = percent.unwrap_or(DEFAULT_FINALITY_THRESHOLD_PERCENT);
 
     if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {

@@ -1128,7 +1128,7 @@ fn revoke_attestation_on_untouched_target_fails() {
 }
 
 #[test]
-fn revoke_attestation_requires_maintainer() {
+fn revoke_attestation_by_a_stranger_finds_nothing() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
@@ -1145,7 +1145,200 @@ fn revoke_attestation_requires_maintainer() {
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+    assert_eq!(err, ContractErrors::AttestationNotFound.into());
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn revoke_attestation_allowed_after_losing_maintainer_status() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let remaining = vec![&setup.env, setup.grogu.clone()];
+    setup
+        .contract
+        .update_config(&setup.grogu, &project_key, &remaining, &url, &ipfs, &None);
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn revoke_attestation_rejects_empty_commit_hash() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(
+            &setup.mando,
+            &project_key,
+            &String::from_str(&setup.env, ""),
+            &types::AttestationTarget::Commit,
+        )
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::InvalidAttestation.into());
+}
+
+#[test]
+fn revoke_attestation_rejects_empty_evidence_cid() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(
+            &setup.mando,
+            &project_key,
+            &commit_hash,
+            &types::AttestationTarget::Evidence(
+                types::EvidenceKind::Sbom,
+                String::from_str(&setup.env, ""),
+            ),
+        )
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::InvalidAttestation.into());
+}
+
+#[test]
+fn finality_is_updated_against_a_threshold_raise() {
+    let setup = create_test_data();
+    init_contract(&setup);
+    let third = Address::generate(&setup.env);
+    let project_key = register_revocable_project(&setup, &third);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .set_attestation_threshold(&setup.grogu, &project_key, &Some(66));
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert!(status.is_final);
+    assert!(status.finalized_at.is_some());
+
+    setup
+        .contract
+        .set_attestation_threshold(&setup.grogu, &project_key, &Some(100));
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert!(status.is_final, "finality must not be reversible");
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationFinalized.into());
+}
+
+#[test]
+fn finality_is_updated_against_maintainer_growth() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup.env.ledger().set_timestamp(7_000);
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert!(status.is_final);
+    assert_eq!(status.finalized_at, Some(7_000));
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let grown = vec![
+        &setup.env,
+        setup.grogu.clone(),
+        setup.mando.clone(),
+        Address::generate(&setup.env),
+        Address::generate(&setup.env),
+    ];
+
+    setup
+        .contract
+        .update_config(&setup.grogu, &project_key, &grown, &url, &ipfs, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(status.attested, 2);
+    assert_eq!(status.total, 4);
+    assert!(status.is_final, "finality must survive maintainer growth");
+    assert_eq!(status.finalized_at, Some(7_000));
+}
+
+#[test]
+fn finality_is_not_updated_before_the_threshold_is_reached() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert!(!status.is_final);
+    assert_eq!(status.finalized_at, None);
 }
 
 #[test]

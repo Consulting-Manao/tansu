@@ -205,6 +205,7 @@ pub enum ProjectKey {
     TotalProjects,                       // Total number of projects
     ConflictOfInterest(Bytes, u32),      // Addresses barred from voting on a proposal
     Attestation(BytesN<32>),             // keccak256 digest of (project_key, commit_hash, target)
+    AttestationFinalized(BytesN<32>),    // ledger timestamp a target first reached finality
     AttestationFinalityThreshold(Bytes), // Attestation finality threshold for the project
 }
 
@@ -245,5 +246,6 @@ pub struct Attestation {
 pub struct FinalityStatus {
     pub attested: u32,
     pub total: u32,
-    pub is_final: bool, // attested * 100 >= FINALITY_THRESHOLD_PERCENT * total
+    pub is_final: bool, // latched, or attested * 100 >= threshold * total
+    pub finalized_at: Option<u64>, // when the target first reached finality
 }
