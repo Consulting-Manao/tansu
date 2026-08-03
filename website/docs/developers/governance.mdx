@@ -37,6 +37,19 @@ graph LR;
 
 Each `OutcomeContract` specifies its own target `address`, `execute_fn` (function name), and `args`. Not all indices need to be present -- missing indices are skipped.
 
+### Proposal IPFS directory
+
+The proposal's `ipfs` field is the CID of a directory holding the proposal's off-chain content. The dapp reads the following files from it:
+
+| File | Required | Purpose |
+| --- | --- | --- |
+| `proposal.md` | yes | Proposal description (Markdown). |
+| `outcomes.json` | yes | Descriptions/XDR for the approved, rejected and cancelled outcomes. |
+| `proposal_discussion.md` | no | Discussion thread rendered on the proposal page. |
+| `summary.md` | no | Short Markdown summary of the discussion. |
+
+`proposal_discussion.md` is the Markdown snapshot of the proposal's discussion, as produced by the proposals uploader alongside `proposal.md` and `outcomes.json`. It is rendered as a single Markdown document. The discussion directory defaults to the proposal's own (immutable) IPFS directory, so discussion content is fixed during voting.
+
 ### Voting Timeline
 
 The contract enforces strict voting deadlines:

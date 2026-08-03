@@ -13,6 +13,9 @@ vi.mock("../../../src/utils/ipfsFunctions", () => ({
 import {
   fetchProposalOutcomeData,
   fetchProposalFromIPFS,
+  fetchProposalDiscussionFromIPFS,
+  fetchProposalDiscussionSummaryFromIPFS,
+  resolveDiscussionCid,
 } from "../../../src/service/ProposalService";
 import type { Proposal, OutcomeContract } from "../../../src/types/proposal";
 
@@ -291,5 +294,105 @@ describe("fetchProposalFromIPFS", () => {
     mockFetchTextFromIpfs.mockRejectedValue(new Error("network error"));
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBeNull();
+  });
+});
+
+describe("resolveDiscussionCid", () => {
+  it("prefers an explicit discussionIpfs CID", () => {
+    const proposal = makeProposal({
+      ipfs: "bafyproposal",
+      discussionIpfs: "bafydiscussion",
+    });
+    expect(resolveDiscussionCid(proposal)).toBe("bafydiscussion");
+  });
+
+  it("falls back to the proposal's own IPFS directory", () => {
+    const proposal = makeProposal({ ipfs: "bafyproposal" });
+    expect(resolveDiscussionCid(proposal)).toBe("bafyproposal");
+  });
+
+  it("returns null when neither CID is present", () => {
+    const proposal = makeProposal({ ipfs: "" });
+    expect(resolveDiscussionCid(proposal)).toBeNull();
+  });
+});
+
+describe("fetchProposalDiscussionFromIPFS", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fetches proposal_discussion.md markdown and returns content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("## Discussion\n\nAll good here.");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
+    );
+    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
+    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
+      "bafyabc123",
+      "/proposal_discussion.md",
+    );
+    expect(result).toBe("## Discussion\n\nAll good here.");
+  });
+
+  it("rewrites relative image paths to absolute IPFS paths", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("![diagram](images/flow.png)");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
+    );
+    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
+    expect(result).toBe(
+      "![diagram](https://ipfs.filebase.io/ipfs/bafyabc123/images/flow.png)",
+    );
+  });
+
+  it("returns null for empty/whitespace content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("   ");
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
+
+  it("returns null when the file is missing", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue(null);
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
+
+  it("returns null when fetch throws", async () => {
+    mockFetchTextFromIpfs.mockRejectedValue(new Error("boom"));
+    expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
+});
+
+describe("fetchProposalDiscussionSummaryFromIPFS", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns summary text and rewrites relative images", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("## Summary\n![x](img.png)");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
+    );
+    const result = await fetchProposalDiscussionSummaryFromIPFS("bafyabc123");
+    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
+      "bafyabc123",
+      "/summary.md",
+    );
+    expect(result).toBe(
+      "## Summary\n![x](https://ipfs.filebase.io/ipfs/bafyabc123/img.png)",
+    );
+  });
+
+  it("returns null for empty/whitespace content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("   ");
+    expect(
+      await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
+    ).toBeNull();
+  });
+
+  it("returns null when fetch throws", async () => {
+    mockFetchTextFromIpfs.mockRejectedValue(new Error("net"));
+    expect(
+      await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
+    ).toBeNull();
   });
 });

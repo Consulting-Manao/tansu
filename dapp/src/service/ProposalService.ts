@@ -7,6 +7,19 @@ import type { Proposal, ProposalOutcome } from "types/proposal";
 
 const PROPOSAL_MD_PATH = "/proposal.md";
 const OUTCOMES_JSON_PATH = "/outcomes.json";
+const DISCUSSION_MD_PATH = "/proposal_discussion.md";
+const DISCUSSION_SUMMARY_PATH = "/summary.md";
+
+function imagePaths(content: string, cid: string): string {
+  const basicUrl = getIpfsBasicLink(cid);
+  if (!basicUrl) return content;
+  return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return match;
+    }
+    return `![${alt}](${basicUrl}/${path})`;
+  });
+}
 
 /**
  * Fetches proposal markdown content from IPFS
@@ -18,18 +31,38 @@ async function fetchProposalFromIPFS(cid: string) {
   try {
     const content = await fetchTextFromIpfs(cid, PROPOSAL_MD_PATH);
     if (!content) return null;
+    return imagePaths(content, cid);
+  } catch {
+    return null;
+  }
+}
 
-    const basicUrl = getIpfsBasicLink(cid);
-    if (!basicUrl) return content;
+/** Seam for where discussion docs live; defaults to the proposal's IPFS dir. */
+export function resolveDiscussionCid(proposal: Proposal): string | null {
+  return proposal.discussionIpfs?.trim() || proposal.ipfs?.trim() || null;
+}
 
-    // Update relative image paths to absolute IPFS paths.
-    // Keep absolute URLs (http://, https://) unchanged.
-    return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
-      if (path.startsWith("http://") || path.startsWith("https://")) {
-        return match;
-      }
-      return `![${alt}](${basicUrl}/${path})`;
-    });
+/** Fetches the discussion thread (proposal_discussion.md) from IPFS. */
+export async function fetchProposalDiscussionFromIPFS(
+  cid: string,
+): Promise<string | null> {
+  try {
+    const content = await fetchTextFromIpfs(cid, DISCUSSION_MD_PATH);
+    if (!content?.trim()) return null;
+    return imagePaths(content, cid);
+  } catch {
+    return null;
+  }
+}
+
+/** Fetches the optional discussion summary (summary.md) from IPFS. */
+export async function fetchProposalDiscussionSummaryFromIPFS(
+  cid: string,
+): Promise<string | null> {
+  try {
+    const content = await fetchTextFromIpfs(cid, DISCUSSION_SUMMARY_PATH);
+    if (!content?.trim()) return null;
+    return imagePaths(content, cid);
   } catch {
     return null;
   }
