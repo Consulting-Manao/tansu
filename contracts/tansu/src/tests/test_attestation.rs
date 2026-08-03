@@ -73,7 +73,10 @@ fn attest_on_evidence_target() {
 
     let target = types::AttestationTarget::Evidence(
         types::EvidenceKind::Sbom,
-        String::from_str(&setup.env, "bafybeigdyrzt"),
+        String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
     );
 
     setup
@@ -88,7 +91,7 @@ fn attest_on_evidence_target() {
 }
 
 #[test]
-fn attest_dedupes_by_attester() {
+fn attest_rejects_second_attestation_from_same_maintainer() {
     let setup = create_test_data();
     let project_key = init_contract(&setup);
 
@@ -106,13 +109,19 @@ fn attest_dedupes_by_attester() {
 
     setup.env.ledger().set_timestamp(200);
 
-    setup.contract.attest(
-        &setup.mando,
-        &project_key,
-        &commit_hash,
-        &types::AttestationTarget::Commit,
-        &None,
-    );
+    let err = setup
+        .contract
+        .try_attest(
+            &setup.mando,
+            &project_key,
+            &commit_hash,
+            &types::AttestationTarget::Commit,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AlreadyAttested.into());
 
     let attestations = setup.contract.get_attestations(
         &project_key,
@@ -121,7 +130,56 @@ fn attest_dedupes_by_attester() {
     );
 
     assert_eq!(attestations.len(), 1);
-    assert_eq!(attestations.get(0).unwrap().created_at, 200);
+    assert_eq!(attestations.get(0).unwrap().created_at, 100);
+}
+
+#[test]
+fn attest_allows_same_maintainer_on_distinct_targets() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let cid = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+
+    setup.contract.attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+        &None,
+    );
+
+    let evidence_target = types::AttestationTarget::Evidence(types::EvidenceKind::Sbom, cid);
+
+    setup.contract.attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &evidence_target,
+        &None,
+    );
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(
+                &project_key,
+                &commit_hash,
+                &types::AttestationTarget::Commit
+            )
+            .len(),
+        1
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &evidence_target)
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -406,7 +464,10 @@ fn get_attestations_empty_when_none_recorded() {
 
     let evidence_target = types::AttestationTarget::Evidence(
         types::EvidenceKind::Sbom,
-        String::from_str(&setup.env, "bafybeigdyrzt"),
+        String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
     );
     let evidence_attestations =
         setup
@@ -423,7 +484,10 @@ fn get_finality_for_evidence_target() {
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
     let target = types::AttestationTarget::Evidence(
         types::EvidenceKind::Sbom,
-        String::from_str(&setup.env, "bafybeigdyrzt"),
+        String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
     );
 
     let status = setup
@@ -450,4 +514,70 @@ fn get_finality_unknown_project_fails() {
         .unwrap();
 
     assert_eq!(err, ContractErrors::InvalidKey.into());
+}
+
+#[test]
+fn attest_evidence_target_key_fits_ledger_limit_for_long_cids() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let long_cid = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4ibafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let target = types::AttestationTarget::Evidence(types::EvidenceKind::Cve, long_cid);
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn attestations_are_scoped_per_evidence_cid() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let first = types::AttestationTarget::Evidence(
+        types::EvidenceKind::Sbom,
+        String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+    );
+    let second = types::AttestationTarget::Evidence(
+        types::EvidenceKind::Sbom,
+        String::from_str(
+            &setup.env,
+            "bafybeicnbbhyc4vhbuokk57lrmg4hkbvkmtcp6p3ubaptbus6kl2idthki",
+        ),
+    );
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &first, &None);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &first)
+            .len(),
+        1
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &second)
+            .len(),
+        0
+    );
 }

@@ -242,7 +242,7 @@ fn update_config_updates_project_and_threshold() {
 }
 
 #[test]
-fn update_config_without_threshold_resets_to_default() {
+fn update_config_without_threshold_leaves_it_unchanged() {
     let setup = create_test_data();
     let id = init_contract_with_threshold(&setup, Some(80));
     assert_eq!(setup.contract.get_attestation_threshold(&id), 80);
@@ -255,10 +255,68 @@ fn update_config_without_threshold_resets_to_default() {
         .contract
         .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None);
 
+    assert_eq!(setup.contract.get_attestation_threshold(&id), 80);
+}
+
+#[test]
+fn set_attestation_threshold_none_resets_to_default() {
+    let setup = create_test_data();
+    let id = init_contract_with_threshold(&setup, Some(80));
+    assert_eq!(setup.contract.get_attestation_threshold(&id), 80);
+
+    setup
+        .contract
+        .set_attestation_threshold(&setup.grogu, &id, &None);
+
     assert_eq!(
         setup.contract.get_attestation_threshold(&id),
         types::DEFAULT_FINALITY_THRESHOLD_PERCENT
     );
+}
+
+#[test]
+fn register_rejects_duplicate_maintainers() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "dupes");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![
+        &setup.env,
+        setup.grogu.clone(),
+        setup.mando.clone(),
+        setup.grogu.clone(),
+    ];
+
+    setup
+        .token_stellar
+        .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
+
+    let err = setup
+        .contract
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::DuplicateMaintainer.into());
+}
+
+#[test]
+fn update_config_rejects_duplicate_maintainers() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu-new");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.grogu.clone()];
+
+    let err = setup
+        .contract
+        .try_update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::DuplicateMaintainer.into());
 }
 
 #[test]
@@ -485,4 +543,31 @@ fn test_sub_projects_limit() {
     // Verify 10 sub-projects were set
     let sub_projects_after = client.get_sub_projects(&project_id);
     assert_eq!(sub_projects_after.len(), 10);
+}
+
+#[test]
+fn register_rejects_too_many_maintainers() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "toomany");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+
+    let mut maintainers = Vec::new(&setup.env);
+    maintainers.push_back(setup.grogu.clone());
+    for _ in 0..25 {
+        maintainers.push_back(Address::generate(&setup.env));
+    }
+
+    setup
+        .token_stellar
+        .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
+
+    let err = setup
+        .contract
+        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::TooManyMaintainers.into());
 }

@@ -136,7 +136,10 @@ fn set_evidence_stores_and_emits_event() {
 
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
     let kind = EvidenceKind::Sbom;
-    let cid = String::from_str(&setup.env, "bafybeigdyrzt");
+    let cid = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
 
     setup
         .contract
@@ -262,7 +265,10 @@ fn set_evidence_requires_project_maintainer() {
             &project_key,
             &String::from_str(&setup.env, "commit-a"),
             &EvidenceKind::Sbom,
-            &String::from_str(&setup.env, "bafybeigdyrzt"),
+            &String::from_str(
+                &setup.env,
+                "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+            ),
         )
         .unwrap_err()
         .unwrap();
@@ -282,7 +288,10 @@ fn set_evidence_rejects_empty_commit_hash_or_cid() {
             &project_key,
             &String::from_str(&setup.env, ""),
             &kind,
-            &String::from_str(&setup.env, "bafybeigdyrzt"),
+            &String::from_str(
+                &setup.env,
+                "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+            ),
         )
         .unwrap_err()
         .unwrap();
@@ -392,7 +401,10 @@ fn set_evidence_fails_when_contract_is_paused() {
             &project_key,
             &String::from_str(&setup.env, "commit-a"),
             &EvidenceKind::Sbom,
-            &String::from_str(&setup.env, "bafybeigdyrzt"),
+            &String::from_str(
+                &setup.env,
+                "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+            ),
         )
         .unwrap_err()
         .unwrap();
