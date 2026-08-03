@@ -55,7 +55,6 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
         <div className="flex flex-col gap-6">
           {hasSummary && (
             <div className="bg-white rounded-md border border-gray-200 p-[30px] flex flex-col gap-3">
-              <p className="text-xl font-medium text-primary">Summary</p>
               <div className="markdown-body">
                 <Markdown options={markdownOptions}>
                   {DOMPurify.sanitize(summary!)}
