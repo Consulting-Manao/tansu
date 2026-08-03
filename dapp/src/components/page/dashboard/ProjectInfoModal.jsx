@@ -108,7 +108,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
                 size="xl"
                 onClick={() => navigate(`/governance?name=${projectName}`)}
               >
-                Governance
+                Proposals
               </Button>
             </div>
           </div>

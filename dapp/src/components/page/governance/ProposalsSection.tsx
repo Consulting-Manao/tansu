@@ -11,7 +11,7 @@ const ProposalsSection: React.FC = () => {
           />
           <div className="flex flex-col gap-3 sm:gap-[18px] w-full">
             <h2 className="leading-6 text-xl sm:text-2xl font-medium text-primary">
-              Decentralized Governance
+              Proposals
             </h2>
             <p className="text-sm sm:text-base text-secondary">
               Empowering projects with transparency, trust, and governance.
