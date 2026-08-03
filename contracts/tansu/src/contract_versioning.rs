@@ -822,7 +822,7 @@ fn extend_persistent_ttl(env: &Env, key: &types::ProjectKey) {
         .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_EXTEND_TO);
 }
 
-fn attestation_key(
+pub(crate) fn attestation_key(
     env: &Env,
     project_key: &Bytes,
     commit_hash: &String,
@@ -863,7 +863,7 @@ fn attestation_key(
     types::ProjectKey::Attestation(env.crypto().keccak256(&buf).into())
 }
 
-fn finalized_key(
+pub(crate) fn finalized_key(
     env: &Env,
     project_key: &Bytes,
     commit_hash: &String,

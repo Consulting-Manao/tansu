@@ -1745,3 +1745,216 @@ fn attest_rejects_empty_evidence_cid() {
 
     assert_eq!(err, ContractErrors::InvalidAttestation.into());
 }
+
+#[test]
+fn revoking_from_the_middle_preserves_chronological_order() {
+    let setup = create_test_data();
+    let (project_key, maintainers) = register_full_project(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    let first = maintainers.get(0).unwrap();
+    let middle = maintainers.get(1).unwrap();
+    let last = maintainers.get(2).unwrap();
+
+    setup.env.ledger().set_timestamp(100);
+    setup
+        .contract
+        .attest(&first, &project_key, &commit_hash, &target, &None);
+
+    setup.env.ledger().set_timestamp(200);
+    setup
+        .contract
+        .attest(&middle, &project_key, &commit_hash, &target, &None);
+
+    setup.env.ledger().set_timestamp(300);
+    setup
+        .contract
+        .attest(&last, &project_key, &commit_hash, &target, &None);
+
+    setup
+        .contract
+        .revoke_attestation(&middle, &project_key, &commit_hash, &target);
+
+    let attestations = setup
+        .contract
+        .get_attestations(&project_key, &commit_hash, &target);
+
+    assert_eq!(attestations.len(), 2);
+    assert_eq!(attestations.get(0).unwrap().created_at, 100);
+    assert_eq!(attestations.get(1).unwrap().created_at, 300);
+    assert_eq!(attestations.get(0).unwrap().attester, first);
+    assert_eq!(attestations.get(1).unwrap().attester, last);
+}
+
+#[test]
+fn revoking_the_last_attestation_removes_the_storage_entry() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    let key = setup.env.as_contract(&setup.contract_id, || {
+        crate::contract_versioning::attestation_key(&setup.env, &project_key, &commit_hash, &target)
+    });
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    assert!(setup.env.as_contract(&setup.contract_id, || {
+        setup.env.storage().persistent().has(&key)
+    }));
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    assert!(
+        !setup.env.as_contract(&setup.contract_id, || {
+            setup.env.storage().persistent().has(&key)
+        }),
+        "the entry must be removed, not left as an empty vector"
+    );
+}
+
+#[test]
+fn lowering_the_threshold_into_finality_freezes_attestations() {
+    let setup = create_test_data();
+    init_contract(&setup);
+    let third = Address::generate(&setup.env);
+    let project_key = register_revocable_project(&setup, &third);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    assert!(
+        !setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .is_final
+    );
+
+    setup
+        .contract
+        .set_attestation_threshold(&setup.grogu, &project_key, &Some(66));
+
+    assert!(
+        setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .is_final
+    );
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationFinalized.into());
+}
+
+#[test]
+fn shrinking_the_maintainer_set_into_finality_freezes_attestations() {
+    let setup = create_test_data();
+
+    init_contract(&setup);
+
+    let third = Address::generate(&setup.env);
+
+    let name = String::from_str(&setup.env, "shrinking");
+    let url = String::from_str(&setup.env, "github.com/shrinking");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710995");
+    let maintainers = vec![
+        &setup.env,
+        setup.grogu.clone(),
+        setup.mando.clone(),
+        third.clone(),
+    ];
+
+    setup
+        .token_stellar
+        .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
+
+    let project_key =
+        setup
+            .contract
+            .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(66));
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    assert!(
+        !setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .is_final
+    );
+
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &vec![&setup.env, setup.mando.clone()],
+        &url,
+        &ipfs,
+        &None,
+    );
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+
+    assert_eq!(status.attested, 1);
+    assert_eq!(status.total, 1);
+    assert!(status.is_final);
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.mando, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationFinalized.into());
+}
+
+#[test]
+fn a_rejected_call_emits_no_event() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let rejected =
+        setup
+            .contract
+            .try_attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    assert!(rejected.is_err());
+
+    let empty: [soroban_sdk::xdr::ContractEvent; 0] = [];
+
+    assert_eq!(
+        setup
+            .env
+            .events()
+            .all()
+            .filter_by_contract(&setup.contract_id),
+        empty,
+        "a reverted invocation must leave no event behind"
+    );
+}
