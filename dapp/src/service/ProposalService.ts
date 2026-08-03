@@ -3,11 +3,11 @@ import {
   fetchTextFromIpfs,
   fetchJsonFromIpfs,
 } from "utils/ipfsFunctions";
-import type { Proposal, ProposalOutcome, DiscussionPost } from "types/proposal";
+import type { Proposal, ProposalOutcome } from "types/proposal";
 
 const PROPOSAL_MD_PATH = "/proposal.md";
 const OUTCOMES_JSON_PATH = "/outcomes.json";
-const DISCUSSION_JSON_PATH = "/discussion.json";
+const DISCUSSION_MD_PATH = "/proposal_discussion.md";
 const DISCUSSION_SUMMARY_PATH = "/summary.md";
 
 function imagePaths(content: string, cid: string): string {
@@ -42,37 +42,14 @@ export function resolveDiscussionCid(proposal: Proposal): string | null {
   return proposal.discussionIpfs?.trim() || proposal.ipfs?.trim() || null;
 }
 
-function normalizePost(raw: any): DiscussionPost | null {
-  if (!raw || typeof raw !== "object") return null;
-  const body = typeof raw.body === "string" ? raw.body.trim() : "";
-  if (!body) return null;
-  return {
-    author: typeof raw.author === "string" ? raw.author : "Unknown",
-    timestamp:
-      typeof raw.timestamp === "number"
-        ? raw.timestamp
-        : String(raw.timestamp ?? ""),
-    body,
-    ...(typeof raw.source === "string" ? { source: raw.source } : {}),
-  };
-}
-
-/** Fetches the discussion thread (discussion.json) from IPFS. */
+/** Fetches the discussion thread (proposal_discussion.md) from IPFS. */
 export async function fetchProposalDiscussionFromIPFS(
   cid: string,
-): Promise<DiscussionPost[] | null> {
+): Promise<string | null> {
   try {
-    const data = await fetchJsonFromIpfs(cid, DISCUSSION_JSON_PATH);
-    const rawPosts = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.posts)
-        ? data.posts
-        : null;
-    if (!rawPosts) return null;
-    const posts = rawPosts
-      .map(normalizePost)
-      .filter((p: DiscussionPost | null): p is DiscussionPost => p !== null);
-    return posts.length > 0 ? posts : null;
+    const content = await fetchTextFromIpfs(cid, DISCUSSION_MD_PATH);
+    if (!content?.trim()) return null;
+    return imagePaths(content, cid);
   } catch {
     return null;
   }

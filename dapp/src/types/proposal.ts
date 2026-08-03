@@ -25,13 +25,6 @@ export interface Proposal {
   discussionIpfs?: string | null;
 }
 
-export interface DiscussionPost {
-  author: string;
-  timestamp: string | number;
-  body: string;
-  source?: string;
-}
-
 export interface ProposalView {
   id: number;
   title: string;

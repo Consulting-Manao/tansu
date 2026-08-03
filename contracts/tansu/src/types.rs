@@ -198,9 +198,21 @@ pub enum ProjectKey {
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),
-    ProjectKeys(u32),               // List of project keys, pagination
-    TotalProjects,                  // Total number of projects
-    ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
+    ProjectKeys(u32),                 // List of project keys, pagination
+    TotalProjects,                    // Total number of projects
+    ConflictOfInterest(Bytes, u32),   // Addresses barred from voting on a proposal
+    MinVotingPeriod(Bytes),           // Per-project minimum voting period override (seconds)
+    ExecuteDelay(Bytes),              // Per-project DAO execute timelock override (seconds)
+    ProposalExecuteDelay(Bytes, u32), // Timelock snapshotted at proposal creation (seconds)
+    PendingGovernance(Bytes),         // Loosening governance update waiting out its notice window
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingGovernance {
+    pub min_voting_period: Option<u64>, // None leaves the current value untouched
+    pub execute_delay: Option<u64>,     // None leaves the current value untouched
+    pub activates_at: u64,              // Ledger timestamp at which the update may be applied
 }
 
 #[contracttype]

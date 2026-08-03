@@ -66,7 +66,7 @@ export function toMaxVoteWeightInTokens(
   return Number(votable);
 }
 
-/** On-chain vote weight is whole token units (contract scales transfer by decimals). */
+/** On-chain vote weight is whole token units (contract checks balance × decimals). */
 export function tokenVoteWeightToContract(weightInTokens: number): number {
   if (!Number.isFinite(weightInTokens) || weightInTokens <= 0) return 0;
   const w = Math.floor(weightInTokens);

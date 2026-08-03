@@ -142,6 +142,22 @@ export type ProjectKey =
   | {
       tag: "ConflictOfInterest";
       values: readonly [Buffer, u32];
+    }
+  | {
+      tag: "MinVotingPeriod";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "ExecuteDelay";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "ProposalExecuteDelay";
+      values: readonly [Buffer, u32];
+    }
+  | {
+      tag: "PendingGovernance";
+      values: readonly [Buffer];
     };
 export interface PublicVote {
   address: string;
@@ -243,6 +259,11 @@ export interface UpgradeProposal {
   executable_at: u64;
   wasm_hash: Buffer;
 }
+export interface PendingGovernance {
+  activates_at: u64;
+  execute_delay: Option<u64>;
+  min_voting_period: Option<u64>;
+}
 export interface AnonymousVoteConfig {
   public_key: string;
   seed_generator_point: Buffer;
@@ -298,6 +319,12 @@ export declare const ContractErrors: {
     message: string;
   };
   212: {
+    message: string;
+  };
+  213: {
+    message: string;
+  };
+  214: {
     message: string;
   };
   300: {
@@ -359,9 +386,9 @@ export interface Client {
    * For public votes, the choice and weight are visible. For anonymous votes, only
    * the weight is visible, and the choice is encrypted.
    *
-   * Voting incurs a collateral which is repaid upon proposal execution.
-   * If the proposal is revoked, the collateral is not repaid as the voter
-   * engaged with a malicious proposal.
+   * Badge-based proposals cap weight by membership badges. Token-based
+   * proposals require `weight` (whole tokens) not to exceed the voter's
+   * current token balance.
    *
    * # Arguments
    * * `env` - The environment object
@@ -505,9 +532,9 @@ export interface Client {
    * Construct and simulate a remove_vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Remove a malicious or non-compliant vote from a proposal.
    *
-   * Only a project maintainer can call this. The voter's collateral is slashed
-   * (kept by the contract) as a penalty. The vote must be cast on an active
-   * proposal (removal is allowed even after the voting period ends).
+   * Only a project maintainer can call this. The vote and its tally
+   * contribution are dropped. The vote must be cast on an active proposal
+   * (removal is allowed even after the voting period ends).
    *
    * # Arguments
    * * `env` - The environment object
@@ -614,8 +641,8 @@ export interface Client {
    * Construct and simulate a revoke_proposal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Revoke a proposal.
    *
-   * Useful if there was some spam or bad intent. That will prevent the
-   * collateral to be claimed back.
+   * Useful if there was some spam or bad intent. Forfeits the proposer's
+   * collateral (it is not refunded on a later execute).
    *
    * # Arguments
    * * `env` - The environment object
@@ -1175,6 +1202,7 @@ export interface Client {
    * # Panics
    * * If the project doesn't exist
    * * If the maintainer is not authorized
+   * * If the hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
    */
   commit: (
     {
@@ -1193,7 +1221,7 @@ export interface Client {
    * Register a new project.
    *
    * Creates a new project entry with maintainers, URL, and commit hash.
-   * Also registers the project name in the domain contract if not already registered.
+   * Also registers the name in the domain contract if needed.
    * The project key is generated using keccak256 hash of the project name.
    *
    * # Arguments
@@ -1203,6 +1231,8 @@ export interface Client {
    * * `maintainers` - List of maintainer addresses for the project
    * * `url` - The project's Git repository URL
    * * `ipfs` - CID of the tansu.toml file with associated metadata
+   * * `min_voting_period` - Optional minimum voting period override, in seconds
+   * * `execute_delay` - Optional DAO execute timelock override, in seconds
    *
    * # Returns
    * * `Bytes` - The project key (keccak256 hash of the name)
@@ -1212,6 +1242,7 @@ export interface Client {
    * * If the project already exists
    * * If the maintainer is not authorized
    * * If the maintainer has insufficient collateral balance
+   * * If an override is zero or exceeds `MAX_VOTING_PERIOD`
    */
   register: (
     {
@@ -1220,12 +1251,16 @@ export interface Client {
       maintainers,
       url,
       ipfs,
+      min_voting_period,
+      execute_delay,
     }: {
       maintainer: string;
       name: string;
       maintainers: Array<string>;
       url: string;
       ipfs: string;
+      min_voting_period: Option<u64>;
+      execute_delay: Option<u64>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Buffer>>;
@@ -1346,7 +1381,8 @@ export interface Client {
    * * If the contract is paused
    * * If the project doesn't exist
    * * If the maintainer is not authorized
-   * * If commit_hash or cid is empty
+   * * If commit_hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
+   * * If cid is empty
    */
   set_evidence: (
     {
@@ -1368,7 +1404,13 @@ export interface Client {
    * Construct and simulate a update_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Update the configuration of an existing project.
    *
-   * Allows maintainers to change the project's URL, IPFS metadata, and maintainer list.
+   * Changes the project's URL, IPFS metadata, and maintainer list, and
+   * optionally its governance overrides. `None` governance params leave
+   * the current values untouched; to restore a default, pass it explicitly.
+   *
+   * Tightening (new >= current) applies immediately; loosening activates
+   * after a notice window of current `min_voting_period + execute_delay`.
+   * In-flight proposals keep their creation-time timelock.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1377,10 +1419,13 @@ export interface Client {
    * * `maintainers` - New list of maintainer addresses
    * * `url` - New Git repository URL
    * * `ipfs` - New CID of the tansu.toml file with metadata
+   * * `min_voting_period` - Optional new minimum voting period, in seconds
+   * * `execute_delay` - Optional new DAO execute timelock, in seconds
    *
    * # Panics
    * * If the project doesn't exist
    * * If the maintainer is not authorized
+   * * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
    */
   update_config: (
     {
@@ -1389,12 +1434,16 @@ export interface Client {
       maintainers,
       url,
       ipfs,
+      min_voting_period,
+      execute_delay,
     }: {
       maintainer: string;
       key: Buffer;
       maintainers: Array<string>;
       url: string;
       ipfs: string;
+      min_voting_period: Option<u64>;
+      execute_delay: Option<u64>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;

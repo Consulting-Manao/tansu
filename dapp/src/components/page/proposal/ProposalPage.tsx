@@ -15,11 +15,7 @@ import { queryKeys } from "@service/cache/cacheKeys";
 import Loading from "components/utils/Loading";
 import React, { useEffect, useState } from "react";
 import type { Proposal as ContractProposal } from "../../../../packages/tansu";
-import type {
-  ProposalOutcome,
-  ProposalView,
-  DiscussionPost,
-} from "types/proposal";
+import type { ProposalOutcome, ProposalView } from "types/proposal";
 import { deriveProjectKey } from "utils/projectKey";
 import { connectedPublicKey } from "utils/store";
 import {
@@ -45,7 +41,7 @@ const ProposalPage: React.FC = () => {
   const [description, setDescription] = useState("");
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [projectMaintainers, setProjectMaintainers] = useState<string[]>([]);
-  const [discussion, setDiscussion] = useState<DiscussionPost[] | null>(null);
+  const [discussion, setDiscussion] = useState<string | null>(null);
   const [discussionSummary, setDiscussionSummary] = useState<string | null>(
     null,
   );

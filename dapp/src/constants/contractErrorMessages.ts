@@ -35,6 +35,8 @@ export const contractErrorMessages = {
   210: "Too many voters already.",
   211: "Your address has a declared conflict of interest for this proposal.",
   212: "Evidence must include a commit hash and CID.",
+  213: "The commit hash must be a 40-character (SHA-1) or 64-character (SHA-256) hex string.",
+  214: "The voting period or execute delay is invalid.",
 
   // State (300-399)
   300: "No hash was found.",

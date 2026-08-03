@@ -322,63 +322,42 @@ describe("fetchProposalDiscussionFromIPFS", () => {
     vi.clearAllMocks();
   });
 
-  it("parses a bare array of posts", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue([
-      { author: "alice", timestamp: "2024-01-01T00:00:00Z", body: "Hi" },
-    ]);
-    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
-    expect(mockFetchJsonFromIpfs).toHaveBeenCalledWith(
-      "bafyabc123",
-      "/discussion.json",
+  it("fetches proposal_discussion.md markdown and returns content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("## Discussion\n\nAll good here.");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
-    expect(result).toEqual([
-      { author: "alice", timestamp: "2024-01-01T00:00:00Z", body: "Hi" },
-    ]);
-  });
-
-  it("parses a { posts: [...] } wrapper and keeps source", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      posts: [
-        {
-          author: "bob",
-          timestamp: 1700000000,
-          body: "Yo",
-          source: "https://x/1",
-        },
-      ],
-    });
     const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
-    expect(result).toEqual([
-      {
-        author: "bob",
-        timestamp: 1700000000,
-        body: "Yo",
-        source: "https://x/1",
-      },
-    ]);
+    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
+      "bafyabc123",
+      "/proposal_discussion.md",
+    );
+    expect(result).toBe("## Discussion\n\nAll good here.");
   });
 
-  it("drops posts with empty bodies and defaults missing authors", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue([
-      { author: "", body: "  " },
-      { body: "kept" },
-    ]);
+  it("rewrites relative image paths to absolute IPFS paths", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("![diagram](images/flow.png)");
+    mockGetIpfsBasicLink.mockReturnValue(
+      "https://ipfs.filebase.io/ipfs/bafyabc123",
+    );
     const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
-    expect(result).toEqual([
-      { author: "Unknown", timestamp: "", body: "kept" },
-    ]);
+    expect(result).toBe(
+      "![diagram](https://ipfs.filebase.io/ipfs/bafyabc123/images/flow.png)",
+    );
   });
 
-  it("returns null for malformed or empty data", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({ nope: true });
+  it("returns null for empty/whitespace content", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue("   ");
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
+  });
 
-    mockFetchJsonFromIpfs.mockResolvedValue(null);
+  it("returns null when the file is missing", async () => {
+    mockFetchTextFromIpfs.mockResolvedValue(null);
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
   });
 
   it("returns null when fetch throws", async () => {
-    mockFetchJsonFromIpfs.mockRejectedValue(new Error("boom"));
+    mockFetchTextFromIpfs.mockRejectedValue(new Error("boom"));
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
   });
 });

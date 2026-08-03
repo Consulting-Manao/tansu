@@ -10,12 +10,11 @@ use soroban_sdk::{
 };
 
 const PROPOSAL_COLLATERAL: i128 = 5 * 10_000_000;
-const VOTE_COLLATERAL: i128 = 2 * 10_000_000;
 const MAX_TITLE_LENGTH: u32 = 256;
 const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
-const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
-const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
+pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
+pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
 const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
 
 #[contractimpl]
@@ -182,9 +181,16 @@ impl DaoTrait for Tansu {
     ) -> u32 {
         Tansu::require_not_paused(env.clone());
 
+        promote_pending_governance(&env, &project_key);
+
         // Some input validations
         let curr_timestamp = env.ledger().timestamp();
-        let min_voting_timestamp = curr_timestamp + MIN_VOTING_PERIOD;
+        let min_voting_period = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::MinVotingPeriod(project_key.clone()))
+            .unwrap_or(MIN_VOTING_PERIOD);
+        let min_voting_timestamp = curr_timestamp + min_voting_period;
         let max_voting_timestamp = curr_timestamp + MAX_VOTING_PERIOD;
         let ipfs_len = ipfs.len();
         let title_len = title.len();
@@ -201,18 +207,10 @@ impl DaoTrait for Tansu {
         let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
         let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
 
-        // Token-based: proposer only pays PROPOSAL_COLLATERAL
-        // Badge-based: proposer pays PROPOSAL_COLLATERAL + VOTE_COLLATERAL
-        let collateral_amount = if token_contract.is_some() {
-            PROPOSAL_COLLATERAL
-        } else {
-            PROPOSAL_COLLATERAL + VOTE_COLLATERAL
-        };
-
         match token_stellar.try_transfer(
             &proposer,
             env.current_contract_address(),
-            &collateral_amount,
+            &PROPOSAL_COLLATERAL,
         ) {
             Ok(..) => (),
             _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
@@ -313,6 +311,20 @@ impl DaoTrait for Tansu {
             &voters,
         );
 
+        // Snapshot the project's execute timelock so a later update_governance
+        // cannot change the delay for this in-flight proposal.
+        let delay_override = env
+            .storage()
+            .persistent()
+            .get::<types::ProjectKey, u64>(&types::ProjectKey::ExecuteDelay(project_key.clone()));
+        if let Some(delay) = delay_override {
+            env.storage().persistent().set(
+                &types::ProjectKey::ProposalExecuteDelay(project_key.clone(), proposal_id),
+                &delay,
+            );
+        }
+        let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
+
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
         } else {
@@ -345,6 +357,7 @@ impl DaoTrait for Tansu {
             voting_ends_at,
             public_voting,
             token_contract: token_contract.clone(),
+            execute_delay,
         }
         .publish(&env);
 
@@ -353,9 +366,9 @@ impl DaoTrait for Tansu {
 
     /// Remove a malicious or non-compliant vote from a proposal.
     ///
-    /// Only a project maintainer can call this. The voter's collateral is slashed
-    /// (kept by the contract) as a penalty. The vote must be cast on an active
-    /// proposal (removal is allowed even after the voting period ends).
+    /// Only a project maintainer can call this. The vote and its tally
+    /// contribution are dropped. The vote must be cast on an active proposal
+    /// (removal is allowed even after the voting period ends).
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -454,8 +467,6 @@ impl DaoTrait for Tansu {
             .persistent()
             .set(&tallies_key, &proposal_tallies);
 
-        // Collateral is intentionally NOT returned — slashed as penalty for malicious voting.
-
         events::VoteRemoved {
             project_key,
             proposal_id,
@@ -467,8 +478,8 @@ impl DaoTrait for Tansu {
 
     /// Revoke a proposal.
     ///
-    /// Useful if there was some spam or bad intent. That will prevent the
-    /// collateral to be claimed back.
+    /// Useful if there was some spam or bad intent. Forfeits the proposer's
+    /// collateral (it is not refunded on a later execute).
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -530,9 +541,9 @@ impl DaoTrait for Tansu {
     /// For public votes, the choice and weight are visible. For anonymous votes, only
     /// the weight is visible, and the choice is encrypted.
     ///
-    /// Voting incurs a collateral which is repaid upon proposal execution.
-    /// If the proposal is revoked, the collateral is not repaid as the voter
-    /// engaged with a malicious proposal.
+    /// Badge-based proposals cap weight by membership badges. Token-based
+    /// proposals require `weight` (whole tokens) not to exceed the voter's
+    /// current token balance.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -630,48 +641,26 @@ impl DaoTrait for Tansu {
             types::Vote::AnonymousVote(vote_choice) => &vote_choice.weight,
         };
 
-        // For badge-based proposals, validate voting weight against badges
-        // For token-based proposals, the token transfer will validate the balance
-        if proposal.vote_data.token_contract.is_none() {
-            let voter_max_weight = <Tansu as MembershipTrait>::get_max_weight(
-                env.clone(),
-                project_key.clone(),
-                vote_address.clone(),
-            );
-
-            if vote_weight > &voter_max_weight {
-                panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
-            }
-        }
-
-        // null votes are not registered as not providing signal
-        if vote_weight == &0u32 {
-            panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
-        }
-
-        // Lock collateral: tokens or xlm
-        let (token_address, amount) = match &proposal.vote_data.token_contract {
+        // Badge-based: weight capped by badges. Token-based: weight is whole
+        // tokens and must not exceed current balance.
+        match &proposal.vote_data.token_contract {
             Some(token_contract) => {
                 let token_client = token::TokenClient::new(&env, token_contract);
-                let decimals = token_client.decimals();
-                (
-                    token_contract.clone(),
-                    (*vote_weight as i128) * 10_i128.pow(decimals),
-                )
+                let required = (*vote_weight as i128) * 10_i128.pow(token_client.decimals());
+                if *vote_weight == 0 || required > token_client.balance(vote_address) {
+                    panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
+                }
             }
             None => {
-                let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
-                (sac_contract.address, VOTE_COLLATERAL)
+                let voter_max_weight = <Tansu as MembershipTrait>::get_max_weight(
+                    env.clone(),
+                    project_key.clone(),
+                    vote_address.clone(),
+                );
+                if *vote_weight == 0 || *vote_weight > voter_max_weight {
+                    panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
+                }
             }
-        };
-
-        match token::TokenClient::new(&env, &token_address).try_transfer(
-            &voter,
-            env.current_contract_address(),
-            &amount,
-        ) {
-            Ok(..) => (),
-            _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
         }
 
         // Record the vote in keyed storage
@@ -751,7 +740,17 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if curr_timestamp < proposal.vote_data.voting_ends_at + types::TIMELOCK_DELAY {
+        // Snapshot at proposal creation; proposals without a snapshot use
+        // the global default.
+        let execute_delay = env
+            .storage()
+            .persistent()
+            .get(&types::ProjectKey::ProposalExecuteDelay(
+                project_key.clone(),
+                proposal_id,
+            ))
+            .unwrap_or(types::TIMELOCK_DELAY);
+        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
@@ -765,38 +764,6 @@ impl DaoTrait for Tansu {
         ) {
             Ok(..) => (),
             _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
-        }
-
-        // Return voting collateral to all voters
-        let all_votes = get_all_votes(&env, &project_key, proposal_id);
-        for vote_ in &all_votes {
-            let (vote_address, vote_weight) = match &vote_ {
-                types::Vote::PublicVote(vote_choice) => (&vote_choice.address, vote_choice.weight),
-                types::Vote::AnonymousVote(vote_choice) => {
-                    (&vote_choice.address, vote_choice.weight)
-                }
-            };
-
-            let (transfer_contract, amount) = match &proposal.vote_data.token_contract {
-                Some(token_address) => {
-                    let token_client = token::TokenClient::new(&env, token_address);
-                    let decimals = token_client.decimals();
-                    (
-                        token_address.clone(),
-                        vote_weight as i128 * 10_i128.pow(decimals),
-                    )
-                }
-                None => (sac_contract.address.clone(), VOTE_COLLATERAL), // xlm
-            };
-
-            match token::TokenClient::new(&env, &transfer_contract).try_transfer(
-                &env.current_contract_address(),
-                vote_address,
-                &amount,
-            ) {
-                Ok(..) => (),
-                _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
-            }
         }
 
         // tally to results
@@ -1150,6 +1117,42 @@ impl DaoTrait for Tansu {
                 proposal_id,
             ))
             .unwrap_or(Vec::new(&env))
+    }
+}
+
+/// Write the provided governance override entries; `None` leaves the
+/// current value untouched.
+pub(crate) fn apply_governance(
+    env: &Env,
+    project_key: &Bytes,
+    min_voting_period: Option<u64>,
+    execute_delay: Option<u64>,
+) {
+    let storage = env.storage().persistent();
+    if let Some(v) = min_voting_period {
+        storage.set(&types::ProjectKey::MinVotingPeriod(project_key.clone()), &v);
+    }
+    if let Some(v) = execute_delay {
+        storage.set(&types::ProjectKey::ExecuteDelay(project_key.clone()), &v);
+    }
+}
+
+/// Apply a pending (loosening) governance update once its notice window has
+/// elapsed. Called lazily from every reader of the override entries so the
+/// activation needs no dedicated transaction.
+pub(crate) fn promote_pending_governance(env: &Env, project_key: &Bytes) {
+    let storage = env.storage().persistent();
+    let pending_key = types::ProjectKey::PendingGovernance(project_key.clone());
+    if let Some(pending) = storage.get::<types::ProjectKey, types::PendingGovernance>(&pending_key)
+        && env.ledger().timestamp() >= pending.activates_at
+    {
+        apply_governance(
+            env,
+            project_key,
+            pending.min_voting_period,
+            pending.execute_delay,
+        );
+        storage.remove(&pending_key);
     }
 }
 
