@@ -568,10 +568,12 @@ impl VersioningTrait for Tansu {
     /// Record an endorsement (attestation) of a commit or evidence artifact.
     ///
     /// A multi-party primitive: independent maintainers vouch that they verified the
-    /// target. Attestations are deduped by attester (last-writer-wins) — re-attesting
-    /// refreshes the caller's entry rather than adding a duplicate. At most
-    /// `MAX_ATTESTATIONS` are kept on-chain; older entries roll off but stay
-    /// recoverable from `Attested` events via an indexer.
+    /// target. Each maintainer may attest a given target at most once — a second
+    /// call from the same attester is rejected rather than replacing the first, so
+    /// an attestation cannot be silently retracted or rewritten. At most
+    /// `MAX_ATTESTATIONS` are kept on-chain; at capacity, vouches from addresses
+    /// that are no longer maintainers are pruned, and the call is rejected if
+    /// that does not free a slot. Current maintainers' vouches are never evicted.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -585,6 +587,8 @@ impl VersioningTrait for Tansu {
     /// * If the contract is paused
     /// * If the project doesn't exist or the attester is not a maintainer
     /// * If `commit_hash` is empty, or the target is `Evidence` with an empty CID
+    /// * If the attester has already attested this target
+    /// * If the target is at `MAX_ATTESTATIONS` and no stale entry can be pruned
     fn attest(
         env: Env,
         attester: Address,
@@ -595,7 +599,7 @@ impl VersioningTrait for Tansu {
     ) {
         Tansu::require_not_paused(env.clone());
 
-        crate::auth_maintainers(&env, &attester, &project_key);
+        let project = crate::auth_maintainers(&env, &attester, &project_key);
 
         if commit_hash.is_empty() {
             panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
@@ -613,11 +617,7 @@ impl VersioningTrait for Tansu {
             attester.clone(),
         );
 
-        let key = types::ProjectKey::Attestation(
-            project_key.clone(),
-            commit_hash.clone(),
-            target.clone(),
-        );
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
 
         let storage = env.storage().persistent();
 
@@ -631,14 +631,27 @@ impl VersioningTrait for Tansu {
             note,
         };
 
-        match attestations.iter().position(|a| a.attester == attester) {
-            Some(index) => attestations.set(index as u32, attestation),
-            None => attestations.push_back(attestation),
+        if attestations.iter().any(|a| a.attester == attester) {
+            panic_with_error!(&env, &errors::ContractErrors::AlreadyAttested);
         }
 
-        while attestations.len() > MAX_ATTESTATIONS {
-            attestations.remove(0);
+        if attestations.len() >= MAX_ATTESTATIONS {
+            let mut retained: Vec<types::Attestation> = Vec::new(&env);
+
+            for existing in attestations.iter() {
+                if project.maintainers.contains(&existing.attester) {
+                    retained.push_back(existing);
+                }
+            }
+
+            attestations = retained;
         }
+
+        if attestations.len() >= MAX_ATTESTATIONS {
+            panic_with_error!(&env, &errors::ContractErrors::TooManyAttestations);
+        }
+
+        attestations.push_back(attestation);
 
         storage.set(&key, &attestations);
 
@@ -657,8 +670,8 @@ impl VersioningTrait for Tansu {
     /// Get the attestations recorded for a project's commit or evidence target.
     ///
     /// Entries are returned oldest-first (the last element is the most recent) and
-    /// are deduped by attester. At most `MAX_ATTESTATIONS` are kept on-chain; the
-    /// full history stays recoverable from `Attested` events via an indexer.
+    /// hold at most one entry per attester, capped at `MAX_ATTESTATIONS`. The full
+    /// history stays recoverable from `Attested` events via an indexer.
     /// Returns an empty vector when nothing has been attested for the target.
     ///
     /// # Arguments
@@ -675,7 +688,7 @@ impl VersioningTrait for Tansu {
         commit_hash: String,
         target: types::AttestationTarget,
     ) -> Vec<types::Attestation> {
-        let key = types::ProjectKey::Attestation(project_key, commit_hash, target);
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
 
         match env.storage().persistent().get(&key) {
             Some(list) => {
@@ -694,7 +707,66 @@ fn extend_persistent_ttl(env: &Env, key: &types::ProjectKey) {
         .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_EXTEND_TO);
 }
 
-fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
+fn attestation_key(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) -> types::ProjectKey {
+    let mut buf = Bytes::new(env);
+
+    let project_key_len = project_key.len();
+
+    buf.extend_from_array(&project_key_len.to_be_bytes());
+    buf.append(project_key);
+
+    let commit_bytes: Bytes = commit_hash.clone().into();
+
+    buf.extend_from_array(&commit_bytes.len().to_be_bytes());
+    buf.append(&commit_bytes);
+
+    match target {
+        types::AttestationTarget::Commit => buf.extend_from_array(&[0u8]),
+        types::AttestationTarget::Evidence(kind, cid) => {
+            buf.extend_from_array(&[1u8]);
+
+            let kind_tag: u8 = match kind {
+                types::EvidenceKind::Sbom => 0,
+                types::EvidenceKind::Cve => 1,
+                types::EvidenceKind::Attestation => 2,
+            };
+
+            buf.extend_from_array(&[kind_tag]);
+
+            let cid_bytes: Bytes = cid.clone().into();
+
+            buf.extend_from_array(&cid_bytes.len().to_be_bytes());
+            buf.append(&cid_bytes);
+        }
+    }
+
+    types::ProjectKey::Attestation(env.crypto().keccak256(&buf).into())
+}
+
+fn validate_maintainers(env: &Env, maintainers: &Vec<Address>) {
+    if maintainers.is_empty() {
+        panic_with_error!(env, &errors::ContractErrors::MissingMaintainer);
+    }
+
+    if maintainers.len() > MAX_MAINTAINERS {
+        panic_with_error!(env, &errors::ContractErrors::TooManyMaintainers);
+    }
+
+    for (index, maintainer) in maintainers.iter().enumerate() {
+        for other in maintainers.iter().skip(index + 1) {
+            if maintainer == other {
+                panic_with_error!(env, &errors::ContractErrors::DuplicateMaintainer);
+            }
+        }
+    }
+}
+
+pub(crate) fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
     let percent = percent.unwrap_or(DEFAULT_FINALITY_THRESHOLD_PERCENT);
 
     if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
