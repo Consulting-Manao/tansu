@@ -46,6 +46,11 @@ impl SCFTokenTrait for SCFMembership {
         let admin: Address = e.storage().instance().get(&types::DataKey::Admin).unwrap();
         admin.require_auth();
 
+        let to_balance = Self::balance(e, to.clone());
+        if to_balance != 0 {
+            panic_with_error!(e, errors::NonFungibleTokenError::MemberAlreadyExist)
+        }
+
         let token_id: u32 = Self::next_token_id(e);
 
         e.storage()
@@ -56,7 +61,6 @@ impl SCFTokenTrait for SCFMembership {
             .persistent()
             .set(&types::NFTStorageKey::Owner(token_id), &to);
 
-        let to_balance = Self::balance(e, to.clone());
         e.storage().persistent().set(
             &types::NFTStorageKey::Balance(to.clone()),
             &(to_balance + 1),

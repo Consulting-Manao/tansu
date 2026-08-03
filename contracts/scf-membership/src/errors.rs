@@ -12,4 +12,5 @@ pub enum NonFungibleTokenError {
     TraitUnSettable = 203,
     RoleDoesNotExist = 204,
     NqgContractError = 205,
+    MemberAlreadyExist = 206,
 }

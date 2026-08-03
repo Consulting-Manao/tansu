@@ -331,20 +331,17 @@ $$
 
 ## Collateral & Economic Security
 
-To prevent spam and ensure serious participation, Tansu requires collateral deposits:
+To prevent spam and ensure serious proposal submissions, Tansu requires a proposal collateral deposit:
 
 **Amounts:**
 
 - Proposal creation: **5 XLM** (`PROPOSAL_COLLATERAL`)
-- Each badge vote: **2 XLM** (`VOTE_COLLATERAL`)
-- Badge proposal creation (proposer): **7 XLM** total (5 XLM proposal + 2 XLM automatic abstain vote deposit)
-- Token proposal creation (proposer): **5 XLM** only (voters lock the voting token, not XLM)
 
 **Refund Policy:**
 
-- All collateral is **fully refunded** when proposal is executed
+- Proposal collateral is **fully refunded** to the proposer when the proposal is executed
 - Proposer gets collateral back even if rejected
-- Exception: **Revoked proposals** forfeit collateral (malicious/spam deterrent)
+- Exception: **Revoked proposals** forfeit proposal collateral (malicious/spam deterrent)
 
 ## DoS Protection & Limits
 
@@ -395,9 +392,9 @@ Custom quorum logic (percentage, thresholds…) can be built off-chain before de
 
 ### Voting Eligibility
 
-**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge). Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. Each vote locks **2 XLM** collateral as the economic barrier to spam. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
+**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge). Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
 
-**Token-based proposals:** Any address holding the proposal's token can vote. Vote `weight` is in **whole token units** (the contract scales transfers by the token's `decimals()`). That amount is locked as collateral. Badge validation is skipped.
+**Token-based proposals:** Any address holding the proposal's token can vote. Vote `weight` is in **whole token units** (the contract checks `weight * 10^decimals` against the voter's current balance). Badge validation is skipped.
 
 **NQG-weighted project:** For the admin-configured SCF Public Goods project key, `get_max_weight` returns the voter's Neural Quorum Governance score from the external NQG contract (zero if score ≤ 4M). This is a project-level setting, not a separate proposal flag like `token_contract`.
 

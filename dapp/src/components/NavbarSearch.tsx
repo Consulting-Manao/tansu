@@ -18,6 +18,20 @@ const NavbarSearch = () => {
   const publicKeyFromStore = useStore(connectedPublicKey);
   const isWalletConnected = !!publicKeyFromStore;
 
+  const toSafeInternalPath = (rawUrl: string | null): string => {
+    if (!rawUrl) return "";
+    const trimmed = rawUrl.trim();
+    if (!trimmed.startsWith("/")) return "";
+    if (trimmed.startsWith("//")) return "";
+    try {
+      const parsed = new URL(trimmed, window.location.origin);
+      if (parsed.origin !== window.location.origin) return "";
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return "";
+    }
+  };
+
   useEffect(() => {
     setIsClient(true);
     saveOriginalUrl();
@@ -54,8 +68,9 @@ const NavbarSearch = () => {
 
     const searchParams = new URLSearchParams(window.location.search);
     const fromUrl = searchParams.get("from");
-    if (fromUrl) {
-      setOriginalUrl(fromUrl);
+    const safeFromUrl = toSafeInternalPath(fromUrl);
+    if (safeFromUrl) {
+      setOriginalUrl(safeFromUrl);
     }
   };
 
@@ -77,11 +92,13 @@ const NavbarSearch = () => {
 
     const searchParams = new URLSearchParams(window.location.search);
     const fromUrl = searchParams.get("from");
+    const safeFromUrl = toSafeInternalPath(fromUrl);
+    const safeOriginalUrl = toSafeInternalPath(originalUrl);
 
-    if (fromUrl) {
-      window.location.href = fromUrl;
-    } else if (originalUrl) {
-      window.location.href = originalUrl;
+    if (safeFromUrl) {
+      window.location.href = safeFromUrl;
+    } else if (safeOriginalUrl) {
+      window.location.href = safeOriginalUrl;
     } else if (
       window.location.pathname === HOME_PATH &&
       window.location.search

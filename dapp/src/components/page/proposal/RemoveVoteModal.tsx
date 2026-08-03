@@ -35,7 +35,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
       await removeVoteFlow({ projectName, proposalId, voterAddress });
       toast.success(
         "Vote Removed",
-        `Vote from ${truncateMiddle(voterAddress, 16)} has been removed and collateral slashed.`,
+        `Vote from ${truncateMiddle(voterAddress, 16)} has been removed.`,
       );
       onRemoved?.();
       onClose();
@@ -53,7 +53,6 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
           <p className="text-xl font-medium text-primary">Remove a Vote</p>
           <p className="text-sm text-secondary">
             As a maintainer you can remove a malicious or non-compliant vote.
-            The voter's collateral will be slashed.
           </p>
         </div>
 

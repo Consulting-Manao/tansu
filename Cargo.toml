@@ -11,8 +11,7 @@ license = "BSD-3"
 repository = "https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s"
 
 [workspace.dependencies]
-soroban-sdk = { version = "27.0.0" }
-# features = ["experimental_spec_shaking_v2"]
+soroban-sdk = { version = "27.0.4" }
 
 [profile.release]
 opt-level = "z"

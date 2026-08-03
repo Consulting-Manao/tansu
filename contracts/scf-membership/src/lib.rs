@@ -57,8 +57,7 @@ pub trait SCFTokenTrait {
     /// # Panics
     ///
     /// * If the caller is not the admin.
-    /// * If the token was already minted.
-    /// * If there are no more tokens to be minted.
+    /// * If the token was already minted for that address.
     ///
     /// # Events
     ///

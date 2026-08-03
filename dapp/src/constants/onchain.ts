@@ -12,7 +12,15 @@ function shortAddr(a: string, head: number = 4, tail: number = 4): string {
 
 export const ONCHAIN_METHODS: Record<string, MethodMeta> = {
   register: {
-    paramNames: ["maintainer", "name", "maintainers", "url", "hash"],
+    paramNames: [
+      "maintainer",
+      "name",
+      "maintainers",
+      "url",
+      "hash",
+      "min_voting_period",
+      "execute_delay",
+    ],
     summary: () => "created project",
   },
   commit: {
@@ -20,7 +28,15 @@ export const ONCHAIN_METHODS: Record<string, MethodMeta> = {
     summary: (d) => `committed ${((d.hash as string) ?? "").slice(0, 7)}`,
   },
   update_config: {
-    paramNames: ["maintainer", "project_key", "maintainers", "url", "hash"],
+    paramNames: [
+      "maintainer",
+      "project_key",
+      "maintainers",
+      "url",
+      "hash",
+      "min_voting_period",
+      "execute_delay",
+    ],
     summary: () => "updated config",
   },
   add_member: {

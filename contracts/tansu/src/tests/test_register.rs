@@ -3,9 +3,19 @@ use super::test_utils::{create_test_data, init_contract, init_contract_with_thre
 use crate::errors::ContractErrors;
 use crate::events::{AttestationThresholdSet, ProjectConfigUpdated, ProjectRegistered};
 use crate::types;
-use crate::types::Project;
-use soroban_sdk::testutils::{Address as _, Events};
-use soroban_sdk::{Address, Bytes, Event, String, Vec, vec};
+use crate::types::{PendingGovernance, Project, ProjectKey};
+use soroban_sdk::testutils::{Address as _, Events, Ledger};
+use soroban_sdk::{Address, Bytes, Env, Event, String, Vec, vec};
+
+/// Read a per-project governance override straight from contract storage,
+/// mirroring how the DAO consumes it. The contract intentionally exposes no
+/// public accessor for these (per review on #155), so tests read storage
+/// directly via `as_contract`.
+fn stored_override(env: &Env, contract: &Address, key: ProjectKey, default: u64) -> u64 {
+    env.as_contract(contract, || {
+        env.storage().persistent().get(&key).unwrap_or(default)
+    })
+}
 
 #[test]
 fn register_project() {
@@ -27,9 +37,16 @@ fn register_events() {
     let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
     setup.token_stellar.mint(&setup.grogu, &genesis_amount);
 
-    let id = setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let threshold_event = AttestationThresholdSet {
         project_key: id.clone(),
@@ -74,7 +91,16 @@ fn register_double_registration_error() {
     // double registration
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProjectAlreadyExist.into());
@@ -93,7 +119,16 @@ fn register_name_too_long_error() {
     // name too long
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name_long, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name_long,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidProjectName.into());
@@ -119,6 +154,8 @@ fn register_invalid_name_chars_error() {
             &url,
             &ipfs,
             &None,
+            &None,
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -137,7 +174,16 @@ fn register_insufficient_collateral_error() {
     // grogu has no tokens — collateral transfer should fail
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::CollateralError.into());
@@ -176,9 +222,16 @@ fn register_with_boundary_thresholds() {
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers = vec![&setup.env, setup.grogu.clone()];
 
-    let id_2 = setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(100));
+    let id_2 = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &Some(100),
+    );
     assert_eq!(setup.contract.get_attestation_threshold(&id_2), 100);
 }
 
@@ -200,6 +253,8 @@ fn register_invalid_threshold_error() {
             &maintainers,
             &url,
             &ipfs,
+            &None,
+            &None,
             &Some(too_low),
         )
         .unwrap_err()
@@ -214,6 +269,8 @@ fn register_invalid_threshold_error() {
             &maintainers,
             &url,
             &ipfs,
+            &None,
+            &None,
             &Some(101),
         )
         .unwrap_err()
@@ -230,9 +287,16 @@ fn update_config_updates_project_and_threshold() {
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers = vec![&setup.env, setup.grogu.clone()];
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &Some(90));
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &Some(90),
+    );
 
     let project = setup.contract.get_project(&id);
     assert_eq!(project.config.url, url);
@@ -251,9 +315,16 @@ fn update_config_without_threshold_leaves_it_unchanged() {
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     assert_eq!(setup.contract.get_attestation_threshold(&id), 80);
 }
@@ -294,7 +365,16 @@ fn register_rejects_duplicate_maintainers() {
 
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
 
@@ -312,7 +392,16 @@ fn update_config_rejects_duplicate_maintainers() {
 
     let err = setup
         .contract
-        .try_update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &None)
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
 
@@ -331,14 +420,32 @@ fn update_config_invalid_threshold_error() {
     let too_low = types::MIN_FINALITY_THRESHOLD_PERCENT - 1;
     let err = setup
         .contract
-        .try_update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &Some(too_low))
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &Some(too_low),
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidAttestationThreshold.into());
 
     let err = setup
         .contract
-        .try_update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &Some(101))
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &Some(101),
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidAttestationThreshold.into());
@@ -362,7 +469,16 @@ fn update_config_unregistered_maintainer_error() {
 
     let err = setup
         .contract
-        .try_update_config(&bob, &id, &maintainers, &url, &ipfs, &Some(90))
+        .try_update_config(
+            &bob,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &Some(90),
+        )
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
@@ -377,9 +493,16 @@ fn update_config_events() {
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &id, &maintainers, &url, &ipfs, &Some(90));
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &Some(90),
+    );
 
     let threshold_event = AttestationThresholdSet {
         project_key: id.clone(),
@@ -432,7 +555,16 @@ fn test_project_listing() {
         let ipfs_str = std::format!("{}{}", ipfs_prefix, i);
         let ipfs = String::from_str(env, &ipfs_str);
 
-        client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
+        client.register(
+            maintainer,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        );
     }
 
     // Check first page (should have items_per_page projects)
@@ -476,7 +608,16 @@ fn test_sub_projects() {
     let url2 = String::from_str(env, "github.com/subproject");
     let ipfs2 = String::from_str(env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers2 = vec![env, maintainer.clone()];
-    let sub_project_id = client.register(maintainer, &name2, &maintainers2, &url2, &ipfs2, &None);
+    let sub_project_id = client.register(
+        maintainer,
+        &name2,
+        &maintainers2,
+        &url2,
+        &ipfs2,
+        &None,
+        &None,
+        &None,
+    );
 
     // Set sub-projects
     let sub_projects = vec![env, sub_project_id.clone()];
@@ -522,7 +663,16 @@ fn test_sub_projects_limit() {
             &std::format!("2ef4f49fdd8fa9dc463f1f06a094c26b8871099{}", i),
         );
         let maintainers = vec![env, maintainer.clone()];
-        let sub_project_id = client.register(maintainer, &name, &maintainers, &url, &ipfs, &None);
+        let sub_project_id = client.register(
+            maintainer,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        );
         sub_project_ids.push_back(sub_project_id);
     }
 
@@ -565,9 +715,411 @@ fn register_rejects_too_many_maintainers() {
 
     let err = setup
         .contract
-        .try_register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &None,
+            &None,
+        )
         .unwrap_err()
         .unwrap();
 
     assert_eq!(err, ContractErrors::TooManyMaintainers.into());
+}
+
+#[test]
+fn min_voting_period_defaults_when_unset() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    // No override is persisted, so the DAO falls back to the 24h default.
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        24 * 3600
+    );
+}
+
+#[test]
+fn min_voting_period_override_is_stored_and_read() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let custom = 7 * 24 * 3600u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(custom),
+        &None,
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom
+    );
+}
+
+#[test]
+fn min_voting_period_rejects_zero() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(0u64),
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn min_voting_period_rejects_above_max() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let too_long = 30 * 24 * 3600u64 + 1; // one second past MAX_VOTING_PERIOD
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(too_long),
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn execute_delay_defaults_when_unset() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    // No override is persisted, so the DAO falls back to TIMELOCK_DELAY (24h).
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        24 * 3600
+    );
+}
+
+#[test]
+fn execute_delay_override_is_stored_and_read() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let custom = 60u64;
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &Some(custom),
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        custom
+    );
+}
+
+#[test]
+fn execute_delay_rejects_zero() {
+    let setup = create_test_data();
+
+    let name = String::from_str(&setup.env, "tansu");
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let genesis_amount: i128 = 1_000_000_000 * 10_000_000;
+    setup.token_stellar.mint(&setup.grogu, &genesis_amount);
+
+    let err = setup
+        .contract
+        .try_register(
+            &setup.grogu,
+            &name,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &Some(0u64),
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn update_config_governance_tighten_and_pending_loosen() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    // Tightening (raising both effective values) applies immediately.
+    let custom_period = 7 * 24 * 3600u64;
+    let custom_delay = 48 * 3600u64;
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(custom_period),
+        &Some(custom_delay),
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        custom_delay
+    );
+
+    // A plain config update leaves the overrides untouched.
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+
+    // Restoring the defaults is a loosening update: stored as pending for
+    // old min + old delay, base entries untouched until then.
+    let t0 = setup.env.ledger().timestamp();
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &Some(crate::contract_dao::MIN_VOTING_PERIOD),
+        &Some(crate::types::TIMELOCK_DELAY),
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        custom_period
+    );
+    let pending: PendingGovernance = setup.env.as_contract(&setup.contract_id, || {
+        setup
+            .env
+            .storage()
+            .persistent()
+            .get(&ProjectKey::PendingGovernance(id.clone()))
+            .unwrap()
+    });
+    assert_eq!(
+        pending.min_voting_period,
+        Some(crate::contract_dao::MIN_VOTING_PERIOD)
+    );
+    assert_eq!(pending.execute_delay, Some(crate::types::TIMELOCK_DELAY));
+    assert_eq!(pending.activates_at, t0 + custom_period + custom_delay);
+
+    // Past the notice window, the next update_config applies the pending
+    // values before doing anything else.
+    setup
+        .env
+        .ledger()
+        .set_timestamp(t0 + custom_period + custom_delay);
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::MinVotingPeriod(id.clone()),
+            crate::contract_dao::MIN_VOTING_PERIOD,
+        ),
+        crate::contract_dao::MIN_VOTING_PERIOD
+    );
+    assert_eq!(
+        stored_override(
+            &setup.env,
+            &setup.contract_id,
+            ProjectKey::ExecuteDelay(id.clone()),
+            crate::types::TIMELOCK_DELAY,
+        ),
+        crate::types::TIMELOCK_DELAY
+    );
+}
+
+#[test]
+fn update_config_rejects_invalid_governance_values() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let err = setup
+        .contract
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(0u64),
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+
+    let too_long = 30 * 24 * 3600u64 + 1; // one second past MAX_VOTING_PERIOD
+    let err = setup
+        .contract
+        .try_update_config(
+            &setup.grogu,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &None,
+            &Some(too_long),
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidVotingPeriod.into());
+}
+
+#[test]
+fn update_config_requires_maintainer() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    let url = String::from_str(&setup.env, "github.com/tansu");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
+    let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
+
+    let outsider = Address::generate(&setup.env);
+    let err = setup
+        .contract
+        .try_update_config(
+            &outsider,
+            &id,
+            &maintainers,
+            &url,
+            &ipfs,
+            &Some(60u64),
+            &None,
+            &None,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
 }

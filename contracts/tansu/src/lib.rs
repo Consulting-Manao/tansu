@@ -89,6 +89,7 @@ pub trait MembershipTrait {
 }
 
 pub trait VersioningTrait {
+    #[allow(clippy::too_many_arguments)]
     fn register(
         env: Env,
         maintainer: Address,
@@ -96,9 +97,12 @@ pub trait VersioningTrait {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
         attestation_threshold: Option<u32>,
     ) -> Bytes;
 
+    #[allow(clippy::too_many_arguments)]
     fn update_config(
         env: Env,
         maintainer: Address,
@@ -106,6 +110,8 @@ pub trait VersioningTrait {
         maintainers: Vec<Address>,
         url: String,
         hash: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
         attestation_threshold: Option<u32>,
     );
 

@@ -103,6 +103,8 @@ pub fn init_contract_with_threshold(
         &maintainers,
         &url,
         &ipfs,
+        &None,
+        &None,
         &attestation_threshold,
     )
 }

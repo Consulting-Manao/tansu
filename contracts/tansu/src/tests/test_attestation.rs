@@ -20,9 +20,16 @@ fn register_revocable_project(setup: &super::test_utils::TestSetup, third: &Addr
         .token_stellar
         .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
 
-    setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(100))
+    setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &Some(100),
+    )
 }
 
 fn register_second_project(setup: &super::test_utils::TestSetup) -> Bytes {
@@ -31,9 +38,16 @@ fn register_second_project(setup: &super::test_utils::TestSetup) -> Bytes {
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710991");
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
-    setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None)
+    setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    )
 }
 
 #[test]
@@ -1170,9 +1184,16 @@ fn revoke_attestation_allowed_after_losing_maintainer_status() {
     let url = String::from_str(&setup.env, "github.com/tansu");
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
     let remaining = vec![&setup.env, setup.grogu.clone()];
-    setup
-        .contract
-        .update_config(&setup.grogu, &project_key, &remaining, &url, &ipfs, &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &remaining,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     setup
         .contract
@@ -1308,9 +1329,16 @@ fn finality_is_updated_against_maintainer_growth() {
         Address::generate(&setup.env),
     ];
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &project_key, &grown, &url, &ipfs, &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &grown,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let status = setup
         .contract
@@ -1404,10 +1432,16 @@ fn register_full_project(
         .token_stellar
         .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
 
-    let project_key =
-        setup
-            .contract
-            .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None);
+    let project_key = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     (project_key, maintainers)
 }
@@ -1469,9 +1503,16 @@ fn attest_at_capacity_prunes_only_stale_maintainers() {
     let url = String::from_str(&setup.env, "github.com/capacity");
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710994");
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &project_key, &swapped, &url, &ipfs, &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &swapped,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     setup
         .contract
@@ -1581,6 +1622,8 @@ fn stale_attestationes_stop_counting_and_resume_when_re_added() {
         &url,
         &ipfs,
         &None,
+        &None,
+        &None,
     );
 
     let status = setup
@@ -1604,9 +1647,16 @@ fn stale_attestationes_stop_counting_and_resume_when_re_added() {
 
     let with_mando = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
 
-    setup
-        .contract
-        .update_config(&setup.grogu, &project_key, &with_mando, &url, &ipfs, &None);
+    setup.contract.update_config(
+        &setup.grogu,
+        &project_key,
+        &with_mando,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let status = setup
         .contract
@@ -1640,6 +1690,8 @@ fn re_added_maintainer_cannot_attest_twice() {
         &url,
         &ipfs,
         &None,
+        &None,
+        &None,
     );
     setup.contract.update_config(
         &setup.grogu,
@@ -1647,6 +1699,8 @@ fn re_added_maintainer_cannot_attest_twice() {
         &vec![&setup.env, setup.grogu.clone(), setup.mando.clone()],
         &url,
         &ipfs,
+        &None,
+        &None,
         &None,
     );
 
@@ -1883,10 +1937,16 @@ fn shrinking_the_maintainer_set_into_finality_freezes_attestations() {
         .token_stellar
         .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
 
-    let project_key =
-        setup
-            .contract
-            .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(66));
+    let project_key = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &Some(66),
+    );
 
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
     let target = types::AttestationTarget::Commit;
@@ -1908,6 +1968,8 @@ fn shrinking_the_maintainer_set_into_finality_freezes_attestations() {
         &vec![&setup.env, setup.mando.clone()],
         &url,
         &ipfs,
+        &None,
+        &None,
         &None,
     );
 

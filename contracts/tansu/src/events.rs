@@ -23,6 +23,17 @@ pub struct ProjectConfigUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectGovernanceUpdated {
+    #[topic]
+    pub project_key: Bytes,
+    pub maintainer: Address,
+    pub min_voting_period: Option<u64>,
+    pub execute_delay: Option<u64>,
+    pub activates_at: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Commit {
     #[topic]
     pub project_key: Bytes,
@@ -66,6 +77,7 @@ pub struct ProposalCreated {
     pub voting_ends_at: u64,
     pub public_voting: bool,
     pub token_contract: Option<Address>,
+    pub execute_delay: u64, // Effective timelock snapshotted for this proposal
 }
 
 #[contractevent]

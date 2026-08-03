@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error, token};
 
 use crate::{
@@ -21,12 +23,29 @@ const LEDGERS_PER_DAY: u32 = 17280;
 const PERSISTENT_EXTEND_TO: u32 = 30 * LEDGERS_PER_DAY;
 const PERSISTENT_LIFETIME_THRESHOLD: u32 = PERSISTENT_EXTEND_TO - LEDGERS_PER_DAY;
 
+/// Length of a hex-encoded SHA-1 Git object name (Git's current default).
+const GIT_SHA1_HEX_LENGTH: u32 = 40;
+/// Length of a hex-encoded SHA-256 Git object name (Git's SHA-256 object format).
+const GIT_SHA256_HEX_LENGTH: u32 = 64;
+
+/// Structural check for a Git commit hash: a hex-encoded SHA-1 (40 chars) or
+/// SHA-256 (64 chars) object name. Both lengths are accepted so validation
+/// stays correct through Git's SHA-256 ("git v3") transition; hex is matched
+/// case-insensitively. Bytes equal chars here because the input is ASCII hex.
+fn is_valid_commit_hash(hash: &String) -> bool {
+    let len = hash.len();
+    if len != GIT_SHA1_HEX_LENGTH && len != GIT_SHA256_HEX_LENGTH {
+        return false;
+    }
+    hash.to_bytes().iter().all(|b| b.is_ascii_hexdigit())
+}
+
 #[contractimpl]
 impl VersioningTrait for Tansu {
     /// Register a new project.
     ///
     /// Creates a new project entry with maintainers, URL, and commit hash.
-    /// Also registers the project name in the domain contract if not already registered.
+    /// Also registers the name in the domain contract if needed.
     /// The project key is generated using keccak256 hash of the project name.
     ///
     /// # Arguments
@@ -36,6 +55,8 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
+    /// * `min_voting_period` - Optional minimum voting period override, in seconds
+    /// * `execute_delay` - Optional DAO execute timelock override, in seconds
     /// * `attestation_threshold` - Optional finality threshold percent; when
     ///   `None` the project is set to `DEFAULT_FINALITY_THRESHOLD_PERCENT`. Can
     ///   be changed later with `set_attestation_threshold`.
@@ -48,6 +69,7 @@ impl VersioningTrait for Tansu {
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
+    /// * If an override is zero or exceeds `MAX_VOTING_PERIOD`
     /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
     /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn register(
@@ -57,9 +79,19 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
         attestation_threshold: Option<u32>,
     ) -> Bytes {
         Tansu::require_not_paused(env.clone());
+
+        // None -> global defaults (MIN_VOTING_PERIOD / TIMELOCK_DELAY). execute_delay
+        // only governs DAO execute(); the admin upgrade timelock is separate.
+        for v in [min_voting_period, execute_delay].iter().flatten() {
+            if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+            }
+        }
 
         let project = types::Project {
             name: name.clone(),
@@ -134,6 +166,18 @@ impl VersioningTrait for Tansu {
                 .persistent()
                 .set(&types::ProjectKey::TotalProjects, &(total_projects + 1));
 
+            if let Some(v) = min_voting_period {
+                env.storage()
+                    .persistent()
+                    .set(&types::ProjectKey::MinVotingPeriod(key.clone()), &v);
+            }
+
+            if let Some(v) = execute_delay {
+                env.storage()
+                    .persistent()
+                    .set(&types::ProjectKey::ExecuteDelay(key.clone()), &v);
+            }
+
             set_attestation_threshold(&env, &key, attestation_threshold);
 
             events::ProjectRegistered {
@@ -149,7 +193,13 @@ impl VersioningTrait for Tansu {
 
     /// Update the configuration of an existing project.
     ///
-    /// Allows maintainers to change the project's URL, IPFS metadata, and maintainer list.
+    /// Changes the project's URL, IPFS metadata, and maintainer list, and
+    /// optionally its governance overrides. `None` governance params leave
+    /// the current values untouched; to restore a default, pass it explicitly.
+    ///
+    /// Tightening (new >= current) applies immediately; loosening activates
+    /// after a notice window of current `min_voting_period + execute_delay`.
+    /// In-flight proposals keep their creation-time timelock.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -158,12 +208,15 @@ impl VersioningTrait for Tansu {
     /// * `maintainers` - New list of maintainer addresses
     /// * `url` - New Git repository URL
     /// * `ipfs` - New CID of the tansu.toml file with metadata
+    /// * `min_voting_period` - Optional new minimum voting period, in seconds
+    /// * `execute_delay` - Optional new DAO execute timelock, in seconds
     /// * `attestation_threshold` - Optional new finality threshold percent;
     ///   when `None` the project's current threshold is left unchanged
     ///
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
     /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
     /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn update_config(
@@ -173,6 +226,8 @@ impl VersioningTrait for Tansu {
         maintainers: Vec<Address>,
         url: String,
         ipfs: String,
+        min_voting_period: Option<u64>,
+        execute_delay: Option<u64>,
         attestation_threshold: Option<u32>,
     ) {
         Tansu::require_not_paused(env.clone());
@@ -182,6 +237,12 @@ impl VersioningTrait for Tansu {
         let mut project = crate::auth_maintainers(&env, &maintainer, &key);
 
         validate_maintainers(&env, &maintainers);
+
+        for v in [min_voting_period, execute_delay].iter().flatten() {
+            if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidVotingPeriod);
+            }
+        }
 
         let config = types::Config { url, ipfs };
         project.config = config;
@@ -193,10 +254,50 @@ impl VersioningTrait for Tansu {
         }
 
         events::ProjectConfigUpdated {
-            project_key: key,
-            maintainer,
+            project_key: key.clone(),
+            maintainer: maintainer.clone(),
         }
         .publish(&env);
+
+        crate::contract_dao::promote_pending_governance(&env, &key);
+
+        if min_voting_period.is_some() || execute_delay.is_some() {
+            let storage = env.storage().persistent();
+            let old_min: u64 = storage
+                .get(&types::ProjectKey::MinVotingPeriod(key.clone()))
+                .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+            let old_delay: u64 = storage
+                .get(&types::ProjectKey::ExecuteDelay(key.clone()))
+                .unwrap_or(types::TIMELOCK_DELAY);
+            let new_min = min_voting_period.unwrap_or(old_min);
+            let new_delay = execute_delay.unwrap_or(old_delay);
+
+            let activates_at = if new_min >= old_min && new_delay >= old_delay {
+                crate::contract_dao::apply_governance(&env, &key, min_voting_period, execute_delay);
+                storage.remove(&types::ProjectKey::PendingGovernance(key.clone()));
+                env.ledger().timestamp()
+            } else {
+                let activates_at = env.ledger().timestamp() + old_min + old_delay;
+                storage.set(
+                    &types::ProjectKey::PendingGovernance(key.clone()),
+                    &types::PendingGovernance {
+                        min_voting_period,
+                        execute_delay,
+                        activates_at,
+                    },
+                );
+                activates_at
+            };
+
+            events::ProjectGovernanceUpdated {
+                project_key: key,
+                maintainer,
+                min_voting_period,
+                execute_delay,
+                activates_at,
+            }
+            .publish(&env);
+        }
     }
 
     /// Set the latest commit hash for a project.
@@ -212,10 +313,18 @@ impl VersioningTrait for Tansu {
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If the hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
     fn commit(env: Env, maintainer: Address, project_key: Bytes, hash: String) {
         Tansu::require_not_paused(env.clone());
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        // Guard against malformed hashes before they are written on-chain.
+        // Accepts SHA-1 (40 hex) and SHA-256 (64 hex) object names.
+        if !is_valid_commit_hash(&hash) {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidCommitHash);
+        }
+
         env.storage()
             .persistent()
             .set(&types::ProjectKey::LastHash(project_key.clone()), &hash);
@@ -275,7 +384,8 @@ impl VersioningTrait for Tansu {
     /// * If the contract is paused
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
-    /// * If commit_hash or cid is empty
+    /// * If commit_hash is not a valid SHA-1 (40 hex) or SHA-256 (64 hex) object name
+    /// * If cid is empty
     fn set_evidence(
         env: Env,
         maintainer: Address,
@@ -288,7 +398,12 @@ impl VersioningTrait for Tansu {
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        if commit_hash.is_empty() || cid.is_empty() {
+        // Evidence must reference a real commit, so the hash is validated with
+        // the same rule as commit(); an empty hash fails this check too.
+        if !is_valid_commit_hash(&commit_hash) {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidCommitHash);
+        }
+        if cid.is_empty() {
             panic_with_error!(&env, &errors::ContractErrors::InvalidEvidence);
         }
 
