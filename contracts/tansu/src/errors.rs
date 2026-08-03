@@ -32,6 +32,7 @@ pub enum ContractErrors {
     TooManyMaintainers = 216,
     DuplicateMaintainer = 217,
     TooManyAttestations = 218,
+    AttestationNotFound = 219,
 
     // State (300-399)
     NoHashFound = 300,

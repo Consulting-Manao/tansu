@@ -177,6 +177,16 @@ pub struct Attested {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationRevoked {
+    #[topic]
+    pub project_key: Bytes,
+    pub commit_hash: String,
+    pub target: AttestationTarget,
+    pub attester: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttestationThresholdSet {
     #[topic]
     pub project_key: Bytes,

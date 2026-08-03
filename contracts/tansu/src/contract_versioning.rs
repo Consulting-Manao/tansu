@@ -570,7 +570,8 @@ impl VersioningTrait for Tansu {
     /// A multi-party primitive: independent maintainers vouch that they verified the
     /// target. Each maintainer may attest a given target at most once — a second
     /// call from the same attester is rejected rather than replacing the first, so
-    /// an attestation cannot be silently retracted or rewritten. At most
+    /// an attestation is never silently rewritten. Withdrawing one is an explicit,
+    /// separately evented action: see `revoke_attestation`. At most
     /// `MAX_ATTESTATIONS` are kept on-chain; at capacity, vouches from addresses
     /// that are no longer maintainers are pruned, and the call is rejected if
     /// that does not free a slot. Current maintainers' vouches are never evicted.
@@ -663,6 +664,68 @@ impl VersioningTrait for Tansu {
             target,
             attester,
             weight,
+        }
+        .publish(&env);
+    }
+
+    /// Withdraw the caller's own attestation from a target.
+    ///
+    /// Only the attester can remove their vouch, and only their own: a maintainer
+    /// cannot strike another's. Revoking frees the slot, so the caller may attest
+    /// the same target again afterwards with a fresh `created_at` — revoke plus
+    /// re-attest is the supported way to amend a `note` or refresh a stale vouch.
+    ///
+    /// Finality is recomputed live, so revoking can take a target back below its
+    /// threshold. The `Attested` and `AttestationRevoked` event pair remains the
+    /// durable audit trail.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `attester` - The maintainer withdrawing their attestation
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash the attestation relates to
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the attester is not a maintainer
+    /// * If the attester has no attestation on this target
+    fn revoke_attestation(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &attester, &project_key);
+
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
+        let storage = env.storage().persistent();
+
+        let mut attestations: Vec<types::Attestation> =
+            storage.get(&key).unwrap_or_else(|| Vec::new(&env));
+
+        let index = match attestations.iter().position(|a| a.attester == attester) {
+            Some(index) => index as u32,
+            None => panic_with_error!(&env, &errors::ContractErrors::AttestationNotFound),
+        };
+
+        attestations.remove(index);
+
+        if attestations.is_empty() {
+            storage.remove(&key);
+        } else {
+            storage.set(&key, &attestations);
+            extend_persistent_ttl(&env, &key);
+        }
+
+        events::AttestationRevoked {
+            project_key,
+            commit_hash,
+            target,
+            attester,
         }
         .publish(&env);
     }

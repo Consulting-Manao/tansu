@@ -151,6 +151,14 @@ pub trait VersioningTrait {
         note: Option<String>,
     );
 
+    fn revoke_attestation(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    );
+
     fn get_attestations(
         env: Env,
         project_key: Bytes,

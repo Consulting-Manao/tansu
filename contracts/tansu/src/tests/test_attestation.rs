@@ -1,9 +1,9 @@
 use super::test_utils::{create_test_data, init_contract};
 use crate::errors::ContractErrors;
-use crate::events::{AttestationThresholdSet, Attested};
+use crate::events::{AttestationRevoked, AttestationThresholdSet, Attested};
 use crate::types;
-use soroban_sdk::testutils::{Address as _, Events, Ledger};
-use soroban_sdk::{Address, Bytes, Event, String, vec};
+use soroban_sdk::testutils::{Address as _, Events, Ledger, MockAuth, MockAuthInvoke};
+use soroban_sdk::{Address, Bytes, Event, IntoVal, String, vec};
 
 fn register_second_project(setup: &super::test_utils::TestSetup) -> Bytes {
     let name = String::from_str(&setup.env, "tansu2");
@@ -579,5 +579,482 @@ fn attestations_are_scoped_per_evidence_cid() {
             .get_attestations(&project_key, &commit_hash, &second)
             .len(),
         0
+    );
+}
+
+#[test]
+fn attest_fails_without_any_authorization() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    setup.env.mock_auths(&[]);
+
+    let result = setup.contract.try_attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+        &None,
+    );
+
+    assert!(
+        result.is_err(),
+        "attest must require the attester's authorization"
+    );
+}
+
+#[test]
+fn attest_fails_when_a_different_address_authorizes() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    setup.env.mock_auths(&[MockAuth {
+        address: &setup.grogu,
+        invoke: &MockAuthInvoke {
+            contract: &setup.contract_id,
+            fn_name: "attest",
+            args: (
+                setup.mando.clone(),
+                project_key.clone(),
+                commit_hash.clone(),
+                types::AttestationTarget::Commit,
+                None::<String>,
+            )
+                .into_val(&setup.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = setup.contract.try_attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+        &None,
+    );
+
+    assert!(
+        result.is_err(),
+        "authorization from another maintainer must not stand in for the attester's"
+    );
+}
+
+#[test]
+fn attest_succeeds_with_scoped_attester_authorization() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    setup.env.mock_auths(&[MockAuth {
+        address: &setup.mando,
+        invoke: &MockAuthInvoke {
+            contract: &setup.contract_id,
+            fn_name: "attest",
+            args: (
+                setup.mando.clone(),
+                project_key.clone(),
+                commit_hash.clone(),
+                types::AttestationTarget::Commit,
+                None::<String>,
+            )
+                .into_val(&setup.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    setup.contract.attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+        &None,
+    );
+
+    let attestations = setup.contract.get_attestations(
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+    );
+
+    assert_eq!(attestations.len(), 1);
+    assert_eq!(attestations.get(0).unwrap().attester, setup.mando);
+}
+
+#[test]
+fn set_attestation_threshold_fails_without_any_authorization() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+
+    setup.env.mock_auths(&[]);
+
+    let result =
+        setup
+            .contract
+            .try_set_attestation_threshold(&setup.mando, &project_key, &Some(75));
+
+    assert!(
+        result.is_err(),
+        "set_attestation_threshold must require the maintainer's authorization"
+    );
+}
+
+#[test]
+fn read_paths_work_while_paused() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .set_attestation_threshold(&setup.grogu, &project_key, &Some(75));
+
+    setup.contract.pause(&setup.contract_admin, &true);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+    assert_eq!(setup.contract.get_attestation_threshold(&project_key), 75);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+    assert_eq!(status.attested, 1);
+    assert_eq!(status.total, 2);
+}
+
+#[test]
+fn read_paths_require_no_authorization() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    setup.env.mock_auths(&[]);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .attested,
+        1
+    );
+    assert_eq!(
+        setup.contract.get_attestation_threshold(&project_key),
+        types::DEFAULT_FINALITY_THRESHOLD_PERCENT
+    );
+}
+
+#[test]
+fn revoke_attestation_removes_it_and_emits_event() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    let revoked = AttestationRevoked {
+        project_key: project_key.clone(),
+        commit_hash: commit_hash.clone(),
+        target: target.clone(),
+        attester: setup.mando.clone(),
+    };
+
+    assert_eq!(
+        setup
+            .env
+            .events()
+            .all()
+            .filter_by_contract(&setup.contract_id),
+        [revoked.to_xdr(&setup.env, &setup.contract_id)]
+    );
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn revoke_attestation_lowers_finality() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+    assert_eq!(status.attested, 2);
+    assert!(status.is_final);
+
+    setup
+        .contract
+        .revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target);
+
+    let status = setup
+        .contract
+        .get_attestation_finality(&project_key, &commit_hash, &target);
+    assert_eq!(status.attested, 1);
+    assert_eq!(status.total, 2);
+    assert!(!status.is_final);
+}
+
+#[test]
+fn revoke_attestation_only_removes_the_callers_own() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    let remaining = setup
+        .contract
+        .get_attestations(&project_key, &commit_hash, &target);
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining.get(0).unwrap().attester, setup.grogu);
+}
+
+#[test]
+fn revoke_attestation_is_scoped_to_the_target() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let cid = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let evidence_target = types::AttestationTarget::Evidence(types::EvidenceKind::Sbom, cid);
+
+    setup.contract.attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+        &None,
+    );
+    setup.contract.attest(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &evidence_target,
+        &None,
+    );
+
+    setup.contract.revoke_attestation(
+        &setup.mando,
+        &project_key,
+        &commit_hash,
+        &types::AttestationTarget::Commit,
+    );
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(
+                &project_key,
+                &commit_hash,
+                &types::AttestationTarget::Commit
+            )
+            .len(),
+        0
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &evidence_target)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn revoke_then_attest_again_is_allowed_with_fresh_timestamp() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup.env.ledger().set_timestamp(100);
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    setup.env.ledger().set_timestamp(500);
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let attestations = setup
+        .contract
+        .get_attestations(&project_key, &commit_hash, &target);
+    assert_eq!(attestations.len(), 1);
+    assert_eq!(attestations.get(0).unwrap().created_at, 500);
+}
+
+#[test]
+fn revoke_attestation_without_one_fails() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationNotFound.into());
+}
+
+#[test]
+fn revoke_attestation_on_untouched_target_fails() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(
+            &setup.mando,
+            &project_key,
+            &commit_hash,
+            &types::AttestationTarget::Commit,
+        )
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationNotFound.into());
+}
+
+#[test]
+fn revoke_attestation_requires_maintainer() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    let outsider = Address::generate(&setup.env);
+    let err = setup
+        .contract
+        .try_revoke_attestation(&outsider, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+}
+
+#[test]
+fn revoke_attestation_rejected_when_paused() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup.contract.pause(&setup.contract_admin, &true);
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.mando, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::ContractPaused.into());
+}
+
+#[test]
+fn revoke_attestation_fails_without_any_authorization() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    setup.env.mock_auths(&[]);
+
+    let result =
+        setup
+            .contract
+            .try_revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    assert!(
+        result.is_err(),
+        "revoke_attestation must require the attester's authorization"
     );
 }
