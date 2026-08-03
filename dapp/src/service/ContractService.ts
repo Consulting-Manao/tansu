@@ -262,7 +262,7 @@ export async function voteToProposal(
     proposalTx.result.vote_data.token_contract,
   );
 
-  // Badge: u32 badge weight. Token: u32 whole-token units (contract scales collateral).
+  // Badge: u32 badge weight. Token: u32 whole-token units (contract checks balance).
   let weight = 1;
   if (tokenContract) {
     const tokenBalance = await getTokenBalance(tokenContract, maintainer);

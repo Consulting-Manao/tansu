@@ -49,8 +49,8 @@ const MarkMaliciousModal: FC<MarkMaliciousModalProps> = ({
         <p className="text-secondary">
           Are you sure you want to mark{" "}
           <span className="font-semibold">"{proposalTitle}"</span> as malicious?
-          This action cannot be undone. The proposal will be redacted and voters
-          will not have their collateral returned.
+          This action cannot be undone. The proposal will be redacted and the
+          proposer's collateral will not be returned.
         </p>
         <div className="flex gap-3 justify-end">
           <Button type="secondary" onClick={onClose} disabled={isLoading}>

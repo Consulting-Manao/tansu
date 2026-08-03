@@ -498,7 +498,7 @@ export async function updateConfigFlow({
 
 /**
  * Remove a malicious vote from a proposal.
- * Only callable by a project maintainer. The voter's collateral is slashed.
+ * Only callable by a project maintainer.
  */
 export async function removeVoteFlow({
   projectName,

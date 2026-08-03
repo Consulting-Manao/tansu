@@ -59,7 +59,7 @@ fn proposal_flow() {
         voting_ends_at,
         public_voting: true,
         token_contract: None,
-        execute_delay: crate::types::TIMELOCK_DELAY,
+        execute_delay: TIMELOCK_DELAY,
     };
 
     let contract_events = setup
@@ -105,7 +105,7 @@ fn proposal_flow() {
     );
 
     let balance_voter_ = setup.token_stellar.balance(&setup.mando);
-    assert!(balance_voter_init > balance_voter_);
+    assert_eq!(balance_voter_init, balance_voter_);
 
     setup
         .env
@@ -971,7 +971,7 @@ fn token_based_proposal_flow() {
     let proposal = setup.contract.get_proposal(&id, &proposal_id);
     assert!(proposal.vote_data.token_contract.is_some());
 
-    // Check proposer balance decreased by PROPOSAL_COLLATERAL only (no VOTE_COLLATERAL for token-based)
+    // Check proposer balance decreased by PROPOSAL_COLLATERAL only
     let balance_proposer_after_create = setup.token_stellar.balance(&setup.grogu);
     let expected_proposer_deduction = 5 * 10_000_000; // PROPOSAL_COLLATERAL
     assert_eq!(
@@ -992,14 +992,8 @@ fn token_based_proposal_flow() {
         }),
     );
 
-    // Verify voter balance decreased by vote_weight in whole tokens (scaled by decimals)
     let balance_voter_after_vote = setup.token_stellar.balance(&setup.mando);
-    let token_scale = 10_000_000i128; // SAC default 7 decimals in tests
-    let expected_deduction = vote_weight as i128 * token_scale;
-    assert_eq!(
-        balance_voter_init - balance_voter_after_vote,
-        expected_deduction
-    );
+    assert_eq!(balance_voter_init, balance_voter_after_vote);
 
     // Move time forward to end voting period
     setup
@@ -1013,14 +1007,10 @@ fn token_based_proposal_flow() {
         .execute(&setup.mando, &id, &proposal_id, &None, &None);
     assert_eq!(vote_result, ProposalStatus::Approved);
 
-    // Verify balances were restored
+    // Proposer gets back PROPOSAL_COLLATERAL; voter was never locked
     let balance_proposer_final = setup.token_stellar.balance(&setup.grogu);
     let balance_voter_final = setup.token_stellar.balance(&setup.mando);
-
-    // Proposer gets back PROPOSAL_COLLATERAL (didn't pay VOTE_COLLATERAL for token-based)
     assert_eq!(balance_proposer_final, balance_proposer_init);
-
-    // Voter gets back vote_weight in tokens (token WAS the collateral)
     assert_eq!(balance_voter_final, balance_voter_init);
 }
 
@@ -1029,8 +1019,8 @@ fn token_based_get_max_weight() {
     let setup = create_test_data();
     let id = init_contract(&setup);
 
-    // For token-based proposals, get_max_weight returns badge-based weight
-    // Token balance validation happens during the transfer in vote()
+    // For token-based proposals, get_max_weight returns badge-based weight.
+    // Token balance validation happens in vote() without locking.
     let max_weight = setup.contract.get_max_weight(&id, &setup.mando);
 
     // Should return default badge weight (1) since no badges assigned
@@ -1289,7 +1279,6 @@ fn remove_vote_public_flips_outcome() {
         .contract
         .remove_vote(&setup.grogu, &id, &proposal_id, &rex);
 
-    // Rex's collateral is NOT returned — it was slashed as penalty
     assert_eq!(setup.token_stellar.balance(&rex), balance_rex_after_vote);
 
     let result = setup

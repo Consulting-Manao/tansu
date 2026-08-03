@@ -235,7 +235,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
               ) : (
                 <p className="text-xs text-secondary">
                   {isTokenVoting
-                    ? "Slide to adjust how many tokens to commit as vote weight"
+                    ? "Slide to adjust how many tokens to use as vote weight"
                     : "Slide to adjust your voting power"}
                 </p>
               )}
@@ -260,16 +260,12 @@ const VotingModal: React.FC<VotersModalProps> = ({
             <p className="px-3 py-1 text-sm sm:text-base bg-[#F5F1F9] text-primary">
               {isTokenVoting ? (
                 <>
-                  ℹ️ Token-based voting locks {selectedWeight.toLocaleString()}{" "}
-                  token
-                  {selectedWeight === 1 ? "" : "s"} as collateral. This amount
-                  is refunded when the vote is executed.
+                  ℹ️ Token-based voting uses your current balance as the max
+                  weight ({selectedWeight.toLocaleString()} token
+                  {selectedWeight === 1 ? "" : "s"} selected).
                 </>
               ) : (
-                <>
-                  ℹ️ Casting a vote requires a 2 XLM collateral. This collateral
-                  is refunded when the vote is executed
-                </>
+                <>ℹ️ Your voting weight is capped by your project badges.</>
               )}
             </p>
           </div>

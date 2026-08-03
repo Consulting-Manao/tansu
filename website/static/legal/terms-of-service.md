@@ -43,7 +43,7 @@ To help you understand these Terms, we've defined key terms used throughout this
 
 **Stellar Network**: The decentralized blockchain network on which Tansu operates.
 
-**Voting Weight**: The influence a member has in governance decisions, determined by badges (default), locked tokens (token-weighted proposals), or NQG scores (SCF Public Goods project).
+**Voting Weight**: The influence a member has in governance decisions, determined by badges (default), token balance (token-weighted proposals), or NQG scores (SCF Public Goods project).
 
 **Wallet**: A third-party application that manages Stellar accounts and private keys.
 
@@ -75,7 +75,7 @@ Tansu provides a comprehensive governance platform with the following core funct
 
 **Donations**: XLM transfer functionality allowing users to donate to projects.
 
-**Collateral System**: Fixed amount set by Tansu in smart contracts, required for proposal creation and voting. Collateral is reimbursed to proposers and voters when proposals are successfully executed.
+**Collateral System**: Fixed amount set by Tansu in smart contracts, required for proposal creation. Proposal collateral is reimbursed to the proposer when the proposal is successfully executed.
 
 **Free Service**: Tansu is provided free of charge. Users are only responsible for blockchain transaction fees (gas fees) paid directly to the Stellar Network.
 
@@ -152,11 +152,9 @@ You acknowledge and accept the following risks:
 
 **Collateral Requirement**: Proposals require collateral in XLM to prevent spam and ensure serious submissions. The collateral amount is fixed and set by Tansu in the smart contract.
 
-**Voting Collateral**: Voters must also provide collateral to participate in voting, ensuring commitment to the governance process.
+**Collateral Reimbursement**: Proposal collateral is reimbursed to the proposer when the proposal is successfully executed.
 
-**Collateral Reimbursement**: Collateral is reimbursed to proposers and voters when proposals are successfully executed.
-
-**Collateral Forfeiture**: Collateral may be forfeited if:
+**Collateral Forfeiture**: Proposal collateral may be forfeited if:
 
 - The proposal is revoked by the maintainer
 - The proposal violates these Terms
