@@ -5,6 +5,26 @@ use crate::types;
 use soroban_sdk::testutils::{Address as _, Events, Ledger, MockAuth, MockAuthInvoke};
 use soroban_sdk::{Address, Bytes, Event, IntoVal, String, vec};
 
+fn register_revocable_project(setup: &super::test_utils::TestSetup, third: &Address) -> Bytes {
+    let name = String::from_str(&setup.env, "revocable");
+    let url = String::from_str(&setup.env, "github.com/revocable");
+    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710992");
+    let maintainers = vec![
+        &setup.env,
+        setup.grogu.clone(),
+        setup.mando.clone(),
+        third.clone(),
+    ];
+
+    setup
+        .token_stellar
+        .mint(&setup.grogu, &(1_000_000_000 * 10_000_000));
+
+    setup
+        .contract
+        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &Some(100))
+}
+
 fn register_second_project(setup: &super::test_utils::TestSetup) -> Bytes {
     let name = String::from_str(&setup.env, "tansu2");
     let url = String::from_str(&setup.env, "github.com/tansu2");
@@ -731,6 +751,7 @@ fn read_paths_work_while_paused() {
     let status = setup
         .contract
         .get_attestation_finality(&project_key, &commit_hash, &target);
+
     assert_eq!(status.attested, 1);
     assert_eq!(status.total, 2);
 }
@@ -778,6 +799,7 @@ fn revoke_attestation_removes_it_and_emits_event() {
     setup
         .contract
         .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
     assert_eq!(
         setup
             .contract
@@ -818,7 +840,11 @@ fn revoke_attestation_removes_it_and_emits_event() {
 #[test]
 fn revoke_attestation_lowers_finality() {
     let setup = create_test_data();
-    let project_key = init_contract(&setup);
+
+    init_contract(&setup);
+
+    let third = Address::generate(&setup.env);
+    let project_key = register_revocable_project(&setup, &third);
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
     let target = types::AttestationTarget::Commit;
 
@@ -832,8 +858,10 @@ fn revoke_attestation_lowers_finality() {
     let status = setup
         .contract
         .get_attestation_finality(&project_key, &commit_hash, &target);
+
     assert_eq!(status.attested, 2);
-    assert!(status.is_final);
+    assert_eq!(status.total, 3);
+    assert!(!status.is_final);
 
     setup
         .contract
@@ -843,14 +871,120 @@ fn revoke_attestation_lowers_finality() {
         .contract
         .get_attestation_finality(&project_key, &commit_hash, &target);
     assert_eq!(status.attested, 1);
-    assert_eq!(status.total, 2);
+    assert_eq!(status.total, 3);
     assert!(!status.is_final);
+}
+
+#[test]
+fn revoke_attestation_rejected_once_target_is_final() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+    setup
+        .contract
+        .attest(&setup.grogu, &project_key, &commit_hash, &target, &None);
+
+    assert!(
+        setup
+            .contract
+            .get_attestation_finality(&project_key, &commit_hash, &target)
+            .is_final
+    );
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationFinalized.into());
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn revoke_attestation_rejected_after_window_closes() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup.env.ledger().set_timestamp(1_000);
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_000 + types::ATTESTATION_REVOCATION_WINDOW + 1);
+
+    let err = setup
+        .contract
+        .try_revoke_attestation(&setup.mando, &project_key, &commit_hash, &target)
+        .unwrap_err()
+        .unwrap();
+
+    assert_eq!(err, ContractErrors::AttestationRevocationExpired.into());
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn revoke_attestation_allowed_at_the_window_boundary() {
+    let setup = create_test_data();
+    let project_key = init_contract(&setup);
+    let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
+    let target = types::AttestationTarget::Commit;
+
+    setup.env.ledger().set_timestamp(1_000);
+    setup
+        .contract
+        .attest(&setup.mando, &project_key, &commit_hash, &target, &None);
+
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_000 + types::ATTESTATION_REVOCATION_WINDOW);
+
+    setup
+        .contract
+        .revoke_attestation(&setup.mando, &project_key, &commit_hash, &target);
+
+    assert_eq!(
+        setup
+            .contract
+            .get_attestations(&project_key, &commit_hash, &target)
+            .len(),
+        0
+    );
 }
 
 #[test]
 fn revoke_attestation_only_removes_the_callers_own() {
     let setup = create_test_data();
-    let project_key = init_contract(&setup);
+
+    init_contract(&setup);
+
+    let third = Address::generate(&setup.env);
+    let project_key = register_revocable_project(&setup, &third);
     let commit_hash = String::from_str(&setup.env, "6663520bd9e6ede248fef8157b2af0b6b6b41046");
     let target = types::AttestationTarget::Commit;
 

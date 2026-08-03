@@ -671,13 +671,19 @@ impl VersioningTrait for Tansu {
     /// Withdraw the caller's own attestation from a target.
     ///
     /// Only the attester can remove their vouch, and only their own: a maintainer
-    /// cannot strike another's. Revoking frees the slot, so the caller may attest
-    /// the same target again afterwards with a fresh `created_at` — revoke plus
-    /// re-attest is the supported way to amend a `note` or refresh a stale vouch.
+    /// cannot strike another's. Withdrawal is bounded twice over, so a vouch that
+    /// others have already relied on cannot be pulled out from under them:
     ///
-    /// Finality is recomputed live, so revoking can take a target back below its
-    /// threshold. The `Attested` and `AttestationRevoked` event pair remains the
-    /// durable audit trail.
+    /// 1. **Not once the target is final.** Finality is the point at which the
+    ///    project has collectively vouched for the target; allowing a withdrawal
+    ///    after that would let one maintainer retroactively un-finalise it.
+    /// 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
+    ///    `created_at`. Past that the vouch is permanent.
+    ///
+    /// Within those bounds, revoking frees the slot and the caller may attest the
+    /// target again with a fresh `created_at` — revoke plus re-attest is the
+    /// supported way to amend a `note` or correct a mistaken vouch. The
+    /// `Attested` / `AttestationRevoked` event pair is the durable audit trail.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -690,6 +696,8 @@ impl VersioningTrait for Tansu {
     /// * If the contract is paused
     /// * If the project doesn't exist or the attester is not a maintainer
     /// * If the attester has no attestation on this target
+    /// * If the target has already reached finality
+    /// * If the revocation window has closed
     fn revoke_attestation(
         env: Env,
         attester: Address,
@@ -711,6 +719,24 @@ impl VersioningTrait for Tansu {
             Some(index) => index as u32,
             None => panic_with_error!(&env, &errors::ContractErrors::AttestationNotFound),
         };
+
+        let finality = Self::get_attestation_finality(
+            env.clone(),
+            project_key.clone(),
+            commit_hash.clone(),
+            target.clone(),
+        );
+
+        if finality.is_final {
+            panic_with_error!(&env, &errors::ContractErrors::AttestationFinalized);
+        }
+
+        let created_at = attestations.get(index).unwrap().created_at;
+        let expires_at = created_at.saturating_add(types::ATTESTATION_REVOCATION_WINDOW);
+
+        if env.ledger().timestamp() > expires_at {
+            panic_with_error!(&env, &errors::ContractErrors::AttestationRevocationExpired);
+        }
 
         attestations.remove(index);
 

@@ -4,6 +4,7 @@ use soroban_sdk::{Address, Bytes, BytesN, String, Symbol, Val, Vec, contracttype
 pub const TIMELOCK_DELAY: u64 = 24 * 3600; // 24 hours in seconds
 pub const DEFAULT_FINALITY_THRESHOLD_PERCENT: u32 = 66;
 pub const MIN_FINALITY_THRESHOLD_PERCENT: u32 = 50;
+pub const ATTESTATION_REVOCATION_WINDOW: u64 = 24 * 3600; // 24 hours in seconds
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
