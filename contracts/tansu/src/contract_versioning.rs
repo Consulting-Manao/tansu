@@ -15,6 +15,8 @@ const MAX_EVIDENCE: u32 = 10;
 
 const MAX_ATTESTATIONS: u32 = 25;
 
+const MAX_MAINTAINERS: u32 = MAX_ATTESTATIONS;
+
 const LEDGERS_PER_DAY: u32 = 17280;
 const PERSISTENT_EXTEND_TO: u32 = 30 * LEDGERS_PER_DAY;
 const PERSISTENT_LIFETIME_THRESHOLD: u32 = PERSISTENT_EXTEND_TO - LEDGERS_PER_DAY;
@@ -46,6 +48,7 @@ impl VersioningTrait for Tansu {
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
+    /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
     /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn register(
         env: Env,
@@ -90,6 +93,8 @@ impl VersioningTrait for Tansu {
             if !project.maintainers.contains(&maintainer) {
                 panic_with_error!(&env, &errors::ContractErrors::UnauthorizedSigner);
             }
+
+            validate_maintainers(&env, &project.maintainers);
 
             let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
             let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
@@ -154,11 +159,12 @@ impl VersioningTrait for Tansu {
     /// * `url` - New Git repository URL
     /// * `ipfs` - New CID of the tansu.toml file with metadata
     /// * `attestation_threshold` - Optional new finality threshold percent;
-    ///   when `None` the project is reset to `DEFAULT_FINALITY_THRESHOLD_PERCENT`
+    ///   when `None` the project's current threshold is left unchanged
     ///
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
+    /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
     /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn update_config(
         env: Env,
@@ -175,16 +181,16 @@ impl VersioningTrait for Tansu {
 
         let mut project = crate::auth_maintainers(&env, &maintainer, &key);
 
-        if maintainers.is_empty() {
-            panic_with_error!(&env, &errors::ContractErrors::MissingMaintainer);
-        }
+        validate_maintainers(&env, &maintainers);
 
         let config = types::Config { url, ipfs };
         project.config = config;
         project.maintainers = maintainers;
         env.storage().persistent().set(&key_, &project);
 
-        set_attestation_threshold(&env, &key, attestation_threshold);
+        if attestation_threshold.is_some() {
+            set_attestation_threshold(&env, &key, attestation_threshold);
+        }
 
         events::ProjectConfigUpdated {
             project_key: key,
