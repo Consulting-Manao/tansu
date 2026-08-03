@@ -200,10 +200,10 @@ pub enum ProjectKey {
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     ProposalTallies(Bytes, u32),
     AnonymousVoteConfig(Bytes),
-    ProjectKeys(u32),               // List of project keys, pagination
-    TotalProjects,                  // Total number of projects
-    ConflictOfInterest(Bytes, u32), // Addresses barred from voting on a proposal
-    Attestation(Bytes, String, AttestationTarget), // List of attestations for an evidence
+    ProjectKeys(u32),                    // List of project keys, pagination
+    TotalProjects,                       // Total number of projects
+    ConflictOfInterest(Bytes, u32),      // Addresses barred from voting on a proposal
+    Attestation(BytesN<32>),             // keccak256 digest of (project_key, commit_hash, target)
     AttestationFinalityThreshold(Bytes), // Attestation finality threshold for the project
 }
 
