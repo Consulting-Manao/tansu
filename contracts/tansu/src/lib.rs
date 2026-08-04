@@ -99,6 +99,7 @@ pub trait VersioningTrait {
         ipfs: String,
         min_voting_period: Option<u64>,
         execute_delay: Option<u64>,
+        attestation_threshold: Option<u32>,
     ) -> Bytes;
 
     #[allow(clippy::too_many_arguments)]
@@ -111,6 +112,7 @@ pub trait VersioningTrait {
         hash: String,
         min_voting_period: Option<u64>,
         execute_delay: Option<u64>,
+        attestation_threshold: Option<u32>,
     );
 
     fn commit(env: Env, maintainer: Address, project_key: Bytes, hash: String);
@@ -145,6 +147,46 @@ pub trait VersioningTrait {
         project_key: Bytes,
         sub_projects: Vec<Bytes>,
     );
+
+    fn attest(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+        note: Option<String>,
+    );
+
+    fn revoke_attestation(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    );
+
+    fn get_attestations(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> Vec<types::Attestation>;
+
+    fn set_attestation_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        percent: Option<u32>,
+    );
+
+    fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32;
+
+    fn get_attestation_finality(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> types::FinalityStatus;
 }
 
 pub trait DaoTrait {

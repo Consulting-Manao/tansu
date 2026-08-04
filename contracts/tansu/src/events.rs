@@ -2,7 +2,7 @@
 
 use soroban_sdk::{Address, Bytes, BytesN, String, Vec, contractevent};
 
-use crate::types::EvidenceKind;
+use crate::types::{AttestationTarget, EvidenceKind};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -174,4 +174,33 @@ pub struct ConflictOfInterestUpdated {
     pub proposal_id: u32,
     pub maintainer: Address,
     pub changed: Vec<Address>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Attested {
+    #[topic]
+    pub project_key: Bytes,
+    pub commit_hash: String,
+    pub target: AttestationTarget,
+    pub attester: Address,
+    pub weight: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationRevoked {
+    #[topic]
+    pub project_key: Bytes,
+    pub commit_hash: String,
+    pub target: AttestationTarget,
+    pub attester: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationThresholdSet {
+    #[topic]
+    pub project_key: Bytes,
+    pub percent: u32,
 }

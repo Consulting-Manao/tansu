@@ -58,6 +58,35 @@ export const queryKeys = {
       kind: string,
     ): QueryKey => ["evidence", projectId, commitHash, kind, "history"],
   },
+  attestations: {
+    all: (projectId: string): QueryKey => ["attestations", projectId],
+    commit: (projectId: string, commitHash: string): QueryKey => [
+      "attestations",
+      projectId,
+      commitHash,
+    ],
+    byTarget: (
+      projectId: string,
+      commitHash: string,
+      targetKey: string,
+    ): QueryKey => ["attestations", projectId, commitHash, targetKey],
+    finality: (
+      projectId: string,
+      commitHash: string,
+      targetKey: string,
+    ): QueryKey => [
+      "attestations",
+      projectId,
+      commitHash,
+      targetKey,
+      "finality",
+    ],
+    threshold: (projectId: string): QueryKey => [
+      "attestations",
+      projectId,
+      "threshold",
+    ],
+  },
   ipfs: {
     response: (cid: string, path: string): QueryKey => ["ipfs", cid, path],
     json: (cid: string, path: string): QueryKey => ["ipfs", cid, path, "json"],
