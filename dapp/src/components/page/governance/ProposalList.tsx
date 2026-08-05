@@ -1,25 +1,17 @@
 import { getProposalPages, getProposals } from "@service/ReadContractService";
 import Loading from "components/utils/Loading";
 import { useEffect, useMemo, useState } from "react";
-import { hasUserVoted, modifyProposalToView } from "utils/utils";
+import { modifyProposalToView, orderProposalsForVoter } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 import { useStore } from "@nanostores/react";
+import type { Proposal } from "types/proposal";
 import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
 import { queryKeys } from "@service/cache/cacheKeys";
 import { useCachedQuery } from "@service/cache/cacheHooks";
 
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = shuffled[i]!;
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
+const EMPTY_PROPOSALS: Proposal[] = [];
 
 const ProposalList: React.FC = () => {
   const projectName =
@@ -65,14 +57,8 @@ const ProposalList: React.FC = () => {
     enabled: projectName.length > 0 && proposalPagesQuery.data !== undefined,
   });
 
-  // Compute ProposalView on every render so modifyProposalStatusToView uses
-  // current time (new Date()) — matching how ProposalPage.tsx does it.
-  // This ensures proposals whose voting period ended since the last cache
-  // are correctly shown as "pending execution".
-  const rawProposals = proposalDataQuery.data ?? [];
-  const proposalViews = rawProposals
-    .map((proposal) => modifyProposalToView(proposal, projectName))
-    .filter((proposal) => proposal.status !== "malicious");
+  // Stable empty fallback so useMemo does not reshuffle on every loading render.
+  const rawProposals = proposalDataQuery.data ?? EMPTY_PROPOSALS;
 
   useEffect(() => {
     setCurrentPage((previousPage) =>
@@ -90,26 +76,14 @@ const ProposalList: React.FC = () => {
     proposalPagesQuery.data === undefined ||
     proposalDataQuery.isLoading;
 
-  // For logged-in users: active+unvoted proposals (randomized) first, then rest sorted by newest
-  // For logged-out users: normal sort (newest first, no shuffle)
+  // Map + order inside useMemo; deps are cache snapshot + wallet (not a
+  // freshly allocated views array) so sibling re-renders do not reshuffle.
   const sortedProposals = useMemo(() => {
-    if (connectedAddress) {
-      const activeUnvoted = proposalViews.filter(
-        (p) =>
-          p.status === "active" &&
-          !hasUserVoted(p.voteStatus, connectedAddress),
-      );
-      const rest = proposalViews.filter(
-        (p) =>
-          p.status !== "active" || hasUserVoted(p.voteStatus, connectedAddress),
-      );
-      return [
-        ...shuffleArray(activeUnvoted),
-        ...rest.sort((a, b) => b.id - a.id),
-      ];
-    }
-    return [...proposalViews].sort((a, b) => b.id - a.id);
-  }, [proposalViews, connectedAddress]);
+    const views = rawProposals
+      .map((proposal) => modifyProposalToView(proposal, projectName))
+      .filter((proposal) => proposal.status !== "malicious");
+    return orderProposalsForVoter(views, connectedAddress);
+  }, [rawProposals, connectedAddress, projectName]);
 
   return (
     <>

@@ -1,4 +1,5 @@
 import ProposalList from "./ProposalList";
+import ConnectedVoterSummary from "./ConnectedVoterSummary";
 
 const ProposalsSection: React.FC = () => {
   return (
@@ -19,7 +20,8 @@ const ProposalsSection: React.FC = () => {
             <div className="h-[1px] bg-[#EEEEEE]" />
           </div>
         </div>
-        <div>
+        <div className="flex flex-col gap-6">
+          <ConnectedVoterSummary />
           <ProposalList />
         </div>
       </div>

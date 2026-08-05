@@ -76,12 +76,7 @@ describe("cacheStore", () => {
     });
     // Nested contract-page fetch must not collide with the UI aggregate key.
     await fetchWithCache(daoKey, daoFetcher, { ttlMs: 1000 });
-    uiDeferred.resolve([
-      { id: 9 },
-      { id: 12 },
-      { id: 0 },
-      { id: 8 },
-    ]);
+    uiDeferred.resolve([{ id: 9 }, { id: 12 }, { id: 0 }, { id: 8 }]);
     await uiRequest;
 
     expect(getQuerySnapshot(uiKey).data).toEqual([

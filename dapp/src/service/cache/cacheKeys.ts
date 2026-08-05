@@ -31,6 +31,12 @@ export const queryKeys = {
       "dao",
       page,
     ],
+    voterSummary: (projectName: string, address: string): QueryKey => [
+      "proposals",
+      projectName,
+      "voter",
+      address,
+    ],
   },
   proposal: {
     raw: (projectName: string, proposalId: string | number): QueryKey => [
