@@ -85,6 +85,61 @@ export function useCachedQuery<T>({
     ttlMs,
   ]);
 
+  // Auto-refresh: schedule a refetch for the instant the cached value expires
+  // and refresh stale/expired data when the tab regains focus. Both paths go
+  // through shouldFetch, so an in-flight request or an active error cooldown
+  // is never disturbed (no hammering of a slow/unresponsive RPC endpoint).
+  useEffect(() => {
+    if (!enabled) return;
+
+    const atom = getCachedQueryAtom<T>(queryKey);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const refreshIfNeeded = () => {
+      const current = atom.get();
+      if (!shouldFetch(current)) return;
+      void fetchWithCache(
+        queryKey,
+        () => queryFnRef.current(),
+        ttlMs === undefined ? { force: true } : { ttlMs, force: true },
+      );
+    };
+
+    const current = atom.get();
+    // Only schedule while the data is healthy, the tab is visible, and the
+    // value is still fresh. In particular, do NOT re-arm after a failed
+    // fetch: the error cooldown would otherwise retry every 30s forever
+    // against a down endpoint. Focus/visibility and re-renders still retry.
+    if (
+      current.expiresAt !== null &&
+      current.expiresAt > Date.now() &&
+      current.error === null &&
+      document.visibilityState === "visible"
+    ) {
+      timer = setTimeout(refreshIfNeeded, current.expiresAt - Date.now());
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshIfNeeded();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", refreshIfNeeded);
+
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", refreshIfNeeded);
+    };
+  }, [
+    enabled,
+    queryKeyString,
+    snapshot.expiresAt,
+    snapshot.isFetching,
+    snapshot.isStale,
+    snapshot.status,
+    ttlMs,
+  ]);
+
   return {
     ...snapshot,
     refetch: (options: FetchWithCacheOptions = {}) =>

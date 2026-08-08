@@ -95,24 +95,33 @@ function scValToNative(val: any): any {
   }
 }
 
-// Cache fetched actions per account to guarantee at most one network call per
-// page-life. Key = accountId.
-const ACTIONS_CACHE = new Map<string, Promise<OnChainAction[]>>();
+// Cache fetched actions per account for a short window so the panel does not
+// hammer Horizon on every render, while still picking up new activity on
+// subsequent visits. Failed fetches are evicted immediately so a transient
+// Horizon error can be retried instead of being cached forever.
+const ACTIONS_CACHE_TTL_MS = 60_000;
+const ACTIONS_CACHE = new Map<
+  string,
+  { expiresAt: number; promise: Promise<OnChainAction[]> }
+>();
 
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
 
 /**
- * Fetch *at most once* from Horizon, filter member-facing contract calls and
- * return a parsed list ordered by descending timestamp (latest first).
+ * Fetch at most once per TTL window from Horizon, filter member-facing
+ * contract calls and return a parsed list ordered by descending timestamp
+ * (latest first).
  */
 export async function fetchOnChainActions(
   accountId: string,
 ): Promise<OnChainAction[]> {
-  if (ACTIONS_CACHE.has(accountId)) {
-    return ACTIONS_CACHE.get(accountId)!;
+  const cached = ACTIONS_CACHE.get(accountId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.promise;
   }
+  ACTIONS_CACHE.delete(accountId);
 
   const fetchPromise = (async (): Promise<OnChainAction[]> => {
     const base = import.meta.env.PUBLIC_HORIZON_URL;
@@ -297,7 +306,25 @@ export async function fetchOnChainActions(
     }
   })();
 
-  ACTIONS_CACHE.set(accountId, fetchPromise);
+  const entry = {
+    expiresAt: Date.now() + ACTIONS_CACHE_TTL_MS,
+    promise: fetchPromise,
+  };
+  ACTIONS_CACHE.set(accountId, entry);
+
+  // Stamp the TTL from when the request settles (not when it started), and
+  // never cache a failed fetch: drop it so the next call can retry.
+  fetchPromise.then(
+    () => {
+      entry.expiresAt = Date.now() + ACTIONS_CACHE_TTL_MS;
+    },
+    () => {
+      if (ACTIONS_CACHE.get(accountId) === entry) {
+        ACTIONS_CACHE.delete(accountId);
+      }
+    },
+  );
+
   return fetchPromise;
 }
 
