@@ -62,6 +62,36 @@ describe("cacheStore", () => {
     expect(snapshot.status).toBe("success");
   });
 
+  it("keeps UI list and DAO page cache entries distinct", async () => {
+    const uiKey = queryKeys.proposals.list("stellarpgq3", 0);
+    const daoKey = queryKeys.proposals.daoPage("stellarpgq3", 0);
+
+    expect(uiKey).not.toEqual(daoKey);
+
+    const uiDeferred = createDeferred<{ id: number }[]>();
+    const daoFetcher = vi.fn().mockResolvedValue([{ id: 0 }, { id: 8 }]);
+
+    const uiRequest = fetchWithCache(uiKey, () => uiDeferred.promise, {
+      ttlMs: 1000,
+    });
+    // Nested contract-page fetch must not collide with the UI aggregate key.
+    await fetchWithCache(daoKey, daoFetcher, { ttlMs: 1000 });
+    uiDeferred.resolve([{ id: 9 }, { id: 12 }, { id: 0 }, { id: 8 }]);
+    await uiRequest;
+
+    expect(getQuerySnapshot(uiKey).data).toEqual([
+      { id: 9 },
+      { id: 12 },
+      { id: 0 },
+      { id: 8 },
+    ]);
+    expect(getQuerySnapshot(daoKey).data).toEqual([{ id: 0 }, { id: 8 }]);
+
+    invalidateQuery(queryKeys.proposals.all("stellarpgq3"));
+    expect(getQuerySnapshot(uiKey).isStale).toBe(true);
+    expect(getQuerySnapshot(daoKey).isStale).toBe(true);
+  });
+
   it("drops in-flight responses after invalidation", async () => {
     const key = queryKeys.projects.page(9);
     const deferred = createDeferred<string[]>();

@@ -17,10 +17,25 @@ export const queryKeys = {
       projectName,
       "pages",
     ],
+    // UI aggregate page (up to 2 contract pages). Distinct from daoPage so
+    // nested getProposals fetches cannot overwrite the combined list result.
     list: (projectName: string, page: number): QueryKey => [
       "proposals",
       projectName,
+      "ui",
       page,
+    ],
+    daoPage: (projectName: string, page: number): QueryKey => [
+      "proposals",
+      projectName,
+      "dao",
+      page,
+    ],
+    voterSummary: (projectName: string, address: string): QueryKey => [
+      "proposals",
+      projectName,
+      "voter",
+      address,
     ],
   },
   proposal: {

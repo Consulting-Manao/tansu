@@ -171,7 +171,7 @@ async function getProposals(
   page: number,
 ): Promise<ModifiedProposal[] | null> {
   return await fetchWithCache(
-    queryKeys.proposals.list(project_name, page),
+    queryKeys.proposals.daoPage(project_name, page),
     async () => {
       const project_key = deriveProjectKey(project_name);
 

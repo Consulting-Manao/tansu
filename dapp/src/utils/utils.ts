@@ -163,6 +163,59 @@ export const hasUserVoted = (
   );
 };
 
+/** Active proposals only: how many the user has voted on vs still need to. */
+export function countVoterProposalStats(
+  proposals: Pick<ProposalView, "status" | "voteStatus">[],
+  userAddress: string | undefined,
+): { voted: number; toVote: number } {
+  let voted = 0;
+  let toVote = 0;
+  for (const proposal of proposals) {
+    if (proposal.status !== "active") continue;
+    if (hasUserVoted(proposal.voteStatus, userAddress)) voted += 1;
+    else toVote += 1;
+  }
+  return { voted, toVote };
+}
+
+function shuffleArray<T>(array: T[], random: () => number): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    const temp = shuffled[i]!;
+    shuffled[i] = shuffled[j]!;
+    shuffled[j] = temp;
+  }
+  return shuffled;
+}
+
+/**
+ * Connected: active unvoted first (shuffled), then the rest newest-first.
+ * Logged out: newest-first only.
+ */
+export function orderProposalsForVoter(
+  proposals: ProposalView[],
+  connectedAddress: string | undefined,
+  random: () => number = Math.random,
+): ProposalView[] {
+  if (!connectedAddress) {
+    return [...proposals].sort((a, b) => b.id - a.id);
+  }
+
+  const activeUnvoted = proposals.filter(
+    (p) =>
+      p.status === "active" && !hasUserVoted(p.voteStatus, connectedAddress),
+  );
+  const rest = proposals
+    .filter(
+      (p) =>
+        p.status !== "active" || hasUserVoted(p.voteStatus, connectedAddress),
+    )
+    .sort((a, b) => b.id - a.id);
+
+  return [...shuffleArray(activeUnvoted, random), ...rest];
+}
+
 export const modifyProposalToView = (
   proposal: Proposal,
   projectName: string,

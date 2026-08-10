@@ -224,17 +224,32 @@ export async function getVotingPower(
     };
   }
 
+  const maxWeight = await getMemberMaxWeight(project_name, member);
+
+  return { maxWeight, isTokenVoting: false, tokenContract: null };
+}
+
+/**
+ * Project-level max vote weight for a member (badges or NQG on-chain).
+ * Not proposal-specific — token-balance proposals use getVotingPower instead.
+ */
+export async function getMemberMaxWeight(
+  project_name: string,
+  memberAddress?: string,
+): Promise<number> {
+  const client = getClient();
+  const member = memberAddress ?? client.options.publicKey;
+  if (!member) throw new Error("Wallet not connected");
+
   const weightTx = await client.get_max_weight({
-    project_key: projectKey,
+    project_key: getProjectKey(project_name),
     member_address: member,
   });
   checkSimulationError(weightTx);
   const parsedWeight = Number(weightTx.result);
-  const maxWeight = Number.isFinite(parsedWeight)
+  return Number.isFinite(parsedWeight)
     ? Math.max(0, Math.round(parsedWeight))
     : 0;
-
-  return { maxWeight, isTokenVoting: false, tokenContract: null };
 }
 
 /**
