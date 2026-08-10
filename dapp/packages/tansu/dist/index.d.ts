@@ -158,6 +158,18 @@ export type ProjectKey =
   | {
       tag: "PendingGovernance";
       values: readonly [Buffer];
+    }
+  | {
+      tag: "Attestation";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "AttestationFinalized";
+      values: readonly [Buffer];
+    }
+  | {
+      tag: "AttestationFinalityThreshold";
+      values: readonly [Buffer];
     };
 export interface PublicVote {
   address: string;
@@ -177,6 +189,12 @@ export type VoteChoice =
       tag: "Abstain";
       values: void;
     };
+export interface Attestation {
+  attester: string;
+  created_at: u64;
+  note: Option<string>;
+  weight: u32;
+}
 export type ContractKey =
   | {
       tag: "Collateral";
@@ -227,6 +245,12 @@ export interface ProjectBadges {
   badges: Array<Badge>;
   project: Buffer;
 }
+export interface FinalityStatus {
+  attested: u32;
+  finalized_at: Option<u64>;
+  is_final: boolean;
+  total: u32;
+}
 export type ProposalStatus =
   | {
       tag: "Active";
@@ -259,6 +283,15 @@ export interface UpgradeProposal {
   executable_at: u64;
   wasm_hash: Buffer;
 }
+export type AttestationTarget =
+  | {
+      tag: "Commit";
+      values: void;
+    }
+  | {
+      tag: "Evidence";
+      values: readonly [EvidenceKind, string];
+    };
 export interface PendingGovernance {
   activates_at: u64;
   execute_delay: Option<u64>;
@@ -325,6 +358,33 @@ export declare const ContractErrors: {
     message: string;
   };
   214: {
+    message: string;
+  };
+  215: {
+    message: string;
+  };
+  216: {
+    message: string;
+  };
+  217: {
+    message: string;
+  };
+  218: {
+    message: string;
+  };
+  219: {
+    message: string;
+  };
+  220: {
+    message: string;
+  };
+  221: {
+    message: string;
+  };
+  222: {
+    message: string;
+  };
+  223: {
     message: string;
   };
   300: {
@@ -1188,6 +1248,46 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<u32>>;
   /**
+   * Construct and simulate a attest transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Record an endorsement (attestation) of a commit or evidence artifact.
+   *
+   * A multi-party primitive: independent maintainers vouch that they verified the
+   * target. Each maintainer may attest a given target at most once — a second
+   * call from the same attester is rejected rather than replacing the first, so
+   * an attestation is never silently rewritten. Revoking one is an explicit,
+   * separately evented action: see `revoke_attestation`. At most
+   * `MAX_ATTESTATIONS` are kept on-chain; at capacity, vouches from addresses
+   * that are no longer maintainers are pruned, and the call is rejected if
+   * that does not free a slot. Current maintainers' vouches are never evicted.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `attester` - The maintainer recording the attestation
+   * * `project_key` - The project key identifier
+   * * `commit_hash` - The commit hash being endorsed
+   * * `target` - The attestation target: the commit or a specific evidence artifact
+   * * `note` - Optional pointer (e.g. a reproducibility report CID)
+   *
+   * # Panics
+   * * If the contract i
+   */
+  attest: (
+    {
+      attester,
+      project_key,
+      commit_hash,
+      target,
+      note,
+    }: {
+      attester: string;
+      project_key: Buffer;
+      commit_hash: string;
+      target: AttestationTarget;
+      note: Option<string>;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
    * Construct and simulate a commit transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Set the latest commit hash for a project.
    *
@@ -1233,16 +1333,16 @@ export interface Client {
    * * `ipfs` - CID of the tansu.toml file with associated metadata
    * * `min_voting_period` - Optional minimum voting period override, in seconds
    * * `execute_delay` - Optional DAO execute timelock override, in seconds
+   * * `attestation_threshold` - Optional finality threshold percent; when
+   * `None` the project is set to `DEFAULT_FINALITY_THRESHOLD_PERCENT`. Can
+   * be changed later with `set_attestation_threshold`.
    *
    * # Returns
    * * `Bytes` - The project key (keccak256 hash of the name)
    *
    * # Panics
    * * If the project name is longer than 15 characters
-   * * If the project already exists
-   * * If the maintainer is not authorized
-   * * If the maintainer has insufficient collateral balance
-   * * If an override is zero or exceeds `MAX_VOTING_PERIOD`
+   * *
    */
   register: (
     {
@@ -1253,6 +1353,7 @@ export interface Client {
       ipfs,
       min_voting_period,
       execute_delay,
+      attestation_threshold,
     }: {
       maintainer: string;
       name: string;
@@ -1261,6 +1362,7 @@ export interface Client {
       ipfs: string;
       min_voting_period: Option<u64>;
       execute_delay: Option<u64>;
+      attestation_threshold: Option<u32>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Buffer>>;
@@ -1421,11 +1523,11 @@ export interface Client {
    * * `ipfs` - New CID of the tansu.toml file with metadata
    * * `min_voting_period` - Optional new minimum voting period, in seconds
    * * `execute_delay` - Optional new DAO execute timelock, in seconds
+   * * `attestation_threshold` - Optional new finality threshold percent;
+   * when `None` the project's current threshold is left unchanged
    *
    * # Panics
-   * * If the project doesn't exist
-   * * If the maintainer is not authorized
-   * * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
+   * *
    */
   update_config: (
     {
@@ -1436,6 +1538,7 @@ export interface Client {
       ipfs,
       min_voting_period,
       execute_delay,
+      attestation_threshold,
     }: {
       maintainer: string;
       key: Buffer;
@@ -1444,9 +1547,40 @@ export interface Client {
       ipfs: string;
       min_voting_period: Option<u64>;
       execute_delay: Option<u64>;
+      attestation_threshold: Option<u32>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
+  /**
+   * Construct and simulate a get_attestations transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the attestations recorded for a project's commit or evidence target.
+   *
+   * Entries are returned oldest-first (the last element is the most recent) and
+   * hold at most one entry per attester, capped at `MAX_ATTESTATIONS`. The full
+   * history stays recoverable from `Attested` events via an indexer.
+   * Returns an empty vector when nothing has been attested for the target.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   * * `commit_hash` - The commit hash the attestations relate to
+   * * `target` - The attestation target: the commit or a specific evidence artifact
+   *
+   * # Returns
+   * * `Vec<types::Attestation>` - The stored attestations, oldest-first
+   */
+  get_attestations: (
+    {
+      project_key,
+      commit_hash,
+      target,
+    }: {
+      project_key: Buffer;
+      commit_hash: string;
+      target: AttestationTarget;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<Array<Attestation>>>;
   /**
    * Construct and simulate a get_sub_projects transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get sub-projects for a project (if it's an organization).
@@ -1495,6 +1629,132 @@ export interface Client {
       maintainer: string;
       project_key: Buffer;
       sub_projects: Array<Buffer>;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
+   * Construct and simulate a revoke_attestation transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Revoke the caller's own attestation from a target.
+   *
+   * Only the attester can remove their vouch, and only their own: a maintainer
+   * cannot strike another's. Revocation is bounded twice over, so a vouch that
+   * others have already relied on cannot be pulled out from under them:
+   *
+   * 1. **Not once the target is final.** Finality is recorded the first time a
+   * target reaches its threshold and is never cleared, so raising the
+   * threshold or growing the maintainer set cannot re-open withdrawal.
+   * 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
+   * `created_at`. Past that the vouch is permanent.
+   *
+   * Within those bounds, revoking frees the slot and the caller may attest the
+   * target again with a fresh `created_at` — revoke plus re-attest is the
+   * supported way to amend a `note` or correct a mistaken vouch. The
+   * `Attested` / `AttestationRevoked` event pair is the durable audit trail.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `attester` - The maintainer revoking their attestation
+   * * `project_key` - The project key identif
+   */
+  revoke_attestation: (
+    {
+      attester,
+      project_key,
+      commit_hash,
+      target,
+    }: {
+      attester: string;
+      project_key: Buffer;
+      commit_hash: string;
+      target: AttestationTarget;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
+   * Construct and simulate a get_attestation_finality transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Compute whether an attestation target is final (canonical), on-chain.
+   *
+   * A target is final once the share of the project's *current* maintainers
+   * that have attested it reaches the project's finality threshold. The target
+   * is either the commit itself (`Commit`) or a specific evidence artifact
+   * (`Evidence(kind, cid)`) tied to that commit. Attestations from addresses
+   * that are no longer maintainers are ignored, so a removed maintainer's stale
+   * vouch cannot inflate the count.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   * * `commit_hash` - The commit hash being evaluated
+   * * `target` - The attestation target: the commit or a specific evidence artifact
+   *
+   * # Returns
+   * * `types::FinalityStatus` - `{ attested, total, is_final }`
+   *
+   * # Panics
+   * * If the project doesn't exist
+   */
+  get_attestation_finality: (
+    {
+      project_key,
+      commit_hash,
+      target,
+    }: {
+      project_key: Buffer;
+      commit_hash: string;
+      target: AttestationTarget;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<FinalityStatus>>;
+  /**
+   * Construct and simulate a get_attestation_threshold transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the attestation finality threshold (percent) for a project.
+   *
+   * Returns the project's stored threshold, or `DEFAULT_FINALITY_THRESHOLD_PERCENT`
+   * when the project has not set one.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   *
+   * # Returns
+   * * `u32` - The finality threshold percent for the project
+   */
+  get_attestation_threshold: (
+    {
+      project_key,
+    }: {
+      project_key: Buffer;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<u32>>;
+  /**
+   * Construct and simulate a set_attestation_threshold transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Set the attestation finality threshold (percent) for a project.
+   *
+   * A commit is considered final once the share of current maintainers that
+   * have attested it reaches this percentage. Every project defaults to
+   * `DEFAULT_FINALITY_THRESHOLD_PERCENT` until its maintainers set a value here.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `maintainer` - The address of the maintainer calling this function
+   * * `project_key` - The project key identifier
+   * * `percent` - The threshold percent (in `MIN_FINALITY_THRESHOLD_PERCENT..=100`)
+   *
+   * # Panics
+   * * If the contract is paused
+   * * If the project doesn't exist or the maintainer is not authorized
+   * * If `percent` is below `MIN_FINALITY_THRESHOLD_PERCENT` or above 100
+   */
+  set_attestation_threshold: (
+    {
+      maintainer,
+      project_key,
+      attestation_threshold,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      attestation_threshold: Option<u32>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -1557,6 +1817,7 @@ export declare class Client extends ContractClient {
     set_badges: (json: string) => AssembledTransaction<null>;
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
+    attest: (json: string) => AssembledTransaction<null>;
     commit: (json: string) => AssembledTransaction<null>;
     register: (json: string) => AssembledTransaction<Buffer>;
     get_commit: (json: string) => AssembledTransaction<string>;
@@ -1565,7 +1826,14 @@ export declare class Client extends ContractClient {
     get_projects: (json: string) => AssembledTransaction<Project[]>;
     set_evidence: (json: string) => AssembledTransaction<null>;
     update_config: (json: string) => AssembledTransaction<null>;
+    get_attestations: (json: string) => AssembledTransaction<Attestation[]>;
     get_sub_projects: (json: string) => AssembledTransaction<Buffer[]>;
     set_sub_projects: (json: string) => AssembledTransaction<null>;
+    revoke_attestation: (json: string) => AssembledTransaction<null>;
+    get_attestation_finality: (
+      json: string,
+    ) => AssembledTransaction<FinalityStatus>;
+    get_attestation_threshold: (json: string) => AssembledTransaction<number>;
+    set_attestation_threshold: (json: string) => AssembledTransaction<null>;
   };
 }

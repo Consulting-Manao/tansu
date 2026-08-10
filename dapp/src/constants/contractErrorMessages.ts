@@ -37,6 +37,15 @@ export const contractErrorMessages = {
   212: "Evidence must include a commit hash and CID.",
   213: "The commit hash must be a 40-character (SHA-1) or 64-character (SHA-256) hex string.",
   214: "The voting period or execute delay is invalid.",
+  215: "The attestation is invalid.",
+  216: "The finality threshold must be between 50 and 100.",
+  217: "You have already attested this — each maintainer may attest only once.",
+  218: "Too many maintainers. A project may have at most 25.",
+  219: "The maintainer list contains duplicate addresses.",
+  220: "This target has reached the maximum number of attestations.",
+  221: "You have no attestation to revoke on this target.",
+  222: "This target is already final — attestations can no longer be withdrawn.",
+  223: "The withdrawal window for this attestation has closed.",
 
   // State (300-399)
   300: "No hash was found.",

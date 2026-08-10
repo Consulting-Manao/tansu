@@ -4,6 +4,7 @@
  */
 
 import {
+  type AttestationTarget,
   type Badge,
   type EvidenceKind,
   type Vote,
@@ -36,6 +37,7 @@ import {
   invalidateEvidenceCache,
   toEvidenceKind,
 } from "./EvidenceService";
+import { invalidateAttestationCache } from "./AttestationService";
 
 export interface VotingPowerResult {
   maxWeight: number;
@@ -186,6 +188,70 @@ export async function setEvidence(
 
   await submitTransaction(assembledTx);
   invalidateEvidenceCache(projectKey, commit_hash);
+  return true;
+}
+
+/**
+ * Record an attestation endorsing a commit or a specific evidence artifact.
+ *
+ * One per maintainer per target: a second call from the same address is
+ * rejected on-chain (`AlreadyAttested`) rather than merged.
+ */
+export async function attest(
+  project_name: string,
+  commit_hash: string,
+  target: AttestationTarget,
+  note: string | null = null,
+): Promise<boolean> {
+  const client = getClient();
+  const attester = client.options.publicKey;
+  if (!attester) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.attest({
+    attester,
+    project_key: projectKey,
+    commit_hash,
+    target,
+    note: note ?? undefined,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  invalidateAttestationCache(projectKey, commit_hash);
+  return true;
+}
+
+/**
+ * Withdraw the connected wallet's own attestation from a target.
+ *
+ * Rejected on-chain once the target is final, or after the revocation window
+ * has elapsed since the attestation was recorded.
+ */
+export async function revokeAttestation(
+  project_name: string,
+  commit_hash: string,
+  target: AttestationTarget,
+): Promise<boolean> {
+  const client = getClient();
+  const attester = client.options.publicKey;
+  if (!attester) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.revoke_attestation({
+    attester,
+    project_key: projectKey,
+    commit_hash,
+    target,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  invalidateAttestationCache(projectKey, commit_hash);
   return true;
 }
 
