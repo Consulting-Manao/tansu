@@ -5,7 +5,9 @@ import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts"
 import {
   loadConfigData,
   loadProjectInfo,
+  loadProjectName,
 } from "../../../service/StateService.ts";
+import { loadedPublicKey } from "../../../service/walletService.ts";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
 import {
   configData as configDataStore,
@@ -14,6 +16,7 @@ import {
 } from "../../../utils/store.ts";
 import CommitPeriod from "./CommitPeriod.jsx";
 import CommitRecord from "../../CommitRecord";
+import AttestationCard from "./AttestationCard.tsx";
 
 const CommitHistory = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
@@ -24,6 +27,10 @@ const CommitHistory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const connectedPublicKey = loadedPublicKey();
+  const isMaintainer = connectedPublicKey
+    ? (loadProjectInfo()?.maintainers?.includes(connectedPublicKey) ?? false)
+    : false;
 
   const fetchCommitHistory = async (page = 1) => {
     setLoadError(null);
@@ -157,6 +164,15 @@ const CommitHistory = () => {
                                   commit.author.name.toLowerCase(),
                                 )
                               : false
+                          }
+                          attestation={
+                            <AttestationCard
+                              projectName={loadProjectName()}
+                              commitHash={commit.sha}
+                              connectedPublicKey={connectedPublicKey}
+                              isMaintainer={isMaintainer}
+                              variant="compact"
+                            />
                           }
                         />
                       </div>

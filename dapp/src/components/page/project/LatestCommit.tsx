@@ -1,7 +1,9 @@
 import { useStore } from "@nanostores/react";
 import { getLatestCommitData } from "@service/RepositoryMetadataService";
 import { getProjectHash } from "@service/ReadContractService";
-import { loadProjectInfo } from "@service/StateService";
+import { loadProjectInfo, loadProjectName } from "@service/StateService";
+import { loadedPublicKey } from "@service/walletService";
+import AttestationCard from "./AttestationCard";
 import Tooltip from "components/utils/Tooltip";
 import CopyButton from "components/utils/CopyButton";
 import { useEffect, useState } from "react";
@@ -45,6 +47,14 @@ const LatestCommit = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [onChainSha, setOnChainSha] = useState<string | null>(null);
+
+  const connectedPublicKey = loadedPublicKey();
+  const projectInfo = loadProjectInfo();
+  const isMaintainer = connectedPublicKey
+    ? (projectInfo?.maintainers?.includes(connectedPublicKey) ?? false)
+    : false;
+
   const loadLatestCommitData = async () => {
     if (!isSoftwareProject) {
       setIsLoading(false);
@@ -54,6 +64,7 @@ const LatestCommit = () => {
     setIsLoading(true);
     const projectInfo = loadProjectInfo();
     const latestSha = await getProjectHash();
+    setOnChainSha(latestSha ?? null);
     const repositoryUrl =
       configData?.officials?.githubLink || projectInfo?.config?.url;
     if (projectInfo && projectInfo.config && repositoryUrl && latestSha) {
@@ -175,6 +186,15 @@ const LatestCommit = () => {
               <img src="/icons/info.svg" alt="" />
             </Tooltip>
           </div>
+          {onChainSha && (
+            <AttestationCard
+              projectName={loadProjectName()}
+              commitHash={onChainSha}
+              connectedPublicKey={connectedPublicKey}
+              isMaintainer={isMaintainer}
+              variant="compact"
+            />
+          )}
         </div>
       </div>
       {commitData && (

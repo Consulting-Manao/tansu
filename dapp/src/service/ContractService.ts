@@ -256,6 +256,33 @@ export async function revokeAttestation(
 }
 
 /**
+ * Set the per-project finality threshold (percent). Pass `null` to reset to the
+ * contract default.
+ */
+export async function setAttestationThreshold(
+  project_name: string,
+  percent: number | null,
+): Promise<boolean> {
+  const client = getClient();
+  const maintainer = client.options.publicKey;
+  if (!maintainer) throw new Error("Wallet not connected");
+
+  const projectKey = getProjectKey(project_name);
+
+  const assembledTx = await client.set_attestation_threshold({
+    maintainer,
+    project_key: projectKey,
+    attestation_threshold: percent ?? undefined,
+  });
+
+  checkSimulationError(assembledTx);
+
+  await submitTransaction(assembledTx);
+  invalidateAttestationCache(projectKey);
+  return true;
+}
+
+/**
  * Resolves max voting power: token balance for token proposals, badge weight otherwise.
  */
 export async function getVotingPower(

@@ -27,7 +27,9 @@ import Button from "components/utils/Button";
 import CopyButton from "components/utils/CopyButton";
 import Modal from "components/utils/Modal";
 import { setEvidenceWithIpfsUpload } from "@service/EvidenceUploadFlow";
+import AttestationCard from "./AttestationCard";
 import { commitHash } from "@service/ContractService";
+import { evidenceTarget } from "@service/AttestationService";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getProject } from "@service/ReadContractService";
 import { setProject } from "@service/StateService";
@@ -464,6 +466,19 @@ const CommitEvidenceModal = () => {
                 <span className="text-xs text-tertiary">(append-only)</span>
               </div>
 
+              {commitHashValue.trim() && (
+                <div className="py-2 border-t border-zinc-100">
+                  <AttestationCard
+                    projectName={projectName}
+                    commitHash={commitHashValue}
+                    maintainers={projectInfo?.maintainers ?? []}
+                    connectedPublicKey={connectedPublicKey}
+                    isMaintainer={isMaintainer}
+                    showThreshold
+                  />
+                </div>
+              )}
+
               {/* Loading state */}
               {isEvidenceLoading && (
                 <div className="flex items-center gap-3 py-4" aria-busy="true">
@@ -546,6 +561,17 @@ const CommitEvidenceModal = () => {
                                           Latest
                                         </span>
                                       )}
+                                      <AttestationCard
+                                        projectName={projectName}
+                                        commitHash={commitHashValue}
+                                        target={evidenceTarget(
+                                          item.kind,
+                                          item.cid,
+                                        )}
+                                        connectedPublicKey={connectedPublicKey}
+                                        isMaintainer={isMaintainer}
+                                        variant="compact"
+                                      />
                                       {ipfsUrl ? (
                                         <Button
                                           type="secondary"

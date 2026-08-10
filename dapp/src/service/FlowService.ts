@@ -365,6 +365,9 @@ export async function createProjectFlow({
     ipfs: cid,
     min_voting_period: minVotingPeriod,
     execute_delay: executeDelay,
+    // Threshold is set from the project config form; the contract applies
+    // DEFAULT_FINALITY_THRESHOLD_PERCENT when omitted at registration.
+    attestation_threshold: undefined,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -405,6 +408,7 @@ async function createSignedUpdateConfigTransaction(
   cid: string,
   minVotingPeriod?: bigint,
   executeDelay?: bigint,
+  attestationThreshold?: number,
 ): Promise<string> {
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
@@ -427,6 +431,7 @@ async function createSignedUpdateConfigTransaction(
     ipfs: cid,
     min_voting_period: minVotingPeriod,
     execute_delay: executeDelay,
+    attestation_threshold: attestationThreshold,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -443,6 +448,7 @@ export async function updateConfigFlow({
   additionalFiles,
   minVotingPeriod,
   executeDelay,
+  attestationThreshold,
 }: {
   tomlFile: File;
   githubRepoUrl: string;
@@ -453,6 +459,7 @@ export async function updateConfigFlow({
   // untouched (contract-side semantics — not "reset to default").
   minVotingPeriod?: bigint;
   executeDelay?: bigint;
+  attestationThreshold?: number;
 }): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
