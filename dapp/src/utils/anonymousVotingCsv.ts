@@ -3,6 +3,7 @@ import type { DecodedVote } from "./anonymousVoting";
 const CSV_HEADERS = [
   "Address",
   "Vote",
+  "Weight",
   "Weight (A/R/Abs)",
   "Max Weight",
   "Seed (A/R/Abs)",
@@ -22,6 +23,7 @@ export function buildDecodedVotesCsv(decodedVotes: DecodedVote[]): string {
     [
       vote.address,
       vote.vote,
+      vote.weight,
       vote.outcomeWeights.join("/"),
       vote.maxWeight,
       vote.outcomeSeeds.join("/"),

@@ -84,6 +84,7 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                   <tr className="bg-zinc-100 text-left">
                     <th className="p-2">Address</th>
                     <th>Vote</th>
+                    <th>Weight</th>
                     <th>Weights (A/R/Abs)</th>
                     <th>Max</th>
                     <th>Seeds (A/R/Abs)</th>
@@ -114,6 +115,7 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                           <AddressDisplay address={v.address} />
                         </td>
                         <td className="p-1">{v.vote}</td>
+                        <td className="p-1 font-mono">{v.weight}</td>
                         <td className="p-1 font-mono">
                           {v.outcomeWeights.join("/")}
                         </td>

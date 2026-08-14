@@ -46,6 +46,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const [seeds, setSeeds] = useState<bigint[] | null>(null);
   const [tallies, setTallies] = useState<bigint[] | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isMaintainer, setIsMaintainer] = useState(false);
   const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
   const [proofOk, setProofOk] = useState<boolean | null>(null);
@@ -123,6 +124,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const handleKeyFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    setIsProcessing(true);
     try {
       const fileList = e.target.files;
       if (!fileList || fileList.length === 0) return;
@@ -140,6 +142,8 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       // Silent in prod, log only in dev
       if (import.meta.env.DEV) console.error(err);
       setProcessingError(err.message || "Failed to process key-file");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -190,7 +194,6 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
         seeds ?? undefined,
       );
       setStep(step + 1);
-      toast.success("Congratulations!", "Proposal executed successfully");
     } catch (error: any) {
       toast.error("Execute Proposal", error.message);
       onClose();
@@ -231,15 +234,21 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                   processingError ? "border-red-500" : "border-zinc-700",
                 )}
               >
-                <label className="cursor-pointer text-primary underline block text-center sm:text-left">
-                  Choose key file
-                  <input
-                    type="file"
-                    accept="application/json"
-                    className="hidden"
-                    onChange={handleKeyFileUpload}
-                  />
-                </label>
+                {isProcessing ? (
+                  <div className="text-primary text-center sm:text-left">
+                    Processing key file...
+                  </div>
+                ) : (
+                  <label className="cursor-pointer text-primary underline block text-center sm:text-left">
+                    Choose key file
+                    <input
+                      type="file"
+                      accept="application/json"
+                      className="hidden"
+                      onChange={handleKeyFileUpload}
+                    />
+                  </label>
+                )}
               </div>
 
               {processingError && (
@@ -289,7 +298,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                 exportFileNameBase={`${projectName.replace(
                   /[^a-z0-9_-]+/gi,
                   "-",
-                )}-proposal-${proposalId}-decoded-votes.csv`}
+                )}-proposal-${proposalId}-decoded-votes`}
               />
             </div>
           </div>

@@ -60,7 +60,11 @@ const VotingResult: FC<Props> = ({
           <div className="flex flex-col gap-4.5">
             <p className="leading-4 text-base text-secondary">Final Outcome</p>
             <div className="flex items-center gap-2">
-              <VoteTypeCheckbox size="sm" voteType={voteResult} />
+              <VoteTypeCheckbox
+                size="sm"
+                voteType={voteResult}
+                currentVoteType={voteResult}
+              />
               <p
                 className={`leading-5 text-lg md:text-xl font-medium text-${voteResult}`}
               >
