@@ -46,6 +46,7 @@ function getStore<T>(queryKey: QueryKey): CachedQueryStore<T> {
     QuerySnapshot<T>
   >;
   const entry: CachedQueryStore<T> = {
+    key: queryKey,
     atom: store,
     snapshot: store.get(),
     promise: null,
@@ -76,9 +77,10 @@ export function getQuerySnapshot<T>(queryKey: QueryKey): QuerySnapshot<T> {
 
 export function invalidateQuery(queryKey: QueryKey): void {
   const prefix = queryKey;
-  for (const [serializedKey, entry] of registry.entries()) {
-    const parsed = JSON.parse(serializedKey) as QueryKey;
-    if (!isPrefixMatch(parsed, prefix)) continue;
+  for (const entry of registry.values()) {
+    // Match against the original key parts (bigint, undefined, …) instead of
+    // the JSON-serialized form, which would corrupt them on round-trip.
+    if (!isPrefixMatch(entry.key, prefix)) continue;
     entry.requestId += 1;
     entry.promise = null;
     updateStore(entry as CachedQueryStore<any>, {

@@ -263,3 +263,69 @@ describe("OnChainActivityService", () => {
     expect(actions[0]!.projectName).toBe("pre-seeded-project");
   });
 });
+
+describe("fetchOnChainActions caching", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let mod: typeof import("../../../src/service/OnChainActivityService");
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.stubEnv("PUBLIC_HORIZON_URL", "https://horizon-testnet.stellar.org");
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mod = await import("../../../src/service/OnChainActivityService");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not cache a failed fetch so the next call can retry", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error("Horizon unreachable"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ _embedded: { records: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await expect(mod.fetchOnChainActions("RETRY_ACCOUNT")).rejects.toThrow(
+      "Horizon unreachable",
+    );
+
+    // A failed promise must be evicted, otherwise this would return the same
+    // rejected promise and the UI could never retry within the session.
+    await expect(mod.fetchOnChainActions("RETRY_ACCOUNT")).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches after the TTL window elapses", async () => {
+    vi.useFakeTimers();
+    try {
+      // Fresh Response per call: a Response body can only be read once.
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ _embedded: { records: [] } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await mod.fetchOnChainActions("TTL_ACCOUNT");
+      await mod.fetchOnChainActions("TTL_ACCOUNT");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // After the TTL elapses a new call goes back to the network so recent
+      // on-chain activity can appear without reloading the page.
+      vi.advanceTimersByTime(60_001);
+      await mod.fetchOnChainActions("TTL_ACCOUNT");
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
