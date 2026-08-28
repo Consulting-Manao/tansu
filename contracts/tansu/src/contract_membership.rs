@@ -316,12 +316,12 @@ impl MembershipTrait for Tansu {
         let member_key = types::DataKey::Member(member_address.clone());
 
         // special case to use Neural Quorum Governance
-        if let Some(key) = env
+        let key = env
             .storage()
             .instance()
-            .get::<types::DataKey, Bytes>(&types::DataKey::NqgProjectKey)
-            && project_key == key
-        {
+            .get(&types::DataKey::NqgProjectKey)
+            .expect("NQG project key exists");
+        if project_key == key {
             return get_nqg(&env, member_address);
         }
 

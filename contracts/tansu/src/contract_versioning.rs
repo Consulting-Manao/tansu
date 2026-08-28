@@ -14,14 +14,8 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 /// Older entries roll off once this is exceeded; the full history stays
 /// recoverable from `EvidenceSet` events via an indexer.
 const MAX_EVIDENCE: u32 = 10;
-
 const MAX_ATTESTATIONS: u32 = 25;
-
 const MAX_MAINTAINERS: u32 = MAX_ATTESTATIONS;
-
-const LEDGERS_PER_DAY: u32 = 17280;
-const PERSISTENT_EXTEND_TO: u32 = 30 * LEDGERS_PER_DAY;
-const PERSISTENT_LIFETIME_THRESHOLD: u32 = PERSISTENT_EXTEND_TO - LEDGERS_PER_DAY;
 
 /// Length of a hex-encoded SHA-1 Git object name (Git's current default).
 const GIT_SHA1_HEX_LENGTH: u32 = 40;
@@ -619,11 +613,7 @@ impl VersioningTrait for Tansu {
         let key = types::ProjectKey::AttestationFinalityThreshold(project_key);
 
         match env.storage().persistent().get::<_, u32>(&key) {
-            Some(percent) => {
-                extend_persistent_ttl(&env, &key);
-
-                percent
-            }
+            Some(percent) => percent,
             None => DEFAULT_FINALITY_THRESHOLD_PERCENT,
         }
     }
@@ -675,12 +665,15 @@ impl VersioningTrait for Tansu {
 
         let threshold = Self::get_attestation_threshold(env.clone(), project_key.clone());
 
-        let finalized_at = env.storage().persistent().get::<_, u64>(&finalized_key(
-            &env,
-            &project_key,
-            &commit_hash,
-            &target,
-        ));
+        let finalized_at =
+            env.storage()
+                .persistent()
+                .get::<types::ProjectKey, u64>(&finalized_key(
+                    &env,
+                    &project_key,
+                    &commit_hash,
+                    &target,
+                ));
 
         let is_final = finalized_at.is_some() || (total > 0 && attested * 100 >= threshold * total);
 
@@ -783,8 +776,6 @@ impl VersioningTrait for Tansu {
 
         storage.set(&key, &attestations);
 
-        extend_persistent_ttl(&env, &key);
-
         mark_finalized(&env, &project_key, &commit_hash, &target);
 
         events::Attested {
@@ -838,8 +829,6 @@ impl VersioningTrait for Tansu {
 
         attester.require_auth();
 
-        Self::get_project(env.clone(), project_key.clone());
-
         if commit_hash.is_empty() {
             panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
         }
@@ -885,7 +874,6 @@ impl VersioningTrait for Tansu {
             storage.remove(&key);
         } else {
             storage.set(&key, &attestations);
-            extend_persistent_ttl(&env, &key);
         }
 
         events::AttestationRevoked {
@@ -921,20 +909,10 @@ impl VersioningTrait for Tansu {
         let key = attestation_key(&env, &project_key, &commit_hash, &target);
 
         match env.storage().persistent().get(&key) {
-            Some(list) => {
-                extend_persistent_ttl(&env, &key);
-
-                list
-            }
+            Some(attestations) => attestations,
             None => Vec::new(&env),
         }
     }
-}
-
-fn extend_persistent_ttl(env: &Env, key: &types::ProjectKey) {
-    env.storage()
-        .persistent()
-        .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_EXTEND_TO);
 }
 
 pub(crate) fn attestation_key(
@@ -1013,8 +991,6 @@ fn mark_finalized(
         env.storage()
             .persistent()
             .set(&key, &env.ledger().timestamp());
-
-        extend_persistent_ttl(env, &key);
     }
 }
 
@@ -1046,8 +1022,6 @@ fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32
     let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
 
     env.storage().persistent().set(&key, &percent);
-
-    extend_persistent_ttl(env, &key);
 
     events::AttestationThresholdSet {
         project_key: project_key.clone(),
