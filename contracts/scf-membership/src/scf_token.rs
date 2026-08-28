@@ -4,7 +4,9 @@ use crate::{
     SCFGovernanceTrait, SCFMembership, SCFMembershipArgs, SCFMembershipClient, SCFTokenTrait,
     errors, events, types,
 };
-use soroban_sdk::{Address, Bytes, BytesN, Env, String, contractimpl, panic_with_error};
+use soroban_sdk::{
+    Address, Bytes, BytesN, ContractExecutable, Env, String, contractimpl, panic_with_error,
+};
 
 #[contractimpl]
 impl SCFTokenTrait for SCFMembership {
@@ -39,7 +41,8 @@ impl SCFTokenTrait for SCFMembership {
         let admin: Address = e.storage().instance().get(&types::DataKey::Admin).unwrap();
         admin.require_auth();
 
-        e.deployer().update_current_contract_wasm(wasm_hash.clone());
+        e.deployer()
+            .update_current_contract(ContractExecutable::Wasm(wasm_hash.clone()));
     }
 
     fn mint(e: &Env, to: Address) -> u32 {
