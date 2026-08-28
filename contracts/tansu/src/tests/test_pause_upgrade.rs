@@ -3,7 +3,7 @@ use crate::errors::ContractErrors;
 use crate::events::{ContractPaused, UpgradeApproved, UpgradeProposed, UpgradeStatus};
 use crate::types;
 use soroban_sdk::testutils::{Address as _, Events, Ledger};
-use soroban_sdk::{Address, Bytes, BytesN, Event, String, bytesn, vec};
+use soroban_sdk::{Address, Bytes, BytesN, Event, String, vec};
 
 #[test]
 fn test_pause_unpause() {
@@ -75,11 +75,12 @@ fn test_unauthorized_pause_attempt() {
 fn test_upgrade_flow() {
     let setup = create_test_data();
 
-    // WASM hash of the current contract (from test_snapshot - hex(int(..., 16)))
-    let wasm_hash = bytesn!(
+    // Use the actual compiled contract WASM for upgrade testing
+    let wasm_bytes = Bytes::from_slice(
         &setup.env,
-        0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        include_bytes!("../../../../target/wasm32v1-none/release/tansu.wasm"),
     );
+    let wasm_hash: BytesN<32> = setup.env.deployer().upload_contract_wasm(wasm_bytes);
 
     // Propose an upgrade
     setup

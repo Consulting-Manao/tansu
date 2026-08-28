@@ -55,7 +55,7 @@ export function seedProjectNameCache(mapping: Record<string, string>): void {
 /** Decode base64 ScVal using stellar-sdk xdr utilities and convert to JS */
 function decodeScVal(b64: string): any {
   try {
-    const scVal = StellarSdk.xdr.ScVal.fromXDR(b64, "base64");
+    const scVal = StellarSdk.xdr.ScVal.fromXdr(b64, "base64");
     return scValToNative(scVal);
   } catch {
     return null;
@@ -69,7 +69,7 @@ function scValToNative(val: any): any {
     case "scvString":
       return { str: val.str().toString() };
     case "scvBytes":
-      return { bin: val.bytes().toString("base64") };
+      return { bin: Buffer.from(val.bytes()).toString("base64") };
     case "scvVec":
       return { vec: val.vec().map((v: any) => scValToNative(v)) };
     case "scvI64":

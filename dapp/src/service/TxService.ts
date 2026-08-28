@@ -84,7 +84,7 @@ export async function decodeReturnValue(returnValue: any): Promise<any> {
     let decoded: any;
 
     if (typeof returnValue === "string") {
-      const scVal = xdr.ScVal.fromXDR(returnValue, "base64");
+      const scVal = xdr.ScVal.fromXdr(returnValue, "base64");
       decoded = scValToNative(scVal);
     } else {
       decoded = scValToNative(returnValue);
@@ -114,7 +114,7 @@ export async function sendSignedTransaction(signedTxXdr: string): Promise<any> {
   let sendResponse: any;
   try {
     //Deserialize XDR string back into a Transaction object
-    const tx = StellarSdk.TransactionBuilder.fromXDR(
+    const tx = StellarSdk.TransactionBuilder.fromXdr(
       signedTxXdr,
       import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     );
@@ -250,7 +250,7 @@ export async function sendXLM(
       .build();
 
     // Sign and extract the raw XDR — handle both old and new signTransaction response shapes
-    const signedTx = await signWithActiveWallet(transaction.toXDR());
+    const signedTx = await signWithActiveWallet(transaction.toXdr());
 
     const response = await fetch(`${horizonUrl}/transactions`, {
       method: "POST",
@@ -277,7 +277,7 @@ export async function signAssembledTransaction(
   const sim = await assembledTx.simulate();
   if ((assembledTx as any).prepare) await (assembledTx as any).prepare(sim);
 
-  const preparedXdr = assembledTx.toXDR();
+  const preparedXdr = assembledTx.toXdr();
 
   // Sign and extract XDR
   return await signWithActiveWallet(preparedXdr);

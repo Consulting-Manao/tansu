@@ -66,10 +66,10 @@ function getClient() {
  */
 async function submitTransaction(assembledTx: any): Promise<any> {
   // If this is a real assembled transaction (SDK binding), it will expose
-  // simulate/prepare/toXDR. Some tests or mocks may pass a plain object
+  // simulate/prepare/toXdr. Some tests or mocks may pass a plain object
   // (already-executed result); in that case, just return it.
   const hasSimulate = typeof assembledTx?.simulate === "function";
-  const hasToXdr = typeof assembledTx?.toXDR === "function";
+  const hasToXdr = typeof assembledTx?.toXdr === "function";
 
   if (!hasSimulate && !hasToXdr) {
     return assembledTx?.result ?? assembledTx;

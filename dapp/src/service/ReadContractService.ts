@@ -9,8 +9,6 @@ import { checkSimulationError } from "utils/contractErrors";
 import { fetchWithCache, invalidateQuery } from "./cache/cacheStore";
 import { queryKeys } from "./cache/cacheKeys";
 import { scValToNative } from "@stellar/stellar-sdk";
-// Side-effect: patch Spec so get_proposal can decode OutcomeContract.args (Vec<Val>).
-import "./stellarSpecPatches";
 
 const TTL_4H = 4 * 60 * 60 * 1000;
 const TTL_1H = 60 * 60 * 1000;
@@ -176,7 +174,7 @@ async function getProposals(
       const project_key = deriveProjectKey(project_name);
 
       // Try get_dao first (fast path for projects without outcome_contracts issues).
-      // get_dao may fail with an XDR decode error in @stellar/stellar-sdk v16 when
+      // get_dao may fail with an XDR decode error in older SDK versions when
       // proposals have OutcomeContract.args that use Vec<scSpecTypeVal>
       // (GitHub issue #1178). Fall back to individual get_proposal calls.
       //
