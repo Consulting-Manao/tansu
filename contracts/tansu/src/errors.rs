@@ -28,6 +28,15 @@ pub enum ContractErrors {
     InvalidEvidence = 212,
     InvalidCommitHash = 213,
     InvalidVotingPeriod = 214,
+    InvalidAttestation = 215,
+    InvalidAttestationThreshold = 216,
+    AlreadyAttested = 217,
+    TooManyMaintainers = 218,
+    DuplicateMaintainer = 219,
+    TooManyAttestations = 220,
+    AttestationNotFound = 221,
+    AttestationFinalized = 222,
+    AttestationRevocationExpired = 223,
 
     // State (300-399)
     NoHashFound = 300,
