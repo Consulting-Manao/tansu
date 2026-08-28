@@ -11,11 +11,7 @@ const keyFilePath = process.env.EXPORT_KEY_FILE;
 const projectName = process.env.EXPORT_PROJECT_NAME || "stellarpgq3";
 
 describe.skipIf(!keyFilePath)("export-decoded-votes (manual)", () => {
-  it(
-    "exports decoded votes CSVs for the project",
-    async () => {
-      await exportDecodedVotes(keyFilePath!, projectName);
-    },
-    900_000,
-  );
+  it("exports decoded votes CSVs for the project", async () => {
+    await exportDecodedVotes(keyFilePath!, projectName);
+  }, 900_000);
 });

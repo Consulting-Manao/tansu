@@ -26,7 +26,10 @@ export interface ExportResult {
 }
 
 function sanitizeForFilename(value: string): string {
-  return value.trim().replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "");
+  return value
+    .trim()
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export async function exportDecodedVotes(

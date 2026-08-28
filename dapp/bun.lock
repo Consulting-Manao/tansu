@@ -5,88 +5,88 @@
     "": {
       "name": "dapp",
       "dependencies": {
-        "@astrojs/check": "latest",
-        "@astrojs/netlify": "latest",
-        "@astrojs/react": "latest",
-        "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@latest",
-        "@nanostores/react": "latest",
-        "@noble/curves": "latest",
-        "@noble/hashes": "latest",
-        "@stellar/freighter-api": "latest",
-        "@stellar/stellar-sdk": "latest",
-        "@stellar/stellar-xdr-json": "latest",
-        "astro": "latest",
-        "astro-seo": "latest",
-        "axios": "latest",
-        "buffer": "latest",
-        "classnames": "latest",
-        "d3-array": "latest",
-        "d3-color": "latest",
-        "d3-format": "latest",
-        "d3-interpolate": "latest",
-        "d3-path": "latest",
-        "d3-scale": "latest",
-        "d3-shape": "latest",
-        "d3-time": "latest",
-        "d3-time-format": "latest",
-        "devalue": "latest",
-        "dompurify": "latest",
-        "github-markdown-css": "latest",
-        "internmap": "latest",
-        "ipfs-car": "latest",
-        "js-sha3": "latest",
-        "lossless-json": "latest",
-        "markdown-to-jsx": "latest",
-        "multiformats": "latest",
-        "nanostores": "latest",
-        "react": "latest",
-        "react-dom": "latest",
-        "react18-json-view": "latest",
-        "recharts": "latest",
-        "toml": "latest",
-        "typescript": "latest",
+        "@astrojs/check": "^0.9.10",
+        "@astrojs/netlify": "^8.2.4",
+        "@astrojs/react": "^6.0.4",
+        "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
+        "@nanostores/react": "^1.1.0",
+        "@noble/curves": "^2.4.0",
+        "@noble/hashes": "^2.4.0",
+        "@stellar/freighter-api": "^6.0.1",
+        "@stellar/stellar-sdk": "^17.0.1",
+        "@stellar/stellar-xdr-json": "^28.0.0",
+        "astro": "^7.2.9",
+        "astro-seo": "1.1.0",
+        "axios": "^1.20.0",
+        "buffer": "^6.0.3",
+        "classnames": "^2.5.1",
+        "d3-array": "^3.2.4",
+        "d3-color": "^3.1.0",
+        "d3-format": "^3.1.2",
+        "d3-interpolate": "^3.0.1",
+        "d3-path": "^3.1.0",
+        "d3-scale": "^4.0.2",
+        "d3-shape": "^3.2.0",
+        "d3-time": "^3.1.0",
+        "d3-time-format": "^4.1.0",
+        "devalue": "^5.9.2",
+        "dompurify": "^3.4.14",
+        "github-markdown-css": "^5.9.0",
+        "internmap": "^2.0.3",
+        "ipfs-car": "^3.1.0",
+        "js-sha3": "^0.13.0",
+        "lossless-json": "^4.3.1",
+        "markdown-to-jsx": "^9.10.2",
+        "multiformats": "^14.0.5",
+        "nanostores": "^1.5.2",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
+        "react18-json-view": "0.2.10",
+        "recharts": "3.10.1",
+        "toml": "^5.0.0",
+        "typescript": "^7.0.2",
       },
       "devDependencies": {
-        "@eslint/js": "latest",
-        "@playwright/test": "latest",
-        "@tailwindcss/postcss": "latest",
-        "@types/bn.js": "latest",
-        "@types/react": "latest",
-        "@types/react-dom": "latest",
-        "@typescript-eslint/eslint-plugin": "latest",
-        "@typescript-eslint/parser": "latest",
-        "autoprefixer": "latest",
-        "dotenv": "latest",
-        "eslint": "latest",
-        "eslint-plugin-react": "latest",
-        "glob": "latest",
-        "lighthouse": "latest",
-        "netlify-cli": "latest",
-        "postcss": "latest",
-        "prettier": "latest",
-        "prettier-plugin-astro": "latest",
-        "tailwindcss": "latest",
-        "ts-prune": "latest",
-        "vitest": "latest",
-        "zod": "latest",
+        "@eslint/js": "^10.0.1",
+        "@playwright/test": "1.62.1",
+        "@tailwindcss/postcss": "^4.3.3",
+        "@types/bn.js": "^5.2.0",
+        "@types/react": "^19.2.18",
+        "@types/react-dom": "^19.2.5",
+        "@typescript-eslint/eslint-plugin": "8.68.0",
+        "@typescript-eslint/parser": "8.68.0",
+        "autoprefixer": "^10.5.4",
+        "dotenv": "^17.4.2",
+        "eslint": "^10.9.1",
+        "eslint-plugin-react": "^7.37.5",
+        "glob": "^13.0.6",
+        "lighthouse": "^13.4.1",
+        "netlify-cli": "^27.4.0",
+        "postcss": "^8.5.26",
+        "prettier": "^3.9.6",
+        "prettier-plugin-astro": "^0.14.1",
+        "tailwindcss": "^4.3.3",
+        "ts-prune": "^0.10.3",
+        "vitest": "4.1.11",
+        "zod": "^4.4.3",
       },
     },
     "packages/scf-membership": {
       "name": "scf-membership",
       "version": "0.0.0",
       "dependencies": {
-        "@stellar/stellar-sdk": "^16.1.0",
-        "buffer": "6.0.3",
+        "@stellar/stellar-sdk": "latest",
+        "buffer": "latest",
       },
       "devDependencies": {
-        "typescript": "^6.0.3",
+        "typescript": "latest",
       },
     },
     "packages/tansu": {
       "name": "tansu",
       "version": "0.0.0",
       "dependencies": {
-        "@stellar/stellar-sdk": "^16.2.0",
+        "@stellar/stellar-sdk": "^17.0.1",
         "buffer": "6.0.3",
       },
       "devDependencies": {
@@ -4456,10 +4456,6 @@
 
     "satteri/@types/hast": ["@types/hast@3.0.5", "", { "dependencies": { "@types/unist": "*" } }, "sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g=="],
 
-    "scf-membership/@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.2.0", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.18.0", "base32.js": "^0.1.0", "bignumber.js": "^11.1.4", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-FV/Rm11QvrFzR5X9fIfb6Pg30KyYyrRkNezELGFmYDAYrzoPTjqo7vklnEPd2HEontzjJmZizWk8CjyIh5vp0w=="],
-
-    "scf-membership/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
-
     "sharp/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
 
     "slice-ansi/is-fullwidth-code-point": ["is-fullwidth-code-point@5.1.0", "", { "dependencies": { "get-east-asian-width": "^1.3.1" } }, "sha512-5XHYaSyiqADb4RnZ1Bdad6cPp8Toise4TzEjcOYDHZkTCbKgiUl7WTUCpNWHuxmDt91wnsZBc9xinNzopv3JMQ=="],
@@ -4471,8 +4467,6 @@
     "string_decoder/safe-buffer": ["safe-buffer@5.1.2", "", {}, "sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g=="],
 
     "svgo/commander": ["commander@11.1.0", "", {}, "sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ=="],
-
-    "tansu/@stellar/stellar-sdk": ["@stellar/stellar-sdk@16.2.0", "", { "dependencies": { "@noble/ed25519": "^3.1.0", "@noble/hashes": "^2.2.0", "@stellar/js-xdr": "4.0.0", "axios": "1.18.0", "base32.js": "^0.1.0", "bignumber.js": "^11.1.4", "buffer": "^6.0.3", "commander": "^14.0.3", "eventsource": "^4.1.0", "feaxios": "^0.0.23", "smol-toml": "^1.6.1", "uint8array-extras": "^1.5.0" }, "bin": { "stellar-js": "bin/stellar-js" } }, "sha512-FV/Rm11QvrFzR5X9fIfb6Pg30KyYyrRkNezELGFmYDAYrzoPTjqo7vklnEPd2HEontzjJmZizWk8CjyIh5vp0w=="],
 
     "thread-stream/real-require": ["real-require@1.0.0", "", {}, "sha512-P4nbQYQfePJxRSmY+v/KINxVucm4NF3p3s7pJveMTtom52FR4YGltUQLB8idDXwDDWW+eYrWDFbuzUnjoWHF7g=="],
 
@@ -5116,22 +5110,6 @@
 
     "ripple-keypairs/@noble/curves/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 
-    "scf-membership/@stellar/stellar-sdk/@noble/hashes": ["@noble/hashes@2.2.0", "", {}, "sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg=="],
-
-    "scf-membership/@stellar/stellar-sdk/@stellar/js-xdr": ["@stellar/js-xdr@4.0.0", "", {}, "sha512-+NmNa7Tk5BI5XFdy/6xGTqAN4J9a9KgCrCGhj2uEUTCBhLkch0M+QbKzNH8zEnejWe0p8w+0q5hUVX6L3OzoVA=="],
-
-    "scf-membership/@stellar/stellar-sdk/axios": ["axios@1.19.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.6", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-ht/iuYZXEjFxLH/Hkezgd7m6JKlHHXEUSneaDz8uZe1Gj5QZtCnpyDsckvAiEnT89OEbCLmnte4R4sn7P0EKFw=="],
-
-    "scf-membership/@stellar/stellar-sdk/commander": ["commander@14.0.3", "", {}, "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw=="],
-
-    "tansu/@stellar/stellar-sdk/@noble/hashes": ["@noble/hashes@2.2.0", "", {}, "sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg=="],
-
-    "tansu/@stellar/stellar-sdk/@stellar/js-xdr": ["@stellar/js-xdr@4.0.0", "", {}, "sha512-+NmNa7Tk5BI5XFdy/6xGTqAN4J9a9KgCrCGhj2uEUTCBhLkch0M+QbKzNH8zEnejWe0p8w+0q5hUVX6L3OzoVA=="],
-
-    "tansu/@stellar/stellar-sdk/axios": ["axios@1.19.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.6", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-ht/iuYZXEjFxLH/Hkezgd7m6JKlHHXEUSneaDz8uZe1Gj5QZtCnpyDsckvAiEnT89OEbCLmnte4R4sn7P0EKFw=="],
-
-    "tansu/@stellar/stellar-sdk/commander": ["commander@14.0.3", "", {}, "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw=="],
-
     "unstorage/@netlify/blobs/@netlify/dev-utils": ["@netlify/dev-utils@4.4.7", "", { "dependencies": { "@whatwg-node/server": "^0.11.0", "ansis": "^4.1.0", "atomically": "^2.0.3", "chokidar": "^4.0.1", "decache": "^4.6.2", "dettle": "^1.0.5", "dot-prop": "9.0.0", "empathic": "^2.0.0", "env-paths": "^3.0.0", "image-size": "^2.0.2", "js-image-generator": "^1.0.4", "parse-gitignore": "^2.0.0", "semver": "^7.7.2", "tmp-promise": "^3.0.3" } }, "sha512-etfUY5SyraYG+i4msfVnWuFEkia6XLxeoe8Hh5uGO6QJ4OAQT4EmesXjulsI0/7EozMxdiANGnf2AAshn+2jpQ=="],
 
     "unstorage/@netlify/blobs/@netlify/otel": ["@netlify/otel@6.0.5", "", { "dependencies": { "@opentelemetry/api": "1.9.1", "@opentelemetry/core": "2.8.0", "@opentelemetry/instrumentation": "^0.220.0", "@opentelemetry/resources": "2.9.0", "@opentelemetry/sdk-trace-node": "2.9.0" } }, "sha512-FUnQsG+xp5gljmHZgrBgGLYKmKYQlGvrao6gtKenJSPCYTMzsYB9PbFfjIoEvwS+o8DxuWDrHlRDDGU3o9ObhQ=="],
@@ -5464,10 +5442,6 @@
 
     "read-pkg/normalize-package-data/hosted-git-info/lru-cache": ["lru-cache@10.4.3", "", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 
-    "scf-membership/@stellar/stellar-sdk/axios/https-proxy-agent": ["https-proxy-agent@5.0.1", "", { "dependencies": { "agent-base": "6", "debug": "4" } }, "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA=="],
-
-    "tansu/@stellar/stellar-sdk/axios/https-proxy-agent": ["https-proxy-agent@5.0.1", "", { "dependencies": { "agent-base": "6", "debug": "4" } }, "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA=="],
-
     "unstorage/@netlify/blobs/@netlify/dev-utils/chokidar": ["chokidar@4.0.3", "", { "dependencies": { "readdirp": "^4.0.1" } }, "sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA=="],
 
     "unstorage/@netlify/blobs/@netlify/dev-utils/dot-prop": ["dot-prop@9.0.0", "", { "dependencies": { "type-fest": "^4.18.2" } }, "sha512-1gxPBJpI/pcjQhKgIU91II6Wkay+dLcN3M6rf2uwP8hRur3HtQXjVrdAK3sjC0piaEuxzMwjXChcETiJl47lAQ=="],
@@ -5649,10 +5623,6 @@
     "qrcode/yargs/cliui/wrap-ansi/ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
 
     "qrcode/yargs/find-up/locate-path/p-locate": ["p-locate@4.1.0", "", { "dependencies": { "p-limit": "^2.2.0" } }, "sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A=="],
-
-    "scf-membership/@stellar/stellar-sdk/axios/https-proxy-agent/agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
-
-    "tansu/@stellar/stellar-sdk/axios/https-proxy-agent/agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 
     "unstorage/@netlify/blobs/@netlify/dev-utils/chokidar/readdirp": ["readdirp@4.1.2", "", {}, "sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg=="],
 

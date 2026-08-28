@@ -15,52 +15,10 @@ export declare enum Role {
   Pathfinder = 1,
   Verified = 0,
 }
-export type DataKey =
-  | {
-      tag: "Admin";
-      values: void;
-    }
-  | {
-      tag: "NextTokenId";
-      values: void;
-    }
-  | {
-      tag: "Name";
-      values: void;
-    }
-  | {
-      tag: "Symbol";
-      values: void;
-    }
-  | {
-      tag: "Uri";
-      values: void;
-    }
-  | {
-      tag: "UriTrait";
-      values: void;
-    }
-  | {
-      tag: "NqgContract";
-      values: void;
-    };
 export interface Governance {
   nqg: i128;
   role: Role;
 }
-export type NFTStorageKey =
-  | {
-      tag: "Owner";
-      values: readonly [u32];
-    }
-  | {
-      tag: "Balance";
-      values: readonly [string];
-    }
-  | {
-      tag: "Role";
-      values: readonly [u32];
-    };
 export declare const NonFungibleTokenError: {
   /**
    * Indicates a non-existent `token_id`.
@@ -84,6 +42,9 @@ export declare const NonFungibleTokenError: {
     message: string;
   };
   205: {
+    message: string;
+  };
+  206: {
     message: string;
   };
 };
