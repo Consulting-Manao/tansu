@@ -2,12 +2,14 @@ import Button from "components/utils/Button";
 import Textarea from "components/utils/Textarea";
 import Input from "components/utils/Input";
 import OutcomeModeSelector from "./OutcomeModeSelector";
+import OutcomeTemplateSelector from "./OutcomeTemplateSelector";
 import EnhancedContractFunctionSelector from "components/EnhancedContractFunctionSelector";
 import { capitalizeFirstLetter } from "utils/utils";
 import type { OutcomeContract } from "types/proposal";
+import type { OutcomeType } from "constants/outcomeTemplates";
 
 interface OutcomeInputProps {
-  type: string;
+  type: OutcomeType;
   description: string;
   setDescription: (description: string) => void;
 
@@ -148,6 +150,15 @@ const OutcomeInput = ({
               Remove
             </Button>
           </div>
+
+          {/* Outcome template selector */}
+          <OutcomeTemplateSelector
+            outcomeType={type}
+            onTemplateSelect={(template) => {
+              setDescription(template.content);
+              if (onDescriptionChange) onDescriptionChange(template.content);
+            }}
+          />
 
           {/* Description */}
           <div className="flex flex-col gap-[18px]">
