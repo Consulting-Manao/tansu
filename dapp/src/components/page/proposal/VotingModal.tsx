@@ -122,12 +122,30 @@ const VotingModal: React.FC<VotersModalProps> = ({
     const { voteToProposal } = await import("@service/ContractService");
 
     try {
-      await voteToProposal(
+      const receipt = await voteToProposal(
         projectName,
         proposalId!,
         selectedOption as VoteType,
         selectedWeight,
       );
+      
+      const receiptString = JSON.stringify(receipt, null, 2);
+      const instructionText = receipt.isPublicVoting 
+        ? "Your vote was public. You can check the transaction hash on a Stellar explorer to verify it is on-chain."
+        : "Your vote was anonymous. Keep this receipt safe. You can verify your commitment on-chain using the transaction hash. At the end of the vote, the tally can be checked by verifying all commitments against the encrypted votes.";
+        
+      const fullReceipt = `=== TANSU VOTING RECEIPT ===\n\n${instructionText}\n\n${receiptString}`;
+      
+      const blob = new Blob([fullReceipt], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vote-receipt-${projectName}-${proposalId}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
       onVoteSuccess?.();
       toast.success(
         "Congratulations!",

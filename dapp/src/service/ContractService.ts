@@ -260,7 +260,7 @@ export async function voteToProposal(
   proposal_id: number,
   vote: VoteType,
   customWeight?: number,
-): Promise<boolean> {
+): Promise<import("types/proposal").VoteReceipt> {
   const client = getClient();
   const maintainer = client.options.publicKey;
   if (!maintainer) throw new Error("Wallet not connected");
@@ -307,6 +307,12 @@ export async function voteToProposal(
   }
 
   let votePayload: Vote;
+  
+  // Variables for receipt
+  let seedsArr: number[] | undefined;
+  let votesArr: number[] | undefined;
+  let commitments: string[] | undefined;
+  let publicKeyStr: string | undefined;
 
   if (isPublicVoting) {
     votePayload = {
@@ -326,12 +332,12 @@ export async function voteToProposal(
     // Weight is applied on-chain when validating/aggregating, so the encoded
     // vote should be 1 for the chosen option and 0 for others to avoid u32
     // overflow in later tallies.
-    const votesArr: number[] = [0, 0, 0];
+    votesArr = [0, 0, 0];
     votesArr[voteIndex] = 1;
 
     // Generate cryptographically secure 32-bit seeds.
     const r = crypto.getRandomValues(new Uint32Array(3));
-    const seedsArr: number[] = [Number(r[0]), Number(r[1]), Number(r[2])];
+    seedsArr = [Number(r[0]), Number(r[1]), Number(r[2])];
 
     // Get anonymous voting config
     const configTx = await client.get_anonymous_voting_config({
@@ -340,7 +346,7 @@ export async function voteToProposal(
     // Ensure config actually exists (not an error bubbled in result)
     checkSimulationError(configTx);
 
-    const publicKeyStr = configTx.result?.public_key;
+    publicKeyStr = configTx.result?.public_key;
     if (!publicKeyStr)
       throw new Error("Anonymous voting config missing public key");
 
@@ -375,6 +381,7 @@ export async function voteToProposal(
       ]);
       // Ensure the helper call did not surface a simulation error payload
       checkSimulationError(commitmentsTx);
+      commitments = commitmentsTx.result?.map((c: any) => c.toString());
     } catch (e: any) {
       // Normalize Wasm VM/host errors to user-friendly text
       throw new Error(parseContractError(e), { cause: e });
@@ -404,9 +411,23 @@ export async function voteToProposal(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
+  const result = await submitTransaction(assembledTx);
   invalidateProposalCache(project_name, proposal_id);
-  return true;
+  
+  return {
+    projectName: project_name,
+    proposalId: proposal_id,
+    voteType: vote,
+    weight,
+    isPublicVoting,
+    transactionHash: result?.hash, // if available
+    ...(isPublicVoting ? {} : {
+      seeds: seedsArr?.map(String),
+      votes: votesArr?.map(String),
+      commitments,
+      publicKey: publicKeyStr
+    })
+  };
 }
 
 /**
