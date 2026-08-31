@@ -34,6 +34,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
   const [selectedWeight, setSelectedWeight] = useState<number>(0);
   const [isTokenVoting, setIsTokenVoting] = useState(false);
   const [tokenBalance, setTokenBalance] = useState<number>(0);
+  const [voteReceipt, setVoteReceipt] = useState<import("types/proposal").VoteReceipt | null>(null);
   const isInsufficientVotingPower = maxWeight <= 0;
 
   const insufficientPowerMessage = isTokenVoting
@@ -129,29 +130,13 @@ const VotingModal: React.FC<VotersModalProps> = ({
         selectedWeight,
       );
       
-      const receiptString = JSON.stringify(receipt, null, 2);
-      const instructionText = receipt.isPublicVoting 
-        ? "Your vote was public. You can check the transaction hash on a Stellar explorer to verify it is on-chain."
-        : "Your vote was anonymous. Keep this receipt safe. You can verify your commitment on-chain using the transaction hash. At the end of the vote, the tally can be checked by verifying all commitments against the encrypted votes.";
-        
-      const fullReceipt = `=== TANSU VOTING RECEIPT ===\n\n${instructionText}\n\n${receiptString}`;
-      
-      const blob = new Blob([fullReceipt], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `vote-receipt-${projectName}-${proposalId}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
+      setVoteReceipt(receipt);
       onVoteSuccess?.();
       toast.success(
         "Congratulations!",
         "Your vote was submitted successfully.",
       );
-      onClose();
+      // We do not close the modal here, we show the receipt instead
     } catch (error: any) {
       let errorMessage = "Failed to cast vote";
 
@@ -171,6 +156,93 @@ const VotingModal: React.FC<VotersModalProps> = ({
       setIsLoading(false);
     }
   };
+
+  if (voteReceipt) {
+    return (
+      <Modal onClose={onClose}>
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #printable-receipt, #printable-receipt * { visibility: visible; }
+            #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+            .no-print { display: none !important; }
+          }
+        `}</style>
+        <div id="printable-receipt" className="flex flex-col gap-6 w-full max-w-2xl mx-auto">
+          <div className="flex flex-col gap-2 border-b pb-4">
+            <h2 className="text-2xl font-bold text-primary">Vote Receipt</h2>
+            <p className="text-sm text-secondary">
+              {voteReceipt.isPublicVoting 
+                ? "Your vote was public. You can check the transaction hash on a Stellar explorer to verify it is on-chain."
+                : "Your vote was anonymous. Keep this receipt safe. You can verify your commitment on-chain using the transaction hash. At the end of the vote, the tally can be checked by verifying all commitments against the encrypted votes."}
+            </p>
+          </div>
+          
+          <div className="flex flex-col gap-4 bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><span className="font-semibold">Project:</span> {voteReceipt.projectName}</div>
+              <div><span className="font-semibold">Proposal ID:</span> {voteReceipt.proposalId}</div>
+              <div><span className="font-semibold">Vote Type:</span> <span className="capitalize">{voteReceipt.voteType}</span></div>
+              <div><span className="font-semibold">Weight:</span> {voteReceipt.weight.toLocaleString()}</div>
+              <div><span className="font-semibold">Voting Type:</span> {voteReceipt.isPublicVoting ? "Public" : "Anonymous"}</div>
+            </div>
+            
+            {voteReceipt.transactionHash && (
+              <div className="mt-2">
+                <span className="font-semibold block mb-1">Transaction Hash:</span>
+                <code className="bg-white px-2 py-1 rounded border break-all text-xs">{voteReceipt.transactionHash}</code>
+              </div>
+            )}
+            
+            {!voteReceipt.isPublicVoting && (
+              <>
+                <div className="mt-2">
+                  <span className="font-semibold block mb-1">Public Key:</span>
+                  <code className="bg-white px-2 py-1 rounded border break-all text-xs">{voteReceipt.publicKey}</code>
+                </div>
+                
+                <div className="mt-2">
+                  <span className="font-semibold block mb-1">Encrypted Votes (Approve, Reject, Abstain):</span>
+                  <div className="flex flex-col gap-1">
+                    {voteReceipt.votes?.map((v, i) => (
+                      <code key={i} className="bg-white px-2 py-1 rounded border break-all text-xs">{v}</code>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <span className="font-semibold block mb-1">Cryptographic Seeds:</span>
+                  <div className="flex flex-col gap-1">
+                    {voteReceipt.seeds?.map((s, i) => (
+                      <code key={i} className="bg-white px-2 py-1 rounded border break-all text-xs">{s}</code>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="mt-2">
+                  <span className="font-semibold block mb-1">Commitments:</span>
+                  <div className="flex flex-col gap-1">
+                    {voteReceipt.commitments?.map((c, i) => (
+                      <code key={i} className="bg-white px-2 py-1 rounded border break-all text-xs">{c}</code>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3 no-print mt-4">
+            <Button type="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <Button onClick={() => window.print()}>
+              Print / Save PDF
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal onClose={onClose}>
