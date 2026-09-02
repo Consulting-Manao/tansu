@@ -3,6 +3,7 @@ import {
   OUTCOME_TEMPLATES,
   getOutcomeTemplatesByType,
   getOutcomeTemplateById,
+  getOutcomeTemplateFills,
   type OutcomeType,
 } from "../../../src/constants/outcomeTemplates";
 
@@ -41,6 +42,25 @@ describe("OUTCOME_TEMPLATES", () => {
       expect(words).toBeGreaterThanOrEqual(3);
     }
   });
+
+  it("pre-fills contract calls only on templates that execute an action", () => {
+    // Approved templates execute real actions, so they should come with a
+    // contract-call pre-fill (function + args) while the no-action rejected /
+    // cancelled templates stay description-only.
+    const approved = getOutcomeTemplatesByType("approved");
+    for (const template of approved) {
+      expect(template.contract).toBeDefined();
+      expect(template.contract!.execute_fn.trim().length).toBeGreaterThan(0);
+      expect(template.contract!.address).toBe(""); // filled by the author
+    }
+
+    for (const type of ["rejected", "cancelled"] as const) {
+      for (const template of getOutcomeTemplatesByType(type)) {
+        expect(template.contract).toBeUndefined();
+        expect(template.xdr).toBeUndefined();
+      }
+    }
+  });
 });
 
 describe("getOutcomeTemplatesByType", () => {
@@ -71,5 +91,25 @@ describe("getOutcomeTemplateById", () => {
 
   it("returns undefined for an unknown id", () => {
     expect(getOutcomeTemplateById("does-not-exist")).toBeUndefined();
+  });
+});
+
+describe("getOutcomeTemplateFills", () => {
+  it("always includes the description", () => {
+    for (const template of OUTCOME_TEMPLATES) {
+      expect(getOutcomeTemplateFills(template)).toContain("description");
+    }
+  });
+
+  it("reports contract-call pre-fill when the template has one", () => {
+    const approved = getOutcomeTemplatesByType("approved");
+    for (const template of approved) {
+      expect(getOutcomeTemplateFills(template)).toContain("contract call");
+    }
+  });
+
+  it("reports only the description for no-action templates", () => {
+    const rejected = getOutcomeTemplatesByType("rejected");
+    expect(getOutcomeTemplateFills(rejected[0]!)).toEqual(["description"]);
   });
 });

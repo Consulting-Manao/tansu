@@ -101,3 +101,35 @@ export interface VoteReceipt {
   commitments?: string[];
   publicKey?: string;
 }
+
+/**
+ * Execution payload for an outcome (XDR transaction or contract call).
+ * Stored inside each outcome node of the tree-shaped outcomes.json.
+ */
+export interface StoredOutcomeExecution {
+  type: "xdr" | "contract";
+  xdr?: string;
+  contract?: OutcomeContract;
+}
+
+/** A single outcome node in the tree-shaped outcomes.json format. */
+export interface StoredOutcomeNode {
+  description: string;
+  execution?: StoredOutcomeExecution;
+}
+
+/**
+ * Tree-shaped outcomes.json format.
+ *
+ * All outcomes live under a single `outcomes` root so the file has one
+ * uniform, nested structure (approved / rejected / cancelled are siblings
+ * under the same tree) instead of a flat top-level object. Each node holds
+ * the description plus an optional `execution` subtree (XDR or contract).
+ */
+export interface StoredProposalOutcome {
+  outcomes: {
+    approved?: StoredOutcomeNode;
+    rejected?: StoredOutcomeNode;
+    cancelled?: StoredOutcomeNode;
+  };
+}

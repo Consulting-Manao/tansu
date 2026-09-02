@@ -44,9 +44,28 @@ The proposal's `ipfs` field is the CID of a directory holding the proposal's off
 | File | Required | Purpose |
 | --- | --- | --- |
 | `proposal.md` | yes | Proposal description (Markdown). |
-| `outcomes.json` | yes | Descriptions/XDR for the approved, rejected and cancelled outcomes. |
+| `outcomes.json` | yes | Descriptions/XDR/contract pre-fills for the approved, rejected and cancelled outcomes. |
 | `proposal_discussion.md` | no | Discussion thread rendered on the proposal page. |
 | `summary.md` | no | Short Markdown summary of the discussion. |
+
+`outcomes.json` uses a tree structure: every outcome lives under a single `outcomes` root, and each outcome node holds its `description` plus an optional `execution` subtree (`{ "type": "xdr", "xdr": "..." }` or `{ "type": "contract", "contract": { "address", "execute_fn", "args" } }`):
+
+```json
+{
+  "outcomes": {
+    "approved": {
+      "description": "...",
+      "execution": {
+        "type": "contract",
+        "contract": { "address": "...", "execute_fn": "...", "args": [] }
+      }
+    },
+    "rejected": { "description": "..." }
+  }
+}
+```
+
+Older flat files (top-level `approved`/`rejected`/`cancelled` with direct `xdr`/`contract` fields) are still read for backward compatibility.
 
 `proposal_discussion.md` is the Markdown snapshot of the proposal's discussion, as produced by the proposals uploader alongside `proposal.md` and `outcomes.json`. It is rendered as a single Markdown document. The discussion directory defaults to the proposal's own (immutable) IPFS directory, so discussion content is fixed during voting.
 

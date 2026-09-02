@@ -15,6 +15,7 @@ import {
   fetchProposalFromIPFS,
   fetchProposalDiscussionFromIPFS,
   fetchProposalDiscussionSummaryFromIPFS,
+  normalizeOutcomeData,
   resolveDiscussionCid,
 } from "../../../src/service/ProposalService";
 import type { Proposal, OutcomeContract } from "../../../src/types/proposal";
@@ -229,6 +230,88 @@ describe("fetchProposalOutcomeData", () => {
     const result = await fetchProposalOutcomeData(proposal);
     expect(result.approved?.description).toBe("Has XDR");
     expect(result.approved?.xdr).toBe("AAAAAH...");
+  });
+
+  it("reads the tree-shaped outcomes.json format", async () => {
+    mockFetchJsonFromIpfs.mockResolvedValue({
+      outcomes: {
+        approved: {
+          description: "Approved tree",
+          execution: {
+            type: "contract",
+            contract: {
+              address: "C...tree-approved",
+              execute_fn: "mint",
+              args: [100],
+            },
+          },
+        },
+        rejected: {
+          description: "Rejected tree",
+          execution: {
+            type: "xdr",
+            xdr: "AAAAAX...",
+          },
+        },
+        cancelled: {
+          description: "Cancelled tree",
+        },
+      },
+    });
+    const proposal = makeProposal({ ipfs: "bafyabc123" });
+    const result = await fetchProposalOutcomeData(proposal);
+
+    expect(result.approved?.description).toBe("Approved tree");
+    expect(result.approved?.contract?.address).toBe("C...tree-approved");
+    expect(result.approved?.contract?.execute_fn).toBe("mint");
+    expect(result.rejected?.description).toBe("Rejected tree");
+    expect(result.rejected?.xdr).toBe("AAAAAX...");
+    expect(result.cancelled?.description).toBe("Cancelled tree");
+    expect(result.cancelled?.xdr).toBeUndefined();
+  });
+});
+
+describe("normalizeOutcomeData", () => {
+  it("returns an empty object for null/undefined input", () => {
+    expect(normalizeOutcomeData(null)).toEqual({});
+    expect(normalizeOutcomeData(undefined)).toEqual({});
+    expect(normalizeOutcomeData("nope")).toEqual({});
+  });
+
+  it("normalizes the tree format into the flat display shape", () => {
+    const normalized = normalizeOutcomeData({
+      outcomes: {
+        approved: {
+          description: "Approved",
+          execution: {
+            type: "contract",
+            contract: { address: "C1", execute_fn: "f", args: [] },
+          },
+        },
+        rejected: {
+          description: "Rejected",
+          execution: { type: "xdr", xdr: "AAAA" },
+        },
+      },
+    });
+
+    expect(normalized).toEqual({
+      approved: {
+        description: "Approved",
+        contract: { address: "C1", execute_fn: "f", args: [] },
+      },
+      rejected: { description: "Rejected", xdr: "AAAA" },
+    });
+  });
+
+  it("normalizes the legacy flat format unchanged", () => {
+    const normalized = normalizeOutcomeData({
+      approved: { description: "Old approved", xdr: "BBBB" },
+    });
+
+    expect(normalized).toEqual({
+      approved: { description: "Old approved", xdr: "BBBB" },
+    });
   });
 });
 

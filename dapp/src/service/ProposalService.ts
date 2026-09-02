@@ -69,6 +69,46 @@ export async function fetchProposalDiscussionSummaryFromIPFS(
 }
 
 /**
+ * Normalizes the stored outcomes.json into the flat display shape consumed by
+ * the UI. Handles both the tree-shaped format (all outcomes under a single
+ * `outcomes` root, each with an optional `execution` subtree) and the legacy
+ * flat format (top-level approved/rejected/cancelled with xdr/contract).
+ */
+export function normalizeOutcomeData(raw: unknown): ProposalOutcome {
+  const result: ProposalOutcome = {};
+  if (!raw || typeof raw !== "object") return result;
+
+  const data = raw as Record<string, any>;
+  const tree = data.outcomes as Record<string, any> | undefined;
+
+  const outcomeTypes = ["approved", "rejected", "cancelled"] as const;
+
+  for (const type of outcomeTypes) {
+    const node = tree?.[type] ?? data[type];
+    if (!node || typeof node !== "object") continue;
+
+    const normalized: ProposalOutcome[typeof type] = {
+      description: node.description ?? "",
+    };
+
+    if (node.execution) {
+      // Tree format: execution subtree.
+      if (node.execution.xdr) normalized.xdr = node.execution.xdr;
+      if (node.execution.contract)
+        normalized.contract = node.execution.contract;
+    } else {
+      // Legacy flat format: xdr/contract sit directly on the node.
+      if (node.xdr) normalized.xdr = node.xdr;
+      if (node.contract) normalized.contract = node.contract;
+    }
+
+    result[type] = normalized;
+  }
+
+  return result;
+}
+
+/**
  * Fetches proposal outcome data with precedence: contract outcomes take precedence over XDR
  *
  * @param proposal - The proposal object
@@ -87,7 +127,7 @@ export async function fetchProposalOutcomeData(
         OUTCOMES_JSON_PATH,
       );
       if (ipfsData) {
-        outcomeData = ipfsData;
+        outcomeData = normalizeOutcomeData(ipfsData);
       }
     } catch (error) {
       console.warn("Failed to load IPFS outcome data:", error);

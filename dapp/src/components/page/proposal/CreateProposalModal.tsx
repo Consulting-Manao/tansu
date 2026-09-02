@@ -8,7 +8,11 @@ import FlowProgressModal from "components/utils/FlowProgressModal";
 import Step from "components/utils/Step";
 import Title from "components/utils/Title";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ProposalOutcome, OutcomeContract } from "types/proposal";
+import type {
+  OutcomeContract,
+  StoredOutcomeNode,
+  StoredProposalOutcome,
+} from "types/proposal";
 import { formatDate } from "utils/formatTimeFunctions";
 import { connectedPublicKey } from "utils/store";
 import { capitalizeFirstLetter, toast } from "utils/utils";
@@ -223,32 +227,32 @@ const CreateProposalModal = () => {
   }, [projectName]);
 
   const prepareProposalFiles = (): File[] => {
-    // Helper to build an outcome block with optional xdr/contract data
+    // Helper to build an outcome node with an optional execution subtree
+    // (XDR or contract call), matching the tree-shaped outcomes.json format.
     const buildOutcome = (
       description: string,
       mode: "xdr" | "contract" | "none",
       xdrValue: string | null | undefined,
       contract: OutcomeContract | null,
-    ): ProposalOutcome[keyof ProposalOutcome] | undefined => {
+    ): StoredOutcomeNode | undefined => {
       if (!description.trim() && mode === "none") return undefined;
 
-      const outcome: ProposalOutcome[keyof ProposalOutcome] = {
+      const node: StoredOutcomeNode = {
         description: description.trim(),
       };
 
       if (mode === "xdr" && xdrValue) {
-        outcome.xdr = xdrValue;
+        node.execution = { type: "xdr", xdr: xdrValue };
+      } else if (mode === "contract" && contract?.address?.trim()) {
+        node.execution = { type: "contract", contract };
       }
 
-      if (mode === "contract" && contract?.address?.trim()) {
-        outcome.contract = contract;
-      }
-
-      return outcome;
+      return node;
     };
 
-    // Always prepare outcomes.json with descriptions for all outcome types
-    const proposalOutcome: ProposalOutcome = {};
+    // Always prepare outcomes.json with descriptions for all outcome types.
+    // All outcomes live under a single `outcomes` root (tree structure).
+    const proposalOutcome: StoredProposalOutcome = { outcomes: {} };
 
     const approvedOutcome = buildOutcome(
       approveDescription,
@@ -269,9 +273,9 @@ const CreateProposalModal = () => {
       cancelledContract,
     );
 
-    if (approvedOutcome) proposalOutcome.approved = approvedOutcome;
-    if (rejectedOutcome) proposalOutcome.rejected = rejectedOutcome;
-    if (cancelledOutcome) proposalOutcome.cancelled = cancelledOutcome;
+    if (approvedOutcome) proposalOutcome.outcomes.approved = approvedOutcome;
+    if (rejectedOutcome) proposalOutcome.outcomes.rejected = rejectedOutcome;
+    if (cancelledOutcome) proposalOutcome.outcomes.cancelled = cancelledOutcome;
 
     const outcomeBlob = new Blob([JSON.stringify(proposalOutcome)], {
       type: "application/json",

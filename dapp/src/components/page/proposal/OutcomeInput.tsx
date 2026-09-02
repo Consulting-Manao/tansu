@@ -157,6 +157,25 @@ const OutcomeInput = ({
             onTemplateSelect={(template) => {
               setDescription(template.content);
               if (onDescriptionChange) onDescriptionChange(template.content);
+
+              // Templates pre-fill everything a user could fill out: the
+              // description plus, when provided, the XDR or contract call.
+              // The mode is switched to match so the pre-filled data is
+              // visible and editable in the right section.
+              if (template.contract) {
+                setMode("contract");
+                if (onModeChange) onModeChange("contract");
+                setContractOutcome({
+                  address: template.contract.address,
+                  execute_fn: template.contract.execute_fn,
+                  args: template.contract.args,
+                });
+              } else if (template.xdr) {
+                setMode("xdr");
+                if (onModeChange) onModeChange("xdr");
+                setXdr(template.xdr);
+                if (onXdrChange) onXdrChange(template.xdr);
+              }
             }}
           />
 

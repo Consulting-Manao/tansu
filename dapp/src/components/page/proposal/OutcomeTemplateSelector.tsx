@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import {
   getOutcomeTemplatesByType,
+  getOutcomeTemplateFills,
   type OutcomeTemplate,
   type OutcomeType,
 } from "../../../constants/outcomeTemplates";
@@ -89,6 +90,16 @@ export default function OutcomeTemplateSelector({
                 <p className="text-xs text-secondary line-clamp-2">
                   {template.description}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {getOutcomeTemplateFills(template).map((fill) => (
+                    <span
+                      key={fill}
+                      className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-medium text-primary"
+                    >
+                      {fill}
+                    </span>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -113,6 +124,42 @@ export default function OutcomeTemplateSelector({
                 {previewTemplate.content}
               </pre>
             </div>
+
+            {previewTemplate.contract && (
+              <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
+                <p className="text-sm font-semibold text-primary mb-2">
+                  Contract call pre-filled
+                </p>
+                <div className="space-y-1 font-mono text-sm text-secondary">
+                  <p>
+                    <span className="text-primary">function:</span>{" "}
+                    {previewTemplate.contract.execute_fn}
+                  </p>
+                  <p>
+                    <span className="text-primary">address:</span>{" "}
+                    {previewTemplate.contract.address ||
+                      "(fill after applying)"}
+                  </p>
+                  {previewTemplate.contract.args.length > 0 && (
+                    <p>
+                      <span className="text-primary">args:</span>{" "}
+                      {JSON.stringify(previewTemplate.contract.args)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {previewTemplate.xdr && (
+              <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
+                <p className="text-sm font-semibold text-primary mb-2">
+                  XDR transaction pre-filled
+                </p>
+                <pre className="whitespace-pre-wrap font-mono text-sm text-secondary break-all">
+                  {previewTemplate.xdr}
+                </pre>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-primary">
               <Button

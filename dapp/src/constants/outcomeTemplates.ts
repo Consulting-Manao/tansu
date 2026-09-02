@@ -8,11 +8,22 @@
  *   - rejected: actions executed when the proposal is rejected
  *   - cancelled: actions executed when the proposal is cancelled
  *
- * Selecting a template fills the outcome description with a structured
- * starting point that authors can edit before publishing.
+ * Selecting a template pre-fills everything a user could otherwise fill out:
+ * the description, and optionally the XDR transaction and/or the contract
+ * call (address / function / arguments). Project-specific values (contract
+ * addresses, amounts) are left as placeholders for the author to complete.
  */
 
 export type OutcomeType = "approved" | "rejected" | "cancelled";
+
+/** Pre-fill for a contract-call outcome. The address stays blank for the
+ *  author to resolve (e.g. via the Stellar Registry search); the function
+ *  name and argument placeholders are what the template contributes. */
+export interface OutcomeTemplateContract {
+  address: string;
+  execute_fn: string;
+  args: any[];
+}
 
 export interface OutcomeTemplate {
   id: string;
@@ -20,6 +31,10 @@ export interface OutcomeTemplate {
   description: string;
   outcomeType: OutcomeType;
   content: string;
+  /** Optional XDR transaction pre-fill (base64 TransactionEnvelope). */
+  xdr?: string;
+  /** Optional contract-call pre-fill. */
+  contract?: OutcomeTemplateContract;
 }
 
 export const OUTCOME_TEMPLATES: OutcomeTemplate[] = [
@@ -41,6 +56,11 @@ The proposal was approved by the community. The proposed code changes will be me
 
 ## Technical Details
 [Describe the XDR transaction or contract call that executes this outcome.]`,
+    contract: {
+      address: "",
+      execute_fn: "record_commit",
+      args: [""],
+    },
   },
   {
     id: "approve-governance-update",
@@ -56,6 +76,11 @@ The proposal was approved. The governance rule change will now be applied on-cha
 - [ ] Update the governance parameter(s) described in the proposal
 - [ ] Confirm the new rules in the project configuration
 - [ ] Notify the community of the updated voting parameters`,
+    contract: {
+      address: "",
+      execute_fn: "update_config",
+      args: [""],
+    },
   },
   {
     id: "approve-award-disbursement",
@@ -71,6 +96,11 @@ The proposal was approved. The requested budget will be disbursed to the benefic
 - [ ] Transfer [amount] XLM to [beneficiary address]
 - [ ] Record the disbursement transaction hash
 - [ ] Publish the transfer proof and a short spending report`,
+    contract: {
+      address: "",
+      execute_fn: "transfer",
+      args: ["", 0],
+    },
   },
   {
     id: "approve-membership-update",
@@ -86,6 +116,11 @@ The proposal was approved. The membership change will be applied to the project'
 - [ ] Add/remove the maintainer at address [address]
 - [ ] Update role permissions and voting weight
 - [ ] Confirm the new membership configuration on-chain`,
+    contract: {
+      address: "",
+      execute_fn: "add_maintainer",
+      args: [""],
+    },
   },
 
   // ---------------------------------------------------------------- Rejected
@@ -162,3 +197,11 @@ export const getOutcomeTemplateById = (
 ): OutcomeTemplate | undefined => {
   return OUTCOME_TEMPLATES.find((template) => template.id === id);
 };
+
+/** Which parts of an outcome a template pre-fills (used by the selector UI). */
+export function getOutcomeTemplateFills(template: OutcomeTemplate): string[] {
+  const fills = ["description"];
+  if (template.xdr) fills.push("XDR");
+  if (template.contract) fills.push("contract call");
+  return fills;
+}
