@@ -88,3 +88,16 @@ export interface ProposalOutcome {
     contract?: OutcomeContract; // New contract-based outcome
   };
 }
+
+export interface VoteReceipt {
+  projectName: string;
+  proposalId: number;
+  voteType: string;
+  weight: number;
+  isPublicVoting: boolean;
+  transactionHash?: string;
+  seeds?: string[];
+  votes?: string[];
+  commitments?: string[];
+  publicKey?: string;
+}
