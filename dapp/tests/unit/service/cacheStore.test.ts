@@ -92,6 +92,44 @@ describe("cacheStore", () => {
     expect(getQuerySnapshot(daoKey).isStale).toBe(true);
   });
 
+  it("invalidates entries whose keys contain bigint parts", async () => {
+    const rawKey = queryKeys.proposal.raw("project-a", 123n as any);
+    const detailKey = queryKeys.proposal.detail("project-a", 123n as any);
+    const otherRawKey = queryKeys.proposal.raw("project-b", 123n as any);
+    const otherNumberKey = queryKeys.proposal.raw("project-a", 124);
+
+    await fetchWithCache(rawKey, vi.fn().mockResolvedValue({}), {
+      ttlMs: 1000,
+    });
+    await fetchWithCache(detailKey, vi.fn().mockResolvedValue({}), {
+      ttlMs: 1000,
+    });
+    await fetchWithCache(otherRawKey, vi.fn().mockResolvedValue({}), {
+      ttlMs: 1000,
+    });
+    await fetchWithCache(otherNumberKey, vi.fn().mockResolvedValue({}), {
+      ttlMs: 1000,
+    });
+
+    invalidateQuery(["proposal", "project-a", 123n as any]);
+
+    expect(getQuerySnapshot(rawKey).isStale).toBe(true);
+    expect(getQuerySnapshot(detailKey).isStale).toBe(true);
+    expect(getQuerySnapshot(otherRawKey).isStale).toBe(false);
+    expect(getQuerySnapshot(otherNumberKey).isStale).toBe(false);
+  });
+
+  it("invalidates entries whose keys contain undefined parts", async () => {
+    const key = ["proposal", "project-a", undefined] as any;
+    await fetchWithCache(key, vi.fn().mockResolvedValue({}), {
+      ttlMs: 1000,
+    });
+
+    invalidateQuery(["proposal", "project-a"] as any);
+
+    expect(getQuerySnapshot(key).isStale).toBe(true);
+  });
+
   it("drops in-flight responses after invalidation", async () => {
     const key = queryKeys.projects.page(9);
     const deferred = createDeferred<string[]>();

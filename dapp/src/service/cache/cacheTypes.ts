@@ -26,6 +26,8 @@ export interface FetchWithCacheOptions {
 }
 
 export interface CachedQueryStore<T> {
+  /** The original query key (not the serialized string) for prefix matching. */
+  key: QueryKey;
   atom: WritableAtom<QuerySnapshot<T>>;
   snapshot: QuerySnapshot<T>;
   promise: Promise<T | undefined> | null;

@@ -44,27 +44,6 @@ export interface Member {
   meta: string;
   projects: Array<ProjectBadges>;
 }
-export type DataKey =
-  | {
-      tag: "Member";
-      values: readonly [string];
-    }
-  | {
-      tag: "Paused";
-      values: void;
-    }
-  | {
-      tag: "UpgradeProposal";
-      values: void;
-    }
-  | {
-      tag: "AdminsConfig";
-      values: void;
-    }
-  | {
-      tag: "NqgProjectKey";
-      values: void;
-    };
 export interface Project {
   config: Config;
   maintainers: Array<string>;
@@ -90,87 +69,6 @@ export interface VoteData {
   votes: Array<Vote>;
   voting_ends_at: u64;
 }
-export type ProjectKey =
-  | {
-      tag: "Key";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "Badges";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "LastHash";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "Evidence";
-      values: readonly [Buffer, string, EvidenceKind];
-    }
-  | {
-      tag: "Dao";
-      values: readonly [Buffer, u32];
-    }
-  | {
-      tag: "DaoTotalProposals";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "Voters";
-      values: readonly [Buffer, u32];
-    }
-  | {
-      tag: "Vote";
-      values: readonly [Buffer, u32, string];
-    }
-  | {
-      tag: "ProposalTallies";
-      values: readonly [Buffer, u32];
-    }
-  | {
-      tag: "AnonymousVoteConfig";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "ProjectKeys";
-      values: readonly [u32];
-    }
-  | {
-      tag: "TotalProjects";
-      values: void;
-    }
-  | {
-      tag: "ConflictOfInterest";
-      values: readonly [Buffer, u32];
-    }
-  | {
-      tag: "MinVotingPeriod";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "ExecuteDelay";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "ProposalExecuteDelay";
-      values: readonly [Buffer, u32];
-    }
-  | {
-      tag: "PendingGovernance";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "Attestation";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "AttestationFinalized";
-      values: readonly [Buffer];
-    }
-  | {
-      tag: "AttestationFinalityThreshold";
-      values: readonly [Buffer];
-    };
 export interface PublicVote {
   address: string;
   vote_choice: VoteChoice;
@@ -195,28 +93,10 @@ export interface Attestation {
   note: Option<string>;
   weight: u32;
 }
-export type ContractKey =
-  | {
-      tag: "Collateral";
-      values: void;
-    }
-  | {
-      tag: "Nqg";
-      values: void;
-    };
 export interface ContractRef {
   address: string;
   wasm_hash: Option<Buffer>;
 }
-export type VoteTallies =
-  | {
-      tag: "PublicVote";
-      values: readonly [Array<u128>];
-    }
-  | {
-      tag: "AnonymousVote";
-      values: readonly [Array<Buffer>];
-    };
 export interface AdminsConfig {
   admins: Array<string>;
   threshold: u32;
@@ -292,11 +172,6 @@ export type AttestationTarget =
       tag: "Evidence";
       values: readonly [EvidenceKind, string];
     };
-export interface PendingGovernance {
-  activates_at: u64;
-  execute_delay: Option<u64>;
-  min_voting_period: Option<u64>;
-}
 export interface AnonymousVoteConfig {
   public_key: string;
   seed_generator_point: Buffer;

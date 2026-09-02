@@ -62,14 +62,14 @@ describe("buildDecodedVotesCsv", () => {
 
     // Header
     expect(lines[0]).toBe(
-      "Address,Vote,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)",
+      "Address,Vote,Weight,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)",
     );
 
     // Row 1
-    expect(lines[1]).toBe("GAAA...,approve,5/0/0,10,42/0/0");
+    expect(lines[1]).toBe("GAAA...,approve,5,5/0/0,10,42/0/0");
 
     // Row 2
-    expect(lines[2]).toBe("GBBB...,reject,0/3/0,10,0/99/0");
+    expect(lines[2]).toBe("GBBB...,reject,3,0/3/0,10,0/99/0");
   });
 
   it("handles string maxWeight (N/A for proposer)", () => {
@@ -112,6 +112,8 @@ describe("buildDecodedVotesCsv", () => {
 
   it("returns header only for empty votes array", () => {
     const csv = buildDecodedVotesCsv([]);
-    expect(csv).toBe("Address,Vote,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)");
+    expect(csv).toBe(
+      "Address,Vote,Weight,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)",
+    );
   });
 });

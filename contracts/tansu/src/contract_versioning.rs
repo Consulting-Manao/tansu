@@ -2,7 +2,10 @@
 
 use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, panic_with_error, token};
 
-use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events, types};
+use crate::{
+    MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors, events,
+    types::{self, DEFAULT_FINALITY_THRESHOLD_PERCENT},
+};
 
 const MAX_PROJECTS_PER_PAGE: u32 = 10;
 const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
@@ -11,6 +14,8 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 /// Older entries roll off once this is exceeded; the full history stays
 /// recoverable from `EvidenceSet` events via an indexer.
 const MAX_EVIDENCE: u32 = 10;
+const MAX_ATTESTATIONS: u32 = 25;
+const MAX_MAINTAINERS: u32 = MAX_ATTESTATIONS;
 
 /// Length of a hex-encoded SHA-1 Git object name (Git's current default).
 const GIT_SHA1_HEX_LENGTH: u32 = 40;
@@ -46,6 +51,9 @@ impl VersioningTrait for Tansu {
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
     /// * `min_voting_period` - Optional minimum voting period override, in seconds
     /// * `execute_delay` - Optional DAO execute timelock override, in seconds
+    /// * `attestation_threshold` - Optional finality threshold percent; when
+    ///   `None` the project is set to `DEFAULT_FINALITY_THRESHOLD_PERCENT`. Can
+    ///   be changed later with `set_attestation_threshold`.
     ///
     /// # Returns
     /// * `Bytes` - The project key (keccak256 hash of the name)
@@ -56,6 +64,8 @@ impl VersioningTrait for Tansu {
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
     /// * If an override is zero or exceeds `MAX_VOTING_PERIOD`
+    /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
+    /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn register(
         env: Env,
         maintainer: Address,
@@ -65,6 +75,7 @@ impl VersioningTrait for Tansu {
         ipfs: String,
         min_voting_period: Option<u64>,
         execute_delay: Option<u64>,
+        attestation_threshold: Option<u32>,
     ) -> Bytes {
         Tansu::require_not_paused(env.clone());
 
@@ -108,6 +119,8 @@ impl VersioningTrait for Tansu {
             if !project.maintainers.contains(&maintainer) {
                 panic_with_error!(&env, &errors::ContractErrors::UnauthorizedSigner);
             }
+
+            validate_maintainers(&env, &project.maintainers);
 
             let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
             let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
@@ -159,6 +172,8 @@ impl VersioningTrait for Tansu {
                     .set(&types::ProjectKey::ExecuteDelay(key.clone()), &v);
             }
 
+            set_attestation_threshold(&env, &key, attestation_threshold);
+
             events::ProjectRegistered {
                 project_key: key.clone(),
                 name,
@@ -189,11 +204,15 @@ impl VersioningTrait for Tansu {
     /// * `ipfs` - New CID of the tansu.toml file with metadata
     /// * `min_voting_period` - Optional new minimum voting period, in seconds
     /// * `execute_delay` - Optional new DAO execute timelock, in seconds
+    /// * `attestation_threshold` - Optional new finality threshold percent;
+    ///   when `None` the project's current threshold is left unchanged
     ///
     /// # Panics
     /// * If the project doesn't exist
     /// * If the maintainer is not authorized
     /// * If a governance value is zero or exceeds `MAX_VOTING_PERIOD`
+    /// * If `maintainers` is empty, longer than `MAX_MAINTAINERS`, or contains duplicates
+    /// * If `attestation_threshold` is outside `MIN_FINALITY_THRESHOLD_PERCENT..=100`
     fn update_config(
         env: Env,
         maintainer: Address,
@@ -203,6 +222,7 @@ impl VersioningTrait for Tansu {
         ipfs: String,
         min_voting_period: Option<u64>,
         execute_delay: Option<u64>,
+        attestation_threshold: Option<u32>,
     ) {
         Tansu::require_not_paused(env.clone());
 
@@ -210,9 +230,7 @@ impl VersioningTrait for Tansu {
 
         let mut project = crate::auth_maintainers(&env, &maintainer, &key);
 
-        if maintainers.is_empty() {
-            panic_with_error!(&env, &errors::ContractErrors::MissingMaintainer);
-        }
+        validate_maintainers(&env, &maintainers);
 
         for v in [min_voting_period, execute_delay].iter().flatten() {
             if *v == 0 || *v > crate::contract_dao::MAX_VOTING_PERIOD {
@@ -224,6 +242,10 @@ impl VersioningTrait for Tansu {
         project.config = config;
         project.maintainers = maintainers;
         env.storage().persistent().set(&key_, &project);
+
+        if attestation_threshold.is_some() {
+            set_attestation_threshold(&env, &key, attestation_threshold);
+        }
 
         events::ProjectConfigUpdated {
             project_key: key.clone(),
@@ -546,4 +568,464 @@ impl VersioningTrait for Tansu {
         }
         .publish(&env);
     }
+
+    /// Set the attestation finality threshold (percent) for a project.
+    ///
+    /// A commit is considered final once the share of current maintainers that
+    /// have attested it reaches this percentage. Every project defaults to
+    /// `DEFAULT_FINALITY_THRESHOLD_PERCENT` until its maintainers set a value here.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - The address of the maintainer calling this function
+    /// * `project_key` - The project key identifier
+    /// * `percent` - The threshold percent (in `MIN_FINALITY_THRESHOLD_PERCENT..=100`)
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the maintainer is not authorized
+    /// * If `percent` is below `MIN_FINALITY_THRESHOLD_PERCENT` or above 100
+    fn set_attestation_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        attestation_threshold: Option<u32>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        set_attestation_threshold(&env, &project_key, attestation_threshold);
+    }
+
+    /// Get the attestation finality threshold (percent) for a project.
+    ///
+    /// Returns the project's stored threshold, or `DEFAULT_FINALITY_THRESHOLD_PERCENT`
+    /// when the project has not set one.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    ///
+    /// # Returns
+    /// * `u32` - The finality threshold percent for the project
+    fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32 {
+        let key = types::ProjectKey::AttestationFinalityThreshold(project_key);
+
+        match env.storage().persistent().get::<_, u32>(&key) {
+            Some(percent) => percent,
+            None => DEFAULT_FINALITY_THRESHOLD_PERCENT,
+        }
+    }
+
+    /// Compute whether an attestation target is final (canonical), on-chain.
+    ///
+    /// A target is final once the share of the project's *current* maintainers
+    /// that have attested it reaches the project's finality threshold. The target
+    /// is either the commit itself (`Commit`) or a specific evidence artifact
+    /// (`Evidence(kind, cid)`) tied to that commit. Attestations from addresses
+    /// that are no longer maintainers are ignored, so a removed maintainer's stale
+    /// vouch cannot inflate the count.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash being evaluated
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Returns
+    /// * `types::FinalityStatus` - `{ attested, total, is_final }`
+    ///
+    /// # Panics
+    /// * If the project doesn't exist
+    fn get_attestation_finality(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> types::FinalityStatus {
+        let project = Self::get_project(env.clone(), project_key.clone());
+
+        let total = project.maintainers.len();
+
+        let attestations = Self::get_attestations(
+            env.clone(),
+            project_key.clone(),
+            commit_hash.clone(),
+            target.clone(),
+        );
+
+        let mut attested: u32 = 0;
+
+        for attestation in attestations.iter() {
+            if project.maintainers.contains(&attestation.attester) {
+                attested += 1;
+            }
+        }
+
+        let threshold = Self::get_attestation_threshold(env.clone(), project_key.clone());
+
+        let finalized_at =
+            env.storage()
+                .persistent()
+                .get::<types::ProjectKey, u64>(&finalized_key(
+                    &env,
+                    &project_key,
+                    &commit_hash,
+                    &target,
+                ));
+
+        let is_final = finalized_at.is_some() || (total > 0 && attested * 100 >= threshold * total);
+
+        types::FinalityStatus {
+            attested,
+            total,
+            is_final,
+            finalized_at,
+        }
+    }
+
+    /// Record an endorsement (attestation) of a commit or evidence artifact.
+    ///
+    /// A multi-party primitive: independent maintainers vouch that they verified the
+    /// target. Each maintainer may attest a given target at most once — a second
+    /// call from the same attester is rejected rather than replacing the first, so
+    /// an attestation is never silently rewritten. Revoking one is an explicit,
+    /// separately evented action: see `revoke_attestation`. At most
+    /// `MAX_ATTESTATIONS` are kept on-chain; at capacity, vouches from addresses
+    /// that are no longer maintainers are pruned, and the call is rejected if
+    /// that does not free a slot. Current maintainers' vouches are never evicted.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `attester` - The maintainer recording the attestation
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash being endorsed
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    /// * `note` - Optional pointer (e.g. a reproducibility report CID)
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the attester is not a maintainer
+    /// * If `commit_hash` is empty, or the target is `Evidence` with an empty CID
+    /// * If the attester has already attested this target
+    /// * If the target is at `MAX_ATTESTATIONS` and no stale entry can be pruned
+    fn attest(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+        note: Option<String>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        let project = crate::auth_maintainers(&env, &attester, &project_key);
+
+        if commit_hash.is_empty() {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        if let types::AttestationTarget::Evidence(_, cid) = &target
+            && cid.is_empty()
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        let weight = <Tansu as MembershipTrait>::get_max_weight(
+            env.clone(),
+            project_key.clone(),
+            attester.clone(),
+        );
+
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
+
+        let storage = env.storage().persistent();
+
+        let mut attestations: Vec<types::Attestation> =
+            storage.get(&key).unwrap_or_else(|| Vec::new(&env));
+
+        let attestation = types::Attestation {
+            attester: attester.clone(),
+            weight,
+            created_at: env.ledger().timestamp(),
+            note,
+        };
+
+        if attestations.iter().any(|a| a.attester == attester) {
+            panic_with_error!(&env, &errors::ContractErrors::AlreadyAttested);
+        }
+
+        if attestations.len() >= MAX_ATTESTATIONS {
+            let mut retained: Vec<types::Attestation> = Vec::new(&env);
+
+            for existing in attestations.iter() {
+                if project.maintainers.contains(&existing.attester) {
+                    retained.push_back(existing);
+                }
+            }
+
+            attestations = retained;
+        }
+
+        if attestations.len() >= MAX_ATTESTATIONS {
+            panic_with_error!(&env, &errors::ContractErrors::TooManyAttestations);
+        }
+
+        attestations.push_back(attestation);
+
+        storage.set(&key, &attestations);
+
+        mark_finalized(&env, &project_key, &commit_hash, &target);
+
+        events::Attested {
+            project_key,
+            commit_hash,
+            target,
+            attester,
+            weight,
+        }
+        .publish(&env);
+    }
+
+    /// Revoke the caller's own attestation from a target.
+    ///
+    /// Only the attester can remove their vouch, and only their own: a maintainer
+    /// cannot strike another's. Revocation is bounded twice over, so a vouch that
+    /// others have already relied on cannot be pulled out from under them:
+    ///
+    /// 1. **Not once the target is final.** Finality is recorded the first time a
+    ///    target reaches its threshold and is never cleared, so raising the
+    ///    threshold or growing the maintainer set cannot re-open withdrawal.
+    /// 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
+    ///    `created_at`. Past that the vouch is permanent.
+    ///
+    /// Within those bounds, revoking frees the slot and the caller may attest the
+    /// target again with a fresh `created_at` — revoke plus re-attest is the
+    /// supported way to amend a `note` or correct a mistaken vouch. The
+    /// `Attested` / `AttestationRevoked` event pair is the durable audit trail.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `attester` - The maintainer revoking their attestation
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash the attestation relates to
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Panics
+    /// * If the contract is paused
+    /// * If the project doesn't exist or the attester is not a maintainer
+    /// * If the attester has no attestation on this target
+    /// * If the target has already reached finality
+    /// * If the revocation window has closed
+    fn revoke_attestation(
+        env: Env,
+        attester: Address,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) {
+        Tansu::require_not_paused(env.clone());
+
+        attester.require_auth();
+
+        if commit_hash.is_empty() {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        if let types::AttestationTarget::Evidence(_, cid) = &target
+            && cid.is_empty()
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
+        }
+
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
+        let storage = env.storage().persistent();
+
+        let mut attestations: Vec<types::Attestation> =
+            storage.get(&key).unwrap_or_else(|| Vec::new(&env));
+
+        let index = match attestations.iter().position(|a| a.attester == attester) {
+            Some(index) => index as u32,
+            None => panic_with_error!(&env, &errors::ContractErrors::AttestationNotFound),
+        };
+
+        let finality = Self::get_attestation_finality(
+            env.clone(),
+            project_key.clone(),
+            commit_hash.clone(),
+            target.clone(),
+        );
+
+        if finality.is_final {
+            panic_with_error!(&env, &errors::ContractErrors::AttestationFinalized);
+        }
+
+        let created_at = attestations.get(index).unwrap().created_at;
+        let expires_at = created_at.saturating_add(types::ATTESTATION_REVOCATION_WINDOW);
+
+        if env.ledger().timestamp() > expires_at {
+            panic_with_error!(&env, &errors::ContractErrors::AttestationRevocationExpired);
+        }
+
+        attestations.remove(index);
+
+        if attestations.is_empty() {
+            storage.remove(&key);
+        } else {
+            storage.set(&key, &attestations);
+        }
+
+        events::AttestationRevoked {
+            project_key,
+            commit_hash,
+            target,
+            attester,
+        }
+        .publish(&env);
+    }
+
+    /// Get the attestations recorded for a project's commit or evidence target.
+    ///
+    /// Entries are returned oldest-first (the last element is the most recent) and
+    /// hold at most one entry per attester, capped at `MAX_ATTESTATIONS`. The full
+    /// history stays recoverable from `Attested` events via an indexer.
+    /// Returns an empty vector when nothing has been attested for the target.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `commit_hash` - The commit hash the attestations relate to
+    /// * `target` - The attestation target: the commit or a specific evidence artifact
+    ///
+    /// # Returns
+    /// * `Vec<types::Attestation>` - The stored attestations, oldest-first
+    fn get_attestations(
+        env: Env,
+        project_key: Bytes,
+        commit_hash: String,
+        target: types::AttestationTarget,
+    ) -> Vec<types::Attestation> {
+        let key = attestation_key(&env, &project_key, &commit_hash, &target);
+
+        match env.storage().persistent().get(&key) {
+            Some(attestations) => attestations,
+            None => Vec::new(&env),
+        }
+    }
+}
+
+pub(crate) fn attestation_key(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) -> types::ProjectKey {
+    let mut buf = Bytes::new(env);
+
+    let project_key_len = project_key.len();
+
+    buf.extend_from_array(&project_key_len.to_be_bytes());
+    buf.append(project_key);
+
+    let commit_bytes: Bytes = commit_hash.clone().into();
+
+    buf.extend_from_array(&commit_bytes.len().to_be_bytes());
+    buf.append(&commit_bytes);
+
+    match target {
+        types::AttestationTarget::Commit => buf.extend_from_array(&[0u8]),
+        types::AttestationTarget::Evidence(kind, cid) => {
+            buf.extend_from_array(&[1u8]);
+
+            let kind_tag: u8 = match kind {
+                types::EvidenceKind::Sbom => 0,
+                types::EvidenceKind::Cve => 1,
+                types::EvidenceKind::Attestation => 2,
+            };
+
+            buf.extend_from_array(&[kind_tag]);
+
+            let cid_bytes: Bytes = cid.clone().into();
+
+            buf.extend_from_array(&cid_bytes.len().to_be_bytes());
+            buf.append(&cid_bytes);
+        }
+    }
+
+    types::ProjectKey::Attestation(env.crypto().keccak256(&buf).into())
+}
+
+pub(crate) fn finalized_key(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) -> types::ProjectKey {
+    match attestation_key(env, project_key, commit_hash, target) {
+        types::ProjectKey::Attestation(digest) => types::ProjectKey::AttestationFinalized(digest),
+        _ => unreachable!(),
+    }
+}
+
+fn mark_finalized(
+    env: &Env,
+    project_key: &Bytes,
+    commit_hash: &String,
+    target: &types::AttestationTarget,
+) {
+    let key = finalized_key(env, project_key, commit_hash, target);
+
+    if env.storage().persistent().has(&key) {
+        return;
+    }
+
+    let status = <Tansu as VersioningTrait>::get_attestation_finality(
+        env.clone(),
+        project_key.clone(),
+        commit_hash.clone(),
+        target.clone(),
+    );
+
+    if status.is_final {
+        env.storage()
+            .persistent()
+            .set(&key, &env.ledger().timestamp());
+    }
+}
+
+fn validate_maintainers(env: &Env, maintainers: &Vec<Address>) {
+    if maintainers.is_empty() {
+        panic_with_error!(env, &errors::ContractErrors::MissingMaintainer);
+    }
+
+    if maintainers.len() > MAX_MAINTAINERS {
+        panic_with_error!(env, &errors::ContractErrors::TooManyMaintainers);
+    }
+
+    for (index, maintainer) in maintainers.iter().enumerate() {
+        for other in maintainers.iter().skip(index + 1) {
+            if maintainer == other {
+                panic_with_error!(env, &errors::ContractErrors::DuplicateMaintainer);
+            }
+        }
+    }
+}
+
+fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
+    let percent = percent.unwrap_or(DEFAULT_FINALITY_THRESHOLD_PERCENT);
+
+    if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
+        panic_with_error!(&env, &errors::ContractErrors::InvalidAttestationThreshold);
+    }
+
+    let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
+
+    env.storage().persistent().set(&key, &percent);
+
+    events::AttestationThresholdSet {
+        project_key: project_key.clone(),
+        percent,
+    }
+    .publish(env);
 }

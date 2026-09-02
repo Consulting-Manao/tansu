@@ -38,6 +38,26 @@ const GATEWAYS: ReadonlyArray<{
 const CACHE_KEY_PREFIX = "ipfs:v4:"; // Updated version prefix
 const DEFAULT_IPFS_TIMEOUT_MS = 10000;
 const PER_ATTEMPT_MS = 3000;
+const MAX_CACHE_ENTRIES = 200;
+
+/**
+ * Insert into a cache record, evicting the oldest entries (FIFO) once the
+ * bucket exceeds `max` so long-lived sessions do not leak unbounded memory.
+ */
+function setCapped(
+  record: Record<string, unknown>,
+  key: string,
+  value: unknown,
+  max: number = MAX_CACHE_ENTRIES,
+): void {
+  record[key] = value;
+  const keys = Object.keys(record);
+  if (keys.length > max) {
+    for (let i = 0; i < keys.length - max; i++) {
+      delete record[keys[i]!];
+    }
+  }
+}
 
 export type FetchFromIpfsOptions = {
   timeoutMs?: number;
@@ -114,7 +134,7 @@ export async function fetchFromIpfs(
         lastError = bodyErr;
         continue;
       }
-      cache.responses[key] = res.clone();
+      setCapped(cache.responses, key, res.clone());
       return res;
     } catch (err) {
       lastError = err;
@@ -160,7 +180,7 @@ export async function fetchJsonFromIpfs(
     const res = await fetchFromIpfs(cid, pathNorm, options);
     if (!res.ok) return null;
     const data = await res.json();
-    cache.json[key] = data;
+    setCapped(cache.json, key, data);
     return data;
   } catch {
     return null;
@@ -195,7 +215,7 @@ export async function fetchTomlFromIpfs(
     ) {
       return undefined;
     }
-    cache.toml[cid] = data;
+    setCapped(cache.toml, cid, data);
     return data;
   } catch {
     return undefined;

@@ -153,9 +153,16 @@ fn scf_voting() {
     let url = String::from_str(&setup.env, "github.com/tansu");
     let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
     let maintainers = vec![&setup.env, setup.grogu.clone(), setup.mando.clone()];
-    let id = setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(
@@ -1436,6 +1443,7 @@ fn min_voting_period_override_applies_to_create_proposal() {
         &ipfs,
         &Some(seven_days),
         &None,
+        &None,
     );
 
     let title = String::from_str(&setup.env, "Some proposal title");
@@ -1499,6 +1507,7 @@ fn execute_delay_override_applies_to_execute() {
         &ipfs,
         &None,
         &Some(fast_delay),
+        &None,
     );
 
     let title = String::from_str(&setup.env, "Some proposal title");
@@ -1568,9 +1577,16 @@ fn update_config_min_voting_period_applies_to_new_proposals() {
     setup.token_stellar.mint(&setup.grogu, &genesis_amount);
     setup.token_stellar.mint(&setup.mando, &genesis_amount);
 
-    let id = setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let seven_days = 7 * 24 * 3600u64;
     setup.contract.update_config(
@@ -1580,6 +1596,7 @@ fn update_config_min_voting_period_applies_to_new_proposals() {
         &url,
         &ipfs,
         &Some(seven_days),
+        &None,
         &None,
     );
 
@@ -1615,6 +1632,7 @@ fn update_config_min_voting_period_applies_to_new_proposals() {
         &url,
         &ipfs,
         &Some(24 * 3600u64),
+        &None,
         &None,
     );
     let err = setup
@@ -1675,6 +1693,7 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
         &ipfs,
         &None,
         &Some(fast_delay),
+        &None,
     );
 
     let title = String::from_str(&setup.env, "Some proposal title");
@@ -1704,6 +1723,7 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
         &ipfs,
         &None,
         &Some(seven_days),
+        &None,
     );
     let proposal_b = setup.contract.create_proposal(
         &setup.grogu,
@@ -1765,9 +1785,16 @@ fn execute_delay_loosening_waits_out_notice() {
     setup.token_stellar.mint(&setup.grogu, &genesis_amount);
     setup.token_stellar.mint(&setup.mando, &genesis_amount);
 
-    let id = setup
-        .contract
-        .register(&setup.grogu, &name, &maintainers, &url, &ipfs, &None, &None);
+    let id = setup.contract.register(
+        &setup.grogu,
+        &name,
+        &maintainers,
+        &url,
+        &ipfs,
+        &None,
+        &None,
+        &None,
+    );
 
     let t0 = setup.env.ledger().timestamp();
     let fast_delay = 60u64;
@@ -1779,6 +1806,7 @@ fn execute_delay_loosening_waits_out_notice() {
         &ipfs,
         &None,
         &Some(fast_delay),
+        &None,
     );
 
     let title = String::from_str(&setup.env, "Some proposal title");

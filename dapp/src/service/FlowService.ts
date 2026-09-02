@@ -58,8 +58,7 @@ interface CreateProjectFlowParams {
   executeDelay?: bigint;
 }
 
-// Side-effect: patch Spec for OutcomeContract.args (Vec<Val>) encode/decode.
-import "./stellarSpecPatches";
+// Note: stellarSpecPatches removed - SDK v17 handles scSpecTypeVal correctly.
 
 /**
  * Create and sign a proposal transaction

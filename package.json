@@ -4,7 +4,7 @@
     "prettier-plugin-astro": "^0.14.1"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "^16.2.0"
+    "@stellar/stellar-sdk": "^17.0.1"
   },
   "overrides": {
     "axios": "^1.19.0"

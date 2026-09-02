@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  envPrefix: "PUBLIC_",
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],

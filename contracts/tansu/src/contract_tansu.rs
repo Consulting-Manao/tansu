@@ -1,5 +1,7 @@
 use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, events, types, validate_contract};
-use soroban_sdk::{Address, Bytes, BytesN, Env, String, contractimpl, panic_with_error, vec};
+use soroban_sdk::{
+    Address, Bytes, BytesN, ContractExecutable, Env, String, contractimpl, panic_with_error, vec,
+};
 
 #[contractimpl]
 impl TansuTrait for Tansu {
@@ -295,7 +297,9 @@ impl TansuTrait for Tansu {
 
             // Update WASM and send a SYSTEM event
             env.deployer()
-                .update_current_contract_wasm(upgrade_proposal.wasm_hash.clone());
+                .update_current_contract(ContractExecutable::Wasm(
+                    upgrade_proposal.wasm_hash.clone(),
+                ));
 
             events::UpgradeStatus {
                 admin,

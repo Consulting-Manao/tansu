@@ -87,7 +87,7 @@ export function capitalizeFirstLetter(str: string): string {
 
 export const processDecodedData = (xdrData: string): any => {
   try {
-    return StellarSdk.TransactionBuilder.fromXDR(
+    return StellarSdk.TransactionBuilder.fromXdr(
       xdrData,
       import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     );

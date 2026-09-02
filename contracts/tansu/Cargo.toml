@@ -1,6 +1,6 @@
 [package]
 name = "tansu"
-version = "2.0.2"
+version = "2.1.0"
 edition.workspace = true
 publish = false
 
@@ -12,6 +12,6 @@ doctest = false
 soroban-sdk = { workspace = true }
 
 [dev-dependencies]
-soroban-sdk = { workspace = true, features = ["testutils", "experimental_spec_shaking_v2"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }
 ed25519-dalek = "3.0.0"
 sha2 = "0.11"
