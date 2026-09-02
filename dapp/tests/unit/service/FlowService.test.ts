@@ -117,4 +117,31 @@ describe("FlowService repository URL persistence", () => {
       ipfs: "bafy-test-cid",
     });
   });
+
+  it("forwards the attestation threshold when registering a project", async () => {
+    await createProjectFlow({
+      projectName: "example",
+      tomlFile: createTomlFile(),
+      githubRepoUrl: "https://github.com/group/project",
+      maintainers: ["GMAINTAINER"],
+      attestationThreshold: 75,
+    });
+
+    expect(registerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ attestation_threshold: 75 }),
+    );
+  });
+
+  it("forwards the attestation threshold when updating project config", async () => {
+    await updateConfigFlow({
+      tomlFile: createTomlFile(),
+      githubRepoUrl: "https://github.com/group/project",
+      maintainers: ["GMAINTAINER"],
+      attestationThreshold: 80,
+    });
+
+    expect(updateConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({ attestation_threshold: 80 }),
+    );
+  });
 });

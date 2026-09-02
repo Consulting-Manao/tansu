@@ -108,6 +108,12 @@ const AttestationCard = ({
 
   const maintainerSet = new Set(maintainers);
 
+  const hasCounts =
+    !!finality &&
+    Number.isFinite(finality.attested) &&
+    Number.isFinite(finality.total) &&
+    finality.total > 0;
+
   const afterChange = async () => {
     await load();
     onChanged?.();
@@ -150,9 +156,14 @@ const AttestationCard = ({
       className={`flex items-center justify-center text-xs font-bold rounded-sm px-1.5 py-0.5 whitespace-nowrap ${
         isFinal ? "bg-green-100 text-green-700" : "bg-zinc-200 text-secondary"
       }`}
-      title={`${finality.attested} of ${finality.total} maintainers attested`}
+      title={
+        hasCounts
+          ? `${finality.attested} of ${finality.total} maintainers attested`
+          : `${attestations.length} attested`
+      }
     >
-      {finality.percent}% attested{isFinal ? " · Final" : ""}
+      {hasCounts ? `${finality.percent}%` : attestations.length} attested
+      {isFinal ? " · Final" : ""}
     </span>
   ) : null;
 
@@ -162,14 +173,17 @@ const AttestationCard = ({
 
     if (canAttest) {
       return (
-        <button
-          onClick={handleAttest}
-          disabled={isAttesting}
-          className="text-xs font-medium px-1.5 py-0.5 rounded-sm border border-zinc-300 text-primary hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
-          title="Attest this target"
-        >
-          {isAttesting ? "Attesting…" : "Attest"}
-        </button>
+        <div className="flex items-center gap-1">
+          {badge}
+          <button
+            onClick={handleAttest}
+            disabled={isAttesting}
+            className="text-xs font-medium px-1.5 py-0.5 rounded-sm border border-zinc-300 text-primary hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+            title="Attest this target"
+          >
+            {isAttesting ? "Attesting…" : "Attest"}
+          </button>
+        </div>
       );
     }
 
@@ -209,9 +223,11 @@ const AttestationCard = ({
             {!isLoading && finality && (
               <div className="flex items-center gap-3">
                 {badge}
-                <span className="text-xs text-tertiary">
-                  {finality.attested} of {finality.total} maintainers
-                </span>
+                {hasCounts && (
+                  <span className="text-xs text-tertiary">
+                    {finality.attested} of {finality.total} maintainers
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -281,21 +297,26 @@ const AttestationCard = ({
       {!isLoading && (
         <div className="flex flex-col gap-1">
           {attestations.length > 0 ? (
-            attestations.map((a) => (
-              <div key={a.attester} className="flex items-center gap-2">
-                <span className="text-sm text-primary font-mono">
-                  {truncateMiddle(a.attester, 12)}
-                </span>
-                {maintainerSet.has(a.attester) && (
-                  <span className="text-xs font-medium bg-zinc-200 text-zinc-700 px-1 rounded-sm">
-                    maintainer
+            <>
+              <p className="text-sm font-semibold text-primary">
+                Attested by ({attestations.length})
+              </p>
+              {attestations.map((a) => (
+                <div key={a.attester} className="flex items-center gap-2">
+                  <span className="text-sm text-primary font-mono">
+                    {truncateMiddle(a.attester, 12)}
                   </span>
-                )}
-                {a.attester === connectedPublicKey && (
-                  <span className="text-xs text-tertiary">(you)</span>
-                )}
-              </div>
-            ))
+                  {maintainerSet.has(a.attester) && (
+                    <span className="text-xs font-medium bg-zinc-200 text-zinc-700 px-1 rounded-sm">
+                      maintainer
+                    </span>
+                  )}
+                  {a.attester === connectedPublicKey && (
+                    <span className="text-xs text-tertiary">(you)</span>
+                  )}
+                </div>
+              ))}
+            </>
           ) : (
             <p className="text-sm text-tertiary">No attestations yet.</p>
           )}

@@ -56,6 +56,8 @@ interface CreateProjectFlowParams {
   // defaults. A short minVotingPeriod is handy for demoing governance.
   minVotingPeriod?: bigint;
   executeDelay?: bigint;
+  // Finality threshold percent; `undefined` => contract default.
+  attestationThreshold?: number;
 }
 
 // Note: stellarSpecPatches removed - SDK v17 handles scSpecTypeVal correctly.
@@ -341,6 +343,7 @@ export async function createProjectFlow({
   additionalFiles,
   minVotingPeriod,
   executeDelay,
+  attestationThreshold,
 }: CreateProjectFlowParams): Promise<boolean> {
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
@@ -364,9 +367,8 @@ export async function createProjectFlow({
     ipfs: cid,
     min_voting_period: minVotingPeriod,
     execute_delay: executeDelay,
-    // Threshold is set from the project config form; the contract applies
-    // DEFAULT_FINALITY_THRESHOLD_PERCENT when omitted at registration.
-    attestation_threshold: undefined,
+    // The contract applies DEFAULT_FINALITY_THRESHOLD_PERCENT when omitted.
+    attestation_threshold: attestationThreshold,
   });
 
   // Check for simulation errors (contract errors) before signing
@@ -474,6 +476,7 @@ export async function updateConfigFlow({
     cid,
     minVotingPeriod,
     executeDelay,
+    attestationThreshold,
   );
 
   // Step 3 – upload
