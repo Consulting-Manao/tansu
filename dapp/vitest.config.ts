@@ -18,6 +18,8 @@ export default defineConfig({
       contracts: path.resolve(__dirname, "src/contracts"),
       schemas: path.resolve(__dirname, "src/schemas"),
       components: path.resolve(__dirname, "src/components"),
+      service: path.resolve(__dirname, "src/service"),
+      data: path.resolve(__dirname, "src/data"),
     },
   },
 });

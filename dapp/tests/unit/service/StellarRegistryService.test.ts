@@ -7,7 +7,10 @@ function createJsonResponse(body: unknown, status: number = 200): Response {
   });
 }
 
-const REGISTRY_PROXY_CONTRACTS_ENDPOINT = "/api/registry/contracts";
+const UPSTREAM_CONTRACTS_URL = "https://stellar.rgstry.xyz/api/v1/contracts";
+const CORS_PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(
+  UPSTREAM_CONTRACTS_URL,
+)}`;
 
 const RAW_CONTRACTS = [
   {
@@ -76,7 +79,30 @@ describe("StellarRegistryService", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lists contracts and maps the raw snake_case payload to camelCase", async () => {
+  it("maps the raw snake_case payload to camelCase", async () => {
+    const { mapRawRegistryContract } = await loadService();
+    expect(mapRawRegistryContract(RAW_CONTRACTS[0]!)).toEqual(EXPECTED_TANSU);
+    expect(mapRawRegistryContract(RAW_CONTRACTS[1]!)).toEqual(EXPECTED_USDC);
+  });
+
+  it("serves the bundled snapshot when the registry is unreachable", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { listContracts } = await loadService();
+    const contracts = await listContracts();
+
+    // The snapshot mirrors the mainnet indexer: 200 contracts, tansu included.
+    expect(contracts.length).toBe(200);
+    expect(contracts.some((c) => c.contractName === "tansu")).toBe(true);
+
+    // The best-effort refresh still went through the CORS proxy.
+    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(CORS_PROXY_URL);
+    expect(fetchMock.mock.calls[0]?.[1]).toHaveProperty("signal");
+  });
+
+  it("refreshes the snapshot with the live list through the CORS proxy", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(createJsonResponse({ result: RAW_CONTRACTS }));
@@ -84,43 +110,37 @@ describe("StellarRegistryService", () => {
 
     const { listContracts } = await loadService();
 
-    await expect(listContracts()).resolves.toEqual([
-      EXPECTED_TANSU,
-      EXPECTED_USDC,
-      {
-        contractName: "router",
-        contractId: "CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH",
-        channel: "soroswap",
-        deployer: null,
-        wasmName: "soroswap-router",
-        wasmVersion: null,
-        isStellarAssetContract: false,
+    // First call returns the snapshot immediately (no network wait).
+    const first = await listContracts();
+    expect(first.length).toBe(200);
+
+    // Once the background refresh lands, the cache serves the live list.
+    await vi.waitFor(
+      async () => {
+        const refreshed = await listContracts();
+        expect(refreshed).toEqual([
+          EXPECTED_TANSU,
+          EXPECTED_USDC,
+          {
+            contractName: "router",
+            contractId:
+              "CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH",
+            channel: "soroswap",
+            deployer: null,
+            wasmName: "soroswap-router",
+            wasmVersion: null,
+            isStellarAssetContract: false,
+          },
+        ]);
       },
-    ]);
+      { timeout: 2000 },
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `${REGISTRY_PROXY_CONTRACTS_ENDPOINT}?network=mainnet`,
-    );
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(CORS_PROXY_URL);
   });
 
-  it("passes the requested network through to the proxy", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementation(() => createJsonResponse({ result: RAW_CONTRACTS }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { listContracts } = await loadService();
-
-    await listContracts("testnet");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `${REGISTRY_PROXY_CONTRACTS_ENDPOINT}?network=testnet`,
-    );
-  });
-
-  it("caches the contracts list and only fetches once within the TTL", async () => {
+  it("does not re-fetch while the cache is still fresh", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(createJsonResponse({ result: RAW_CONTRACTS }));
@@ -129,120 +149,91 @@ describe("StellarRegistryService", () => {
     const { listContracts } = await loadService();
 
     await listContracts();
-    await listContracts();
-    await listContracts();
+    await vi.waitFor(
+      async () => {
+        const refreshed = await listContracts();
+        expect(refreshed).toHaveLength(3);
+      },
+      { timeout: 2000 },
+    );
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const callsAfterRefresh = fetchMock.mock.calls.length;
+    await listContracts();
+    expect(fetchMock.mock.calls.length).toBe(callsAfterRefresh);
   });
 
-  it("refetches after the cache is invalidated", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementation(() => createJsonResponse({ result: RAW_CONTRACTS }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { listContracts, invalidateRegistryCache } = await loadService();
-
-    await listContracts();
-    invalidateRegistryCache();
-    await listContracts();
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("searches client-side, matching names case-insensitively", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse({ result: RAW_CONTRACTS }));
+  it("searches contract names case-insensitively and trims the query", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
 
     const { searchContracts } = await loadService();
 
     await expect(searchContracts("TANSU")).resolves.toEqual([EXPECTED_TANSU]);
     await expect(searchContracts("tans")).resolves.toEqual([EXPECTED_TANSU]);
-    await expect(searchContracts("  usdc  ")).resolves.toEqual([EXPECTED_USDC]);
+
+    // "usdc" is a substring of several registered names (usdc-vault, abusdc,
+    // yusdc, ...) so the search returns all of them, usdc itself included.
+    const usdcMatches = await searchContracts("  usdc  ");
+    expect(usdcMatches).toContainEqual(EXPECTED_USDC);
+    expect(usdcMatches.length).toBeGreaterThan(1);
   });
 
   it("matches wasm names and channels too, not only contract names", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse({ result: RAW_CONTRACTS }));
-    vi.stubGlobal("fetch", fetchMock);
+    const { filterContracts } = await loadService();
 
-    const { searchContracts } = await loadService();
-
-    const byWasm = await searchContracts("soroswap-router");
+    const byWasm = filterContracts(
+      RAW_CONTRACTS.map((raw) => ({
+        contractName: raw.contract_name,
+        contractId: raw.contract_id,
+        channel: raw.channel,
+        deployer: raw.deployer,
+        wasmName: raw.wasm_name,
+        wasmVersion: raw.wasm_version,
+        isStellarAssetContract: raw.is_stellar_asset_contract,
+      })),
+      "soroswap-router",
+    );
     expect(byWasm).toHaveLength(1);
     expect(byWasm[0]?.contractName).toBe("router");
 
-    const byChannel = await searchContracts("circle");
+    const byChannel = filterContracts(
+      RAW_CONTRACTS.map((raw) => ({
+        contractName: raw.contract_name,
+        contractId: raw.contract_id,
+        channel: raw.channel,
+        deployer: raw.deployer,
+        wasmName: raw.wasm_name,
+        wasmVersion: raw.wasm_version,
+        isStellarAssetContract: raw.is_stellar_asset_contract,
+      })),
+      "circle",
+    );
     expect(byChannel).toHaveLength(1);
     expect(byChannel[0]?.contractName).toBe("usdc");
   });
 
   it("returns the whole list for an empty or blank query", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse({ result: RAW_CONTRACTS }));
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
 
     const { searchContracts } = await loadService();
 
-    await expect(searchContracts("")).resolves.toHaveLength(3);
-    await expect(searchContracts("   ")).resolves.toHaveLength(3);
+    await expect(searchContracts("")).resolves.toHaveLength(200);
+    await expect(searchContracts("   ")).resolves.toHaveLength(200);
   });
 
-  it("propagates request failures so callers can show an error", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse({ error: "boom" }, 502));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { searchContracts } = await loadService();
-
-    await expect(searchContracts("tansu")).rejects.toThrow(
-      "Stellar Registry request failed with status 502",
-    );
-
-    // 5xx responses are retried (1 initial + 2 retries) before giving up.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("resolves a single contract by its exact name", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse(RAW_CONTRACTS[0]));
+  it("resolves a single contract by its exact registered name", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
 
     const { getContractByName } = await loadService();
 
     await expect(getContractByName("tansu")).resolves.toEqual(EXPECTED_TANSU);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `${REGISTRY_PROXY_CONTRACTS_ENDPOINT}/tansu?network=mainnet`,
-    );
+    await expect(getContractByName("TANSU")).resolves.toEqual(EXPECTED_TANSU);
   });
 
-  it("URL-encodes the contract name when resolving", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse(RAW_CONTRACTS[0]));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { getContractByName } = await loadService();
-
-    await getContractByName("pool factory v2");
-
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `${REGISTRY_PROXY_CONTRACTS_ENDPOINT}/pool%20factory%20v2?network=mainnet`,
-    );
-  });
-
-  it("returns null for unregistered names (404)", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(createJsonResponse({ error: "not found" }, 404));
+  it("returns null for unregistered names", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
 
     const { getContractByName } = await loadService();
@@ -251,7 +242,7 @@ describe("StellarRegistryService", () => {
   });
 
   it("does not fetch when the name is blank", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
 
     const { getContractByName } = await loadService();
