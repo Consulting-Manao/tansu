@@ -6,7 +6,6 @@ import OutcomeTemplateSelector from "./OutcomeTemplateSelector";
 import EnhancedContractFunctionSelector from "components/EnhancedContractFunctionSelector";
 import ContractNameSearch from "components/ContractNameSearch";
 import { capitalizeFirstLetter } from "utils/utils";
-import type { RegistryNetwork } from "@service/StellarRegistryService";
 import type { OutcomeContract } from "types/proposal";
 import type { OutcomeType } from "constants/outcomeTemplates";
 
@@ -238,14 +237,15 @@ const OutcomeInput = ({
                   Contract Function
                 </p>
 
-                {/* Resolve a contract by its registered name via the
-                    Stellar Registry. Fills the address below on selection. */}
+                {/* Resolve a contract by its registered name via the Stellar Registry
+                    smart contract (exact match, on-chain). Fills the address
+                    below on selection. */}
                 <div className="w-full flex flex-col gap-2">
                   <label className="text-sm font-medium text-primary">
-                    Search by Contract Name
+                    Contract Name (Stellar Registry)
                   </label>
                   <ContractNameSearch
-                    network={network as RegistryNetwork}
+                    network="mainnet"
                     onSelect={(contract) =>
                       handleContractAddressChange(contract.contractId)
                     }
