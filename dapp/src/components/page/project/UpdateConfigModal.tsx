@@ -21,6 +21,13 @@ import {
   validateGithubUrl,
 } from "utils/validations";
 import { updateConfigFlow } from "@service/FlowService";
+import { getAttestationThreshold } from "@service/AttestationService";
+import {
+  DEFAULT_FINALITY_THRESHOLD_PERCENT,
+  MAX_FINALITY_THRESHOLD_PERCENT,
+  MIN_FINALITY_THRESHOLD_PERCENT,
+  validateFinalityThresholdPercent,
+} from "constants/attestation";
 import { toast, extractConfigData } from "utils/utils";
 import { getProject } from "@service/ReadContractService";
 import {
@@ -277,6 +284,8 @@ const UpdateConfigModal = () => {
   const [orgUrl, setOrgUrl] = useState("");
   const [orgLogo, setOrgLogo] = useState("");
   const [orgDescription, setOrgDescription] = useState("");
+  const [finalityThreshold, setFinalityThreshold] = useState("");
+  const originalThresholdRef = useRef("");
   const [readmeContent, setReadmeContent] = useState("");
   const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
   const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
@@ -287,6 +296,9 @@ const UpdateConfigModal = () => {
   const [ghErrors, setGhErrors] = useState<(string | null)[]>([null]);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [projectFullNameError, setProjectFullNameError] = useState<
+    string | null
+  >(null);
+  const [finalityThresholdError, setFinalityThresholdError] = useState<
     string | null
   >(null);
   const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
@@ -305,6 +317,14 @@ const UpdateConfigModal = () => {
   const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
     activeRepositoryProvider,
   );
+
+  const loadThreshold = async (name: string) => {
+    if (!name) return;
+    const value = await getAttestationThreshold(name);
+    const resolved = String(value || DEFAULT_FINALITY_THRESHOLD_PERCENT);
+    originalThresholdRef.current = resolved;
+    setFinalityThreshold(resolved);
+  };
 
   // Pre-fill all fields whenever projectInfo OR configData becomes available
   useEffect(() => {
@@ -334,6 +354,7 @@ const UpdateConfigModal = () => {
     setOrgUrl(cfg?.officials?.websiteLink || "");
     setOrgLogo(cfg?.logoImageLink || "");
     setOrgDescription(cfg?.description || "");
+    loadThreshold(projectInfo.name || "");
 
     setAddrErrors(projectInfo.maintainers.map(() => null));
     setGhErrors(projectInfo.maintainers.map(() => null));
@@ -542,7 +563,12 @@ const UpdateConfigModal = () => {
         maintainers: maintainerAddresses,
         onProgress: setStep,
         additionalFiles,
+        // Omitted when unchanged: the contract treats `None` as "leave as is".
+        ...(finalityThreshold !== originalThresholdRef.current
+          ? { attestationThreshold: Number(finalityThreshold) }
+          : {}),
       });
+      originalThresholdRef.current = finalityThreshold;
       const p = await getProject();
       if (p) {
         setProject(p);
@@ -567,7 +593,11 @@ const UpdateConfigModal = () => {
 
   const handleNextFromStep2 = () => {
     const isDbaValid = validateProjectFullName();
-    if (isDbaValid) setStep(3);
+
+    const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
+    setFinalityThresholdError(thresholdError);
+
+    if (isDbaValid && !thresholdError) setStep(3);
   };
 
   const handleNextFromStep1 = () => {
@@ -785,6 +815,19 @@ const UpdateConfigModal = () => {
                       label="Description"
                       value={orgDescription}
                       onChange={(e) => setOrgDescription(e.target.value)}
+                    />
+                    <Input
+                      label="Finality threshold (%)"
+                      type="number"
+                      min={MIN_FINALITY_THRESHOLD_PERCENT}
+                      max={MAX_FINALITY_THRESHOLD_PERCENT}
+                      value={finalityThreshold}
+                      onChange={(e) => {
+                        setFinalityThreshold(e.target.value);
+                        setFinalityThresholdError(null);
+                      }}
+                      description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}.`}
+                      error={finalityThresholdError || undefined}
                     />
 
                     {!isSoftwareProject && (

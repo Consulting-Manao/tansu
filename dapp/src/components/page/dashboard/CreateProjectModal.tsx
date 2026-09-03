@@ -21,6 +21,12 @@ import {
   validateGithubUrl,
   validateMaintainerAddress,
 } from "utils/validations.ts";
+import {
+  DEFAULT_FINALITY_THRESHOLD_PERCENT,
+  MAX_FINALITY_THRESHOLD_PERCENT,
+  MIN_FINALITY_THRESHOLD_PERCENT,
+  validateFinalityThresholdPercent,
+} from "constants/attestation";
 import { fetchTomlFromIpfs } from "utils/ipfsFunctions";
 import Textarea from "components/utils/Textarea.tsx";
 import { ProjectType } from "types/projectConfig";
@@ -144,6 +150,9 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   const [orgUrl, setOrgUrl] = useState("");
   const [orgLogo, setOrgLogo] = useState("");
   const [orgDescription, setOrgDescription] = useState("");
+  const [finalityThreshold, setFinalityThreshold] = useState(
+    String(DEFAULT_FINALITY_THRESHOLD_PERCENT),
+  );
 
   // Org field validation errors
   const [orgNameError, setOrgNameError] = useState<string | null>(null);
@@ -152,6 +161,9 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   const [orgDescriptionError, setOrgDescriptionError] = useState<string | null>(
     null,
   );
+  const [finalityThresholdError, setFinalityThresholdError] = useState<
+    string | null
+  >(null);
 
   // Flow state management
   const [isUploading, setIsUploading] = useState(false);
@@ -242,6 +254,12 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
       valid = false;
     }
 
+    const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
+    setFinalityThresholdError(thresholdError);
+    if (thresholdError) {
+      valid = false;
+    }
+
     return valid;
   };
 
@@ -318,6 +336,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
           projectType === ProjectType.SOFTWARE ? githubRepoUrl : "",
         maintainers: maintainerAddresses,
         onProgress: setStep,
+        attestationThreshold: Number(finalityThreshold),
         ...(additionalFiles && { additionalFiles }),
       });
 
@@ -804,6 +823,20 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
                     error={orgDescriptionError}
                   />
 
+                  <Input
+                    label="Finality threshold (%)"
+                    type="number"
+                    min={MIN_FINALITY_THRESHOLD_PERCENT}
+                    max={MAX_FINALITY_THRESHOLD_PERCENT}
+                    value={finalityThreshold}
+                    onChange={(e) => {
+                      setFinalityThreshold(e.target.value);
+                      setFinalityThresholdError(null);
+                    }}
+                    description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}; can be changed later in the project config.`}
+                    error={finalityThresholdError}
+                  />
+
                   {projectType === ProjectType.SOFTWARE ? (
                     <Input
                       label={`${repositoryProviderLabel} Repository URL`}
@@ -982,6 +1015,11 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
                 </Label>
               </>
             )}
+            <Label label="Finality threshold">
+              <p className="leading-6 text-xl text-primary">
+                {finalityThreshold}%
+              </p>
+            </Label>
           </div>
         </div>
       ) : null}

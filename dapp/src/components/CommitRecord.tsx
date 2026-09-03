@@ -27,6 +27,8 @@ interface CommitRecordProps {
   showXDR?: unknown | null;
   /** Optional link to related proposal page */
   proposalLink?: string | null | undefined;
+  /** Attestation control rendered next to the hash; omit to hide entirely */
+  attestation?: React.ReactNode;
 }
 
 const CommitRecord: React.FC<CommitRecordProps> = ({
@@ -41,6 +43,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   projectName = null,
   showXDR = null,
   proposalLink = null,
+  attestation = null,
 }) => {
   const messageRef = useRef<HTMLAnchorElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -154,6 +157,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
             >
               {sha.substring(0, 7)}
             </a>
+            {attestation}
           </div>
         )}
       </div>
