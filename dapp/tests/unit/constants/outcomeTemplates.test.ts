@@ -10,13 +10,17 @@ import {
 const OUTCOME_TYPES: OutcomeType[] = ["approved", "rejected", "cancelled"];
 
 describe("OUTCOME_TEMPLATES", () => {
-  it("covers all 3 outcome types", () => {
-    for (const outcomeType of OUTCOME_TYPES) {
-      const templates = OUTCOME_TEMPLATES.filter(
-        (template) => template.outcomeType === outcomeType,
-      );
-      expect(templates.length).toBeGreaterThan(0);
-    }
+  it("contains only the curated registry and public-goods templates", () => {
+    expect(OUTCOME_TEMPLATES).toHaveLength(2);
+    expect(OUTCOME_TEMPLATES.map((template) => template.id)).toEqual([
+      "interact-stellar-registry",
+      "public-goods-award",
+    ]);
+    expect(
+      OUTCOME_TEMPLATES.every(
+        (template) => template.outcomeType === "approved",
+      ),
+    ).toBe(true);
   });
 
   it("has unique ids", () => {
@@ -43,23 +47,21 @@ describe("OUTCOME_TEMPLATES", () => {
     }
   });
 
-  it("pre-fills contract calls only on templates that execute an action", () => {
-    // Approved templates execute real actions, so they should come with a
-    // contract-call pre-fill (function + args) while the no-action rejected /
-    // cancelled templates stay description-only.
-    const approved = getOutcomeTemplatesByType("approved");
-    for (const template of approved) {
-      expect(template.contract).toBeDefined();
-      expect(template.contract!.execute_fn.trim().length).toBeGreaterThan(0);
-      expect(template.contract!.address).toBe(""); // filled by the author
-    }
-
-    for (const type of ["rejected", "cancelled"] as const) {
-      for (const template of getOutcomeTemplatesByType(type)) {
-        expect(template.contract).toBeUndefined();
-        expect(template.xdr).toBeUndefined();
-      }
-    }
+  it("pre-fills the registry contract call and leaves its address for resolution", () => {
+    const registry = getOutcomeTemplateById("interact-stellar-registry")!;
+    expect(registry.contract).toEqual({
+      address: "",
+      execute_fn: "publish_hash",
+      args: [
+        "registry-tansu-manager",
+        "GAMPJROHOAW662FINQ4XQOY2ULX5IEGYXCI4SMZYE75EHQBR6PSTJG3M",
+        "f13e2e9d329a1b5e72eed4c3203f98c36d513e9915de2482c229fbe4367e6591",
+        "0.1.0",
+      ],
+    });
+    expect(
+      getOutcomeTemplateById("public-goods-award")?.contract,
+    ).toBeUndefined();
   });
 });
 
@@ -67,7 +69,6 @@ describe("getOutcomeTemplatesByType", () => {
   it("returns only templates matching the requested outcome type", () => {
     for (const outcomeType of OUTCOME_TYPES) {
       const templates = getOutcomeTemplatesByType(outcomeType);
-      expect(templates.length).toBeGreaterThan(0);
       for (const template of templates) {
         expect(template.outcomeType).toBe(outcomeType);
       }
@@ -102,14 +103,16 @@ describe("getOutcomeTemplateFills", () => {
   });
 
   it("reports contract-call pre-fill when the template has one", () => {
-    const approved = getOutcomeTemplatesByType("approved");
-    for (const template of approved) {
-      expect(getOutcomeTemplateFills(template)).toContain("contract call");
-    }
+    expect(
+      getOutcomeTemplateFills(
+        getOutcomeTemplateById("interact-stellar-registry")!,
+      ),
+    ).toContain("contract call");
   });
 
   it("reports only the description for no-action templates", () => {
-    const rejected = getOutcomeTemplatesByType("rejected");
-    expect(getOutcomeTemplateFills(rejected[0]!)).toEqual(["description"]);
+    expect(
+      getOutcomeTemplateFills(getOutcomeTemplateById("public-goods-award")!),
+    ).toEqual(["description"]);
   });
 });

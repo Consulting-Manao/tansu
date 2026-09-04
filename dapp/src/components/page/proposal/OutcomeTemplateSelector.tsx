@@ -23,6 +23,8 @@ export default function OutcomeTemplateSelector({
 
   const templates = getOutcomeTemplatesByType(outcomeType);
 
+  if (templates.length === 0) return null;
+
   const handleTemplateClick = useCallback(
     (template: OutcomeTemplate) => {
       onTemplateSelect(template);

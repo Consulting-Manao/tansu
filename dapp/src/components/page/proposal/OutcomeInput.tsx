@@ -175,6 +175,14 @@ const OutcomeInput = ({
                 if (onModeChange) onModeChange("xdr");
                 setXdr(template.xdr);
                 if (onXdrChange) onXdrChange(template.xdr);
+              } else {
+                // Description-only templates represent outcomes with no
+                // execution. Clear any previous execution mode/data so a
+                // template cannot retain an older contract call or XDR.
+                setMode("none");
+                if (onModeChange) onModeChange("none");
+                setContractOutcome(null);
+                setXdr(null);
               }
             }}
           />
