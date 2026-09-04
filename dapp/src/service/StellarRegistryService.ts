@@ -6,9 +6,9 @@
  * no backend, no SSR, no snapshot: the dapp must stay fully static.
  *
  * The lookup is an exact match (the on-chain registry only supports exact
- * name queries, e.g. `fetch_contract_id(name) -> address`). When the public
- * Registry Indexer API ships proper CORS headers we can additionally use it
- * for list/search flows; until then exact match is all we need here.
+ * name queries, e.g. `fetch_contract_id(name) -> address`). The registry
+ * deployment currently indexed by the public registry is mainnet, so this
+ * service deliberately uses the verified mainnet RPC and registry contract.
  *
  * Registry project: https://stellar.rgstry.xyz
  */
@@ -16,19 +16,9 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { retryAsync } from "utils/retry";
 
-/** Per-network Registry contract deployment (the registry itself). */
-export const REGISTRY_CONTRACT_IDS: Record<RegistryNetwork, string> = {
-  mainnet: "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY",
-  // No testnet registry deployment confirmed yet — placeholder keeps the
-  // per-network map shape so a testnet deployment slots in later.
-  testnet: "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY",
-};
-
-/** Soroban RPC endpoints used for the on-chain registry calls. */
-export const REGISTRY_RPC_URLS: Record<RegistryNetwork, string> = {
-  mainnet: "https://mainnet.sorobanrpc.com",
-  testnet: "https://soroban-testnet.stellar.org",
-};
+const REGISTRY_CONTRACT_ID =
+  "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY";
+const REGISTRY_RPC_URL = "https://mainnet.sorobanrpc.com";
 
 /** Registry website (shown in the UI as a link next to the not-found state). */
 export const STELLAR_REGISTRY_URL = "https://stellar.rgstry.xyz";
@@ -36,8 +26,6 @@ export const STELLAR_REGISTRY_URL = "https://stellar.rgstry.xyz";
 /** Upstream RPC attempts (1 + retries) before giving up. */
 const REGISTRY_RPC_RETRIES = 2;
 const REGISTRY_RPC_BACKOFF_MS = 150;
-
-export type RegistryNetwork = "testnet" | "mainnet";
 
 /** A contract resolved from the Registry by its exact registered name. */
 export interface RegistryContract {
@@ -51,13 +39,12 @@ export interface RegistryContract {
  */
 export async function getContractByName(
   name: string,
-  network: RegistryNetwork = "mainnet",
 ): Promise<RegistryContract | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;
 
   return retryAsync(
-    () => fetchContractId(trimmed, network),
+    () => fetchContractId(trimmed),
     REGISTRY_RPC_RETRIES,
     REGISTRY_RPC_BACKOFF_MS,
   );
@@ -69,17 +56,13 @@ export async function getContractByName(
  */
 async function fetchContractId(
   contractName: string,
-  network: RegistryNetwork,
 ): Promise<RegistryContract | null> {
   // The SDK generates snake_case methods matching the contract interface at
   // runtime, but its TypeScript types only declare camelCase — hence the cast.
   const client = (await StellarSdk.contract.Client.from({
-    contractId: REGISTRY_CONTRACT_IDS[network],
-    rpcUrl: REGISTRY_RPC_URLS[network],
-    networkPassphrase:
-      network === "testnet"
-        ? StellarSdk.Networks.TESTNET
-        : StellarSdk.Networks.PUBLIC,
+    contractId: REGISTRY_CONTRACT_ID,
+    rpcUrl: REGISTRY_RPC_URL,
+    networkPassphrase: StellarSdk.Networks.PUBLIC,
   })) as unknown as {
     fetch_contract_id(args: { contract_name: string }): Promise<unknown>;
   };

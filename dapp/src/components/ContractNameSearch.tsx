@@ -4,7 +4,6 @@ import {
   getContractByName,
   STELLAR_REGISTRY_URL,
   type RegistryContract,
-  type RegistryNetwork,
 } from "@service/StellarRegistryService";
 
 interface ContractNameSearchProps {
@@ -12,8 +11,6 @@ interface ContractNameSearchProps {
   onSelect: (contract: RegistryContract) => void;
   /** Placeholder for the search input. */
   placeholder?: string;
-  /** Registry network to query (the registry currently indexes mainnet). */
-  network?: RegistryNetwork;
   disabled?: boolean;
 }
 
@@ -41,7 +38,6 @@ function shortAddress(address: string): string {
 export default function ContractNameSearch({
   onSelect,
   placeholder = "Exact contract name (Stellar Registry)",
-  network = "mainnet",
   disabled = false,
 }: ContractNameSearchProps) {
   const [query, setQuery] = useState("");
@@ -49,36 +45,33 @@ export default function ContractNameSearch({
   const [status, setStatus] = useState<Status>("idle");
   const resolveSeq = useRef(0);
 
-  const resolve = useCallback(
-    async (raw: string) => {
-      const trimmed = raw.trim();
-      const seq = ++resolveSeq.current;
+  const resolve = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
+    const seq = ++resolveSeq.current;
 
-      if (!trimmed) {
-        setResolved(null);
-        setStatus("idle");
-        return;
-      }
+    if (!trimmed) {
+      setResolved(null);
+      setStatus("idle");
+      return;
+    }
 
-      setStatus("loading");
-      try {
-        const contract = await getContractByName(trimmed, network);
-        if (resolveSeq.current !== seq) return; // a newer lookup superseded it
-        if (contract) {
-          setResolved(contract);
-          setStatus("found");
-        } else {
-          setResolved(null);
-          setStatus("not-registered");
-        }
-      } catch {
-        if (resolveSeq.current !== seq) return;
+    setStatus("loading");
+    try {
+      const contract = await getContractByName(trimmed);
+      if (resolveSeq.current !== seq) return; // a newer lookup superseded it
+      if (contract) {
+        setResolved(contract);
+        setStatus("found");
+      } else {
         setResolved(null);
-        setStatus("error");
+        setStatus("not-registered");
       }
-    },
-    [network],
-  );
+    } catch {
+      if (resolveSeq.current !== seq) return;
+      setResolved(null);
+      setStatus("error");
+    }
+  }, []);
 
   // Enter resolves immediately; leaving the field resolves what is typed.
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {

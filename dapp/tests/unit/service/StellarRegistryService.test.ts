@@ -72,15 +72,14 @@ describe("StellarRegistryService (on-chain exact match)", () => {
       result: { value: TANSU_ADDRESS },
     });
 
-    const { REGISTRY_CONTRACT_IDS } =
-      await import("../../../src/service/StellarRegistryService");
     const { contract } = await import("@stellar/stellar-sdk");
 
-    await getContractByName("tansu", "mainnet");
+    await getContractByName("tansu");
 
     expect(contract.Client.from).toHaveBeenCalledWith(
       expect.objectContaining({
-        contractId: REGISTRY_CONTRACT_IDS.mainnet,
+        contractId: "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY",
+        rpcUrl: "https://mainnet.sorobanrpc.com",
         networkPassphrase: expect.stringContaining("Public"),
       }),
     );

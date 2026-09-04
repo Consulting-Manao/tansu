@@ -245,7 +245,6 @@ const OutcomeInput = ({
                     Contract Name (Stellar Registry)
                   </label>
                   <ContractNameSearch
-                    network="mainnet"
                     onSelect={(contract) =>
                       handleContractAddressChange(contract.contractId)
                     }
