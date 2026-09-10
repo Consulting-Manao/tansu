@@ -15,6 +15,18 @@ export interface ContractFunctionOutput {
   type: string;
 }
 
+/** Shared Soroban network settings used by contract clients in the dapp. */
+export const STELLAR_NETWORK_CONFIG = {
+  testnet: {
+    rpcUrl: "https://soroban-testnet.stellar.org",
+    networkPassphrase: StellarSdk.Networks.TESTNET,
+  },
+  mainnet: {
+    rpcUrl: "https://mainnet.sorobanrpc.com",
+    networkPassphrase: StellarSdk.Networks.PUBLIC,
+  },
+} as const;
+
 /**
  * Get available functions from a contract address using Stellar SDK's Client.from()
  * This leverages the SDK's built-in contract spec extraction from client.spec.entries
@@ -24,19 +36,13 @@ export async function getContractFunctions(
   network: "testnet" | "mainnet" = "testnet",
 ): Promise<ContractFunction[]> {
   try {
-    const serverUrl =
-      network === "testnet"
-        ? "https://soroban-testnet.stellar.org"
-        : "https://soroban.stellar.org";
+    const networkConfig = STELLAR_NETWORK_CONFIG[network];
 
     // Use SDK's Client.from() - this handles contract interaction and has the spec
     const client = await StellarSdk.contract.Client.from({
       contractId: contractAddress,
-      rpcUrl: serverUrl,
-      networkPassphrase:
-        network === "testnet"
-          ? StellarSdk.Networks.TESTNET
-          : StellarSdk.Networks.PUBLIC,
+      rpcUrl: networkConfig.rpcUrl,
+      networkPassphrase: networkConfig.networkPassphrase,
     });
 
     // Extract functions from the real contract specification

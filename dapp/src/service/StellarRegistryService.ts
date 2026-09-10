@@ -15,10 +15,10 @@
 
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { retryAsync } from "utils/retry";
+import { STELLAR_NETWORK_CONFIG } from "./ContractIntrospectionService";
 
 const REGISTRY_CONTRACT_ID =
   "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY";
-const REGISTRY_RPC_URL = "https://mainnet.sorobanrpc.com";
 
 /** Registry website (shown in the UI as a link next to the not-found state). */
 export const STELLAR_REGISTRY_URL = "https://stellar.rgstry.xyz";
@@ -59,10 +59,11 @@ async function fetchContractId(
 ): Promise<RegistryContract | null> {
   // The SDK generates snake_case methods matching the contract interface at
   // runtime, but its TypeScript types only declare camelCase — hence the cast.
+  const networkConfig = STELLAR_NETWORK_CONFIG.mainnet;
   const client = (await StellarSdk.contract.Client.from({
     contractId: REGISTRY_CONTRACT_ID,
-    rpcUrl: REGISTRY_RPC_URL,
-    networkPassphrase: StellarSdk.Networks.PUBLIC,
+    rpcUrl: networkConfig.rpcUrl,
+    networkPassphrase: networkConfig.networkPassphrase,
   })) as unknown as {
     fetch_contract_id(args: { contract_name: string }): Promise<unknown>;
   };
