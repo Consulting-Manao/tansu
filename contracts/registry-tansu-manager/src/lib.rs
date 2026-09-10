@@ -1,42 +1,44 @@
 #![no_std]
-// Tansu-stub-generated client + types include multi-arg fns (e.g.
-// `set_deploy_proposal`), which trip `too_many_arguments`. Allow on the lib
-// since the lint fires inside the macro expansion of `import_contract_client!`.
+// The Tansu-generated client + types include multi-arg fns (e.g.
+// `register`), which trip `too_many_arguments`. Allow on the lib since the
+// lint fires inside the macro expansion of `contractimport!`.
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{
-    self,
+    self, Address, Bytes, Env, IntoVal, Symbol, Val, Vec,
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    contract, contractimpl, vec, Address, Bytes, Env, IntoVal, Symbol, Val, Vec,
+    contract, contracterror, contractimpl, contracttype, vec,
 };
-use soroban_sdk_tools::{contractstorage, InstanceItem};
 
-#[soroban_sdk_tools::scerr]
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
 pub enum Error {
     /// Proposal has no outcomes attached.
-    NoOutcomeContracts,
+    NoOutcomeContracts = 1,
     /// Proposal has more than one outcome — this manager authorizes exactly
     /// one sub-call per proposal.
-    MultipleOutcomes,
+    MultipleOutcomes = 2,
 }
 
-// Proposal/status types are derived from the tansu-stub contract's wasm spec.
-// At runtime this manager points at *real* Tansu; the stub matches Tansu's
-// wire format so the generated `get_proposal` client decodes a live proposal
-// correctly.
-stellar_registry::import_contract_client!(tansu_stub);
+// Proposal/status types and the client are derived from the real Tansu
+// contract's wasm spec, built by `make contract_build` in this workspace.
+mod tansu {
+    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/tansu.wasm");
+}
 
-#[contractstorage(auto_shorten = true)]
-pub struct Storage {
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
     /// Tansu DAO contract whose proposals this manager drives.
-    tansu: InstanceItem<Address>,
+    Tansu,
     /// Tansu workspace key this manager represents. All Tansu lookups are
     /// keyed by this — a wrong-project caller can't piggyback.
-    project_key: InstanceItem<Bytes>,
+    ProjectKey,
     /// Registry this manager is the manager of. Recorded for inspection;
     /// `trigger` doesn't read it directly because it uses whatever outcome
     /// the (project_key-gated) proposal carries.
-    registry: InstanceItem<Address>,
+    Registry,
 }
 
 #[contract]
@@ -45,21 +47,23 @@ pub struct RegistryTansuManager;
 #[contractimpl]
 impl RegistryTansuManager {
     pub fn __constructor(env: &Env, tansu: &Address, project_key: &Bytes, registry: &Address) {
-        Storage::set_tansu(env, tansu);
-        Storage::set_project_key(env, project_key);
-        Storage::set_registry(env, registry);
+        env.storage().instance().set(&DataKey::Tansu, tansu);
+        env.storage()
+            .instance()
+            .set(&DataKey::ProjectKey, project_key);
+        env.storage().instance().set(&DataKey::Registry, registry);
     }
 
     pub fn tansu(env: &Env) -> Address {
-        Storage::get_tansu(env).unwrap()
+        env.storage().instance().get(&DataKey::Tansu).unwrap()
     }
 
     pub fn project_key(env: &Env) -> Bytes {
-        Storage::get_project_key(env).unwrap()
+        env.storage().instance().get(&DataKey::ProjectKey).unwrap()
     }
 
     pub fn registry(env: &Env) -> Address {
-        Storage::get_registry(env).unwrap()
+        env.storage().instance().get(&DataKey::Registry).unwrap()
     }
 
     /// Drive a Tansu proposal through to outcome execution in one transaction.
@@ -94,11 +98,10 @@ impl RegistryTansuManager {
     /// prevents the same proposal being triggered twice — no separate
     /// replay guard needed here.
     pub fn trigger(env: &Env, proposal_id: u32) -> Result<(), Error> {
-        let tansu = Storage::get_tansu(env).unwrap();
-        let project_key = Storage::get_project_key(env).unwrap();
+        let tansu = Self::tansu(env);
+        let project_key = Self::project_key(env);
 
-        let proposal =
-            tansu_stub::Client::new(env, &tansu).get_proposal(&project_key, &proposal_id);
+        let proposal = tansu::Client::new(env, &tansu).get_proposal(&project_key, &proposal_id);
         let outcomes = proposal
             .outcome_contracts
             .ok_or(Error::NoOutcomeContracts)?;
