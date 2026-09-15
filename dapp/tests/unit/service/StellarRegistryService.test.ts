@@ -20,14 +20,22 @@ import { getContractByName } from "../../../src/service/StellarRegistryService";
 
 const TANSU_ADDRESS =
   "CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI";
+const TESTNET_REGISTRY_ID =
+  "CBFFTTX7QKA76FS4LHHQG54BC7JF5RMEX4RTNNJ5KEL76LYHVO3E3OEE";
+const TESTNET_RPC_URL = "https://soroban-testnet.stellar.org:443";
+const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
 describe("StellarRegistryService (on-chain exact match)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("PUBLIC_STELLAR_REGISTRY_CONTRACT_ID", TESTNET_REGISTRY_ID);
+    vi.stubEnv("PUBLIC_SOROBAN_RPC_URL", TESTNET_RPC_URL);
+    vi.stubEnv("PUBLIC_SOROBAN_NETWORK_PASSPHRASE", TESTNET_PASSPHRASE);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("resolves a registered name to its on-chain address", async () => {
@@ -67,7 +75,7 @@ describe("StellarRegistryService (on-chain exact match)", () => {
     expect(mockFetchContractId).toHaveBeenCalledTimes(3);
   });
 
-  it("targets the requested network registry contract", async () => {
+  it("uses the configured Registry contract and shared Soroban network", async () => {
     mockFetchContractId.mockResolvedValue({
       result: { value: TANSU_ADDRESS },
     });
@@ -78,9 +86,9 @@ describe("StellarRegistryService (on-chain exact match)", () => {
 
     expect(contract.Client.from).toHaveBeenCalledWith(
       expect.objectContaining({
-        contractId: "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY",
-        rpcUrl: "https://mainnet.sorobanrpc.com",
-        networkPassphrase: expect.stringContaining("Public"),
+        contractId: TESTNET_REGISTRY_ID,
+        rpcUrl: TESTNET_RPC_URL,
+        networkPassphrase: TESTNET_PASSPHRASE,
       }),
     );
   });

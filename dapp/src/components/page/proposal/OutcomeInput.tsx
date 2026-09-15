@@ -36,9 +36,6 @@ interface OutcomeInputProps {
   onXdrChange?: (value: string) => void;
   onModeChange?: (mode: "xdr" | "contract" | "none") => void;
   onRemove?: () => void;
-
-  // Network for contract explorer
-  network?: string;
 }
 
 const OutcomeInput = ({
@@ -58,7 +55,6 @@ const OutcomeInput = ({
   onXdrChange,
   onModeChange,
   onRemove,
-  network = "testnet", // Default to testnet
 }: OutcomeInputProps) => {
   const handleModeChange = (newMode: "xdr" | "contract" | "none") => {
     setMode(newMode);
@@ -269,7 +265,6 @@ const OutcomeInput = ({
                 {contractOutcome?.address && (
                   <EnhancedContractFunctionSelector
                     contractAddress={contractOutcome.address}
-                    network={network}
                     onFunctionSelect={handleContractFunctionSelect}
                     selectedFunction={contractOutcome?.execute_fn || ""}
                     initialArgs={contractOutcome?.args || []}

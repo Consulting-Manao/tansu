@@ -1,6 +1,7 @@
 const requiredEnv = [
   "PUBLIC_SOROBAN_NETWORK_PASSPHRASE",
   "PUBLIC_SOROBAN_RPC_URL",
+  "PUBLIC_STELLAR_REGISTRY_CONTRACT_ID",
   "PUBLIC_HORIZON_URL",
   "PUBLIC_TANSU_CONTRACT_ID",
   "PUBLIC_TANSU_OWNER_ID",
@@ -68,6 +69,14 @@ export function validateFreighterEnvironment(): {
   if (contractId && !/^[A-Z0-9]{56}$/.test(contractId)) {
     warnings.push(
       "PUBLIC_TANSU_CONTRACT_ID should be a valid 56-character Stellar address",
+    );
+  }
+
+  const registryContractId = import.meta.env
+    .PUBLIC_STELLAR_REGISTRY_CONTRACT_ID;
+  if (registryContractId && !/^[A-Z0-9]{56}$/.test(registryContractId)) {
+    warnings.push(
+      "PUBLIC_STELLAR_REGISTRY_CONTRACT_ID should be a valid 56-character Stellar address",
     );
   }
 

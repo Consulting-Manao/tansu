@@ -9,7 +9,6 @@ import {
 
 interface EnhancedContractFunctionSelectorProps {
   contractAddress: string;
-  network: string;
   onFunctionSelect: (functionName: string, args: any[]) => void;
   selectedFunction?: string;
   initialArgs?: any[];
@@ -19,7 +18,6 @@ export const EnhancedContractFunctionSelector: React.FC<
   EnhancedContractFunctionSelectorProps
 > = ({
   contractAddress,
-  network,
   onFunctionSelect,
   selectedFunction: initialSelectedFunction,
   initialArgs = [],
@@ -42,7 +40,7 @@ export const EnhancedContractFunctionSelector: React.FC<
       setSelectedFunction("");
       setArgs([]);
     }
-  }, [contractAddress, network]);
+  }, [contractAddress]);
 
   // Update args when selected function changes
   useEffect(() => {
@@ -76,10 +74,7 @@ export const EnhancedContractFunctionSelector: React.FC<
     setError(null);
 
     try {
-      const contractFuncs = await getContractFunctions(
-        contractAddress,
-        network as "testnet" | "mainnet",
-      );
+      const contractFuncs = await getContractFunctions(contractAddress);
       setFunctions(contractFuncs);
     } catch (err: any) {
       console.warn("Contract introspection failed:", err.message);

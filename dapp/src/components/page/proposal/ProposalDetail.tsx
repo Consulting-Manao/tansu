@@ -232,10 +232,7 @@ export const OutcomeDetail: React.FC<{
       }
 
       try {
-        const functions = await getContractFunctions(
-          detail.contract.address,
-          "testnet",
-        );
+        const functions = await getContractFunctions(detail.contract.address);
         const match = functions.find(
           (func) => func.name === detail.contract?.execute_fn,
         );

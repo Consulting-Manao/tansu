@@ -7,18 +7,14 @@
  *
  * The lookup is an exact match (the on-chain registry only supports exact
  * name queries, e.g. `fetch_contract_id(name) -> address`). The registry
- * deployment currently indexed by the public registry is mainnet, so this
- * service deliberately uses the verified mainnet RPC and registry contract.
+ * contract ID and Soroban network are configured through the same public
+ * environment variables used by the rest of the dapp.
  *
  * Registry project: https://stellar.rgstry.xyz
  */
 
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { retryAsync } from "utils/retry";
-import { STELLAR_NETWORK_CONFIG } from "./ContractIntrospectionService";
-
-const REGISTRY_CONTRACT_ID =
-  "CDU4M3LDIOUJJ5F3YXKJ4EJEP5VPRPG6N2LJ5HOQIMN7MNGL3NS3EGUY";
 
 /** Registry website (shown in the UI as a link next to the not-found state). */
 export const STELLAR_REGISTRY_URL = "https://stellar.rgstry.xyz";
@@ -59,11 +55,10 @@ async function fetchContractId(
 ): Promise<RegistryContract | null> {
   // The SDK generates snake_case methods matching the contract interface at
   // runtime, but its TypeScript types only declare camelCase — hence the cast.
-  const networkConfig = STELLAR_NETWORK_CONFIG.mainnet;
   const client = (await StellarSdk.contract.Client.from({
-    contractId: REGISTRY_CONTRACT_ID,
-    rpcUrl: networkConfig.rpcUrl,
-    networkPassphrase: networkConfig.networkPassphrase,
+    contractId: import.meta.env.PUBLIC_STELLAR_REGISTRY_CONTRACT_ID,
+    rpcUrl: import.meta.env.PUBLIC_SOROBAN_RPC_URL,
+    networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
   })) as unknown as {
     fetch_contract_id(args: { contract_name: string }): Promise<unknown>;
   };
