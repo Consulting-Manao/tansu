@@ -1,10 +1,10 @@
 [package]
-name = "scf-membership"
+name = "stellar-membership"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = false
-version = "1.0.0"
+version = "2.0.0"
 
 [lib]
 crate-type = ["cdylib"]

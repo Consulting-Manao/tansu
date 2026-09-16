@@ -14,12 +14,20 @@ ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
 endif
 
-ifndef wasm-scf_membership
-	override wasm-scf_membership = target/wasm32v1-none/release/scf_membership.wasm
+ifndef wasm-stellar_membership
+	override wasm-stellar_membership = target/wasm32v1-none/release/stellar_membership.wasm
+endif
+
+ifndef membership_admin
+   override membership_admin = stellar-members-$(network)
+endif
+
+ifndef attester
+   override attester = stellar-members-attester-$(network)
 endif
 
 override tansu_id = $(shell cat .stellar/tansu_id-$(network))
-override scf_membership_id = $(shell cat .stellar/scf_membership_id-$(network))
+override stellar_membership_id = $(shell cat .stellar/stellar_membership_id-$(network))
 
 override collateral_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
@@ -108,10 +116,10 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../../.. && \
 	stellar contract bindings typescript \
 		--network $(network) \
-		--wasm $(wasm-scf_membership) \
-		--output-dir dapp/packages/scf-membership \
+		--wasm $(wasm-stellar_membership) \
+		--output-dir dapp/packages/stellar-membership \
 		--overwrite && \
-	cd dapp/packages/scf-membership && \
+	cd dapp/packages/stellar-membership && \
 	bun install --latest && \
 	bun update --latest && \
 	bun run build && \
@@ -340,78 +348,77 @@ nqg:
 	  get_voting_power_for_user \
 	  --user $(admin)
 
-# --------- NFT --------- #
+# --------- STELLAR MEMBERSHIP --------- #
 
-contract_deploy_nft: contract_build  ## Deploy NFT contract
+contract_deploy_membership: contract_build  ## Deploy the Stellar Membership contract
 	stellar contract deploy \
-  		--wasm $(wasm-scf_membership) \
-  		--source-account $(admin) \
+  		--wasm $(wasm-stellar_membership) \
+  		--source-account $(membership_admin) \
   		--network $(network) \
-  		--salt $(shell printf scf-nft | openssl sha256 | cut -d " " -f2) \
+  		--salt $(shell printf stellar-membership | openssl sha256 | cut -d " " -f2) \
   		--inclusion-fee 200000000 \
   		--cost \
   		-- \
-  		--admin $(shell stellar keys address $(admin)) \
-  		--name "SCF Membership" --symbol scf \
+  		--admin $(shell stellar keys address $(membership_admin)) \
+  		--attester $(shell stellar keys address $(attester)) \
+  		--name "Stellar Members" --symbol SMBR \
   		--uri https://ipfs.io/ipfs/QmVTqJ4EzJThVWobgyaWCetcrXCjftQhgi24E4giJ5EgXr \
   		--uri_trait https://ipfs.io/ipfs/Qmddf2UgGTQ3z2SZfg2ziZJzDJDRS3Dk7Z3phZ76fMzdLf \
   		--nqg_contract $(nqg_contract_id) \
-  		> .stellar/scf_membership_id-$(network) && \
-  	cat .stellar/scf_membership_id-$(network)
+  		> .stellar/stellar_membership_id-$(network) && \
+  	cat .stellar/stellar_membership_id-$(network)
 
-contract_upgrade_nft: contract_build  ## After manually pulling the wasm from the pipeline, use it to propose to update the contract
+contract_upgrade_membership: contract_build  ## Upgrade the Stellar Membership contract
 	stellar contract invoke \
-    	--source-account $(admin) \
+    	--source-account $(membership_admin) \
     	--network $(network) \
-    	--id $(scf_membership_id) \
+    	--id $(stellar_membership_id) \
     	-- \
     	upgrade \
-		--wasm_hash $(shell stellar contract upload --source-account $(admin) --network $(network) --wasm $(wasm-scf_membership))
+		--wasm_hash $(shell stellar contract upload --source-account $(membership_admin) --network $(network) --wasm $(wasm-stellar_membership))
 
-contract_nft_mint:
+contract_membership_role:  ## set_role token_id=<id> role=<0-3>
 	stellar contract invoke \
-	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(scf_membership_id) \
+	  --source-account $(membership_admin) \
+	  --network $(network) \
+	  --id $(stellar_membership_id) \
 	  -- \
-	  mint \
-	  --to $(admin)
+	  set_role \
+	  --token_id $(token_id) \
+	  --role $(role)
 
-contract_nft_role:
+contract_membership_revoke:  ## revoke token_id=<id>
 	stellar contract invoke \
-	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(scf_membership_id) \
+	  --source-account $(membership_admin) \
+	  --network $(network) \
+	  --id $(stellar_membership_id) \
 	  -- \
-	  set_trait \
-	  --token_id 0 \
-	  --trait_key role \
-	  --new_value 3
+	  revoke \
+	  --token_id $(token_id)
 
-contract_nft_governance:
+contract_membership_attester:  ## set_attester to the $(attester) identity
 	stellar contract invoke \
-	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(scf_membership_id) \
+	  --source-account $(membership_admin) \
+	  --network $(network) \
+	  --id $(stellar_membership_id) \
+	  -- \
+	  set_attester \
+	  --attester $(shell stellar keys address $(attester))
+
+contract_membership_member:  ## member token_id=<id>
+	stellar contract invoke \
+	  --source-account $(membership_admin) \
+	  --network $(network) \
+	  --id $(stellar_membership_id) \
+	  -- \
+	  member \
+	  --token_id $(token_id)
+
+contract_membership_governance:
+	stellar contract invoke \
+	  --source-account $(membership_admin) \
+	  --network $(network) \
+	  --id $(stellar_membership_id) \
 	  -- \
 	  governance \
-	  --token_id 0
-
-contract_nft_uri:
-	stellar contract invoke \
-	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(scf_membership_id) \
-	  -- \
-	  token_uri \
-	  --token_id 0
-
-contract_nft_trait_value:
-	stellar contract invoke \
-	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(scf_membership_id) \
-	  -- \
-	  trait_value \
-	  --token_id 0 \
-	  --trait_key role
+	  --token_id $(token_id)

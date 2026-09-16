@@ -400,7 +400,7 @@ export async function voteToProposal(
   }
 
   let votePayload: Vote;
-  
+
   // Variables for receipt
   let seedsArr: number[] | undefined;
   let votesArr: number[] | undefined;
@@ -506,7 +506,7 @@ export async function voteToProposal(
 
   const result = await submitTransaction(assembledTx);
   invalidateProposalCache(project_name, proposal_id);
-  
+
   return {
     projectName: project_name,
     proposalId: proposal_id,
@@ -514,12 +514,14 @@ export async function voteToProposal(
     weight,
     isPublicVoting,
     transactionHash: result?.hash, // if available
-    ...(isPublicVoting ? {} : {
-      seeds: seedsArr?.map(String),
-      votes: votesArr?.map(String),
-      commitments,
-      publicKey: publicKeyStr
-    })
+    ...(isPublicVoting
+      ? {}
+      : {
+          seeds: seedsArr?.map(String),
+          votes: votesArr?.map(String),
+          commitments,
+          publicKey: publicKeyStr,
+        }),
   };
 }
 

@@ -11,7 +11,7 @@
         "2": "Navigator",
         "3": "Pilot"
       },
-      "tokenOwnerCanUpdateValue": true
+      "tokenOwnerCanUpdateValue": false
     },
     "nqg": {
       "displayName": "Neural Quorum Governance Score",
