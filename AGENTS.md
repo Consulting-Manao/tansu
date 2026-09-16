@@ -15,9 +15,9 @@ This file provides comprehensive guidance for AI assistants (Claude, Cursor, Vib
 
 ### Repository Structure (Monorepo)
 
-- `contracts/` — Rust workspace (soroban-sdk): `contracts/tansu` (main contract) and `contracts/stellar-membership` (soulbound NFT identity of Stellar community members: attested external accounts, key rotation, timelocked recovery)
+- `contracts/` — Rust workspace (soroban-sdk): `contracts/tansu` (the Tansu contract). The Stellar community membership contract lives in its own repository, `stellar-membership`
 - `dapp/` — Astro + React + TypeScript frontend, Bun as package manager, deployed on Netlify
-- `dapp/packages/tansu`, `dapp/packages/stellar-membership` — TypeScript contract bindings **generated** from the WASM (do not hand-edit; regenerate with `make contract_bindings`)
+- `dapp/packages/tansu` — TypeScript contract bindings **generated** from the WASM (do not hand-edit; regenerate with `make contract_bindings`)
 - `dapp/workers/ipfs-delegation/` — Cloudflare worker for IPFS uploads via Filebase (has its own README)
 - `tansu/` — Python package (`pip install -e .`-style hatch project): chain-event ingestion into Postgres (SQLAlchemy + Alembic) plus a FastAPI backend
 - `website/` — Docusaurus documentation site

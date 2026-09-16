@@ -75,6 +75,8 @@ Effective vote weight depends on the proposal type and project configuration. Th
 
 One designated project — the Stellar Community Fund Public Goods Award deployment — uses live Neural Quorum Governance scores instead of badges. The Tansu admin configures the NQG contract via `set_nqg_contract`. Voters below the 4M score threshold receive zero weight (pilots only).
 
+The Stellar community membership itself (the soulbound token with a member's role, verified accounts and projects) is a separate contract, maintained in the [stellar-membership](https://github.com/Consulting-Manao/scf-member-explorer) repository. It exposes the same NQG score per member through its `governance` function; Tansu only reads the NQG contract directly.
+
 ### Token-based proposals
 
 When a proposal is created with a `token_contract`, voting weight is capped by the voter's token balance, not `get_max_weight`. See [Governance & Proposals](./governance.mdx) for proposal creation and vote validation.

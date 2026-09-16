@@ -14,20 +14,7 @@ ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
 endif
 
-ifndef wasm-stellar_membership
-	override wasm-stellar_membership = target/wasm32v1-none/release/stellar_membership.wasm
-endif
-
-ifndef membership_admin
-   override membership_admin = stellar-members-$(network)
-endif
-
-ifndef attester
-   override attester = stellar-members-attester-$(network)
-endif
-
 override tansu_id = $(shell cat .stellar/tansu_id-$(network))
-override stellar_membership_id = $(shell cat .stellar/stellar_membership_id-$(network))
 
 override collateral_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
@@ -113,17 +100,6 @@ contract_bindings: contract_build  ## Create bindings
 	bun install --latest && \
 	bun update --latest && \
 	bun run build && \
-	cd ../../.. && \
-	stellar contract bindings typescript \
-		--network $(network) \
-		--wasm $(wasm-stellar_membership) \
-		--output-dir dapp/packages/stellar-membership \
-		--overwrite && \
-	cd dapp/packages/stellar-membership && \
-	bun install --latest && \
-	bun update --latest && \
-	bun run build && \
-	cd ../.. && \
 	bun format
 
 contract_deploy:  ## Deploy Soroban contract
@@ -348,77 +324,3 @@ nqg:
 	  get_voting_power_for_user \
 	  --user $(admin)
 
-# --------- STELLAR MEMBERSHIP --------- #
-
-contract_deploy_membership: contract_build  ## Deploy the Stellar Membership contract
-	stellar contract deploy \
-  		--wasm $(wasm-stellar_membership) \
-  		--source-account $(membership_admin) \
-  		--network $(network) \
-  		--salt $(shell printf stellar-membership | openssl sha256 | cut -d " " -f2) \
-  		--inclusion-fee 200000000 \
-  		--cost \
-  		-- \
-  		--admin $(shell stellar keys address $(membership_admin)) \
-  		--attester $(shell stellar keys address $(attester)) \
-  		--name "Stellar Members" --symbol SMBR \
-  		--uri https://ipfs.io/ipfs/QmVTqJ4EzJThVWobgyaWCetcrXCjftQhgi24E4giJ5EgXr \
-  		--uri_trait https://ipfs.io/ipfs/Qmddf2UgGTQ3z2SZfg2ziZJzDJDRS3Dk7Z3phZ76fMzdLf \
-  		--nqg_contract $(nqg_contract_id) \
-  		> .stellar/stellar_membership_id-$(network) && \
-  	cat .stellar/stellar_membership_id-$(network)
-
-contract_upgrade_membership: contract_build  ## Upgrade the Stellar Membership contract
-	stellar contract invoke \
-    	--source-account $(membership_admin) \
-    	--network $(network) \
-    	--id $(stellar_membership_id) \
-    	-- \
-    	upgrade \
-		--wasm_hash $(shell stellar contract upload --source-account $(membership_admin) --network $(network) --wasm $(wasm-stellar_membership))
-
-contract_membership_role:  ## set_role token_id=<id> role=<0-3>
-	stellar contract invoke \
-	  --source-account $(membership_admin) \
-	  --network $(network) \
-	  --id $(stellar_membership_id) \
-	  -- \
-	  set_role \
-	  --token_id $(token_id) \
-	  --role $(role)
-
-contract_membership_revoke:  ## revoke token_id=<id>
-	stellar contract invoke \
-	  --source-account $(membership_admin) \
-	  --network $(network) \
-	  --id $(stellar_membership_id) \
-	  -- \
-	  revoke \
-	  --token_id $(token_id)
-
-contract_membership_attester:  ## set_attester to the $(attester) identity
-	stellar contract invoke \
-	  --source-account $(membership_admin) \
-	  --network $(network) \
-	  --id $(stellar_membership_id) \
-	  -- \
-	  set_attester \
-	  --attester $(shell stellar keys address $(attester))
-
-contract_membership_member:  ## member token_id=<id>
-	stellar contract invoke \
-	  --source-account $(membership_admin) \
-	  --network $(network) \
-	  --id $(stellar_membership_id) \
-	  -- \
-	  member \
-	  --token_id $(token_id)
-
-contract_membership_governance:
-	stellar contract invoke \
-	  --source-account $(membership_admin) \
-	  --network $(network) \
-	  --id $(stellar_membership_id) \
-	  -- \
-	  governance \
-	  --token_id $(token_id)
