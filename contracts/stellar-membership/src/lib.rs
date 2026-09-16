@@ -266,9 +266,9 @@ pub trait KeyTrait {
 
     /// Move a token to `new_address` immediately. Admin only.
     ///
-    /// Requires the auth of the admin and of `new_address`. Used when the
-    /// key is lost without attested accounts, or to reinstate a revoked
-    /// token. Clears a pending recovery.
+    /// Only the admin signs: the member is not present when the key is lost
+    /// without attested accounts, or when a revoked token is reinstated.
+    /// Clears a pending recovery.
     ///
     /// # Panics
     ///

@@ -90,7 +90,6 @@ impl KeyTrait for StellarMembership {
 
     fn recover(e: &Env, token_id: u32, new_address: Address) {
         storage::admin(e).require_auth();
-        new_address.require_auth();
 
         let mut member = storage::member(e, token_id);
         let from: Option<Address> = e

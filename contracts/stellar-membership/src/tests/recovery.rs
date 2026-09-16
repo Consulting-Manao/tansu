@@ -278,11 +278,9 @@ fn test_admin_recover() {
         "recover",
         args(e, (token_id, new_key.clone())),
     );
-    assert_authorized(
-        &setup,
-        &new_key,
-        "recover",
-        args(e, (token_id, new_key.clone())),
+    assert!(
+        e.auths().iter().all(|(address, _)| address != &new_key),
+        "the new key must not need to sign"
     );
 
     assert_eq!(setup.contract.owner_of(&token_id), new_key);
@@ -291,13 +289,13 @@ fn test_admin_recover() {
 }
 
 #[test]
-fn test_recover_requires_admin_and_new_address() {
+fn test_recover_requires_admin() {
     let setup = create_test_data();
     let e = &setup.env;
     let token_id = mint(&setup, &setup.grogu, "1");
     let new_key = Address::generate(e);
 
-    for address in [&setup.admin, &new_key, &setup.attester] {
+    for address in [&new_key, &setup.attester, &setup.grogu] {
         e.mock_auths(&[MockAuth {
             address,
             invoke: &MockAuthInvoke {
