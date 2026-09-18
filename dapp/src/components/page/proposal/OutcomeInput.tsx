@@ -4,6 +4,7 @@ import Input from "components/utils/Input";
 import OutcomeModeSelector from "./OutcomeModeSelector";
 import OutcomeTemplateSelector from "./OutcomeTemplateSelector";
 import EnhancedContractFunctionSelector from "components/EnhancedContractFunctionSelector";
+import ContractNameSearch from "components/ContractNameSearch";
 import { capitalizeFirstLetter } from "utils/utils";
 import type { OutcomeContract } from "types/proposal";
 import type { OutcomeType } from "constants/outcomeTemplates";
@@ -35,9 +36,6 @@ interface OutcomeInputProps {
   onXdrChange?: (value: string) => void;
   onModeChange?: (mode: "xdr" | "contract" | "none") => void;
   onRemove?: () => void;
-
-  // Network for contract explorer
-  network?: string;
 }
 
 const OutcomeInput = ({
@@ -57,7 +55,6 @@ const OutcomeInput = ({
   onXdrChange,
   onModeChange,
   onRemove,
-  network = "testnet", // Default to testnet
 }: OutcomeInputProps) => {
   const handleModeChange = (newMode: "xdr" | "contract" | "none") => {
     setMode(newMode);
@@ -236,6 +233,20 @@ const OutcomeInput = ({
                   Contract Function
                 </p>
 
+                {/* Resolve a contract by its registered name via the Stellar Registry
+                    smart contract (exact match, on-chain). Fills the address
+                    below on selection. */}
+                <div className="w-full flex flex-col gap-2">
+                  <label className="text-sm font-medium text-primary">
+                    Contract Name (Stellar Registry)
+                  </label>
+                  <ContractNameSearch
+                    onSelect={(contract) =>
+                      handleContractAddressChange(contract.contractId)
+                    }
+                  />
+                </div>
+
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-primary">
                     Contract Address
@@ -254,7 +265,6 @@ const OutcomeInput = ({
                 {contractOutcome?.address && (
                   <EnhancedContractFunctionSelector
                     contractAddress={contractOutcome.address}
-                    network={network}
                     onFunctionSelect={handleContractFunctionSelect}
                     selectedFunction={contractOutcome?.execute_fn || ""}
                     initialArgs={contractOutcome?.args || []}

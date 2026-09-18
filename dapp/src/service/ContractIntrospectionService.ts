@@ -21,22 +21,13 @@ export interface ContractFunctionOutput {
  */
 export async function getContractFunctions(
   contractAddress: string,
-  network: "testnet" | "mainnet" = "testnet",
 ): Promise<ContractFunction[]> {
   try {
-    const serverUrl =
-      network === "testnet"
-        ? "https://soroban-testnet.stellar.org"
-        : "https://soroban.stellar.org";
-
     // Use SDK's Client.from() - this handles contract interaction and has the spec
     const client = await StellarSdk.contract.Client.from({
       contractId: contractAddress,
-      rpcUrl: serverUrl,
-      networkPassphrase:
-        network === "testnet"
-          ? StellarSdk.Networks.TESTNET
-          : StellarSdk.Networks.PUBLIC,
+      rpcUrl: import.meta.env.PUBLIC_SOROBAN_RPC_URL,
+      networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     });
 
     // Extract functions from the real contract specification

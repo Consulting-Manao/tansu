@@ -767,7 +767,6 @@ const CreateProposalModal = () => {
                   onXdrChange={() => setApproveXdrError(null)}
                   onModeChange={() => setApproveContractError(null)}
                   onRemove={() => setShowApproveOutcome(false)}
-                  network="testnet"
                 />
               ) : (
                 <div className="flex justify-center">
@@ -793,7 +792,6 @@ const CreateProposalModal = () => {
                   mode={rejectMode}
                   setMode={setRejectMode}
                   onRemove={() => setShowRejectOutcome(false)}
-                  network="testnet"
                 />
               ) : (
                 <div className="flex justify-center">
@@ -819,7 +817,6 @@ const CreateProposalModal = () => {
                   mode={cancelledMode}
                   setMode={setCancelledMode}
                   onRemove={() => setShowCancelledOutcome(false)}
-                  network="testnet"
                 />
               ) : (
                 <div className="flex justify-center">
