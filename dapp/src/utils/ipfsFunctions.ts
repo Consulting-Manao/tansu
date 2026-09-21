@@ -29,10 +29,6 @@ const GATEWAYS: ReadonlyArray<{
     name: "filebase",
     buildUrl: (cid, path) => `https://ipfs.filebase.io/ipfs/${cid}${path}`,
   },
-  {
-    name: "ipfs.io",
-    buildUrl: (cid, path) => `https://ipfs.io/ipfs/${cid}${path}`,
-  },
 ];
 
 const CACHE_KEY_PREFIX = "ipfs:v4:"; // Updated version prefix
