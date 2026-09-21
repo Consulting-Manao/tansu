@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { VoteResultType, type ProposalView } from "types/proposal";
 import { capitalizeFirstLetter } from "utils/utils";
-import { calculateDateDifference } from "../../../utils/formatTimeFunctions";
+import {
+  calculateDateDifference,
+  formatUtcDate,
+} from "../../../utils/formatTimeFunctions";
 
 interface Props {
   proposal: ProposalView | null;
@@ -67,7 +70,10 @@ const ProposalStatusSection: React.FC<Props> = ({ proposal }) => {
       {endDate && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-tertiary">End date</p>
-          <p className={`text-lg text-${status}`}>
+          <p
+            className={`text-lg text-${status}`}
+            title={`UTC: ${formatUtcDate(endDate)}`}
+          >
             {calculateDateDifference(endDate)}
           </p>
         </div>

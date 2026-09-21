@@ -60,3 +60,16 @@ export function calculateDateDifference(timestamp: number): string | null {
     return `${dayDiff} days`;
   }
 }
+
+export function formatUtcDate(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  };
+  return date.toLocaleString("en-GB", dateOptions);
+}

@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   calculateDateDifference,
+  formatUtcDate,
 } from "../../../src/utils/formatTimeFunctions";
 
 describe("formatTime", () => {
@@ -115,5 +116,40 @@ describe("calculateDateDifference", () => {
     const soon = Math.floor(new Date("2026-06-16T00:00:00Z").getTime() / 1000);
     const result = calculateDateDifference(soon);
     expect(result).toBe("1 day");
+  });
+});
+
+describe("formatUtcDate", () => {
+  it("formats a timestamp with UTC timezone", () => {
+    // 2026-06-15T14:30:00Z as a Unix timestamp
+    const timestamp = Math.floor(
+      new Date("2026-06-15T14:30:00Z").getTime() / 1000,
+    );
+    const result = formatUtcDate(timestamp);
+    expect(result).toContain("15");
+    expect(result).toContain("Jun");
+    expect(result).toContain("2026");
+    expect(result).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("includes day, month, year, hour, and minute", () => {
+    const timestamp = Math.floor(
+      new Date("2026-12-31T23:59:00Z").getTime() / 1000,
+    );
+    const result = formatUtcDate(timestamp);
+    expect(result).toContain("31");
+    expect(result).toContain("Dec");
+    expect(result).toContain("2026");
+    expect(result).toContain("23");
+    expect(result).toContain("59");
+  });
+
+  it("formats dates with leading zeros for single-digit hours and minutes", () => {
+    const timestamp = Math.floor(
+      new Date("2026-01-01T09:05:00Z").getTime() / 1000,
+    );
+    const result = formatUtcDate(timestamp);
+    expect(result).toContain("09");
+    expect(result).toContain("05");
   });
 });
