@@ -128,13 +128,13 @@ const CRYPTO_MOCK_SCRIPT = () => {
 // ── GitHub mock helpers ──────────────────────────────────────────────────────
 
 async function mockGitHubKeys(page: Page) {
-  await page.route("https://github.com/**", async (route) => {
+  await page.route("https://api.github.com/users/**", async (route) => {
     const url = route.request().url();
-    if (url.includes(".keys")) {
+    if (url.includes("/keys")) {
       await route.fulfill({
         status: 200,
-        contentType: "text/plain",
-        body: TEST_SSH_KEY_LINE + "\n",
+        contentType: "application/json",
+        body: JSON.stringify([{ id: 1, key: TEST_SSH_KEY_LINE }]),
       });
       return;
     }
@@ -143,13 +143,13 @@ async function mockGitHubKeys(page: Page) {
 }
 
 async function mockGitHubKeys404(page: Page) {
-  await page.route("https://github.com/**", async (route) => {
+  await page.route("https://api.github.com/users/**", async (route) => {
     const url = route.request().url();
-    if (url.includes(".keys")) {
+    if (url.includes("/keys")) {
       await route.fulfill({
         status: 404,
-        contentType: "text/plain",
-        body: "Not Found",
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Not Found" }),
       });
       return;
     }
@@ -158,13 +158,15 @@ async function mockGitHubKeys404(page: Page) {
 }
 
 async function mockGitHubKeysRsaOnly(page: Page) {
-  await page.route("https://github.com/**", async (route) => {
+  await page.route("https://api.github.com/users/**", async (route) => {
     const url = route.request().url();
-    if (url.includes(".keys")) {
+    if (url.includes("/keys")) {
       await route.fulfill({
         status: 200,
-        contentType: "text/plain",
-        body: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC...\n",
+        contentType: "application/json",
+        body: JSON.stringify([
+          { id: 1, key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..." },
+        ]),
       });
       return;
     }

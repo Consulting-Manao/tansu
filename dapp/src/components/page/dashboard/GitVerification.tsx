@@ -205,22 +205,12 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
     try {
       let url: string;
       if (provider === "github") {
-        url = `https://github.com/${encodeURIComponent(username.trim())}.keys`;
+        url = `https://api.github.com/users/${encodeURIComponent(username.trim())}/keys`;
       } else {
         url = `https://gitlab.com/api/v4/users/${encodeURIComponent(username.trim())}/keys`;
       }
 
-      // Attempt direct fetch first; fall back to CORS proxy if it fails
-      let response: Response;
-      try {
-        response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-      } catch {
-        // CORS proxy fallback
-        const proxyUrl = `http://localhost:8080/${url}`;
-        response = await fetch(proxyUrl, {
-          signal: AbortSignal.timeout(12_000),
-        });
-      }
+      const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
 
       if (!response.ok) {
         throw new Error(
@@ -228,14 +218,9 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         );
       }
 
-      let keysText: string;
-      if (provider === "gitlab") {
-        // GitLab returns JSON: [{ id, key: "ssh-ed25519 AAAA...", ... }]
-        const json: Array<{ key: string }> = await response.json();
-        keysText = json.map((k) => k.key).join("\n");
-      } else {
-        keysText = await response.text();
-      }
+      // Both GitHub and GitLab return JSON: [{ id, key: "ssh-ed25519 AAAA...", ... }]
+      const json: Array<{ key: string }> = await response.json();
+      const keysText = json.map((k) => k.key).join("\n");
 
       const lines = keysText.split("\n");
       const rawKeys: Uint8Array[] = [];
