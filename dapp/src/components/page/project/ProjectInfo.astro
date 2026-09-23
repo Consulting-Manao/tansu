@@ -200,8 +200,10 @@ import Button from "components/utils/Button";
       throw e;
     });
 
-    const loadModule = <T,>(name: string, path: string) =>
-      import(path)
+    // Literal import() paths: the bundler cannot resolve a variable one, and
+    // the module would 404 in production.
+    const loadModule = <T,>(name: string, load: () => Promise<unknown>) =>
+      load()
         .then((m) => ({ name, module: m as T }))
         .catch((e) => {
           console.warn(`Failed to load ${name}, skipping:`, e);
@@ -211,11 +213,11 @@ import Button from "components/utils/Button";
     const modules = await Promise.all([
       loadModule<{ default: ComponentType<any> }>(
         "ReadMoreModal",
-        "./ReadMoreModal",
+        () => import("./ReadMoreModal"),
       ),
       loadModule<{ default: ComponentType<any> }>(
         "ContributionMetrics",
-        "./ContributionMetrics",
+        () => import("./ContributionMetrics"),
       ),
     ]);
 

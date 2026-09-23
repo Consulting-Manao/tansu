@@ -45,8 +45,8 @@ bun install
 cp .env.example .env       # all variables are required
 bun dev                    # dev server on http://localhost:4321
 bun run build
-bun run test               # Playwright e2e (tests/*.spec.ts)
-bunx playwright test tests/governance-flows.spec.ts   # single e2e file
+bun run test               # Playwright e2e on the production build, against fakes (tests/*.spec.ts)
+bunx playwright test tests/governance.spec.ts   # single e2e file
 bun run test:unit          # vitest, includes tests/unit/**/*.test.ts
 bunx vitest run tests/unit/utils/errorHandler.test.ts # single unit test
 bun run lint               # prettier -c + eslint + ts-prune + validate-contract-errors
@@ -256,7 +256,7 @@ export default defineConfig({
 
 **Project usage**:
 - **dapp**: Tests run with `bun playwright test --reporter=dot` (see `dapp/package.json`). Config in `dapp/playwright.config.ts`; workers set to 1 in CI for stability.
-- When adding tests, place them in the configured test directory; use page objects or helpers as in the existing test suite. Mock external endpoints (e.g. delegation worker) as in `dapp/tests/helpers/mock.ts`.
+- Tests run on the production build (`bun run build`, served from `dist/`) against the fakes in `dapp/tests/helpers/`: `chain.ts` (Tansu behind a Soroban RPC), `web.ts` (IPFS gateway, Horizon, upload worker, GitHub) and `wallet.ts` (a GHOSTSIG wallet). Mock by host, never by module: module paths do not exist in a build. Start a test from `world()` in `app.ts`.
 - **Reports**: Use `npx playwright show-report` (or `bunx playwright show-report`) to open the HTML report after a run.
 
 **Reference**: [Playwright Introduction](https://playwright.dev/docs/intro), [Configuration](https://playwright.dev/docs/test-configuration), [Writing tests](https://playwright.dev/docs/writing-tests), [Running tests](https://playwright.dev/docs/running-tests)

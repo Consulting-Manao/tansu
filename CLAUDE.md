@@ -36,8 +36,8 @@ bun install
 cp .env.example .env       # all variables are required
 bun dev                    # dev server on http://localhost:4321
 bun run build
-bun run test               # Playwright e2e (tests/*.spec.ts)
-bunx playwright test tests/governance-flows.spec.ts   # single e2e file
+bun run test               # Playwright e2e on the production build, against fakes (tests/*.spec.ts)
+bunx playwright test tests/governance.spec.ts   # single e2e file
 bun run test:unit          # vitest, includes tests/unit/**/*.test.ts
 bunx vitest run tests/unit/utils/errorHandler.test.ts # single unit test
 bun run lint               # prettier -c + eslint + ts-prune + validate-contract-errors

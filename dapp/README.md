@@ -79,6 +79,14 @@ bun run test        # Playwright flows: tests/*.spec.ts
 
 CI runs all four. Unit tests read `.env.example`, not your local `.env`, so they behave the same on every machine.
 
+The Playwright flows build the app and use it as a person would, against fakes in `tests/helpers/`:
+
+- `chain.ts`: an in-memory Tansu contract behind a Soroban RPC;
+- `web.ts`: the IPFS gateway, Horizon, the upload worker and GitHub;
+- `wallet.ts`: a GHOSTSIG wallet that signs with a test key.
+
+The build points at hosts that never resolve (`env.ts`), so a request no fake answers fails instead of reaching a network. Each test starts from `world()` in `app.ts` and fails on any page error.
+
 TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newer versions yet.
 
 ### Technology Stack

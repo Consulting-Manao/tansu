@@ -22,13 +22,6 @@ jobs:
     timeout-minutes: 30
 
     env:
-      PUBLIC_DELEGATION_API_URL: "https://ipfs-testnet.tansu.dev"
-      PUBLIC_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org:443"
-      PUBLIC_SOROBAN_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
-      PUBLIC_STELLAR_REGISTRY_CONTRACT_ID: "CBFFTTX7QKA76FS4LHHQG54BC7JF5RMEX4RTNNJ5KEL76LYHVO3E3OEE"
-      PUBLIC_HORIZON_URL: "https://horizon-testnet.stellar.org"
-      PUBLIC_TANSU_CONTRACT_ID: "CTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
-      PUBLIC_TANSU_OWNER_ID: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
       CI: "true"
 
     defaults:
@@ -83,12 +76,8 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: bunx playwright install-deps chromium
 
-      - name: Setup environment variables
-        run: cp .env.example .env
-
-      - name: Build application
-        run: bun run build
-
+      # Playwright builds the app with its own environment (tests/helpers/env.ts)
+      # and serves dist/.
       - name: Run E2E tests
         run: bun run test
         env:
