@@ -20,8 +20,7 @@ A decentralized application built on Soroban for governance and voting, powered 
 ├── packages/               # Reusable packages
 │   └── tansu/             # Core governance utilities
 ├── public/                 # Static assets and icons
-├── tests/                  # End-to-end tests with Playwright
-└── voting.ts               # Cryptographic voting utilities
+└── tests/                  # Playwright flows (*.spec.ts) and Vitest unit tests (unit/)
 ```
 
 ## 🚀 Getting Started
@@ -69,13 +68,18 @@ The dapp fetches repository metadata directly from provider APIs in the browser.
 - Access is unauthenticated only, so metadata is limited to public repositories and subject to provider CORS and rate
   limits.
 
-## Validation
+## Testing
 
-Verified in this workspace:
+```bash
+bun run lint        # prettier, eslint, ts-prune and the contract error mapping
+bun run check       # astro check (TypeScript)
+bun run test:unit   # Vitest: tests/unit/**/*.test.ts
+bun run test        # Playwright flows: tests/*.spec.ts
+```
 
--
+CI runs all four. Unit tests read `.env.example`, not your local `.env`, so they behave the same on every machine.
 
-`bunx vitest run src/schemas/validation.test.ts src/utils/contractErrors.test.ts src/utils/errorHandler.test.ts src/utils/extractConfigData.test.ts`
+TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newer versions yet.
 
 ### Technology Stack
 
@@ -84,7 +88,7 @@ Verified in this workspace:
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS
 - **Language**: [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
 - **Package Manager**: [Bun](https://bun.sh/) - Fast JavaScript runtime
-- **Testing**: [Playwright](https://playwright.dev/) - End-to-end testing
+- **Testing**: [Playwright](https://playwright.dev/) for user flows, [Vitest](https://vitest.dev/) for units
 - **Blockchain**: [Soroban](https://soroban.stellar.org/) - Stellar smart contracts
 
 ### Key Components

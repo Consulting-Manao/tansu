@@ -170,7 +170,7 @@ describe("uploadAndSend", () => {
       signedTxXdr: "signed-xdr",
     });
     expect(uploadToIpfsProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
-      sendSignedTransactionMock.mock.invocationCallOrder[0],
+      sendSignedTransactionMock.mock.invocationCallOrder[0]!,
     );
     expect(onProgress.mock.calls).toEqual([[8], [9]]);
   });
@@ -186,7 +186,7 @@ describe("uploadAndSend", () => {
       txHash: hash,
     });
     expect(sendSignedTransactionMock.mock.invocationCallOrder[0]).toBeLessThan(
-      uploadToIpfsProxyMock.mock.invocationCallOrder[0],
+      uploadToIpfsProxyMock.mock.invocationCallOrder[0]!,
     );
     expect(onProgress.mock.calls).toEqual([[8], [9]]);
   });

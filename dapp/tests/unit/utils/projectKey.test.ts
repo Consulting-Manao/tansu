@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveProjectKey } from "./projectKey";
+import { deriveProjectKey } from "../../../src/utils/projectKey";
 
 // The on-chain contract derives the project key from keccak256 of the raw
 // (case-sensitive) project name. These expectations pin that behavior so the

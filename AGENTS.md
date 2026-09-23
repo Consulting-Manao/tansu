@@ -54,7 +54,7 @@ bun run format
 bun run check              # astro check
 ```
 
-Vitest resolves path aliases `types`, `utils`, `contracts`, `schemas`, `components` to `src/*`. `bun scripts/validate-contract-errors.js` keeps the dApp's contract-error mapping in sync with the Rust contract errors — run it (it's part of `lint`) after touching `contracts/tansu/src/errors.rs`.
+Vitest resolves path aliases `@service`, `types`, `utils`, `contracts`, `schemas`, `components` to `src/*`, and reads `.env.example` rather than your local `.env`. TypeScript stays on 6.0 (typescript-eslint and `astro check` do not support newer versions yet). `bun scripts/validate-contract-errors.js` keeps the dApp's contract-error mapping in sync with the Rust contract errors — run it (it's part of `lint`) after touching `contracts/tansu/src/errors.rs`.
 
 ### Python events service (`tansu/`)
 
@@ -327,7 +327,7 @@ This allows running Vitest commands via Bash when needed for testing.
 
 - **Environment**: `.env` files in dapp/, `.stellar/tansu_id-<network>` for contract IDs
 - **Configuration**: `dapp/astro.config.mjs`, `dapp/playwright.config.ts`, `dapp/tsconfig.json`
-- **Tests**: `dapp/tests/` (Playwright e2e), `dapp/src/**/*.test.ts` (vitest units), `contracts/tansu/src/tests/` (Rust integration tests)
+- **Tests**: `dapp/tests/*.spec.ts` (Playwright e2e), `dapp/tests/unit/**/*.test.ts` (vitest units), `contracts/tansu/src/tests/` (Rust integration tests)
 - **Services**: `dapp/src/service/` — all contract interaction and business logic
 - **Components**: `dapp/src/components/` — React components and Astro components
 - **Workers**: `dapp/workers/ipfs-delegation/` — Cloudflare Worker for IPFS delegation

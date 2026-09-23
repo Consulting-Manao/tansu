@@ -21,7 +21,7 @@ import {
   checkSimulationError,
 } from "../utils/contractErrors";
 import { handleFreighterError } from "../utils/errorHandler";
-import type { VoteType } from "types/proposal";
+import type { VoteReceipt, VoteType } from "types/proposal";
 import { signAndSend } from "./TxService";
 import { encryptWithPublicKey } from "../utils/crypto";
 import { invalidateProposalCache } from "./ReadContractService";
@@ -353,7 +353,7 @@ export async function voteToProposal(
   proposal_id: number,
   vote: VoteType,
   customWeight?: number,
-): Promise<import("types/proposal").VoteReceipt> {
+): Promise<VoteReceipt> {
   const client = getClient();
   const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
@@ -401,11 +401,11 @@ export async function voteToProposal(
 
   let votePayload: Vote;
 
-  // Variables for receipt
-  let seedsArr: number[] | undefined;
-  let votesArr: number[] | undefined;
-  let commitments: string[] | undefined;
-  let publicKeyStr: string | undefined;
+  // What an anonymous voter keeps to prove their vote later.
+  let anonymousReceipt: Pick<
+    VoteReceipt,
+    "seeds" | "votes" | "commitments" | "publicKey"
+  > = {};
 
   if (isPublicVoting) {
     votePayload = {
@@ -425,12 +425,12 @@ export async function voteToProposal(
     // Weight is applied on-chain when validating/aggregating, so the encoded
     // vote should be 1 for the chosen option and 0 for others to avoid u32
     // overflow in later tallies.
-    votesArr = [0, 0, 0];
+    const votesArr = [0, 0, 0];
     votesArr[voteIndex] = 1;
 
     // Generate cryptographically secure 32-bit seeds.
     const r = crypto.getRandomValues(new Uint32Array(3));
-    seedsArr = [Number(r[0]), Number(r[1]), Number(r[2])];
+    const seedsArr = [Number(r[0]), Number(r[1]), Number(r[2])];
 
     // Get anonymous voting config
     const configTx = await client.get_anonymous_voting_config({
@@ -439,8 +439,8 @@ export async function voteToProposal(
     // Ensure config actually exists (not an error bubbled in result)
     checkSimulationError(configTx);
 
-    publicKeyStr = configTx.result?.public_key;
-    if (!publicKeyStr)
+    const publicKey = configTx.result?.public_key;
+    if (!publicKey)
       throw new Error("Anonymous voting config missing public key");
 
     // Encrypt votes and seeds using project-configured public key
@@ -458,12 +458,12 @@ export async function voteToProposal(
       [encryptedSeeds, encryptedVotes, commitmentsTx] = await Promise.all([
         Promise.all(
           seedsArr.map((s) =>
-            encryptWithPublicKey(`${saltPrefix}:${s}`, publicKeyStr),
+            encryptWithPublicKey(`${saltPrefix}:${s}`, publicKey),
           ),
         ),
         Promise.all(
           votesArr.map((v) =>
-            encryptWithPublicKey(`${saltPrefix}:${v}`, publicKeyStr),
+            encryptWithPublicKey(`${saltPrefix}:${v}`, publicKey),
           ),
         ),
         client.build_commitments_from_votes({
@@ -474,7 +474,12 @@ export async function voteToProposal(
       ]);
       // Ensure the helper call did not surface a simulation error payload
       checkSimulationError(commitmentsTx);
-      commitments = commitmentsTx.result?.map((c: any) => c.toString());
+      anonymousReceipt = {
+        seeds: seedsArr.map(String),
+        votes: votesArr.map(String),
+        commitments: commitmentsTx.result?.map((c: any) => c.toString()),
+        publicKey,
+      };
     } catch (e: any) {
       // Normalize Wasm VM/host errors to user-friendly text
       throw new Error(parseContractError(e), { cause: e });
@@ -514,14 +519,7 @@ export async function voteToProposal(
     weight,
     isPublicVoting,
     transactionHash: result?.hash, // if available
-    ...(isPublicVoting
-      ? {}
-      : {
-          seeds: seedsArr?.map(String),
-          votes: votesArr?.map(String),
-          commitments,
-          publicKey: publicKeyStr,
-        }),
+    ...anonymousReceipt,
   };
 }
 

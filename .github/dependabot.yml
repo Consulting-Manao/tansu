@@ -33,6 +33,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # typescript-eslint and astro check do not support TypeScript 6.1+ yet.
+      - dependency-name: "typescript"
+        versions: [">=6.1"]
     cooldown:
       default-days: 7
 

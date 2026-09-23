@@ -52,44 +52,37 @@ export function seedProjectNameCache(mapping: Record<string, string>): void {
   });
 }
 
-/** Decode base64 ScVal using stellar-sdk xdr utilities and convert to JS */
+/** Decode a base64 ScVal into the tagged values the activity panel shows. */
 function decodeScVal(b64: string): any {
   try {
-    const scVal = StellarSdk.xdr.ScVal.fromXdr(b64, "base64");
-    return scValToNative(scVal);
+    return tagScVal(StellarSdk.xdr.ScVal.fromXdr(b64, "base64"));
   } catch {
     return null;
   }
 }
 
-function scValToNative(val: any): any {
-  switch (val.switch().name) {
+function tagScVal(val: any): any {
+  switch (val.type) {
     case "scvSymbol":
-      return { sym: val.sym().toString() };
+      return { sym: val.sym.toString() };
     case "scvString":
-      return { str: val.str().toString() };
+      return { str: val.str.toString() };
     case "scvBytes":
-      return { bin: Buffer.from(val.bytes()).toString("base64") };
+      return {
+        bin: Buffer.from(StellarSdk.scValToNative(val)).toString("base64"),
+      };
     case "scvVec":
-      return { vec: val.vec().map((v: any) => scValToNative(v)) };
+      return { vec: (val.vec ?? []).map(tagScVal) };
     case "scvI64":
-      return { i64: Number(val.i64().toString()) };
+      return { i64: Number(val.i64) };
     case "scvU32":
-      return { u32: val.u32() };
+      return { u32: val.u32 };
     case "scvU64":
-      return { u64: Number(val.u64().toString()) };
+      return { u64: Number(val.u64) };
     case "scvI32":
-      return { i32: val.i32() };
-    case "scvAddress": {
-      try {
-        const addr = val.address();
-        if (addr.switch().name === "scAddressTypeAccount") {
-          const raw = Buffer.from(addr.accountId().ed25519());
-          return { address: StellarSdk.StrKey.encodeEd25519PublicKey(raw) };
-        }
-      } catch {}
-      return {};
-    }
+      return { i32: val.i32 };
+    case "scvAddress":
+      return { address: StellarSdk.Address.fromScVal(val).toString() };
     default:
       return {};
   }

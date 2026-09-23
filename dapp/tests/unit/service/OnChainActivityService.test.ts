@@ -5,7 +5,7 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 const { xdr, Address } = StellarSdk;
 
 function scvToB64(scVal: StellarSdk.xdr.ScVal): string {
-  return scVal.toXDR("base64");
+  return scVal.toXdr("base64");
 }
 
 function scvAddress(address: string): StellarSdk.xdr.ScVal {

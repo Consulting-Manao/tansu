@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@astrojs/check": "^0.9.10",
     "@astrojs/netlify": "^8.2.4",
     "@astrojs/react": "^6.0.4",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
@@ -41,9 +40,10 @@
     "react18-json-view": "0.2.10",
     "recharts": "3.10.1",
     "toml": "^5.0.0",
-    "typescript": "^7.0.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
@@ -64,8 +64,8 @@
     "prettier-plugin-astro": "^0.14.1",
     "tailwindcss": "^4.3.3",
     "ts-prune": "^0.10.3",
-    "vitest": "4.1.11",
-    "zod": "^4.4.3"
+    "typescript": "~6.0.3",
+    "vitest": "4.1.11"
   },
   "name": "dapp",
   "engines": {

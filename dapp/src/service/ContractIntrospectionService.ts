@@ -16,159 +16,38 @@ export interface ContractFunctionOutput {
 }
 
 /**
- * Get available functions from a contract address using Stellar SDK's Client.from()
- * This leverages the SDK's built-in contract spec extraction from client.spec.entries
+ * List a contract's functions, with argument names and types, from the spec
+ * the SDK loads with the contract.
  */
 export async function getContractFunctions(
   contractAddress: string,
 ): Promise<ContractFunction[]> {
   try {
-    // Use SDK's Client.from() - this handles contract interaction and has the spec
     const client = await StellarSdk.contract.Client.from({
       contractId: contractAddress,
       rpcUrl: import.meta.env.PUBLIC_SOROBAN_RPC_URL,
       networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     });
-
-    // Extract functions from the real contract specification
-    const spec = (client as any).spec;
-    if (!spec || !spec.entries) {
-      // Fallback to basic method names if spec is not available
-      return getMethodNamesFromClient(client);
-    }
-
-    const functions: ContractFunction[] = [];
-
-    // Filter for function entries in the contract spec
-    const functionEntries = spec.entries.filter((entry: any) => {
-      return (
-        entry.switch &&
-        entry.switch() ===
-          StellarSdk.xdr.ScSpecEntryKind.scSpecEntryFunctionV0()
-      );
-    });
-
-    // Parse each function specification
-    for (const entry of functionEntries) {
-      try {
-        const funcSpec = entry.functionV0();
-        const funcName = funcSpec.name().toString();
-
-        // Skip constructor
-        if (funcName === "__constructor") {
-          continue;
-        }
-
-        // Extract inputs with real names and types
-        const inputs: ContractFunctionInput[] = [];
-        const funcInputs = funcSpec.inputs();
-        for (const input of funcInputs) {
-          inputs.push({
-            name: input.name().toString(),
-            type: getScSpecTypeName(input.type()),
-          });
-        }
-
-        // Extract outputs
-        const outputs: ContractFunctionOutput[] = [];
-        const funcOutputs = funcSpec.outputs();
-        for (const output of funcOutputs) {
-          outputs.push({
-            type: getScSpecTypeName(output),
-          });
-        }
-
-        functions.push({
-          name: funcName,
-          inputs,
-          outputs,
-        });
-      } catch {
-        // Skip malformed function entries
-        continue;
-      }
-    }
-
-    return functions;
+    return client.spec
+      .funcs()
+      .map((fn) => ({
+        name: fn.name.toString(),
+        inputs: fn.inputs.map((input) => ({
+          name: input.name.toString(),
+          type: specTypeName(input.type),
+        })),
+        outputs: fn.outputs.map((output) => ({ type: specTypeName(output) })),
+      }))
+      .filter((fn) => fn.name !== "__constructor");
   } catch {
     // Return empty array when introspection fails - user will need manual input
     return [];
   }
 }
 
-/**
- * Fallback: Extract basic function names when spec is not available
- */
-function getMethodNamesFromClient(client: any): ContractFunction[] {
-  const functions: ContractFunction[] = [];
-  const methodNames = Object.getOwnPropertyNames(client);
-
-  for (const methodName of methodNames) {
-    // Skip non-method properties and internal methods
-    if (
-      methodName === "constructor" ||
-      methodName.startsWith("_") ||
-      methodName === "options" ||
-      methodName === "fromJSON" ||
-      typeof client[methodName] !== "function"
-    ) {
-      continue;
-    }
-
-    functions.push({
-      name: methodName,
-      inputs: [], // No parameter info available
-      outputs: [],
-    });
-  }
-
-  return functions;
-}
-
-/**
- * Convert ScSpecType to readable type name
- */
-function getScSpecTypeName(specType: any): string {
-  try {
-    const typeSwitch = specType.switch();
-
-    switch (typeSwitch) {
-      case StellarSdk.xdr.ScSpecType.scSpecTypeU64():
-        return "u64";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeI64():
-        return "i64";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeU32():
-        return "u32";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeI32():
-        return "i32";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeU128():
-        return "u128";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeI128():
-        return "i128";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeU256():
-        return "u256";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeI256():
-        return "i256";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeBool():
-        return "bool";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeSymbol():
-        return "symbol";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeString():
-        return "string";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeAddress():
-        return "address";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeBytes():
-        return "bytes";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeVec():
-        return "vec";
-      case StellarSdk.xdr.ScSpecType.scSpecTypeMap():
-        return "map";
-      default:
-        return "unknown";
-    }
-  } catch {
-    return "unknown";
-  }
+/** "scSpecTypeU64" → "u64", the names the argument inputs switch on. */
+function specTypeName(type: StellarSdk.xdr.ScSpecTypeDef): string {
+  return type.type.replace(/^scSpecType/, "").toLowerCase();
 }
 
 /**

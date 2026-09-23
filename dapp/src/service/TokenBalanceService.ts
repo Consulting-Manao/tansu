@@ -127,10 +127,9 @@ function balanceFromSimulation(
 
 function getBalanceArgName(client: TokenClient): string {
   try {
-    const inputs = client.spec.getFunc("balance").inputs();
-    const first = inputs[0];
+    const first = client.spec.getFunc("balance").inputs[0];
     if (!first) throw new Error("no inputs");
-    return first.name().toString();
+    return first.name.toString();
   } catch {
     return "id";
   }

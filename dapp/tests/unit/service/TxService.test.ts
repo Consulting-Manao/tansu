@@ -59,21 +59,21 @@ describe("decodeReturnValue", () => {
   it("decodes base64 u32 ScVal to number", async () => {
     const { decodeReturnValue } = await loadModule();
     const scVal = xdr.ScVal.scvU32(12345);
-    const b64 = scVal.toXDR("base64");
+    const b64 = scVal.toXdr("base64");
     expect(await decodeReturnValue(b64)).toBe(12345);
   });
 
   it("decodes base64 i64 ScVal to number", async () => {
     const { decodeReturnValue } = await loadModule();
-    const scVal = xdr.ScVal.scvI64(new xdr.Int64(999));
-    const b64 = scVal.toXDR("base64");
+    const scVal = xdr.ScVal.scvI64(999n);
+    const b64 = scVal.toXdr("base64");
     expect(await decodeReturnValue(b64)).toBe(999);
   });
 
   it("decodes base64 bool ScVal to true (passes through scValToNative)", async () => {
     const { decodeReturnValue } = await loadModule();
     const scVal = xdr.ScVal.scvBool(true);
-    const b64 = scVal.toXDR("base64");
+    const b64 = scVal.toXdr("base64");
     expect(await decodeReturnValue(b64)).toBe(true);
   });
 
@@ -84,8 +84,8 @@ describe("decodeReturnValue", () => {
 
   it("converts bigint to number", async () => {
     const { decodeReturnValue } = await loadModule();
-    const scVal = xdr.ScVal.scvU64(new xdr.Uint64(BigInt(5000)));
-    const b64 = scVal.toXDR("base64");
+    const scVal = xdr.ScVal.scvU64(5000n);
+    const b64 = scVal.toXdr("base64");
     const result = await decodeReturnValue(b64);
     expect(typeof result).toBe("number");
     expect(result).toBe(5000);
@@ -93,12 +93,9 @@ describe("decodeReturnValue", () => {
 
   it("decodes i128 ScVal (bigint -> number)", async () => {
     const { decodeReturnValue } = await loadModule();
-    const parts = new xdr.Int128Parts({
-      lo: new xdr.Uint64(BigInt(100)),
-      hi: new xdr.Int64(BigInt(0)),
-    });
+    const parts = new xdr.Int128Parts({ lo: 100n, hi: 0n });
     const scVal = xdr.ScVal.scvI128(parts);
-    const b64 = scVal.toXDR("base64");
+    const b64 = scVal.toXdr("base64");
     const result = await decodeReturnValue(b64);
     expect(typeof result).toBe("number");
     expect(result).toBe(100);

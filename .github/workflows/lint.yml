@@ -103,5 +103,8 @@ jobs:
       - name: Check dApp types
         run: cd dapp && bun run check
 
+      - name: Unit test dApp
+        run: cd dapp && bun run test:unit
+
       - name: Build app (static for lighthouse)
         run: cd dapp && bun run build:lighthouse
