@@ -2,6 +2,7 @@ import { retryAsync } from "../utils/retry";
 import { parseContractError } from "../utils/contractErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { toast } from "utils/utils";
+import { disconnect, loadedPublicKey } from "./walletService";
 
 // Freighter kept ONLY as legacy fallback — not the primary signer
 import freighterPkg from "@stellar/freighter-api";
@@ -40,19 +41,46 @@ async function withActiveWallet<T>({
 }
 
 /**
+ * A signed envelope to submit, or the hash of a transaction the wallet
+ * submitted itself (Nido relays smart-account transactions).
+ */
+export type SignedTransaction = { xdr: string } | { hash: string };
+
+// `error.name` Nido rejects with when the user picks "Use a different account".
+const ACCOUNT_SWITCH_REQUESTED = "ACCOUNT_SWITCH_REQUESTED";
+
+/**
  * Sign a transaction XDR using whichever wallet is currently active in the kit.
  * Falls back to Freighter's direct API only if the kit has no active wallet set.
  */
-async function signWithActiveWallet(xdr: string): Promise<string> {
-  return withActiveWallet<string>({
+async function signWithActiveWallet(
+  xdr: string,
+  address: string | undefined = loadedPublicKey(),
+): Promise<SignedTransaction> {
+  return withActiveWallet<SignedTransaction>({
     kitAction: async (StellarWalletsKit) => {
-      const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
-        networkPassphrase: NETWORK_PASSPHRASE,
-      });
+      let result: { signedTxXdr?: string; submitted?: boolean };
+      try {
+        result = await StellarWalletsKit.signTransaction(xdr, {
+          networkPassphrase: NETWORK_PASSPHRASE,
+          address,
+        });
+      } catch (err: any) {
+        if (err?.name === ACCOUNT_SWITCH_REQUESTED) {
+          disconnect();
+          throw new Error(
+            "Connect again, pick the account you want, then retry.",
+            { cause: err },
+          );
+        }
+        throw err;
+      }
+      const { signedTxXdr, submitted } = result;
       if (!signedTxXdr) {
         throw new Error("signedTxXdr returned from wallet is undefined.");
       }
-      return signedTxXdr;
+      // A wallet that submitted the transaction returns its hash instead.
+      return submitted === true ? { hash: signedTxXdr } : { xdr: signedTxXdr };
     },
     freighterAction: async () => {
       const signedResp = await freighterSign(xdr, {
@@ -65,7 +93,7 @@ async function signWithActiveWallet(xdr: string): Promise<string> {
       if (!signedTxXdr) {
         throw new Error("signedTxXdr returned from wallet is undefined.");
       }
-      return signedTxXdr;
+      return { xdr: signedTxXdr };
     },
     fallbackErrorMessage: "Failed to get signed transaction XDR",
   });
@@ -102,14 +130,51 @@ export async function decodeReturnValue(returnValue: any): Promise<any> {
 }
 
 /**
+ * Wait for a submitted transaction to leave NOT_FOUND and decode its return
+ * value.
+ */
+async function waitForTransaction(
+  server: StellarSdk.rpc.Server,
+  hash: string,
+): Promise<any> {
+  let retries = 0;
+  let getResponse = await server.getTransaction(hash);
+  const maxRetries = 30;
+
+  while (getResponse.status === "NOT_FOUND" && retries < maxRetries) {
+    await new Promise((res) => setTimeout(res, 1000));
+    getResponse = await server.getTransaction(hash);
+    retries++;
+  }
+
+  if (getResponse.status === "SUCCESS")
+    return decodeReturnValue(getResponse.returnValue);
+
+  if (getResponse.status === "FAILED") {
+    const errStr = JSON.stringify(getResponse);
+    const match = errStr.match(/Error\(Contract, #(\d+)\)/);
+    if (match) throw new Error(parseContractError({ message: errStr } as any));
+    throw new Error(`Transaction failed with status: ${getResponse.status}`);
+  }
+
+  throw new Error(`Transaction failed with status: ${getResponse.status}`);
+}
+
+/**
  * Send a signed transaction (Soroban) and decode typical return values.
  * - Accepts base64 XDR directly (soroban-rpc supports it)
  * - Falls back to classic Transaction envelope when necessary
  * - Waits for PENDING → SUCCESS/FAILED and attempts returnValue decoding
+ * - A transaction the wallet already submitted is only awaited
  */
-export async function sendSignedTransaction(signedTxXdr: string): Promise<any> {
+export async function sendSignedTransaction(
+  signed: SignedTransaction,
+): Promise<any> {
   const { rpc } = StellarSdk;
   const server = new rpc.Server(import.meta.env.PUBLIC_SOROBAN_RPC_URL);
+
+  if ("hash" in signed) return waitForTransaction(server, signed.hash);
+  const signedTxXdr = signed.xdr;
 
   let sendResponse: any;
   try {
@@ -137,30 +202,8 @@ export async function sendSignedTransaction(signedTxXdr: string): Promise<any> {
   if (sendResponse.status === "SUCCESS")
     return decodeReturnValue(sendResponse.returnValue);
 
-  if (sendResponse.status === "PENDING") {
-    let retries = 0;
-    let getResponse = await server.getTransaction(sendResponse.hash);
-    const maxRetries = 30;
-
-    while (getResponse.status === "NOT_FOUND" && retries < maxRetries) {
-      await new Promise((res) => setTimeout(res, 1000));
-      getResponse = await server.getTransaction(sendResponse.hash);
-      retries++;
-    }
-
-    if (getResponse.status === "SUCCESS")
-      return decodeReturnValue(getResponse.returnValue);
-
-    if (getResponse.status === "FAILED") {
-      const errStr = JSON.stringify(getResponse);
-      const match = errStr.match(/Error\(Contract, #(\d+)\)/);
-      if (match)
-        throw new Error(parseContractError({ message: errStr } as any));
-      throw new Error(`Transaction failed with status: ${getResponse.status}`);
-    }
-
-    throw new Error(`Transaction failed with status: ${getResponse.status}`);
-  }
+  if (sendResponse.status === "PENDING")
+    return waitForTransaction(server, sendResponse.hash);
 
   return sendResponse;
 }
@@ -204,6 +247,11 @@ export async function sendXLM(
     }
 
     if (!senderPublicKey) throw new Error("WALLET_NOT_CONNECTED");
+    if (StellarSdk.StrKey.isValidContract(senderPublicKey)) {
+      throw new Error(
+        "Donations are classic XLM payments, which smart-account wallets such as Nido cannot send. Connect a G… account to donate.",
+      );
+    }
 
     const horizonUrl = import.meta.env.PUBLIC_HORIZON_URL;
 
@@ -250,12 +298,18 @@ export async function sendXLM(
       .build();
 
     // Sign and extract the raw XDR — handle both old and new signTransaction response shapes
-    const signedTx = await signWithActiveWallet(transaction.toXdr());
+    const signed = await signWithActiveWallet(
+      transaction.toXdr(),
+      senderPublicKey,
+    );
+    if (!("xdr" in signed)) {
+      throw new Error("The wallet submitted the payment instead of signing it");
+    }
 
     const response = await fetch(`${horizonUrl}/transactions`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `tx=${encodeURIComponent(signedTx)}`,
+      body: `tx=${encodeURIComponent(signed.xdr)}`,
     });
 
     if (!response.ok) throw new Error(await response.text());
@@ -273,7 +327,7 @@ export async function sendXLM(
  */
 export async function signAssembledTransaction(
   assembledTx: any,
-): Promise<string> {
+): Promise<SignedTransaction> {
   const sim = await assembledTx.simulate();
   if ((assembledTx as any).prepare) await (assembledTx as any).prepare(sim);
 

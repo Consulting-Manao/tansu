@@ -11,7 +11,7 @@ import {
   removeConflictOfInterest,
 } from "@service/ContractService";
 import { toast } from "utils/utils";
-import { validateStellarAddress } from "utils/validations";
+import { validateStellarPrincipal } from "utils/validations";
 
 interface Props extends ModalProps {
   projectName: string;
@@ -111,7 +111,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
       setInputError("Address is required");
       return;
     }
-    const validationError = validateStellarAddress(trimmed);
+    const validationError = validateStellarPrincipal(trimmed);
     if (validationError) {
       setInputError(validationError);
       return;

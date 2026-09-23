@@ -8,6 +8,10 @@ compatibility_flags = ["nodejs_compat"]
 pattern = "ipfs-testnet.tansu.dev"
 custom_domain = true
 
+# Checks txHash proofs from smart-account wallets (Nido, testnet only).
+[env.testnet.vars]
+SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
+
 [env.production]
 [[env.production.routes]]
 pattern = "ipfs.tansu.dev"

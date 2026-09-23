@@ -1,13 +1,14 @@
 /**
  * Cloudflare Worker for delegated IPFS uploads.
  *
- * The dapp sends the CAR payload plus the already-signed transaction that will
- * later be submitted on-chain. The worker verifies the transaction signature,
+ * The dapp sends the CAR payload plus a proof: the already-signed transaction
+ * that will later be submitted on-chain, or the hash of a transaction that a
+ * wallet already submitted with this CID. The worker verifies the proof,
  * uploads the CAR to Filebase, then optionally pins the resulting CID on
  * Pinata in the background.
  */
 
-import { Keypair, Networks, Transaction } from "@stellar/stellar-sdk";
+import { Keypair, Networks, Transaction, xdr } from "@stellar/stellar-sdk";
 import { CarReader } from "@ipld/car";
 
 export interface Env {
@@ -15,6 +16,8 @@ export interface Env {
   PINATA_JWT?: string;
   PINATA_GROUP_ID?: string;
   ENABLE_PINATA_PINNING?: string;
+  /** Soroban RPC used to check `txHash` proofs. Unset disables them. */
+  SOROBAN_RPC_URL?: string;
 }
 
 interface WorkerExecutionContext {
@@ -23,8 +26,11 @@ interface WorkerExecutionContext {
 
 interface UploadRequest {
   cid: string;
-  signedTxXdr: string;
   car: string;
+  /** Signed envelope of the transaction the dapp is about to send. */
+  signedTxXdr?: string;
+  /** Hash of a transaction a wallet already submitted (smart accounts). */
+  txHash?: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -72,11 +78,13 @@ export function buildUploadBlob(base64Car: string): Blob {
   });
 }
 
-function validateUploadRequest(body: UploadRequest): void {
-  const { cid, signedTxXdr, car } = body;
+export function validateUploadRequest(body: UploadRequest): void {
+  const { cid, signedTxXdr, txHash, car } = body;
 
-  if (!cid || !signedTxXdr || !car) {
-    throw new Error("Missing required fields: cid, signedTxXdr and car");
+  if (!cid || !car || !signedTxXdr === !txHash) {
+    throw new Error(
+      "Missing required fields: cid, car and either signedTxXdr or txHash",
+    );
   }
 }
 
@@ -115,6 +123,79 @@ export function validateSignedTransaction(signedTxXdr: string): void {
 
   if (!verifiedTransaction.operations?.length) {
     throw new Error("Transaction must have at least one operation");
+  }
+}
+
+/**
+ * Check that `txHash` is a successful transaction passing `cid` to a contract.
+ *
+ * Smart-account wallets (Nido) submit through their own relayer, so the dapp
+ * holds no envelope signed by its source and uploads once the transaction has
+ * landed. The CAR root must equal `cid`, so a replay can only upload content
+ * already recorded on-chain.
+ */
+export async function validateSubmittedTransaction(
+  txHash: string,
+  cid: string,
+  rpcUrl: string | undefined,
+): Promise<void> {
+  if (!rpcUrl) {
+    throw new Error("Transaction hash proofs are not configured");
+  }
+  if (!/^[0-9a-f]{64}$/i.test(txHash)) {
+    throw new Error("Invalid transaction hash");
+  }
+
+  const res = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getTransaction",
+      params: { hash: txHash },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Soroban RPC HTTP ${res.status}`);
+  }
+  const { result } = (await res.json()) as {
+    result?: { status?: string; envelopeXdr?: string };
+  };
+  if (result?.status !== "SUCCESS" || !result.envelopeXdr) {
+    throw new Error(
+      `Transaction ${txHash} did not succeed on-chain (${result?.status ?? "unknown"})`,
+    );
+  }
+
+  // Relayers wrap the transaction in a fee bump.
+  const envelope = xdr.TransactionEnvelope.fromXDR(
+    result.envelopeXdr,
+    "base64",
+  );
+  const tx =
+    envelope.switch() === xdr.EnvelopeType.envelopeTypeTxFeeBump()
+      ? envelope.feeBump().tx().innerTx().v1().tx()
+      : envelope.v1().tx();
+
+  const recordsCid = tx.operations().some((op) => {
+    const body = op.body();
+    if (body.switch() !== xdr.OperationType.invokeHostFunction()) return false;
+    const fn = body.invokeHostFunctionOp().hostFunction();
+    if (fn.switch() !== xdr.HostFunctionType.hostFunctionTypeInvokeContract()) {
+      return false;
+    }
+    return fn
+      .invokeContract()
+      .args()
+      .some(
+        (arg) =>
+          arg.switch() === xdr.ScValType.scvString() &&
+          arg.str().toString() === cid,
+      );
+  });
+  if (!recordsCid) {
+    throw new Error(`Transaction ${txHash} does not record ${cid}`);
   }
 }
 
@@ -187,7 +268,15 @@ export default {
     try {
       body = (await request.json()) as UploadRequest;
       validateUploadRequest(body);
-      validateSignedTransaction(body.signedTxXdr);
+      if (body.txHash) {
+        await validateSubmittedTransaction(
+          body.txHash,
+          body.cid,
+          env.SOROBAN_RPC_URL,
+        );
+      } else {
+        validateSignedTransaction(body.signedTxXdr!);
+      }
     } catch (error: any) {
       return new Response(
         JSON.stringify({

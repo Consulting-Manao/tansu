@@ -734,6 +734,7 @@ export async function applyAllMocks(page) {
   await page.route("**/src/service/walletService.ts", (route) => {
     const body = `
     export function loadedPublicKey() { return '${WALLET_PK}'; }
+    export function txSourceFor(address) { return address; }
     export function loadedProvider() { return { id: 'mockWallet', name: 'Mock Wallet', connected: true }; }
     export function setPublicKey() {}
     export function setConnection() {}      
@@ -757,6 +758,7 @@ export async function applyAllMocks(page) {
   await page.route("**/@service/walletService*", (route) => {
     const body = `
     export function loadedPublicKey() { return '${WALLET_PK}'; }
+    export function txSourceFor(address) { return address; }
     export function loadedProvider() { return { id: 'mockWallet', name: 'Mock Wallet', connected: true }; }
     export function setPublicKey() {}
     export function setConnection() {}      

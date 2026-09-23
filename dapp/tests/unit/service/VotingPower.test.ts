@@ -17,6 +17,7 @@ vi.mock("../../../src/contracts/soroban_tansu", () => ({
 vi.mock("../../../src/service/walletService", () => ({
   loadedPublicKey: () =>
     "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+  txSourceFor: (address: string) => address,
 }));
 
 vi.mock("../../../src/service/StateService", () => ({

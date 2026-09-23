@@ -3,7 +3,7 @@ import {
   stellarAddressSchema,
   stellarPrincipalSchema,
   validateGithubUrl,
-  validateStellarAddress,
+  validateStellarPrincipal,
   validateMaintainerAddress,
 } from "../../../src/schemas/validation";
 
@@ -107,12 +107,17 @@ describe("validateMaintainerAddress", () => {
   });
 });
 
-describe("validateStellarAddress", () => {
+describe("validateStellarPrincipal", () => {
   it("returns null for a G... address", () => {
-    expect(validateStellarAddress(validAccount)).toBeNull();
+    expect(validateStellarPrincipal(validAccount)).toBeNull();
   });
 
-  it("returns an error for a C... contract (G-only context)", () => {
-    expect(validateStellarAddress(validContract)).toBeTruthy();
+  it("returns null for a C... smart account", () => {
+    expect(validateStellarPrincipal(validContract)).toBeNull();
+  });
+
+  it("returns an error string for garbage input", () => {
+    expect(validateStellarPrincipal("not-an-address")).toBeTruthy();
+    expect(validateStellarPrincipal("M" + "A".repeat(55))).toBeTruthy();
   });
 });

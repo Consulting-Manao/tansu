@@ -11,7 +11,7 @@ import {
   type VoteChoice,
 } from "../../packages/tansu";
 import Tansu from "../contracts/soroban_tansu";
-import { loadedPublicKey } from "./walletService";
+import { loadedPublicKey, txSourceFor } from "./walletService";
 import { loadedProjectId } from "./StateService";
 import { Buffer } from "buffer";
 import { deriveProjectKey } from "../utils/projectKey";
@@ -58,7 +58,7 @@ function getClient() {
   }
 
   // Use the proven working Tansu client instance
-  Tansu.options.publicKey = publicKey;
+  Tansu.options.publicKey = txSourceFor(publicKey);
   return Tansu;
 }
 
@@ -139,7 +139,7 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
   if (!projectId) throw new Error("No project defined");
 
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   // Ensure projectId is a proper Buffer
@@ -171,7 +171,7 @@ export async function setEvidence(
   cid: string,
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -204,7 +204,7 @@ export async function attest(
   note: string | null = null,
 ): Promise<boolean> {
   const client = getClient();
-  const attester = client.options.publicKey;
+  const attester = loadedPublicKey();
   if (!attester) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -236,7 +236,7 @@ export async function revokeAttestation(
   target: AttestationTarget,
 ): Promise<boolean> {
   const client = getClient();
-  const attester = client.options.publicKey;
+  const attester = loadedPublicKey();
   if (!attester) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -264,7 +264,7 @@ export async function setAttestationThreshold(
   percent: number | null,
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -291,7 +291,7 @@ export async function getVotingPower(
   voterAddress?: string,
 ): Promise<VotingPowerResult> {
   const client = getClient();
-  const member = voterAddress ?? client.options.publicKey;
+  const member = voterAddress ?? loadedPublicKey();
   if (!member) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -331,7 +331,7 @@ export async function getMemberMaxWeight(
   memberAddress?: string,
 ): Promise<number> {
   const client = getClient();
-  const member = memberAddress ?? client.options.publicKey;
+  const member = memberAddress ?? loadedPublicKey();
   if (!member) throw new Error("Wallet not connected");
 
   const weightTx = await client.get_max_weight({
@@ -355,7 +355,7 @@ export async function voteToProposal(
   customWeight?: number,
 ): Promise<import("types/proposal").VoteReceipt> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -535,7 +535,7 @@ export async function execute(
   seeds?: bigint[],
 ): Promise<any> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -569,7 +569,7 @@ export async function setBadges(
   if (!projectId) throw new Error("No project defined");
 
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   // Ensure projectId is a proper Buffer
@@ -604,7 +604,7 @@ export async function addConflictOfInterest(
   addresses: string[],
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -630,7 +630,7 @@ export async function removeConflictOfInterest(
   addresses: string[],
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -655,7 +655,7 @@ export async function revokeProposal(
   proposal_id: number,
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);
@@ -681,7 +681,7 @@ export async function setupAnonymousVoting(
   force = false,
 ): Promise<boolean> {
   const client = getClient();
-  const maintainer = client.options.publicKey;
+  const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
   const projectKey = getProjectKey(project_name);

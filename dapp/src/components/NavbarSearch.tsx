@@ -117,8 +117,9 @@ const NavbarSearch = () => {
       setOriginalUrl(window.location.pathname + window.location.search);
     }
 
+    // Members are accounts (G...) or smart accounts (C...).
     const isStellarAddress =
-      searchTerm.startsWith("G") && searchTerm.length >= 56;
+      /^[GC]/.test(searchTerm) && searchTerm.length >= 56;
 
     const isOnHomePage = window.location.pathname === HOME_PATH;
     const currentFullUrl = window.location.pathname + window.location.search;

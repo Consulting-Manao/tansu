@@ -93,6 +93,14 @@ describe("OnChainActivityService", () => {
     vi.unstubAllGlobals();
   });
 
+  it("returns no actions for a smart account without calling Horizon", async () => {
+    const actions = await mod.fetchOnChainActions(
+      "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+    );
+    expect(actions).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("parses a register operation and extracts project name and project key", async () => {
     const records = [makeRegisterOp("myapp", "https://github.com/org/myapp")];
     fetchMock.mockResolvedValue(

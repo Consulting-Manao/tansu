@@ -11,7 +11,7 @@ import {
   signAssembledTransaction,
   sendSignedTransaction,
 } from "@service/TxService";
-import { loadedPublicKey } from "@service/walletService";
+import { loadedPublicKey, txSourceFor } from "@service/walletService";
 import Tansu from "contracts/soroban_tansu";
 import { checkSimulationError } from "utils/contractErrors";
 import { deriveProjectKey, normalizeSubProjectKeys } from "utils/projectKey";
@@ -141,7 +141,7 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
         throw new Error("Please connect your wallet first");
       }
 
-      Tansu.options.publicKey = publicKey;
+      Tansu.options.publicKey = txSourceFor(publicKey);
 
       if (typeof (Tansu as any).set_sub_projects !== "function") {
         throw new Error(
@@ -157,8 +157,8 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
 
       checkSimulationError(tx as any);
 
-      const signedTxXdr = await signAssembledTransaction(tx);
-      await sendSignedTransaction(signedTxXdr);
+      const signed = await signAssembledTransaction(tx);
+      await sendSignedTransaction(signed);
 
       toast.success(
         "Sub-projects updated",

@@ -10,7 +10,12 @@ import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 //
 
 //
-import { sendSignedTransaction, signAssembledTransaction } from "./TxService";
+import {
+  sendSignedTransaction,
+  signAssembledTransaction,
+  type SignedTransaction,
+} from "./TxService";
+import { txSourceFor } from "./walletService";
 import { checkSimulationError } from "../utils/contractErrors";
 import { Buffer } from "buffer";
 import { invalidateQuery } from "./cache/cacheStore";
@@ -73,11 +78,11 @@ async function createSignedProposalTransaction(
   publicVoting: boolean,
   outcomeContracts?: OutcomeContract[],
   tokenContract?: string,
-): Promise<string> {
+): Promise<SignedTransaction> {
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
-  Tansu.options.publicKey = publicKey;
+  Tansu.options.publicKey = txSourceFor(publicKey);
   const project_key = deriveProjectKey(projectName);
 
   const tx = await Tansu.create_proposal({
@@ -108,7 +113,7 @@ async function createSignedAddMemberTransaction(
     gitPubkey: Buffer;
     gitSig: Buffer;
   },
-): Promise<string> {
+): Promise<SignedTransaction> {
   const address = memberAddress || connectedPublicKey.get();
   if (!address) throw new Error("Please connect your wallet first");
 
@@ -117,7 +122,7 @@ async function createSignedAddMemberTransaction(
     meta = ""; // Use empty string instead of whitespace
   }
 
-  Tansu.options.publicKey = address;
+  Tansu.options.publicKey = txSourceFor(address);
 
   const tx = await Tansu.add_member({
     member_address: address,
@@ -134,10 +139,41 @@ async function createSignedAddMemberTransaction(
 }
 
 /**
- * Send a signed transaction to the network
+ * Upload a CAR to IPFS and land its transaction, in the order the wallet
+ * allows. A signed envelope authorizes the upload and is sent after it. A
+ * transaction the wallet already submitted (Nido relays smart-account
+ * transactions) is confirmed first, and its hash authorizes the upload.
+ * `uploadToIpfsProxy` checks that the uploaded CID is the expected one.
  */
-async function sendSignedTransactionLocal(signedTxXdr: string): Promise<any> {
-  return sendSignedTransaction(signedTxXdr);
+export async function uploadAndSend(
+  signed: SignedTransaction,
+  upload?: { cid: string; carBlob: Blob },
+  onProgress?: (step: number) => void,
+): Promise<any> {
+  if (!upload) {
+    onProgress?.(9);
+    return sendSignedTransaction(signed);
+  }
+
+  if ("hash" in signed) {
+    const result = await sendSignedTransaction(signed);
+    onProgress?.(8);
+    try {
+      await uploadToIpfsProxy({ ...upload, txHash: signed.hash });
+    } catch (error: any) {
+      throw new Error(
+        `Transaction ${signed.hash} is on-chain but its IPFS upload failed: ${error?.message ?? error}`,
+        { cause: error },
+      );
+    }
+    onProgress?.(9);
+    return result;
+  }
+
+  onProgress?.(8);
+  await uploadToIpfsProxy({ ...upload, signedTxXdr: signed.xdr });
+  onProgress?.(9);
+  return sendSignedTransaction(signed);
 }
 
 /**
@@ -169,7 +205,7 @@ export async function createProposalFlow({
 
   // Step 2: Create and sign the smart contract transaction with the pre-calculated CID
   onProgress?.(7); // Signing proposal transaction (UI index 2)
-  const signedTxXdr = await createSignedProposalTransaction(
+  const signed = await createSignedProposalTransaction(
     projectName,
     proposalName,
     cid,
@@ -179,24 +215,8 @@ export async function createProposalFlow({
     tokenContract,
   );
 
-  // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
-  onProgress?.(8); // Uploading to IPFS (UI index 3)
-  const uploadedCid = await uploadToIpfsProxy({
-    cid,
-    carBlob,
-    signedTxXdr,
-  });
-
-  // Step 4: Verify CID matches
-  if (uploadedCid !== cid) {
-    throw new Error(
-      `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-    );
-  }
-
-  // Step 5: Send the signed transaction
-  onProgress?.(9); // Sending transaction
-  const result = await sendSignedTransactionLocal(signedTxXdr);
+  // Steps 3-5: Upload the CAR to IPFS (UI index 3) and send the transaction
+  const result = await uploadAndSend(signed, { cid, carBlob }, onProgress);
   invalidateQuery(queryKeys.proposals.all(projectName));
   invalidateQuery(queryKeys.proposals.pages(projectName));
 
@@ -228,32 +248,18 @@ export async function joinCommunityFlow({
 
   // Step 2: Create and sign the smart contract transaction with the CID
   onProgress?.(7);
-  const signedTxXdr = await createSignedAddMemberTransaction(
+  const signed = await createSignedAddMemberTransaction(
     memberAddress,
     cid,
     gitIdentity,
   );
 
-  if (profileFiles.length > 0 && carBlob) {
-    // Step 3: Upload the pre-calculated CAR to IPFS using the Proxy
-    onProgress?.(8);
-    const uploadedCid = await uploadToIpfsProxy({
-      cid,
-      carBlob,
-      signedTxXdr,
-    });
-
-    // Step 4: Verify CID matches
-    if (uploadedCid !== cid) {
-      throw new Error(
-        `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-      );
-    }
-  }
-
-  // Step 5: Send the signed transaction
-  onProgress?.(9);
-  await sendSignedTransactionLocal(signedTxXdr);
+  // Steps 3-5: Upload the profile CAR, if any, and send the transaction
+  await uploadAndSend(
+    signed,
+    profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
+    onProgress,
+  );
   invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
@@ -264,11 +270,11 @@ export async function joinCommunityFlow({
 async function createSignedUpdateMemberTransaction(
   memberAddress: string,
   meta: string,
-): Promise<string> {
+): Promise<SignedTransaction> {
   const address = memberAddress || connectedPublicKey.get();
   if (!address) throw new Error("Please connect your wallet first");
 
-  Tansu.options.publicKey = address;
+  Tansu.options.publicKey = txSourceFor(address);
 
   const tx = await Tansu.update_member({
     member_address: address,
@@ -305,28 +311,13 @@ export async function updateMemberFlow({
   }
 
   onProgress?.(7);
-  const signedTxXdr = await createSignedUpdateMemberTransaction(
-    memberAddress,
-    cid,
+  const signed = await createSignedUpdateMemberTransaction(memberAddress, cid);
+
+  await uploadAndSend(
+    signed,
+    profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
+    onProgress,
   );
-
-  if (profileFiles.length > 0 && carBlob) {
-    onProgress?.(8);
-    const uploadedCid = await uploadToIpfsProxy({
-      cid,
-      carBlob,
-      signedTxXdr,
-    });
-
-    if (uploadedCid !== cid) {
-      throw new Error(
-        `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-      );
-    }
-  }
-
-  onProgress?.(9);
-  await sendSignedTransactionLocal(signedTxXdr);
   invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
@@ -355,7 +346,7 @@ export async function createProjectFlow({
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
-  Tansu.options.publicKey = publicKey;
+  Tansu.options.publicKey = txSourceFor(publicKey);
   const normalizedRepositoryUrl =
     normalizeRepositoryUrl(githubRepoUrl) ?? githubRepoUrl;
 
@@ -374,26 +365,10 @@ export async function createProjectFlow({
   // Check for simulation errors (contract errors) before signing
   checkSimulationError(tx as any);
 
-  const signedTxXdr = await signAssembledTransaction(tx);
+  const signed = await signAssembledTransaction(tx);
 
-  // Step 3 – Upload the pre-calculated CAR to IPFS using the Proxy
-  onProgress?.(8);
-  const uploadedCid = await uploadToIpfsProxy({
-    cid,
-    carBlob,
-    signedTxXdr,
-  });
-
-  // Step 4 – Verify CID matches
-  if (uploadedCid !== cid) {
-    throw new Error(
-      `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-    );
-  }
-
-  // Step 5 – Send signed transaction
-  onProgress?.(9);
-  await sendSignedTransactionLocal(signedTxXdr);
+  // Steps 3-5 – Upload the CAR to IPFS and send the transaction
+  await uploadAndSend(signed, { cid, carBlob }, onProgress);
   invalidateQuery(queryKeys.projects.all);
   invalidateQuery(
     queryKeys.project.byId(deriveProjectKey(projectName).toString("hex")),
@@ -410,11 +385,11 @@ async function createSignedUpdateConfigTransaction(
   minVotingPeriod?: bigint,
   executeDelay?: bigint,
   attestationThreshold?: number,
-): Promise<string> {
+): Promise<SignedTransaction> {
   const publicKey = connectedPublicKey.get();
   if (!publicKey) throw new Error("Please connect your wallet first");
 
-  Tansu.options.publicKey = publicKey;
+  Tansu.options.publicKey = txSourceFor(publicKey);
 
   const projectId = loadedProjectId();
   if (!projectId) throw new Error("No project defined");
@@ -470,7 +445,7 @@ export async function updateConfigFlow({
   onProgress?.(7);
   const normalizedRepositoryUrl =
     normalizeRepositoryUrl(githubRepoUrl) ?? githubRepoUrl;
-  const signedTxXdr = await createSignedUpdateConfigTransaction(
+  const signed = await createSignedUpdateConfigTransaction(
     maintainers,
     normalizedRepositoryUrl,
     cid,
@@ -479,22 +454,8 @@ export async function updateConfigFlow({
     attestationThreshold,
   );
 
-  // Step 3 – upload
-  onProgress?.(8);
-  const uploadedCid = await uploadToIpfsProxy({
-    cid,
-    carBlob,
-    signedTxXdr,
-  });
-
-  if (uploadedCid !== cid) {
-    throw new Error(
-      `Critical CID mismatch: expected ${cid}, got ${uploadedCid}`,
-    );
-  }
-
-  onProgress?.(9);
-  await sendSignedTransaction(signedTxXdr);
+  // Step 3 – upload and send
+  await uploadAndSend(signed, { cid, carBlob }, onProgress);
   const projectId = loadedProjectId();
   if (projectId) {
     const projectKey = Buffer.isBuffer(projectId)
@@ -523,7 +484,7 @@ export async function removeVoteFlow({
 
   const projectKey = deriveProjectKey(projectName);
 
-  Tansu.options.publicKey = maintainer;
+  Tansu.options.publicKey = txSourceFor(maintainer);
 
   const tx = await Tansu.remove_vote({
     maintainer,
@@ -534,8 +495,8 @@ export async function removeVoteFlow({
 
   checkSimulationError(tx as any);
 
-  const signedTxXdr = await signAssembledTransaction(tx);
-  await sendSignedTransactionLocal(signedTxXdr);
+  const signed = await signAssembledTransaction(tx);
+  await sendSignedTransaction(signed);
   invalidateQuery(queryKeys.proposal.raw(projectName, proposalId));
   invalidateQuery(queryKeys.proposal.detail(projectName, proposalId));
   invalidateQuery(queryKeys.proposals.all(projectName));

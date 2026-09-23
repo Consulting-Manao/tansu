@@ -11,9 +11,11 @@ The web interface at [https://testnet.tansu.dev](https://testnet.tansu.dev) is t
 ## 1. Connect your wallet
 
 1. Click **Connect** at the top-right corner.
-2. Select your preferred wallet (Freighter, xBull, Albedo, a Ledger device, …).
+2. Select your preferred wallet (Freighter, xBull, Albedo, a Ledger device, GHOSTSIG, Nido, …).
 3. Authorise the connection – your public key now appears in the header.
 4. Click **Join** to register as a member – fill out details about yourself and, optionally, bind your Git identity by signing a message with your SSH key (see [Binding a Git identity](developers/membership.mdx#binding-a-git-identity)).
+
+GHOSTSIG and Nido are passkey wallets: there is no extension to install, and a popup asks for your passkey at each signature. GHOSTSIG gives a regular account (`G...`). Nido, on Testnet only, gives a smart account (`C...`), and its relayer pays the transaction fees. A smart account works across the dApp with two exceptions: it cannot donate, since donations are classic XLM payments, and its profile shows no on-chain activity. Registering a project still takes 5 XLM of collateral from the smart account.
 
 ## 2. Register a project
 

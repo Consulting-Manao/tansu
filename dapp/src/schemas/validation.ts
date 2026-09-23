@@ -97,7 +97,7 @@ export const createProjectSchema = z.object({
 });
 
 export const joinCommunitySchema = z.object({
-  address: stellarAddressSchema,
+  address: stellarPrincipalSchema,
   name: z.string().optional(),
   social: optionalHttpsUrlSchema,
   description: z.string().optional(),
@@ -183,14 +183,9 @@ export function validateObject<T>(
 export const validateProjectName = (name: string): string | null =>
   validateField(projectNameSchema, name);
 
-export const validateStellarAddress = (
-  address: string,
-  required = true,
-): string | null =>
-  validateField(
-    required ? stellarAddressSchema : stellarAddressSchema.optional(),
-    address,
-  );
+// Members and voters can be accounts or smart accounts (Nido).
+export const validateStellarPrincipal = (address: string): string | null =>
+  validateField(stellarPrincipalSchema, address);
 
 export const validateGithubUrl = (url: string): string | null =>
   validateField(githubUrlSchema, url);

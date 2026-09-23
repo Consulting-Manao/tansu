@@ -1,3 +1,4 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import { connectedPublicKey, walletInitialized } from "utils/store";
 
 interface ConnectionState {
@@ -10,6 +11,17 @@ const connectionState: ConnectionState = {
 
 function loadedPublicKey(): string | undefined {
   return connectionState.publicKey;
+}
+
+/**
+ * Transaction source for an address. A smart account (C...) cannot source a
+ * transaction: its wallet relays it and the relayer becomes the source, so
+ * any existing account serves to build and simulate it.
+ */
+function txSourceFor(address: string): string {
+  return StrKey.isValidContract(address)
+    ? import.meta.env.PUBLIC_TANSU_OWNER_ID
+    : address;
 }
 
 function setConnection(publicKey: string): void {
@@ -31,7 +43,8 @@ export async function checkAndNotifyFunding(): Promise<void> {
   if (import.meta.env.MODE === "test") return;
 
   const publicKey = loadedPublicKey();
-  if (!publicKey) return;
+  // Horizon does not know smart accounts, and their relayer pays the fees.
+  if (!publicKey || StrKey.isValidContract(publicKey)) return;
 
   try {
     const { exists, balance } = await getWalletHealth();
@@ -126,6 +139,7 @@ async function getWalletHealth(): Promise<{
 
 export {
   loadedPublicKey,
+  txSourceFor,
   setConnection,
   disconnect,
   initializeConnection,

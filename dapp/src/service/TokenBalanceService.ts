@@ -241,7 +241,14 @@ export async function getTokenBalance(
     );
   }
 
-  if (!ownerAddress?.startsWith("G")) {
+  // Accounts (G...) and smart accounts (C...) both hold SAC balances.
+  if (
+    !ownerAddress ||
+    !(
+      StellarSdk.StrKey.isValidEd25519PublicKey(ownerAddress) ||
+      StellarSdk.StrKey.isValidContract(ownerAddress)
+    )
+  ) {
     throw new Error("A connected Stellar wallet address is required.");
   }
 

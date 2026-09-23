@@ -3,7 +3,7 @@ import Input from "components/utils/Input";
 import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import { loadedPublicKey, setConnection } from "@service/walletService";
-import { validateStellarAddress, validateUrl } from "utils/validations";
+import { validateStellarPrincipal, validateUrl } from "utils/validations";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import GitVerification, { type GitIdentityData } from "./GitVerification";
 
@@ -111,7 +111,7 @@ const JoinCommunityModal: FC<{
     name.trim() || social.trim() || description.trim() || profileImage;
 
   const validateAddressField = (): boolean => {
-    const err = validateStellarAddress(address);
+    const err = validateStellarPrincipal(address);
     setAddressError(err);
     return err === null;
   };
@@ -270,7 +270,7 @@ const JoinCommunityModal: FC<{
               <>
                 <Input
                   label="Member Address *"
-                  placeholder="Write the address as G..."
+                  placeholder="Write the address as G... or C..."
                   value={address}
                   onChange={(e) => {
                     setAddress(e.target.value);

@@ -117,6 +117,10 @@ const ACTIONS_CACHE = new Map<
 export async function fetchOnChainActions(
   accountId: string,
 ): Promise<OnChainAction[]> {
+  // Horizon indexes operations by source account, and a smart account's
+  // transactions are sourced by its wallet's relayer: there is nothing to list.
+  if (StellarSdk.StrKey.isValidContract(accountId)) return [];
+
   const cached = ACTIONS_CACHE.get(accountId);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.promise;

@@ -1,6 +1,6 @@
 # IPFS Delegation Worker
 
-Cloudflare Worker that verifies a signed transaction and then uploads the CAR
+Cloudflare Worker that verifies a Tansu transaction and then uploads the CAR
 file to Filebase. Once Filebase succeeds, it pins the resulting CID on Pinata
 in the background when Pinata pinning is enabled.
 
@@ -15,10 +15,21 @@ POST /
 }
 ```
 
+A request carries one proof: `signedTxXdr`, or `txHash` in its place.
+
+- `signedTxXdr` is the envelope the dapp is about to send. The dapp uploads
+  first and sends after.
+- `txHash` is a transaction a wallet already submitted. Smart-account wallets
+  such as Nido submit through their own relayer, so the dapp has no envelope
+  signed by its source and uploads once the transaction has landed. This proof
+  needs `SOROBAN_RPC_URL`; without it the worker rejects `txHash`.
+
 The worker verifies the upload request by:
 
-- it verifies the Stellar transaction signature from `signedTxXdr`
-- it checks the transaction has at least one operation
+- for `signedTxXdr`, it verifies the Stellar transaction signature of the
+  source account and checks the transaction has at least one operation
+- for `txHash`, it fetches the transaction from Soroban RPC, checks it
+  succeeded, and checks a contract call in it takes `cid` as an argument
 - it recalculates the root CID from the uploaded CAR and checks it matches
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
@@ -49,7 +60,12 @@ FILEBASE_TOKEN=<filebase_api_token>
 ENABLE_PINATA_PINNING=false
 PINATA_JWT=<optional_pinata_jwt>
 PINATA_GROUP_ID=<optional_pinata_group_id>
+SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 ```
+
+`SOROBAN_RPC_URL` is a plain variable, not a secret: `wrangler.toml` sets it for
+the testnet environment. Production leaves it unset until Nido supports
+mainnet.
 
 ### Start the Worker
 

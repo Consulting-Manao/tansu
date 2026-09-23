@@ -58,6 +58,7 @@ vi.mock("../../../src/utils/contractErrors", () => ({
 import {
   createProjectFlow,
   updateConfigFlow,
+  uploadAndSend,
 } from "../../../src/service/FlowService";
 
 function createTomlFile() {
@@ -79,7 +80,7 @@ describe("FlowService repository URL persistence", () => {
     loadedProjectIdMock.mockReturnValue(Buffer.from("1234", "hex"));
     registerMock.mockResolvedValue({ simulation: {} });
     updateConfigMock.mockResolvedValue({ simulation: {} });
-    signAssembledTransactionMock.mockResolvedValue("signed-xdr");
+    signAssembledTransactionMock.mockResolvedValue({ xdr: "signed-xdr" });
     sendSignedTransactionMock.mockResolvedValue(true);
   });
 
@@ -143,5 +144,68 @@ describe("FlowService repository URL persistence", () => {
     expect(updateConfigMock).toHaveBeenCalledWith(
       expect.objectContaining({ attestation_threshold: 80 }),
     );
+  });
+});
+
+describe("uploadAndSend", () => {
+  const upload = {
+    cid: "bafy-test-cid",
+    carBlob: new Blob(["car"], { type: "application/vnd.ipld.car" }),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    uploadToIpfsProxyMock.mockResolvedValue("bafy-test-cid");
+    sendSignedTransactionMock.mockResolvedValue(42);
+  });
+
+  it("uploads with the signed envelope, then sends it", async () => {
+    const onProgress = vi.fn();
+    await expect(
+      uploadAndSend({ xdr: "signed-xdr" }, upload, onProgress),
+    ).resolves.toBe(42);
+
+    expect(uploadToIpfsProxyMock).toHaveBeenCalledWith({
+      ...upload,
+      signedTxXdr: "signed-xdr",
+    });
+    expect(uploadToIpfsProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
+      sendSignedTransactionMock.mock.invocationCallOrder[0],
+    );
+    expect(onProgress.mock.calls).toEqual([[8], [9]]);
+  });
+
+  it("confirms a wallet-submitted transaction, then uploads with its hash", async () => {
+    const onProgress = vi.fn();
+    const hash = "d".repeat(64);
+    await expect(uploadAndSend({ hash }, upload, onProgress)).resolves.toBe(42);
+
+    expect(sendSignedTransactionMock).toHaveBeenCalledWith({ hash });
+    expect(uploadToIpfsProxyMock).toHaveBeenCalledWith({
+      ...upload,
+      txHash: hash,
+    });
+    expect(sendSignedTransactionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      uploadToIpfsProxyMock.mock.invocationCallOrder[0],
+    );
+    expect(onProgress.mock.calls).toEqual([[8], [9]]);
+  });
+
+  it("says the transaction is on-chain when the late upload fails", async () => {
+    uploadToIpfsProxyMock.mockRejectedValue(new Error("Filebase HTTP 502"));
+    const hash = "e".repeat(64);
+
+    await expect(uploadAndSend({ hash }, upload)).rejects.toThrow(
+      `Transaction ${hash} is on-chain but its IPFS upload failed: Filebase HTTP 502`,
+    );
+  });
+
+  it("only sends when there is nothing to upload", async () => {
+    await uploadAndSend({ xdr: "signed-xdr" });
+
+    expect(uploadToIpfsProxyMock).not.toHaveBeenCalled();
+    expect(sendSignedTransactionMock).toHaveBeenCalledWith({
+      xdr: "signed-xdr",
+    });
   });
 });

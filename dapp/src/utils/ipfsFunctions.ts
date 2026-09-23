@@ -306,18 +306,24 @@ interface UploadToIpfsProxyResponse {
   error?: string;
 }
 
-export async function uploadToIpfsProxy(params: {
-  cid: string;
-  carBlob: Blob;
-  signedTxXdr: string;
-}): Promise<string> {
-  const { cid, carBlob, signedTxXdr } = params;
+/**
+ * Upload a CAR through the delegation worker. The worker takes one proof: the
+ * signed envelope about to be sent, or the hash of the transaction a wallet
+ * already submitted with this CID.
+ */
+export async function uploadToIpfsProxy(
+  params: { cid: string; carBlob: Blob } & (
+    | { signedTxXdr: string; txHash?: undefined }
+    | { txHash: string; signedTxXdr?: undefined }
+  ),
+): Promise<string> {
+  const { cid, carBlob, signedTxXdr, txHash } = params;
 
   if (!cid) {
     throw new Error("Missing expected CID for IPFS upload");
   }
 
-  if (!signedTxXdr) {
+  if (!signedTxXdr && !txHash) {
     throw new Error("Missing signed transaction for IPFS upload");
   }
 
@@ -336,11 +342,9 @@ export async function uploadToIpfsProxy(params: {
     const response = await fetch(import.meta.env.PUBLIC_DELEGATION_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cid,
-        signedTxXdr,
-        car,
-      }),
+      body: JSON.stringify(
+        signedTxXdr ? { cid, signedTxXdr, car } : { cid, txHash, car },
+      ),
       signal: AbortSignal.timeout(120_000),
     });
 

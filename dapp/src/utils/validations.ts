@@ -7,7 +7,7 @@ import DOMPurify from "dompurify";
 
 import {
   validateProjectName,
-  validateStellarAddress,
+  validateStellarPrincipal,
   validateGithubUrl,
   validateMaintainerAddress,
   validateUrl,
@@ -16,7 +16,7 @@ import {
 } from "../schemas/validation";
 export {
   validateProjectName,
-  validateStellarAddress,
+  validateStellarPrincipal,
   validateGithubUrl,
   validateMaintainerAddress,
   validateUrl,
