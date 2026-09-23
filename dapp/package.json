@@ -5,7 +5,7 @@
     "@astrojs/react": "^6.0.4",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
     "@creit.tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
-    "@nanostores/react": "^1.1.0",
+    "@nanostores/react": "^2.0.1",
     "@nidohq/stellar-wallets-kit-module": "^0.1.0",
     "@noble/curves": "^2.4.0",
     "@noble/hashes": "^2.4.0",

@@ -10,7 +10,7 @@
         "@astrojs/react": "^6.0.4",
         "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
         "@creit.tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
-        "@nanostores/react": "^1.1.0",
+        "@nanostores/react": "^2.0.1",
         "@nidohq/stellar-wallets-kit-module": "^0.1.0",
         "@noble/curves": "^2.4.0",
         "@noble/hashes": "^2.4.0",
@@ -517,7 +517,7 @@
 
     "@multiformats/sha3": ["@multiformats/sha3@3.0.3", "", { "dependencies": { "js-sha3": "^0.9.1", "multiformats": "^13.0.0" } }, "sha512-FugQMj5ts/aUFx2cWuE9Y3O/YN/puVJWaRoFQSSKTc5jm89o0UUowvwxLkkURx9MQiR5GJsoG9d6ZITWi8FiBA=="],
 
-    "@nanostores/react": ["@nanostores/react@1.1.0", "", { "peerDependencies": { "nanostores": "^1.2.0", "react": ">=18.0.0" } }, "sha512-MbH35fjhcf7LAubYX5vhOChYUfTLzNLqH/mBGLVsHkcvjy0F8crO1WQwdmQ2xKbAmtpalDa2zBt3Hlg5kqr8iw=="],
+    "@nanostores/react": ["@nanostores/react@2.0.1", "", { "peerDependencies": { "nanostores": "^1.2.0", "react": ">=18.0.0" } }, "sha512-txbZTd+7/hnO7FhtF8Pmr+cu0ThdCuCnOyEEh0DsEM2Hp9PfOa5EY4uj3wpZpypSzp5BuqDgf2AxVAKoUIWOFQ=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.1" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow=="],
 
