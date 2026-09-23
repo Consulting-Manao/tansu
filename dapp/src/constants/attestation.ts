@@ -4,7 +4,7 @@ export const MAX_FINALITY_THRESHOLD_PERCENT = 100;
 export const DEFAULT_FINALITY_THRESHOLD_PERCENT = 66;
 
 /** `ATTESTATION_REVOCATION_WINDOW`, in seconds. */
-export const ATTESTATION_REVOCATION_WINDOW_SECONDS = 24 * 3600;
+const ATTESTATION_REVOCATION_WINDOW_SECONDS = 24 * 3600;
 
 /** Returns an error message, or `null` when the value is a valid percent. */
 export function validateFinalityThresholdPercent(

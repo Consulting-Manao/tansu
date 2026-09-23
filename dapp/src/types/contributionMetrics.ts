@@ -37,7 +37,7 @@ export interface ContributorActivity {
   monthlyActivity: MonthlyActivity[];
 }
 
-export interface MonthlyActivity {
+interface MonthlyActivity {
   month: string; // YYYY-MM format
   commitCount: number;
   linesAdded: number;

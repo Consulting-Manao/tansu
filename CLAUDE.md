@@ -40,7 +40,7 @@ bun run test               # Playwright e2e on the production build, against fak
 bunx playwright test tests/governance.spec.ts   # single e2e file
 bun run test:unit          # vitest, includes tests/unit/**/*.test.ts
 bunx vitest run tests/unit/utils/errorHandler.test.ts # single unit test
-bun run lint               # prettier -c + eslint + ts-prune + validate-contract-errors
+bun run lint               # prettier -c + eslint + knip (unused files, exports, deps) + validate-contract-errors
 bun run format
 bun run check              # astro check
 ```

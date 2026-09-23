@@ -85,9 +85,7 @@ export function buildMessage(
 /** Build the SSHSIG tosign payload that the contract verifies:
  *  "SSHSIG" + string("tansu") + string("") + string("sha256") + string(SHA-256(message))
  *  (mirrors `verify_git_signature` in contract_membership.rs) */
-export async function buildSshsigPayload(
-  msgBytes: Uint8Array,
-): Promise<Uint8Array> {
+async function buildSshsigPayload(msgBytes: Uint8Array): Promise<Uint8Array> {
   const hash = await crypto.subtle.digest("SHA-256", msgBytes as BufferSource);
   const hashBytes = new Uint8Array(hash);
 

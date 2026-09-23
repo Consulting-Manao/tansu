@@ -171,18 +171,4 @@ export async function fetchProposalOutcomeData(
   return outcomeData;
 }
 
-/**
- * Fetches proposal outcome data from IPFS (legacy function)
- *
- * @param cid - The IPFS CID
- * @returns The outcome JSON data or null if not found
- */
-async function fetchOutcomeDataFromIPFS(cid: string) {
-  try {
-    return await fetchJsonFromIpfs(cid, OUTCOMES_JSON_PATH);
-  } catch {
-    return null;
-  }
-}
-
-export { fetchProposalFromIPFS, fetchOutcomeDataFromIPFS };
+export { fetchProposalFromIPFS };

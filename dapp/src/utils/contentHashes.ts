@@ -17,7 +17,7 @@
  *
  * This is a light structural check, not a full multibase/multihash decode.
  */
-export const CID_PATTERN = /^(bafy|Qm)[a-zA-Z0-9]{44,}$/;
+const CID_PATTERN = /^(bafy|Qm)[a-zA-Z0-9]{44,}$/;
 
 /** Returns true when `value` structurally looks like a supported IPFS CID. */
 export function isValidCid(value: unknown): value is string {
@@ -27,9 +27,9 @@ export function isValidCid(value: unknown): value is string {
 // --- Git commit hash ------------------------------------------------------
 
 /** Length of a hex-encoded SHA-1 object name (Git's current default). */
-export const GIT_SHA1_HEX_LENGTH = 40;
+const GIT_SHA1_HEX_LENGTH = 40;
 /** Length of a hex-encoded SHA-256 object name (Git's SHA-256 object format). */
-export const GIT_SHA256_HEX_LENGTH = 64;
+const GIT_SHA256_HEX_LENGTH = 64;
 
 /**
  * Git object names are hex-encoded digests. Today that means SHA-1 (40 hex
@@ -38,7 +38,7 @@ export const GIT_SHA256_HEX_LENGTH = 64;
  * repositories migrate. Hex is matched case-insensitively; a robust check must
  * not assume a fixed length or a single algorithm.
  */
-export const COMMIT_HASH_PATTERN = new RegExp(
+const COMMIT_HASH_PATTERN = new RegExp(
   `^(?:[0-9a-fA-F]{${GIT_SHA1_HEX_LENGTH}}|[0-9a-fA-F]{${GIT_SHA256_HEX_LENGTH}})$`,
 );
 

@@ -161,7 +161,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
 
 export default ProposalDetail;
 
-export const OutcomeDetail: React.FC<{
+const OutcomeDetail: React.FC<{
   type: string;
   detail: { description: string; xdr?: string; contract?: OutcomeContract };
   isXdrInit: boolean;

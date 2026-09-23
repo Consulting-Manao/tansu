@@ -18,8 +18,6 @@ async function getTansu() {
 
 // Helper to derive the project_key (32-byte buffer)
 // re-export local helper for consistency
-export { deriveProjectKey };
-
 /**
  * Validate that an uploaded key-file (optionally containing a publicKey)
  * matches the project's anonymous voting configuration. Throws a helpful

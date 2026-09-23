@@ -26,7 +26,7 @@ export const stellarPrincipalSchema = z
     "Enter a valid Stellar account (G...) or contract (C...) address",
   );
 
-export const projectNameSchema = z
+const projectNameSchema = z
   .string()
   .min(4, "Project name must be at least 4 characters")
   .max(30, "Project name must be at most 30 characters")
@@ -36,7 +36,7 @@ export const projectNameSchema = z
   )
   .refine((name) => name.trim().length > 0, "Project name cannot be empty");
 
-export const githubUrlSchema = z
+const githubUrlSchema = z
   .string()
   .min(1, "Repository URL is required")
   .refine(
@@ -44,20 +44,11 @@ export const githubUrlSchema = z
     "Repository reference must be a supported Git provider URL or a public Radicle RID/URL",
   );
 
-export const githubHandleSchema = z
-  .string()
-  .min(1, "GitHub handle is required")
-  .max(30, "GitHub handle must be 30 characters or less")
-  .regex(
-    /^[A-Za-z0-9_-]+$/,
-    "Handle must contain only letters, digits, underscore, or dash",
-  );
-
-export const httpsUrlSchema = z
+const httpsUrlSchema = z
   .string()
   .refine((url) => url.startsWith("https://"), "URL must start with https://");
 
-export const optionalHttpsUrlSchema = z
+const optionalHttpsUrlSchema = z
   .string()
   .optional()
   .refine(
@@ -65,13 +56,13 @@ export const optionalHttpsUrlSchema = z
     "URL must start with https://",
   );
 
-export const proposalNameSchema = z
+const proposalNameSchema = z
   .string()
   .min(10, "Proposal name must be at least 10 characters")
   .max(256, "Proposal name must be at most 256 characters")
   .refine((name) => name.trim().length > 0, "Proposal name is required");
 
-export const textContentSchema = (minWords = 3, fieldName = "Text") =>
+const textContentSchema = (minWords = 3, fieldName = "Text") =>
   z
     .string()
     .min(1, `${fieldName} is required`)
@@ -80,71 +71,8 @@ export const textContentSchema = (minWords = 3, fieldName = "Text") =>
       return words >= minWords;
     }, `${fieldName} must contain at least ${minWords} words`);
 
-// Complex form schemas
-export const createProjectSchema = z.object({
-  projectName: projectNameSchema,
-  maintainerAddresses: z
-    .array(stellarPrincipalSchema)
-    .min(1, "At least one maintainer is required"),
-  maintainerGithubs: z
-    .array(githubHandleSchema)
-    .min(1, "At least one GitHub handle is required"),
-  githubRepoUrl: githubUrlSchema,
-  orgName: z.string().min(1, "Organization name is required"),
-  orgUrl: optionalHttpsUrlSchema,
-  orgLogo: optionalHttpsUrlSchema,
-  orgDescription: textContentSchema(3, "Organization description"),
-});
-
-export const joinCommunitySchema = z.object({
-  address: stellarPrincipalSchema,
-  name: z.string().optional(),
-  social: optionalHttpsUrlSchema,
-  description: z.string().optional(),
-});
-
-export const createProposalSchema = z.object({
-  proposalName: proposalNameSchema,
-  description: textContentSchema(10, "Proposal description"),
-  approveDescription: textContentSchema(3, "Approved outcome description"),
-  rejectDescription: z.string().optional(),
-  cancelledDescription: z.string().optional(),
-  approveXdr: z.string().optional(),
-  rejectXdr: z.string().optional(),
-  cancelledXdr: z.string().optional(),
-  votingEndsAt: z
-    .date()
-    .min(
-      new Date(Date.now() + 25 * 60 * 60 * 1000),
-      "Voting must end at least 25 hours from now",
-    ),
-  isAnonymousVoting: z.boolean().default(false),
-  tokenContract: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        if (!val || val.trim() === "") return true;
-        // Soroban contract ID (Stellar Asset Contract / SEP-41)
-        return /^C[A-Z0-9]{55}$/.test(val);
-      },
-      { message: "Invalid token contract address (must start with C)" },
-    ),
-});
-
-export const donationSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Amount is required")
-    .refine((val) => {
-      const num = parseFloat(val);
-      return !isNaN(num) && num > 0;
-    }, "Amount must be a positive number"),
-  recipient: stellarAddressSchema,
-});
-
 // Validation helper functions that work with existing patterns
-export function validateField<T>(
+function validateField<T>(
   schema: z.ZodSchema<T>,
   value: unknown,
 ): string | null {
@@ -156,26 +84,6 @@ export function validateField<T>(
       return error.issues[0]?.message || "Validation failed";
     }
     return "Validation failed";
-  }
-}
-
-export function validateObject<T>(
-  schema: z.ZodSchema<T>,
-  obj: unknown,
-): { isValid: boolean; errors: Record<string, string> } {
-  try {
-    schema.parse(obj);
-    return { isValid: true, errors: {} };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors: Record<string, string> = {};
-      error.issues.forEach((err) => {
-        const path = err.path.join(".");
-        errors[path] = err.message;
-      });
-      return { isValid: false, errors };
-    }
-    return { isValid: false, errors: { _root: "Validation failed" } };
   }
 }
 

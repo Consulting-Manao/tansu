@@ -568,21 +568,6 @@ export function getRepositoryRid(
   return parsed?.kind === "radicle" ? parsed.rid : undefined;
 }
 
-export function getRepositoryBrowseUrl(
-  repoUrl: string | null | undefined,
-): string | undefined {
-  const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed) {
-    return undefined;
-  }
-
-  if (parsed.kind === "radicle") {
-    return buildRadicleBrowseUrl(parsed.rid, parsed.seedHost);
-  }
-
-  return parsed.normalizedUrl;
-}
-
 export function getRepositoryCloneCommand(
   repoUrl: string | null | undefined,
 ): string | undefined {

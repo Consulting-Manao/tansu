@@ -5,7 +5,7 @@ import { E2E_ENV, E2E_PORT } from "./env";
 const NO_PROVIDERS =
   "Unable to retrieve content within timeout period: no providers found for the CID (phase: provider discovery)";
 
-export interface GithubRepo {
+interface GithubRepo {
   commits: { sha: string; message: string; author: string; date: string }[];
   readme?: string;
 }

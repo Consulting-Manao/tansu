@@ -2,7 +2,7 @@ import Modal from "./Modal";
 import ProgressStep from "./ProgressStep";
 import Button from "./Button";
 
-export interface FlowProgressModalProps {
+interface FlowProgressModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;

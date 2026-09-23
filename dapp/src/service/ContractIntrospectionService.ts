@@ -11,7 +11,7 @@ export interface ContractFunctionInput {
   type: string;
 }
 
-export interface ContractFunctionOutput {
+interface ContractFunctionOutput {
   type: string;
 }
 

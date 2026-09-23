@@ -344,15 +344,3 @@ export async function signAndSend(assembledTx: any): Promise<any> {
   const signed = await signAssembledTransaction(assembledTx);
   return await sendSignedTransaction(signed);
 }
-
-/**
- * Optional helper to detect Stellar network errors
- */
-export function isStellarNetworkError(error: any): boolean {
-  if (!error) return false;
-  const errStr = (
-    typeof error === "string" ? error : error.message || ""
-  ).toLowerCase();
-  const patterns = ["op_underfunded", "tx_insufficient_fee", "tx_bad_seq"];
-  return patterns.some((p) => errStr.includes(p));
-}

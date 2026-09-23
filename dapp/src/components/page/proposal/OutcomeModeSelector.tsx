@@ -6,7 +6,7 @@ interface OutcomeModeSelectorProps {
   disabled?: boolean;
 }
 
-export const OutcomeModeSelector: React.FC<OutcomeModeSelectorProps> = ({
+const OutcomeModeSelector: React.FC<OutcomeModeSelectorProps> = ({
   mode,
   onModeChange,
   disabled = false,

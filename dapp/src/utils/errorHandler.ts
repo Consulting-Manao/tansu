@@ -69,20 +69,7 @@ export function handleError(
   return userMessage;
 }
 
-export function withErrorHandling<T, Args extends any[]>(
-  fn: (...args: Args) => Promise<T>,
-  context: string,
-): (...args: Args) => Promise<T> {
-  return async (...args: Args): Promise<T> => {
-    try {
-      return await fn(...args);
-    } catch (error) {
-      throw new Error(handleError(error, context), { cause: error });
-    }
-  };
-}
-
-export function handleSimulationDestructuringError(
+function handleSimulationDestructuringError(
   error: unknown,
   context: string,
 ): string {

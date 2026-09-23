@@ -15,7 +15,7 @@ export interface CommitEvidence extends Evidence {
   kind: EvidenceKindTag;
 }
 
-export const EVIDENCE_KIND_TAGS = [
+const EVIDENCE_KIND_TAGS = [
   "Sbom",
   "Cve",
   "Attestation",

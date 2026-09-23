@@ -81,7 +81,7 @@ The dapp fetches repository metadata directly from provider APIs in the browser.
 ## Testing
 
 ```bash
-bun run lint        # prettier, eslint, ts-prune and the contract error mapping
+bun run lint        # prettier, eslint, knip (unused code) and the contract error mapping
 bun run check       # astro check (TypeScript)
 bun run test:unit   # Vitest: tests/unit/**/*.test.ts
 bun run test        # Playwright flows: tests/*.spec.ts

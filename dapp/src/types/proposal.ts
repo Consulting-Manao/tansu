@@ -50,21 +50,19 @@ export enum VoteResultType {
   CANCEL = "cancelled",
 }
 
-export type VoterRole = "maintainer" | "community";
-
 export interface VoteStatus {
   approve: VoteData;
   reject: VoteData;
   abstain: VoteData;
 }
 
-export interface VoteData {
+interface VoteData {
   voteType: VoteType;
   score: number;
   voters: Voter[];
 }
 
-export interface Voter {
+interface Voter {
   address: string;
   image: string | null;
   name: string;
@@ -106,7 +104,7 @@ export interface VoteReceipt {
  * Execution payload for an outcome (XDR transaction or contract call).
  * Stored inside each outcome node of the tree-shaped outcomes.json.
  */
-export interface StoredOutcomeExecution {
+interface StoredOutcomeExecution {
   type: "xdr" | "contract";
   xdr?: string;
   contract?: OutcomeContract;

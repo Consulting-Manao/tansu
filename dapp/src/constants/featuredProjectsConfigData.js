@@ -1,4 +1,4 @@
-export const featuredProjectsConfigData = [
+const featuredProjectsConfigData = [
   {
     projectName: "tansu",
     projectFullName: "Tansu - Git on Stellar",

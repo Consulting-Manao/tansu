@@ -273,7 +273,3 @@ How we'll know if this initiative is successful.
 - **Quorum:** Based on community engagement`,
   },
 ];
-
-export const getTemplateById = (id: string): ProposalTemplate | undefined => {
-  return PROPOSAL_TEMPLATES.find((template) => template.id === id);
-};

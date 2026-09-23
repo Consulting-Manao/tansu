@@ -20,7 +20,7 @@ export type OutcomeType = "approved" | "rejected" | "cancelled";
 /** Pre-fill for a contract-call outcome. The address stays blank for the
  *  author to resolve (e.g. via the Stellar Registry search); the function
  *  name and argument placeholders are what the template contributes. */
-export interface OutcomeTemplateContract {
+interface OutcomeTemplateContract {
   address: string;
   execute_fn: string;
   args: any[];

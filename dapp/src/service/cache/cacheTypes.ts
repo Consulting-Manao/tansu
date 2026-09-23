@@ -1,11 +1,10 @@
 import type { WritableAtom } from "nanostores";
 
-export type QueryKeyPart =
-  string | number | boolean | null | undefined | bigint;
+type QueryKeyPart = string | number | boolean | null | undefined | bigint;
 
 export type QueryKey = readonly QueryKeyPart[];
 
-export type QueryStatus = "idle" | "loading" | "success" | "error";
+type QueryStatus = "idle" | "loading" | "success" | "error";
 
 export interface QuerySnapshot<T> {
   key: string;

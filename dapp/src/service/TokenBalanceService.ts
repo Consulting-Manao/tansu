@@ -31,7 +31,7 @@ export type TokenBalanceInfo = {
   decimals: number;
 };
 
-export function tokenScale(decimals: number): bigint {
+function tokenScale(decimals: number): bigint {
   const safe = Math.max(0, Math.min(decimals, 18));
   return 10n ** BigInt(safe);
 }
@@ -167,7 +167,7 @@ async function simulateDecimalsViaClient(client: TokenClient): Promise<number> {
 }
 
 /** SAC interface: `decimals() -> u32` */
-export async function fetchTokenDecimals(contractId: string): Promise<number> {
+async function fetchTokenDecimals(contractId: string): Promise<number> {
   try {
     const client = (await StellarSdk.contract.Client.from(
       getRpcClientOptions(contractId),

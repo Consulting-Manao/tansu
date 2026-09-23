@@ -247,9 +247,6 @@ export async function fetchTomlFromIpfs(
   }
 }
 
-/** @deprecated Use fetchTomlFromIpfs. Kept for compatibility. */
-export const fetchTomlFromCid = fetchTomlFromIpfs;
-
 // --- URL helpers (display only; do not use for fetch) ---
 
 export const getIpfsBasicLink = (cid: string): string => {

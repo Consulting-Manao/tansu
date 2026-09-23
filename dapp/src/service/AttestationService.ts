@@ -47,7 +47,7 @@ export function evidenceTarget(
 }
 
 /** Stable cache-key fragment for a target. */
-export function attestationTargetKey(target: AttestationTarget): string {
+function attestationTargetKey(target: AttestationTarget): string {
   if (target.tag === "Commit") return "Commit";
   const [kind, cid] = target.values;
   return `Evidence:${kind.tag}:${cid}`;

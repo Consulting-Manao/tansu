@@ -179,10 +179,6 @@ export async function prefetchQuery<T>(
   return fetchWithCache(queryKey, fetcher, { ...options, force: true });
 }
 
-export function readCachedQuery<T>(queryKey: QueryKey): T | undefined {
-  return getStore<T>(queryKey).snapshot.data;
-}
-
 export function getCachedQueryAtom<T>(queryKey: QueryKey) {
   return getStore<T>(queryKey).atom;
 }

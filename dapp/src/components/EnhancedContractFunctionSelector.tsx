@@ -14,7 +14,7 @@ interface EnhancedContractFunctionSelectorProps {
   initialArgs?: any[];
 }
 
-export const EnhancedContractFunctionSelector: React.FC<
+const EnhancedContractFunctionSelector: React.FC<
   EnhancedContractFunctionSelectorProps
 > = ({
   contractAddress,

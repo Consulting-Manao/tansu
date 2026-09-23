@@ -26,7 +26,6 @@ const JoinCommunityModal: FC<{
   const [profileImage, setProfileImage] = useState<ProfileImageFile | null>(
     null,
   );
-  // const [isDropped,setIsDropped]=useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);

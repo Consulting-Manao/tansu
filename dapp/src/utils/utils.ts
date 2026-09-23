@@ -1,4 +1,3 @@
-import * as StellarSdk from "@stellar/stellar-sdk";
 import type {
   Proposal as ContractProposal,
   Project,
@@ -85,23 +84,7 @@ export function capitalizeFirstLetter(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export const processDecodedData = (xdrData: string): any => {
-  try {
-    return StellarSdk.TransactionBuilder.fromXdr(
-      xdrData,
-      import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-    );
-  } catch {
-    // Don't log to console, just return null to indicate failure
-    return null;
-  }
-};
-
-export const modifySlashInXdr = (xdr: string) => {
-  return xdr.replaceAll("/", "//");
-};
-
-export const modifyProposalStatusToView = (
+const modifyProposalStatusToView = (
   status: ProposalStatus,
   endDate: number,
 ): ProposalViewStatus => {

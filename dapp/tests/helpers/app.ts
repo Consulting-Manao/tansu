@@ -5,12 +5,11 @@ import { FakeChain, projectKey } from "./chain";
 import { FakeWeb, type WebContent } from "./web";
 import { mockWallet } from "./wallet";
 
-export const DEMO_CID =
-  "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
+const DEMO_CID = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 export const DEAD_CID = `bafybei${"d".repeat(52)}`;
-export const PROPOSAL_CID = `bafybei${"p".repeat(52)}`;
-export const PROFILE_CID = `bafybei${"m".repeat(52)}`;
-export const COMMIT = "6663520bd9e6ede248fef8157b2af0b6b6b41046";
+const PROPOSAL_CID = `bafybei${"p".repeat(52)}`;
+const PROFILE_CID = `bafybei${"m".repeat(52)}`;
+const COMMIT = "6663520bd9e6ede248fef8157b2af0b6b6b41046";
 /** A member without badges, for maintainers to give some. */
 export const GRACE = Keypair.fromRawEd25519Seed(
   Buffer.alloc(32, 7),
@@ -46,7 +45,7 @@ function proposal(
  * open proposal and one whose vote has ended; "ghost", whose metadata CID no
  * node provides any more. The wallet is a member unless `member` is false.
  */
-export function world(maintainer: string, member = true) {
+function world(maintainer: string, member = true) {
   const chain = new FakeChain(
     [
       {

@@ -139,13 +139,6 @@ function setProjectRepoUrl(url: string): void {
 }
 
 /**
- * Load project repository URL
- */
-function loadProjectRepoUrl(): string | undefined {
-  return projectRepoInfo.project_url || undefined;
-}
-
-/**
  * Latest SHA
  */
 function setProjectLatestSha(sha: string): void {
@@ -199,7 +192,6 @@ export {
   setProjectRepoUrl,
   loadedProjectId,
   loadProjectInfo,
-  loadProjectRepoUrl,
   setProjectLatestSha,
   loadProjectLatestSha,
   loadProjectName,

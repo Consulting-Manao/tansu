@@ -11,7 +11,6 @@ import { queryKeys } from "./cache/cacheKeys";
 import { scValToNative } from "@stellar/stellar-sdk";
 
 const TTL_4H = 4 * 60 * 60 * 1000;
-const TTL_1H = 60 * 60 * 1000;
 
 async function getProjectHash(): Promise<string | null> {
   const projectId = loadedProjectId();
@@ -309,20 +308,6 @@ async function getProposalRaw(
   return null;
 }
 
-async function getProposal(
-  projectName: string,
-  proposalId: number,
-): Promise<ModifiedProposal | null> {
-  const proposal = await getProposalRaw(projectName, proposalId);
-  if (!proposal) return null;
-
-  return await fetchWithCache(
-    queryKeys.proposal.detail(projectName, proposalId),
-    async () => modifyProposalFromContract(proposal),
-    { ttlMs: TTL_1H },
-  );
-}
-
 async function getMember(memberAddress: string): Promise<Member | null> {
   // Skip if address is empty
   if (!memberAddress || memberAddress.trim() === "") {
@@ -405,7 +390,6 @@ export {
   getProposalPages,
   getProposals,
   getProposalRaw,
-  getProposal,
   getMember,
   getBadges,
   getProjectsPage,

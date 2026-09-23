@@ -6,7 +6,6 @@
 import {
   type AttestationTarget,
   type Badge,
-  type EvidenceKind,
   type Vote,
   type VoteChoice,
 } from "../../packages/tansu";
@@ -32,11 +31,6 @@ import {
 import { parseContractOptionString } from "../utils/utils";
 import { invalidateQuery } from "./cache/cacheStore";
 import { queryKeys } from "./cache/cacheKeys";
-import {
-  type EvidenceKindTag,
-  invalidateEvidenceCache,
-  toEvidenceKind,
-} from "./EvidenceService";
 import { invalidateAttestationCache } from "./AttestationService";
 
 export interface VotingPowerResult {
@@ -162,36 +156,6 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
 }
 
 /**
- * Store an off-chain evidence pointer for a specific project commit.
- */
-export async function setEvidence(
-  project_name: string,
-  commit_hash: string,
-  kind: EvidenceKind | EvidenceKindTag,
-  cid: string,
-): Promise<boolean> {
-  const client = getClient();
-  const maintainer = loadedPublicKey();
-  if (!maintainer) throw new Error("Wallet not connected");
-
-  const projectKey = getProjectKey(project_name);
-
-  const assembledTx = await client.set_evidence({
-    maintainer,
-    project_key: projectKey,
-    commit_hash,
-    kind: toEvidenceKind(kind),
-    cid,
-  });
-
-  checkSimulationError(assembledTx);
-
-  await submitTransaction(assembledTx);
-  invalidateEvidenceCache(projectKey, commit_hash);
-  return true;
-}
-
-/**
  * Record an attestation endorsing a commit or a specific evidence artifact.
  *
  * One per maintainer per target: a second call from the same address is
@@ -252,33 +216,6 @@ export async function revokeAttestation(
 
   await submitTransaction(assembledTx);
   invalidateAttestationCache(projectKey, commit_hash);
-  return true;
-}
-
-/**
- * Set the per-project finality threshold (percent). Pass `null` to reset to the
- * contract default.
- */
-export async function setAttestationThreshold(
-  project_name: string,
-  percent: number | null,
-): Promise<boolean> {
-  const client = getClient();
-  const maintainer = loadedPublicKey();
-  if (!maintainer) throw new Error("Wallet not connected");
-
-  const projectKey = getProjectKey(project_name);
-
-  const assembledTx = await client.set_attestation_threshold({
-    maintainer,
-    project_key: projectKey,
-    attestation_threshold: percent ?? undefined,
-  });
-
-  checkSimulationError(assembledTx);
-
-  await submitTransaction(assembledTx);
-  invalidateAttestationCache(projectKey);
   return true;
 }
 
@@ -526,7 +463,7 @@ export async function voteToProposal(
 /**
  * Execute proposal
  */
-export async function execute(
+async function execute(
   project_name: string,
   proposal_id: number,
   tallies?: bigint[],

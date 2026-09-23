@@ -10,7 +10,7 @@ function shortAddr(a: string, head: number = 4, tail: number = 4): string {
   return a.length > head + tail ? `${a.slice(0, head)}…${a.slice(-tail)}` : a;
 }
 
-export const ONCHAIN_METHODS: Record<string, MethodMeta> = {
+const ONCHAIN_METHODS: Record<string, MethodMeta> = {
   register: {
     paramNames: [
       "maintainer",

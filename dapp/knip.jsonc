@@ -1,0 +1,30 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        // The target of a Vite alias (astro.config.mjs), never imported.
+        "src/components/nido-passkey-sdk.ts",
+        // Imported with import() from a script in Layout.astro, which knip
+        // does not follow.
+        "src/components/utils/TermsAcceptanceModal.tsx",
+        "scripts/*.{js,ts}",
+        // Started by Playwright's webServer command.
+        "tests/helpers/serve.ts",
+      ],
+      "project": [
+        "src/**/*.{astro,js,jsx,ts,tsx}",
+        "tests/**/*.ts",
+        "scripts/**",
+      ],
+      // The tsconfig baseUrl: `utils/...` means src/utils/...
+      "paths": { "*": ["./src/*"] },
+      // buffer is the browser polyfill, not Node's module; the other two are
+      // imported from global.css.
+      "ignoreDependencies": ["buffer", "github-markdown-css", "tailwindcss"],
+      "ignoreBinaries": ["jq", "pkill", "rsvg-convert"],
+    },
+  },
+  // Generated contract bindings.
+  "ignoreWorkspaces": ["packages/tansu"],
+}

@@ -1,9 +1,4 @@
-import init, {
-  decode,
-  decode_stream,
-  encode,
-  guess,
-} from "@stellar/stellar-xdr-json";
+import init, { decode } from "@stellar/stellar-xdr-json";
 import wasmUrl from "@stellar/stellar-xdr-json/stellar_xdr_json_bg.wasm?url";
 
 // A wrapper for the Stellar XDR JSON
@@ -20,4 +15,4 @@ const initialize = async () => {
   }
 };
 
-export { initialize, decode, decode_stream, encode, guess };
+export { initialize, decode };
