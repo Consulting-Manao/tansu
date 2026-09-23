@@ -19,7 +19,8 @@ voting mechanisms.
 - **On-chain Version Control**: Immutable commit hash tracking
 - **Decentralized Governance**: Community proposals with public and anonymous voting
 - **Membership System**: Role-based access control with achievement badges
-- **Collateral-based Registration**: A 5 XLM deposit is required to register a project, preventing spam and name squatting
+- **Code Finality**: Maintainers attest commits and supply-chain evidence (SBOM, CVE) until a release is final
+- **Spam and Sybil Resistance**: A 5 XLM deposit to register a project or create a proposal; votes count for earned weight (badges, tokens or NQG score)
 - **IPFS Storage**: Decentralized content storage for proposals and project metadata
 - **Privacy-First**: Optional anonymous voting with cryptographic commitment schemes
 - **Real-time Events**: Instant updates through blockchain event streaming

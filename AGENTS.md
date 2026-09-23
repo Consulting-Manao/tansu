@@ -105,7 +105,7 @@ Astro pages with React islands; nanostores for state. All contract interaction g
 
 **Use when**: Building and configuring Astro sites and pages; using framework components (e.g. React) with client directives and static output.
 
-**Project context**: dapp uses Astro 5, static output, `@astrojs/react`, config in `dapp/astro.config.mjs`.
+**Project context**: dapp uses Astro 7, static output, `@astrojs/react`, config in `dapp/astro.config.mjs`.
 
 **Core concepts**:
 - Astro is a content-focused framework. Pages and components render to static HTML by default; add interactivity with "islands" (framework components + client directives).
@@ -267,7 +267,7 @@ export default defineConfig({
 
 **Use when**: Building and deploying Cloudflare Workers with Wrangler; using secrets, env config, and TypeScript.
 
-**Project context**: This repo has a Worker at `dapp/workers/ipfs-delegation/` for IPFS delegation (Storacha).
+**Project context**: This repo has a Worker at `dapp/workers/ipfs-delegation/` for IPFS uploads (Filebase, optional Pinata mirror).
 
 **Overview**:
 - **Workers** run on Cloudflare's edge; no servers to manage. Write code in JavaScript/TypeScript (or other runtimes); deploy with Wrangler.
@@ -277,7 +277,7 @@ export default defineConfig({
 
 **Project: ipfs-delegation Worker**:
 - **Location**: `dapp/workers/ipfs-delegation/`
-- **Role**: Generates Storacha delegations for IPFS uploads; uses Cloudflare Secrets for credentials (e.g. `STORACHA_SING_PRIVATE_KEY`, `STORACHA_PROOF`).
+- **Role**: Verifies a signed transaction and the CAR's root CID, then uploads the CAR to Filebase and optionally pins it on Pinata; uses Cloudflare Secrets for credentials (e.g. `FILEBASE_TOKEN`, `PINATA_JWT`).
 - **Tooling**: Wrangler 4, TypeScript, `@cloudflare/workers-types` in tsconfig for globals (e.g. `env`, `fetch` handler signature).
 - **Config**: `wrangler.toml` defines name, envs (e.g. testnet, production), and any bindings. Secrets are not in the repo; set per environment with `wrangler secret put`.
 - **Scripts**: `dev` runs `wrangler dev --port 8787`; `deploy:testnet` / `deploy:production` run `wrangler deploy --env testnet|production`.
