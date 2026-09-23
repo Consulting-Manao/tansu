@@ -1,0 +1,79 @@
+---
+sidebar_position: 8
+---
+
+# Code Finality
+
+A commit hash on-chain says _what_ a project released. **Code finality** says that the people responsible for the project stand behind it. Maintainers record an **attestation** -- an on-chain endorsement -- of a commit or of a specific [evidence](./evidence.mdx) artifact, and once enough of them have done so the target becomes **final**.
+
+:::note[Two meanings of "attestation"]
+
+The `Attestation` [evidence kind](./evidence.mdx) is an off-chain artifact, such as a Sigstore bundle, whose CID is stored on-chain. The attestations on this page are different: they are endorsements that maintainers record in the contract itself. A maintainer can endorse an `Attestation` evidence artifact like any other.
+
+:::
+
+## What can be attested
+
+Each attestation targets a commit of a project:
+
+| Target | Meaning |
+| --- | --- |
+| `Commit` | The maintainer endorses the commit itself |
+| `Evidence(kind, cid)` | The maintainer endorses one evidence artifact recorded for that commit, e.g. a specific SBOM |
+
+Every target has its own attestations and its own finality, so a release can be final while a later CVE scan of it is still waiting for review.
+
+## Attesting
+
+```bash
+stellar contract invoke \
+    --source-account G... \
+    --network testnet \
+    --id C... \
+    -- \
+    attest \
+    --attester G... \
+    --project_key ... \
+    --commit_hash ... \
+    --target Commit \
+    --note bafy...
+```
+
+- Only maintainers of the project can attest, once per target.
+- `note` is optional, typically a CID pointing to what the maintainer checked (a review, a reproducible-build report).
+- The contract records the attester, the ledger time, the note and the attester's voting weight at that moment (`get_max_weight`), and emits an `Attested` event. The weight is informational: it does not count towards finality.
+
+## Finality
+
+A target is final when the share of **current maintainers** who attested it reaches the project's threshold:
+
+```text
+attested_maintainers × 100 ≥ threshold × maintainers
+```
+
+- The threshold is a percentage between **50** and **100**, **66** by default. It is set at registration, with `update_config`, or with `set_attestation_threshold` (passing `None` resets it to the default). A new threshold applies immediately.
+- Only current maintainers count. An attestation from someone who has since been removed as maintainer is ignored, so a stale vouch cannot push a target over the line.
+- Finality **latches when it is reached by an attestation.** When an `attest` call brings a target to the threshold, the contract records the time, and the target stays final even if the maintainer set or the threshold changes afterwards.
+
+`get_attestation_finality(project_key, commit_hash, target)` returns `{ attested, total, is_final, finalized_at }`, and `get_attestations(...)` returns the individual attestations.
+
+## Revoking
+
+A maintainer can take back an attestation with `revoke_attestation` within **24 hours** of recording it, and only while the target is not final. Revocation is an explicit action with its own `AttestationRevoked` event; an attestation is never silently rewritten.
+
+## Known limitation: finality reached without an attestation
+
+The finality check is also evaluated live, against the current maintainer set and threshold, but only an `attest` call writes the latch. Two cases follow:
+
+- Removing maintainers or lowering the threshold can make a target read as final **without latching it**. Adding maintainers or raising the threshold back makes it non-final again.
+- Lowering the threshold takes effect at once, unlike the voting settings, which wait out a [notice window](./governance.mdx#project-governance-settings). A single maintainer can drop it to 50% and make partially attested targets read as final, which also stops other maintainers from revoking.
+
+Until the contract re-evaluates and latches finality on those changes, consumers who need a durable signal should rely on `finalized_at` being set rather than on `is_final` alone.
+
+## Limits
+
+At most **25** attestations are kept per target, which matches the maximum number of maintainers. When the limit is reached, attestations from former maintainers are pruned to make room. Current maintainers' attestations are never evicted.
+
+## In the dApp
+
+Software projects have a **Code Finality** button on the project page. It opens the latest commit with its evidence grouped by kind, and each commit and evidence artifact carries an attestation card showing progress towards the threshold, with **Attest** and revoke actions for maintainers. The same card appears on the latest commit and in the commit history. Maintainers set the threshold under **Update config**.

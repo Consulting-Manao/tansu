@@ -12,7 +12,9 @@ Tansu lets maintainers attach generic supply-chain **evidence** to a specific pr
 
 Supported kinds are `Sbom`, `Cve`, and `Attestation`.
 
-The contract intentionally stays small. Artifact contents live **off-chain on IPFS**; the contract stores only a content identifier (CID) and a ledger timestamp. It does not upload artifacts, parse SBOMs or CVEs, or verify attestations on-chain.
+The contract intentionally stays small. Artifact contents live **off-chain on IPFS**; the contract stores only a content identifier (CID) and a ledger timestamp. It does not upload artifacts, parse SBOMs or CVEs, or verify attestation bundles on-chain.
+
+Maintainers can also upload evidence from the dApp's **Code Finality** view, and endorse each artifact on-chain. See [Code Finality](./code_finality.mdx).
 
 :::note[Why no separate digest?]
 
