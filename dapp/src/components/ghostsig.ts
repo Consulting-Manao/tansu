@@ -10,12 +10,12 @@
  * repository, so this module needs no dependency and no polyfill.
  *
  * Copied from the GHOSTSIG fork of the kit (sdk/upstream/stellar-wallets-kit,
- * 8a69941), which the kit does not ship. GHOSTSIG's `bun run sync` does not
- * reach this file: a change to its ?connect protocol means copying again.
+ * branch feat/ghostsig-module), which the kit does not ship. GHOSTSIG's
+ * `bun run sync` does not reach this file: a change to its ?connect protocol
+ * means copying again.
  *
  * Same file as dapp/src/lib/ghostsig.ts in stellar-membership: keep them in
- * sync. The one difference is `| undefined` on the optional `url` and
- * `timeoutMs`, which this dApp's `exactOptionalPropertyTypes` requires.
+ * sync.
  */
 
 import {
@@ -26,12 +26,12 @@ import {
 
 const GHOSTSIG_ID = "ghostsig";
 
-interface GhostsigAuthEntryResult extends GhostsigConnectResult {
+interface GhostsigSignature extends GhostsigConnectResult {
   signature: string;
 }
-interface GhostsigMessageResult extends GhostsigConnectResult {
-  signature: string;
-}
+
+/** The page's `submitted.kind` for a transaction it never sent. */
+const GHOSTSIG_UNSENT = ["offline", "unsent", "locked", "moved", "handOver"];
 
 /** The page's ledger id and the SEP-43 name, for each network GHOSTSIG knows. */
 const GHOSTSIG_NETWORKS: Record<string, { id: string; name: string }> = {
@@ -50,21 +50,23 @@ export class GhostsigModule implements ModuleInterface {
 
   private address: string | null = null;
   private passphrase: string = Networks.PUBLIC;
-  private readonly url?: string | undefined;
-  private readonly timeoutMs?: number | undefined;
+  /** Where the page is and how long it may take, as given: passed on only when set. */
+  private readonly page: { url?: string; timeoutMs?: number };
 
-  constructor(params?: {
-    network?: Networks | string;
-    url?: string;
-    timeoutMs?: number;
-  }) {
-    if (params?.network) this.passphrase = params.network;
-    this.url = params?.url;
-    this.timeoutMs = params?.timeoutMs;
+  constructor(
+    params: {
+      network?: Networks | string;
+      url?: string;
+      timeoutMs?: number;
+    } = {},
+  ) {
+    const { network, ...page } = params;
+    if (network) this.passphrase = network;
+    this.page = page;
   }
 
   async isAvailable(): Promise<boolean> {
-    return typeof window !== "undefined" && typeof window.open === "function";
+    return typeof globalThis.window?.open === "function";
   }
 
   async getAddress(): Promise<{ address: string }> {
@@ -79,18 +81,9 @@ export class GhostsigModule implements ModuleInterface {
 
   async signTransaction(
     xdr: string,
-    opts?: {
-      networkPassphrase?: string;
-      address?: string;
-      path?: string;
-      submit?: boolean;
-    },
+    opts?: { networkPassphrase?: string; address?: string; path?: string },
   ): Promise<{ signedTxXdr: string; signerAddress?: string }> {
-    const params = {
-      payload: xdr,
-      submit: opts?.submit === true,
-      address: this.signer(opts),
-    };
+    const params = { payload: xdr, submit: false, address: this.signer(opts) };
     const result = await this.request<GhostsigSignResult>(
       "sign",
       params,
@@ -104,7 +97,7 @@ export class GhostsigModule implements ModuleInterface {
     opts?: { networkPassphrase?: string; address?: string; path?: string },
   ): Promise<{ signedAuthEntry: string; signerAddress?: string }> {
     const params = { payload: authEntry, address: this.signer(opts) };
-    const result = await this.request<GhostsigAuthEntryResult>(
+    const result = await this.request<GhostsigSignature>(
       "signAuthEntry",
       params,
       opts?.networkPassphrase,
@@ -117,7 +110,7 @@ export class GhostsigModule implements ModuleInterface {
     opts?: { networkPassphrase?: string; address?: string; path?: string },
   ): Promise<{ signedMessage: string; signerAddress?: string }> {
     const params = { message, address: this.signer(opts) };
-    const result = await this.request<GhostsigMessageResult>(
+    const result = await this.request<GhostsigSignature>(
       "signMessage",
       params,
       opts?.networkPassphrase,
@@ -135,19 +128,20 @@ export class GhostsigModule implements ModuleInterface {
       params,
       opts?.networkPassphrase,
     );
-    const submitted = result.submitted;
-    if (submitted && submitted.ok === false) {
+    const { handOver, submitted, hash } = result;
+    if (handOver || (submitted && GHOSTSIG_UNSENT.includes(submitted.kind))) {
       throw {
         code: -2,
-        message: `The ledger refused the transaction: ${submitted.code ?? submitted.kind}`,
+        message: `Nothing was submitted: ${handOver || submitted?.kind}. Transaction hash: ${hash}`,
       };
     }
-    return {
-      status:
-        result.handOver || !submitted || submitted.ok !== true
-          ? "pending"
-          : "success",
-    };
+    if (submitted?.ok === false) {
+      throw {
+        code: -2,
+        message: `The transaction failed: ${submitted.code ?? submitted.kind}. Transaction hash: ${hash}`,
+      };
+    }
+    return { status: submitted?.ok === true ? "success" : "pending" };
   }
 
   async getNetwork(): Promise<{ network: string; networkPassphrase: string }> {
@@ -164,13 +158,14 @@ export class GhostsigModule implements ModuleInterface {
 
   /** The network a call names, which becomes the module's, or the module's own. */
   private network(passphrase?: string): { id: string; name: string } {
-    if (passphrase) this.passphrase = passphrase;
-    const network = GHOSTSIG_NETWORKS[this.passphrase];
+    const asked = passphrase || this.passphrase;
+    const network = GHOSTSIG_NETWORKS[asked];
     if (!network)
       throw {
         code: -3,
-        message: `GHOSTSIG does not know the network "${this.passphrase}"`,
+        message: `GHOSTSIG does not know the network "${asked}"`,
       };
+    this.passphrase = asked;
     return network;
   }
 
@@ -186,8 +181,7 @@ export class GhostsigModule implements ModuleInterface {
         network: id,
         method,
         params,
-        url: this.url,
-        timeoutMs: this.timeoutMs,
+        ...this.page,
       });
     } catch (e) {
       if (e instanceof GhostsigError)
@@ -206,7 +200,7 @@ const GHOSTSIG_ICON =
 const GHOSTSIG_PROTOCOL = 1;
 const GHOSTSIG_URL = "https://ghostsig.dev/?connect";
 /** How long a connect's popup is reused. The page holds it open a little longer than this. */
-const GHOSTSIG_REUSE_MS = 2_000;
+const GHOSTSIG_REUSE_MS = 1_500;
 const GHOSTSIG_READY_MS = 10_000;
 const GHOSTSIG_TIMEOUT_MS = 60_000;
 
@@ -254,14 +248,14 @@ interface GhostsigRequest {
   network: string;
   method: string;
   params?: Record<string, unknown>;
-  url?: string | undefined;
-  timeoutMs?: number | undefined;
+  url?: string;
+  timeoutMs?: number;
 }
 
 /** The popup a connect left open, for the signature a login asks for next. */
 const ghostsigHeld = new WeakMap<
   Window,
-  { popup: Window; origin: string; at: number }
+  { popup: Window; origin: string; chain: string; network: string; at: number }
 >();
 
 /** The pages this client opens: ghostsig.dev, or a copy on localhost, its own passkey relying party. */
@@ -372,6 +366,8 @@ function ghostsigRequest<T = unknown>(req: GhostsigRequest): Promise<T> {
     held !== undefined &&
     !held.popup.closed &&
     held.origin === origin &&
+    held.chain === req.chain &&
+    held.network === req.network &&
     Date.now() - held.at < GHOSTSIG_REUSE_MS;
   let popup: Window | null;
   if (reuse) {
@@ -419,7 +415,13 @@ function ghostsigRequest<T = unknown>(req: GhostsigRequest): Promise<T> {
       // A connect leaves the page open. A failure of the client's own closes the popup;
       // a page that refused keeps it, to show why.
       if (!err && req.method === "connect") {
-        ghostsigHeld.set(win, { popup: opened, origin, at: Date.now() });
+        ghostsigHeld.set(win, {
+          popup: opened,
+          origin,
+          chain: req.chain,
+          network: req.network,
+          at: Date.now(),
+        });
       } else if (err?.ext) {
         try {
           if (!opened.closed) opened.close();
