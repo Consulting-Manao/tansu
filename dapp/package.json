@@ -64,7 +64,7 @@
     "prettier-plugin-astro": "^0.14.1",
     "tailwindcss": "^4.3.3",
     "ts-prune": "^0.10.3",
-    "vitest": "4.1.11",
+    "vitest": "5.0.1",
     "zod": "^4.4.3"
   },
   "name": "dapp",
