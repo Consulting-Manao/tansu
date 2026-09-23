@@ -18,7 +18,7 @@ flowchart TD
     C["Astro / React UI Components"]
     D["StateService"]
     E["ReadContractService"]
-    F["WriteContractService"]
+    F["ContractService / TxService"]
     G["FlowService"]
   end
   subgraph Blockchain
@@ -47,7 +47,7 @@ flowchart TD
 
 ### Overview
 
-Maintainers register projects with a collateral deposit, name uniqueness check, and metadata storage.
+Maintainers register projects with a registration deposit, name uniqueness check, and metadata storage.
 
 ### Flow Diagram
 
@@ -68,7 +68,7 @@ sequenceDiagram
   D->>IPFS: Upload tansu.toml
   IPFS-->>D: Return CID
   D->>W: Sign register() Transaction
-  Note over W,SC: Locks 5 XLM collateral
+  Note over W,SC: Takes the 5 XLM registration deposit
   W-->>D: Signed Transaction
   D->>SC: Submit Transaction
   SC-->>D: Registration Success
@@ -85,14 +85,14 @@ sequenceDiagram
 
 #### Validation Steps
 
-1. **Project Name**: 4-15 lowercase letters, unique check via contract
+1. **Project Name**: 4-30 letters and digits, unique check via contract
 2. **Maintainers**: Valid Stellar addresses (G...) and provider-specific maintainer aliases or handles
 3. **Repository**: Valid supported git provider URL or public Radicle RID/URL
 4. **Organization Info**: Required fields with URL format validation
 
 #### Security Features
 
-- **Collateral deposit**: 5 XLM locked on registration
+- **Registration deposit**: 5 XLM, not returned
 - **Name uniqueness**: On-chain check prevents duplicate project names
 - **Input Sanitization**: All user inputs sanitized against XSS
 - **Transaction Simulation**: All contract calls simulated before signing
@@ -286,18 +286,18 @@ sequenceDiagram
 ### Commit Verification
 
 - **Repository provider integration**: Verify commit hashes via hosted forge APIs or Radicle seed (GitHub, GitLab, Bitbucket, Codeberg, Gitea, Radicle)
-- **Hash Format Validation**: Ensure 40-character hexadecimal format
+- **Hash Format Validation**: 40 (SHA-1) or 64 (SHA-256) hexadecimal characters, enforced on-chain
 - **Authorization Check**: Only project maintainers can update commits
 
 ### Historical Tracking
 
-- **Immutable History**: All commits stored permanently on-chain
+- **Event History**: The contract stores the latest hash; every update emits a `Commit` event, so the full history is on the ledger
 - **Direct Reads**: The dApp reads current commit state from the contract without a backend indexer
 - **Timestamp Accuracy**: Ledger timestamps provide precise commit timing
 
 ### Commit Evidence
 
-- **Generic API**: Evidence uses `set_evidence` and `get_evidence`; there are no separate SBOM, CVE, or attestation endpoints.
+- **Generic API**: Evidence uses `set_evidence` and `get_evidence`; there are no separate SBOM, CVE, or attestation-bundle endpoints. Maintainers' endorsements of a commit or artifact are a separate mechanism, see [Code Finality](./code_finality.mdx).
 - **Scoped Storage**: Evidence is stored by `project_key`, `commit_hash`, and evidence kind.
 - **Off-Chain Contents**: The contract stores only a CID and ledger timestamp. Artifact upload, parsing, and verification happen off-chain by fetching the CID from IPFS.
 

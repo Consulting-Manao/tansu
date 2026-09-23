@@ -8,7 +8,7 @@ The Stellar smart contract can be directly used and inspected either using an ex
 
 ## Typical flow
 
-The first step is to register a project by providing some information. This requires a **5 XLM collateral deposit** and checks that the project name is unique on-chain.
+The first step is to register a project by providing some information. This takes a non-refundable **5 XLM deposit** and checks that the project name (4 to 30 letters and digits) is unique on-chain.
 
 ```bash
 stellar contract invoke \
@@ -26,9 +26,11 @@ stellar contract invoke \
 
 `--url` accepts any supported git forge URL (GitHub, GitLab, Bitbucket, Codeberg, Gitea, …) or a Radicle identifier (`rad:<RID>`).
 
+`register` also takes optional `--min_voting_period`, `--execute_delay` (both in seconds) and `--attestation_threshold` (percent). Leave them out to use the defaults; see [Project governance settings](./governance.mdx#project-governance-settings).
+
 ![Contract on-chain](/assets/docs/contract.png)
 
-Then maintainers can commit changes on-chain as they push new commits.
+Then maintainers can commit changes on-chain as they push new commits. The hash is a full Git commit id: 40 hexadecimal characters (SHA-1) or 64 (SHA-256 repositories). Only the latest hash is stored; the history is in the `Commit` events.
 
 ```bash
 stellar contract invoke \
@@ -46,7 +48,9 @@ stellar contract invoke \
 
 ![transactions](/assets/docs/transactions.png)
 
-Maintainers can also attach generic supply-chain evidence to a specific commit. Evidence is keyed by project, commit hash, and kind (`Sbom`, `Cve`, or `Attestation`). The contract stores only an off-chain content identifier; it does not upload artifacts, parse evidence contents, or verify attestations on-chain. See [Commit Evidence](./evidence.mdx) for the automated producer path (generate artifact → upload to IPFS → record CID).
+Maintainers can also attach generic supply-chain evidence to a specific commit. Evidence is keyed by project, commit hash, and kind (`Sbom`, `Cve`, or `Attestation`). The contract stores only an off-chain content identifier; it does not upload artifacts, parse evidence contents, or verify attestation bundles on-chain. See [Commit Evidence](./evidence.mdx) for the automated producer path (generate artifact → upload to IPFS → record CID).
+
+Maintainers then endorse a commit, or a specific evidence artifact, with `attest`. Once enough of them have, the target reaches finality. See [Code Finality](./code_finality.mdx).
 
 ```bash
 stellar contract invoke \
@@ -90,7 +94,7 @@ stellar contract invoke \
 
 ## Events
 
-Registering a project, committing a new hash, or setting commit evidence sends a contract event.
+Every state change sends a contract event: registering a project, committing a new hash, setting commit evidence, attesting, voting, and so on. The full list is in [Architecture](./architecture.mdx#event-system).
 
 ![Contract events off-chain](/assets/docs/events.png)
 

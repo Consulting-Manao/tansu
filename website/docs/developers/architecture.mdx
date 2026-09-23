@@ -25,14 +25,17 @@ The Soroban contract handles all on-chain features of the projects from registra
 
 When maintainers register their projects, a unique hash based on the project name is created. This serves as a `project_key` to uniquely identify a project and is stored as a data entry on the ledger.
 
-Behind the scene, registration locks a **5 XLM collateral deposit** (via the configured collateral token) and checks that the project name is unique on-chain. Misuse or impersonation can be reported and addressed through governance, including collateral forfeiture.
+Behind the scene, registration takes a **5 XLM deposit** (via the configured collateral token) and checks that the project name is unique on-chain. The deposit is not returned: it is the price of a unique name and keeps name squatting costly. See [Spam and Sybil resistance](./governance.mdx#spam-and-sybil-resistance) for how deposits and voting weight fit together.
 
 Each project stores these elements on-chain:
 
 - a commit hash: the last commit hash which was set by a maintainer;
 - generic commit evidence: optional IPFS CIDs for SBOMs, CVE scan reports, and attestations scoped to a project, commit hash, and evidence kind;
 - a list of maintainers: authorized maintainers who can administer the project. They can update everything besides the project name itself;
-- the hash of a configuration file and its location: similar to a Stellar info file, as described in SEP-1. It defines meta information such as a more digestible list of maintainers, official resources for a project, etc.
+- the hash of a configuration file and its location: similar to a Stellar info file, as described in SEP-1. It defines meta information such as a more digestible list of maintainers, official resources for a project, etc;
+- maintainers' [attestations](./code_finality.mdx) of commits and evidence, and whether each target has reached finality;
+- optional governance settings: minimum voting period, execution delay and attestation finality threshold;
+- optional sub-projects, for organizations grouping several projects.
 
 Maintainers can call the contract to update the commit hash as they develop their code. This contract call triggers an event containing the project_key and the commit hash.
 
@@ -44,9 +47,10 @@ Everyone can get a project's commit hash or commit evidence at any time by eithe
 
 ### Core Functions
 
-- **Project Management**: Registration, updates, and configuration
-- **Governance**: Proposal creation, voting, and execution
-- **Membership**: Member registration and badge management
+- **Project Management**: Registration, updates, per-project governance settings and sub-projects
+- **Versioning**: Commit hashes, commit evidence (SBOM, CVE, attestation artifacts) and [code finality](./code_finality.mdx) through maintainer attestations
+- **Governance**: Proposal creation, voting, conflict-of-interest lists, moderation, and execution with optional [outcome contracts](./governance.mdx#acting-on-other-contracts)
+- **Membership**: Member registration, Git identity binding and badge management
 - **Anonymous Voting**: BLS12-381 cryptographic voting system
 
 ### Security Features
@@ -54,7 +58,8 @@ Everyone can get a project's commit hash or commit evidence at any time by eithe
 - **Access Control**: Role-based permissions for maintainers
 - **Input Validation**: Comprehensive validation of all contract inputs
 - **Event Emission**: All state changes emit verifiable events
-- **Upgrade Mechanism**: Controlled contract upgrade system
+- **Upgrade Mechanism**: Multi-admin upgrades: an admin proposes a new WASM hash, other admins approve, and the upgrade is finalized after a timelock
+- **Pause**: Admins can pause state-changing calls in an emergency
 
 ### Event System
 
@@ -64,16 +69,25 @@ The contract emits events for all state changes:
 
 - `ProjectRegistered` - New project created
 - `ProjectConfigUpdated` - Metadata or maintainers changed
+- `ProjectGovernanceUpdated` - Minimum voting period or execution delay changed (or queued)
 - `Commit` - New commit hash set
 - `EvidenceSet` - Evidence pointer set for a project commit and evidence kind
 - `SubProjectsUpdated` - Sub-projects added or changed
+
+**Code Finality Events:**
+
+- `Attested` - Maintainer attested a commit or evidence artifact
+- `AttestationRevoked` - Maintainer revoked an attestation
+- `AttestationThresholdSet` - Finality threshold changed
 
 **Governance Events:**
 
 - `AnonymousVotingSetup` - Anonymous voting configured
 - `ProposalCreated` - New proposal submitted
 - `VoteCast` - Vote recorded
-- `ProposalExecuted` - Proposal finalized
+- `VoteRemoved` - Vote removed by a maintainer
+- `ConflictOfInterestUpdated` - Conflict-of-interest list changed
+- `ProposalExecuted` - Proposal finalized, or revoked (status `Malicious`)
 
 **Membership Events:**
 
@@ -83,7 +97,7 @@ The contract emits events for all state changes:
 **Admin Events:**
 
 - `ContractPaused` - Contract paused or unpaused
-- `ContractUpdated` - Collateral contract changed
+- `ContractUpdated` - Collateral or NQG contract changed
 - `UpgradeProposed` - Contract upgrade proposed
 - `UpgradeApproved` - Upgrade approval recorded
 - `UpgradeStatus` - Upgrade executed or cancelled
@@ -100,10 +114,13 @@ Git hooks automate commit tracking. Upon specific Git actions, maintainers trigg
 
 Tansu uses IPFS for decentralized content storage:
 
-- **Proposal Content**: Rich text descriptions and metadata
+- **Proposal Content**: Descriptions, outcomes and discussion snapshots (see [Proposal IPFS directory](./governance.mdx#proposal-ipfs-directory))
 - **Member Profiles**: Profile images and biographical information
 - **Project Metadata**: Configuration files and documentation
+- **Commit Evidence**: SBOMs, CVE scans and attestation bundles
 - **Content Addressing**: Immutable content hashes for verification
+
+The dApp packs content into a CAR file and sends it, together with the user's signed transaction, to a small delegation worker. The worker verifies the transaction signature and recomputes the CAR's root CID to check it matches, then pins the content on Filebase (optionally mirrored on Pinata). It holds the pinning credentials so the browser never does.
 
 ## dApp
 
@@ -111,8 +128,8 @@ The dApp provides essential project management features.
 
 Built with Astro and `stellar-wallets-kit`. The dApp is fully non-custodial and never accesses private keys.
 
-Maintainers can handle all aspects of their projects: add or remove maintainers, update metadata, and set commit hashes.
+Maintainers can handle all aspects of their projects: add or remove maintainers, update metadata and governance settings, set commit hashes, attach evidence and attest commits, grant badges, and run proposals from creation to execution.
 
-Users can view project details and current state. Each commit hash links to the project's code repository. The metadata file (similar to SEP-1) renders project information.
+Users can view project details and current state, join as members, vote, and donate. Each commit hash links to the project's code repository. The metadata file (similar to SEP-1) renders project information.
 
 The interface clearly shows data sources for both on-chain and off-chain information.

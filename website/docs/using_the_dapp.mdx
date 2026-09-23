@@ -4,66 +4,73 @@ sidebar_position: 2
 
 # Quick-Start
 
-The web interface at [https://testnet.tansu.dev](https://testnet.tansu.dev) is the easiest way to interact with Tansu. All contract calls use the [Stellar Wallets Kit](https://github.com/stellar/js-wallets-kit) for non-custodial wallet integration.
+The web interface at [https://testnet.tansu.dev](https://testnet.tansu.dev) is the easiest way to interact with Tansu. All contract calls use the [Stellar Wallets Kit](https://github.com/Creit-Tech/Stellar-Wallets-Kit) for non-custodial wallet integration.
 
 > The steps below assume you are connected to **Testnet**. For Mainnet the flow is identical – only network selection and contract ID will differ.
 
 ## 1. Connect your wallet
 
 1. Click **Connect** at the top-right corner.
-2. Select your preferred wallet (Freighter, Albedo, …).
+2. Select your preferred wallet (Freighter, xBull, Albedo, a Ledger device, …).
 3. Authorise the connection – your public key now appears in the header.
-4. Join the community – fill out details about yourself.
+4. Click **Join** to register as a member – fill out details about yourself and, optionally, bind your Git identity by signing a message with your SSH key (see [Binding a Git identity](developers/membership.mdx#binding-a-git-identity)).
 
 ## 2. Register a project
 
-1. Go to **Projects ▶ Register**.
+1. Click **+ Add Project**.
 2. Fill in:
 
-- **Name** – 15 characters max, unique on-chain
-- **Maintainers** – comma-separated list of Stellar addresses
+- **Name** – 4 to 30 letters and digits, unique on-chain
+- **Maintainers** – the Stellar addresses of the maintainers
 - **Metadata** – The rest is metadata such as the link to the code repository.
 
-3. Press **Register** and sign the transaction.
+3. Press **Register Project** and sign the transaction. Registration takes a non-refundable **5 XLM deposit**.
 
 The dApp shows a **pending** status until the transaction is confirmed. Once done the new project appears on the dashboard.
 
 ## 3. Update your commit hash
 
-Inside a project page click **Set commit hash**, paste the 40-character Git commit SHA and sign. The commit is stored on-chain and displayed alongside a link to the corresponding commit on the project's registered repository.
+On a project page, open **Code Finality**, click **Edit commit hash**, paste the full Git commit SHA and sign. The commit is stored on-chain and displayed alongside a link to the corresponding commit on the project's registered repository.
 
 For an automated workflow, install the pre-push hook described in the [Git Hooks](developers/on_chain.mdx#git-hooks) section.
 
-## 4. Manage maintainers & badges
+## 4. Attest a release
 
-- **Add Member** – registers a contributor on-chain so they can receive badges.
-- **Add Badge** – maintainers can grant `Developer`, `Triage`, `Community`, `Verified` or `Default` badges to any member.
+In **Code Finality**, maintainers can attach evidence to the commit (SBOM, CVE scan, attestation bundle) and **Attest** the commit or any evidence artifact. Once the share of maintainers set by the project's threshold has attested, the target is marked final. See [Code Finality](developers/code_finality.mdx).
 
-Badge weight is the default voting mode. Token-weighted proposals and NQG contract weight (for the SCF Public Goods project) are configured per proposal or per project — see [Membership](developers/membership.mdx).
+## 5. Manage maintainers, badges & settings
 
-## 5. Create a proposal
+- **Add badge** – maintainers can grant `Developer`, `Triage`, `Community`, `Verified` or `Default` badges to any member.
+- **Update config** – change maintainers, metadata and the attestation finality threshold.
 
-1. Go to the **Governance** tab inside a project.
-2. Press **New proposal**.
+Badge weight is the default voting mode. Token-weighted proposals are chosen per proposal, and NQG contract weight applies to the SCF Public Goods project — see [Membership](developers/membership.mdx).
+
+## 6. Create a proposal
+
+1. Go to the **Proposals** page of a project.
+2. Press **Submit Proposal** (shown to maintainers).
 3. Fill in:
 
 - **Title**
-- **Description** – rich-text editor (stored on IPFS)
-- **Voting end** – calendar picker (1-30 days)
-- **Outcome Contracts** – optional contracts to invoke on each outcome (approved, rejected, cancelled), each with a target address, function name, and arguments
+- **Description** – Markdown editor, optionally starting from a template (stored on IPFS)
+- **Voting end** – calendar picker, at least a day and at most 30 days ahead
+- **Voting mode** – public or anonymous, and optionally a token contract for token-weighted voting
+- **Outcome Contracts** – optional contracts to invoke on each outcome (approved, rejected, cancelled), each with a target, function name and arguments. Templates pre-fill common cases, and the target can be a [Stellar Registry](https://stellar.rgstry.xyz) name instead of an address.
 
-4. Submit and sign.
+4. Submit and sign. Creating a proposal takes a **5 XLM deposit**, returned when the proposal is executed.
 
 The proposal immediately appears with status **Active**.
 
-## 6. Vote
+## 7. Vote
 
-While a proposal is **Active** press **Vote** and choose **Approve**, **Reject** or **Abstain**. The dApp automatically selects the correct call (public or anonymous) based on the proposal settings.
+While a proposal is **Active** press **Vote** and choose **Approve**, **Reject** or **Abstain**. The dApp automatically selects the correct call (public or anonymous) based on the proposal settings, and shows your voting power. Voting is free apart from network fees.
 
-## 7. Execute
+Maintainers can mark addresses as conflicted under **Conflict of Interest**, which prevents them from voting on that proposal, and can **Remove Vote** to drop an abusive vote.
 
-After the voting window closes any maintainer can press **Execute**. If the proposal includes outcome contracts, the contract matching the result index is invoked (Approved = index 0, Rejected = index 1, Cancelled = index 2).
+## 8. Execute
+
+After the voting window closes and the project's execution delay (24 hours by default) has passed, any maintainer can press **Execute Proposal**. If the proposal includes outcome contracts, the contract matching the result index is invoked (Approved = index 0, Rejected = index 1, Cancelled = index 2).
 
 ---
 
-Need a feature that is not yet in the UI but exists on-chain? The website is open-source – feel free to open an issue or a pull-request!
+Need a feature that is not yet in the UI but exists on-chain? The project is open-source – feel free to open an issue or a patch on [Radicle](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s)!
