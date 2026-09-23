@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getFeaturedProjectsConfigData } from "../../../constants/featuredProjectsConfigData.js";
-import { fetchTomlFromIpfs } from "../../../utils/ipfsFunctions";
 import {
   getProjectFromName,
   getMember,
@@ -14,8 +13,9 @@ import {
   projectCardModalOpen,
   walletInitialized,
 } from "../../../utils/store.ts";
-import { extractConfigData, toast } from "../../../utils/utils";
+import { toast } from "../../../utils/utils";
 import CreateProjectModal from "./CreateProjectModal.tsx";
+import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
 import ProjectInfoModal from "./ProjectInfoModal.jsx";
 import MemberProfileModal from "./MemberProfileModal.tsx";
@@ -31,7 +31,7 @@ const ProjectList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isInOnChain, setIsInOnChain] = useState(false);
-  const [configInfo, setConfigInfo] = useState();
+  const [searchedProject, setSearchedProject] = useState();
   const [_prevPath, setPrevPath] = useState("");
   const [memberNotFound, setMemberNotFound] = useState(false);
 
@@ -47,6 +47,9 @@ const ProjectList = () => {
 
   const searchTimeoutRef = useRef(null);
   const modalSyncSkipRef = useRef(true);
+  // Only the latest page or search request may update the list.
+  const pageRequestRef = useRef(0);
+  const searchRequestRef = useRef(0);
 
   // Modal handlers
   const handleCreateProjectModal = useCallback(() => {
@@ -202,39 +205,21 @@ const ProjectList = () => {
   };
 
   const checkProjectOnChain = async (projectName) => {
+    const request = ++searchRequestRef.current;
     setIsLoading(true);
     try {
       const project = await getProjectFromName(projectName);
+      if (request !== searchRequestRef.current) return;
       if (project && project.name && project.config && project.maintainers) {
-        const tomlData = await fetchTomlFromIpfs(project.config.ipfs);
-        if (tomlData) {
-          const configData = extractConfigData(tomlData, project);
-          setConfigInfo(configData);
-        } else {
-          const configData = {
-            projectName: project.name,
-            logoImageLink: undefined,
-            thumbnailImageLink: "",
-            description: "",
-            organizationName: "",
-            projectType: "SOFTWARE",
-            officials: {
-              githubLink: project.config.url,
-            },
-            socialLinks: {},
-            authorGithubNames: [],
-            maintainersAddresses: project.maintainers,
-          };
-          setConfigInfo(configData);
-        }
+        setSearchedProject(project);
         setIsInOnChain(true);
       } else {
         setIsInOnChain(false);
       }
     } catch {
-      setIsInOnChain(false);
+      if (request === searchRequestRef.current) setIsInOnChain(false);
     } finally {
-      setIsLoading(false);
+      if (request === searchRequestRef.current) setIsLoading(false);
     }
   };
 
@@ -263,51 +248,22 @@ const ProjectList = () => {
     }
   };
 
-  const minimalConfig = (project) => ({
-    projectName: project.name,
-    logoImageLink: undefined,
-    thumbnailImageLink: "",
-    description: "",
-    organizationName: "",
-    officials: { githubLink: project.config.url },
-    socialLinks: {},
-    authorGithubNames: [],
-    maintainersAddresses: project.maintainers,
-  });
-
+  // Cards render as soon as the contract answers; each fills in its own
+  // tansu.toml, so a dead or slow CID never holds the list back.
   const fetchProjectsForPage = async (uiPage) => {
+    const request = ++pageRequestRef.current;
     setIsLoadingOnChain(true);
     try {
-      const blockchainPage = uiPage - 1;
-      const projectsPage = await getProjectsPage(blockchainPage);
-
-      if (projectsPage.length === 0) {
-        setOnChainProjects([]);
-        setHasNextPage(false);
-        setIsLoadingOnChain(false);
-        return;
-      }
-
-      const results = await Promise.allSettled(
-        projectsPage.map((p) => fetchTomlFromIpfs(p.config.ipfs)),
-      );
-
-      const enrichedList = projectsPage.map((project, i) => {
-        const result = results[i];
-        const tomlData =
-          result.status === "fulfilled" ? result.value : undefined;
-        return tomlData
-          ? extractConfigData(tomlData, project)
-          : minimalConfig(project);
-      });
-
-      setOnChainProjects(enrichedList);
-      setHasNextPage(true);
+      const projectsPage = await getProjectsPage(uiPage - 1);
+      if (request !== pageRequestRef.current) return;
+      setOnChainProjects(projectsPage);
+      setHasNextPage(projectsPage.length > 0);
     } catch {
+      if (request !== pageRequestRef.current) return;
       setOnChainProjects([]);
       setHasNextPage(false);
     } finally {
-      setIsLoadingOnChain(false);
+      if (request === pageRequestRef.current) setIsLoadingOnChain(false);
     }
   };
 
@@ -409,7 +365,10 @@ const ProjectList = () => {
         </div>
       ) : isInOnChain ? (
         <div className="w-full sm:w-1/2 mx-auto pb-[120px]">
-          <ProjectCard key={1} config={configInfo} />
+          <OnChainProjectCard
+            key={`${searchedProject.name}:${searchedProject.config.ipfs}`}
+            project={searchedProject}
+          />
         </div>
       ) : searchTerm ? (
         <div className="flex flex-col items-center justify-center py-12">
@@ -444,12 +403,12 @@ const ProjectList = () => {
           ) : onChainProjects.length > 0 ? (
             <div className="flex flex-col gap-8">
               <div className="project-list grid gap-6 md:gap-8 grid-cols-1 sm:grid-cols-2 justify-items-center items-stretch">
-                {onChainProjects.map((project, index) => (
+                {onChainProjects.map((project) => (
                   <div
                     className="w-full h-full"
-                    key={`onchain-page${currentUIPage}-${project.projectName || index}`}
+                    key={`${project.name}:${project.config.ipfs}`}
                   >
-                    <ProjectCard config={project} />
+                    <OnChainProjectCard project={project} />
                   </div>
                 ))}
               </div>

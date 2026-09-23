@@ -32,7 +32,16 @@ interface ProjectConfig {
   organizationName?: string;
 }
 
-const ProjectCard = ({ config }: { config: ProjectConfig }) => {
+const placeholder = "bg-zinc-200 motion-safe:animate-pulse";
+
+const ProjectCard = ({
+  config,
+  isMetadataLoading = false,
+}: {
+  config: ProjectConfig;
+  /** tansu.toml is still loading: show placeholders for the empty fields. */
+  isMetadataLoading?: boolean;
+}) => {
   const repositoryIcon = getRepositoryIconInfo(config.officials.githubLink);
 
   const handleCardClick = async () => {
@@ -87,20 +96,30 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
   };
 
   return (
-    <div className="project-card w-full h-full flex flex-col shadow-card rounded-sm overflow-hidden hover:shadow-lg transition-shadow duration-300">
+    <div
+      className="project-card w-full h-full flex flex-col shadow-card rounded-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
+      aria-busy={isMetadataLoading || undefined}
+    >
       <div
         className="h-[200px] sm:h-[240px] md:h-[290px] bg-white/25 backdrop-blur-[9px] overflow-hidden cursor-pointer group flex justify-center items-center flex-shrink-0"
         onClick={handleCardClick}
       >
-        <img
-          src={
-            config.logoImageLink
-              ? convertGitHubLink(config.logoImageLink)
-              : "/fallback-image.jpg"
-          }
-          alt={config.projectName}
-          className="thumbnail w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg object-contain transition-transform duration-300 ease-in-out group-hover:scale-110"
-        />
+        {!config.logoImageLink && isMetadataLoading ? (
+          <div
+            aria-hidden="true"
+            className={`w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg ${placeholder}`}
+          />
+        ) : (
+          <img
+            src={
+              config.logoImageLink
+                ? convertGitHubLink(config.logoImageLink)
+                : "/fallback-image.jpg"
+            }
+            alt={config.projectName}
+            className="thumbnail w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg object-contain transition-transform duration-300 ease-in-out group-hover:scale-110"
+          />
+        )}
       </div>
       <div className="flex-grow bg-white p-4 sm:p-6 flex flex-col gap-4 sm:gap-[30px] justify-between">
         <div className="flex flex-col gap-2 sm:gap-3">
@@ -110,9 +129,19 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
           <p className="text-sm text-secondary">
             <span className="font-medium">{config.projectName}</span>
           </p>
-          <p className="description text-sm sm:text-base font-victormono text-zinc-800 line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
-            {config.description || "No description"}
-          </p>
+          {!config.description && isMetadataLoading ? (
+            <div
+              aria-hidden="true"
+              className="flex flex-col justify-center gap-2 min-h-[2.5rem] sm:min-h-[3rem]"
+            >
+              <div className={`h-3.5 w-full rounded ${placeholder}`} />
+              <div className={`h-3.5 w-2/3 rounded ${placeholder}`} />
+            </div>
+          ) : (
+            <p className="description text-sm sm:text-base font-victormono text-zinc-800 line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
+              {config.description || "No description"}
+            </p>
+          )}
         </div>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
           <div className="links flex gap-2 items-center">
@@ -171,6 +200,11 @@ const ProjectCard = ({ config }: { config: ProjectConfig }) => {
             <p className="organization-name text-sm sm:text-base leading-4 font-firamono text-pink font-light">
               by <span className="font-medium">{config.organizationName}</span>
             </p>
+          ) : isMetadataLoading ? (
+            <div
+              aria-hidden="true"
+              className={`h-4 w-32 rounded ${placeholder}`}
+            />
           ) : (
             <p className="organization-name text-sm sm:text-base leading-4 font-firamono text-pink">
               No organization name

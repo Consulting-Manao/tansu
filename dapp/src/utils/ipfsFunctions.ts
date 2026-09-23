@@ -3,6 +3,14 @@
 import toml from "toml";
 
 import { isValidCid } from "./contentHashes";
+import {
+  classifyIpfsFailure,
+  clearIpfsMisses,
+  findIpfsMiss,
+  IpfsMissError,
+  recordIpfsMiss,
+  type IpfsMissScope,
+} from "./ipfsMissCache";
 
 type IpfsCache = {
   responses: Record<string, Response>;
@@ -107,8 +115,13 @@ export async function fetchFromIpfs(
   const cached = cache.responses[key];
   if (cached) return cached.clone();
 
+  const miss = findIpfsMiss(cid, pathNorm);
+  if (miss) throw new IpfsMissError(cid, pathNorm, miss, true);
+
   const attemptMs = Math.min(timeoutMs, PER_ATTEMPT_MS);
   let lastError: unknown;
+  // Final answers per gateway: a miss is only remembered when all agree.
+  const misses: { scope: IpfsMissScope; status: number }[] = [];
 
   for (let i = 0; i < GATEWAYS.length; i++) {
     const gateway = GATEWAYS[i]!;
@@ -120,6 +133,17 @@ export async function fetchFromIpfs(
       );
       if (!res.ok) {
         lastError = new Error(`HTTP ${res.status} from ${gateway.name}`);
+        // Only a 504 body tells a dead CID from a slow one.
+        let body = "";
+        if (res.status === 504) {
+          try {
+            body = await res.text();
+          } catch {
+            // Unreadable: treated as temporary.
+          }
+        }
+        const scope = classifyIpfsFailure(res.status, body);
+        if (scope) misses.push({ scope, status: res.status });
         continue;
       }
       // Only accept when the final response body is readable (outcome of redirect), not just status
@@ -137,6 +161,11 @@ export async function fetchFromIpfs(
     }
   }
 
+  if (misses.length === GATEWAYS.length) {
+    const final = misses.find((m) => m.scope === "root") ?? misses[0]!;
+    recordIpfsMiss(cid, pathNorm, final.scope, final.status);
+    throw new IpfsMissError(cid, pathNorm, final, false);
+  }
   throw lastError ?? new Error("IPFS fetch failed from all gateways");
 }
 
@@ -379,6 +408,8 @@ export async function uploadToIpfsProxy(
     if (result.error) {
       console.warn("[IPFS] Upload partially succeeded:", result.error);
     }
+    // Reads right after this write must not hit a miss remembered earlier.
+    clearIpfsMisses(cid);
     return result.cid;
   }
 
