@@ -28,14 +28,13 @@ currency and the Radicle migration (D4) are done, and the documentation was
 brought back in line with the contract.
 
 Two D4 items are deliberately dropped rather than late, and the Nouns item is
-postponed on their side. The remaining real gaps are a testnet run of the new
-Nido wallet support and closing the findings of the refreshed pre-audit, one of
-them High.
+postponed on their side. The remaining real gap is closing the findings of the refreshed pre-audit,
+one of them High.
 
 | Verdict   | Count |
 | --------- | ----- |
-| Done      | 12    |
-| Partial   | 6     |
+| Done      | 13    |
+| Partial   | 5     |
 | Descoped  | 2     |
 | Postponed | 1     |
 | Ongoing   | 1     |
@@ -231,7 +230,7 @@ governance docs under "Spam and Sybil resistance".
 | Radicle                        | **Done**                                     | `rad` remote, `.radicle/` CI and release scripts, merged patch `f737729`, provider support `e75becc`, `stellar-membership` Radicle-only |
 | Drips Wave                     | **Ongoing**                                  | Continued participation; not a repository artifact                                                                                      |
 | Audit-bank prep                | **Partial** — refreshed, not yet audit-ready | `Audits/tansu-pre-audit-2026-09-23.md`, `docs/operations.md`                                                                            |
-| Nido wallet / passkey accounts | **Partial** — built, testnet run pending     | `c66c39c`: Nido and GHOSTSIG in the wallet picker, Nido on testnet only                                                                 |
+| Nido wallet / passkey accounts | **Done**                                     | `c66c39c`, `5c21a20`, `95d3741`: Nido and GHOSTSIG in the wallet picker, Nido on testnet only                                           |
 | Result types                   | **Descoped**                                 | See below                                                                                                                               |
 | Storage / TTL                  | **Descoped**                                 | See below                                                                                                                               |
 
@@ -260,13 +259,16 @@ The verdict is honest and it is **not yet audit-ready**: 0 Critical, 1 High,
 The audit calls F-01 to F-04 cheap to fix. Closing or formally accepting them is
 what stands between this and an audit-bank application.
 
-**Nido.** Built in `c66c39c`, not yet run end to end on testnet. A Nido account
+**Nido and GHOSTSIG.** Both passkey wallets are supported: there is no extension
+to install, and the passkey is asked at each signature. A Nido account
 is a passkey smart account (`C...`) whose wallet submits through Nido's own
 relayer, so the dApp builds its transactions from a placeholder source, waits on
 the hash the wallet returns, and uploads to IPFS once the transaction has
 landed; the IPFS worker accepts that hash as proof. No contract change was
-needed. GHOSTSIG, a passkey wallet with regular accounts, came in the same
-change. One open question is fees: the relayer's default cap is 0.1 XLM, and
+needed beyond requesting legacy address credentials in the bindings, so that
+Nido can parse the authorization (`95d3741`). GHOSTSIG gives regular accounts
+(`G...`) and works with the usual flow. A smart account covers the whole dApp
+except donations, which are classic XLM payments. One open question is fees: the relayer's default cap is 0.1 XLM, and
 votes already cost up to 0.067 XLM on testnet, growing with the proposal page,
 so votes on busy pages may be refused. Worth noting the dependency shape: Nido
 is built by the same studio as the Registry, so this is coordination rather
@@ -352,7 +354,7 @@ this round.
 | D3          | Per-project config documented                        | **Met** — documented; only the finality threshold is exposed in the dApp             |
 | D3          | Yes/no approach documented                           | **Met** — supermajority rule and approved / rejected / cancelled outcomes documented |
 | D3          | Better management of discussions and other artifacts | **Met** — GitHub thread to IPFS to proposal page, end to end                         |
-| D4          | Passkey-based account support                        | Partially met — Nido and GHOSTSIG in the dApp; testnet run pending                   |
+| D4          | Passkey-based account support                        | **Met** — Nido (smart accounts, testnet) and GHOSTSIG in the dApp                    |
 | D4          | Result types consistency documented                  | Descoped                                                                             |
 | D4          | TTL strategy documented and applied                  | Descoped — stance recorded in the audit documents                                    |
 | D4          | Runbook published, audit assessment addendum         | **Met** — runbook in `docs/operations.md`, refreshed pre-audit; findings still open  |
