@@ -4,6 +4,7 @@ import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button";
 import Modal from "../../utils/Modal";
 import { getRepositoryIconInfo } from "../../../utils/editLinkFunctions";
+import { governanceUrl, projectUrl } from "utils/urls";
 
 const ProjectInfoModal = ({ projectInfo, onClose }) => {
   const [projectName, setProjectName] = useState("");
@@ -97,7 +98,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
               <Button
                 icon="/icons/search-white.svg"
                 size="xl"
-                onClick={() => navigate(`/project?name=${projectName}`)}
+                onClick={() => navigate(projectUrl(projectName))}
                 className="whitespace-nowrap"
               >
                 View Details
@@ -106,7 +107,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
                 type="secondary"
                 icon="/icons/gear.svg"
                 size="xl"
-                onClick={() => navigate(`/governance?name=${projectName}`)}
+                onClick={() => navigate(governanceUrl(projectName))}
               >
                 Proposals
               </Button>
@@ -136,7 +137,7 @@ const ProjectInfoModal = ({ projectInfo, onClose }) => {
             <Button
               icon="/icons/search-white.svg"
               size="xl"
-              onClick={() => navigate(`/project?name=${projectName}`)}
+              onClick={() => navigate(projectUrl(projectName))}
               className="whitespace-nowrap"
             >
               View Details

@@ -1,0 +1,55 @@
+---
+// Offers a new version of the app, which the service worker holds back until
+// the user reloads. Persisted, so it stays across ClientRouter page changes.
+---
+
+<div
+  id="update-prompt"
+  transition:persist="update-prompt"
+  role="status"
+  class="fixed bottom-4 left-4 right-4 sm:left-auto z-[10000] hidden items-center gap-4 bg-white p-4 shadow-modal text-primary"
+>
+  <p class="text-base">A new version is ready</p>
+  <button
+    type="button"
+    data-reload
+    class="bg-primary text-white p-[10px_20px] leading-4 text-base cursor-pointer hover:opacity-90 transition-opacity"
+  >
+    Reload
+  </button>
+  <button
+    type="button"
+    data-dismiss
+    aria-label="Dismiss"
+    class="text-2xl leading-none text-secondary cursor-pointer"
+  >
+    ×
+  </button>
+</div>
+
+<script>
+  import { Workbox } from "workbox-window";
+  import { registerServiceWorker } from "../../utils/serviceWorker";
+
+  const card = document.getElementById("update-prompt")!;
+  let reload = () => window.location.reload();
+  const show = (update?: () => void) => {
+    if (update) reload = update;
+    card.classList.replace("hidden", "flex");
+  };
+  card
+    .querySelector("[data-reload]")!
+    .addEventListener("click", () => reload());
+  card.querySelector("[data-dismiss]")!.addEventListener("click", () => {
+    card.classList.replace("flex", "hidden");
+  });
+
+  // A chunk of the running version is gone: a newer one was deployed.
+  window.addEventListener("vite:preloadError", () => show());
+
+  if (import.meta.env.PROD && "serviceWorker" in navigator) {
+    // The worker this one replaces kept images in its own cache.
+    void caches.delete("tansu-v2");
+    registerServiceWorker(new Workbox("/sw.js"), show);
+  }
+</script>

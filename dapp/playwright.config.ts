@@ -35,6 +35,11 @@ export default defineConfig({
         : {}),
     },
   },
+  projects: [
+    { name: "flows", testIgnore: "update.spec.ts" },
+    // Rebuilds dist/ the way a deploy would, so it runs after the flows.
+    { name: "update", testMatch: "update.spec.ts", dependencies: ["flows"] },
+  ],
   webServer: {
     command: "bun run build && bun tests/helpers/serve.ts",
     env: {

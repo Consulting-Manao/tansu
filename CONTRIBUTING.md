@@ -165,7 +165,16 @@ Netlify UI settings required for cloud builds (both projects):
 - Base directory: `dapp`
 - Build command: `bun run build`
 - Publish directory: `dist`
-- Configuration file path: `netlify.toml` (repo root)
+
+The build writes a service worker, `dist/sw.js`, that precaches the app. Once
+a deploy is live, an open tab keeps its version until the user clicks
+**Reload** on the "A new version is ready" card: this keeps a tab on one
+consistent version. Two settings keep that working:
+
+- `sw.js` must not be cached for long. Netlify's default
+  (`max-age=0, must-revalidate`) is right.
+- Keep skew protection on (the Astro Netlify adapter sets it up): the files an
+  open tab loads later, and does not have precached, stay reachable.
 
 Once on Netlify on production, the dApp can be deployed on IPFS:
 

@@ -17,3 +17,19 @@ export function getStellarExpertUrl(
   const path = type === "transaction" ? "tx" : "account";
   return `https://stellar.expert/explorer/${network}/${path}/${identifier}`;
 }
+
+// A project's pages are static and read their query string in the browser.
+// The trailing slash is the URL Netlify serves without a redirect, and the one
+// the service worker's precache matches.
+
+export function projectUrl(name: string): string {
+  return `/project/?name=${encodeURIComponent(name)}`;
+}
+
+export function governanceUrl(name: string): string {
+  return `/governance/?name=${encodeURIComponent(name)}`;
+}
+
+export function proposalUrl(name: string, id: number | string): string {
+  return `/proposal/?id=${id}&name=${encodeURIComponent(name)}`;
+}

@@ -87,7 +87,7 @@ Cross-contract references (`ContractRef` in `types.rs`) carry an optional WASM h
 
 ### dApp (`dapp/`)
 
-Astro pages with React islands; nanostores for state. All contract interaction goes through the service layer in `src/service/` (e.g. `TxService`, `ReadContractService`, `FlowService`, `ProposalService`, `walletService`) on top of the generated bindings in `dapp/packages/`. User journeys funnel through the `FlowProgressModal` flow component. Wallets via Stellar Wallets Kit. Repository metadata is fetched unauthenticated in the browser from public provider APIs (GitHub, GitLab, Bitbucket, Codeberg, Gitea) — no server proxy.
+Astro pages with React islands; nanostores for state. A Workbox service worker, generated at build time, precaches the app and waits for the user's Reload before a new version takes over (`UpdatePrompt.astro`); link to project pages with the `utils/urls.ts` helpers. All contract interaction goes through the service layer in `src/service/` (e.g. `TxService`, `ReadContractService`, `FlowService`, `ProposalService`, `walletService`) on top of the generated bindings in `dapp/packages/`. User journeys funnel through the `FlowProgressModal` flow component. Wallets via Stellar Wallets Kit. Repository metadata is fetched unauthenticated in the browser from public provider APIs (GitHub, GitLab, Bitbucket, Codeberg, Gitea) — no server proxy.
 
 ### Events pipeline (`tansu/`)
 

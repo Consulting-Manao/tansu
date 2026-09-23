@@ -21,6 +21,7 @@ import type { DecodedVote } from "utils/anonymousVoting";
 import { loadedPublicKey } from "@service/walletService";
 import classNames from "classnames";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
+import { proposalUrl } from "utils/urls";
 
 interface ExecuteProposalModalProps extends ModalProps {
   projectName: string;
@@ -425,7 +426,8 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </Button>
             <Button
               onClick={() =>
-                navigate(`/proposal?id=${proposalId}&name=${projectName}`)
+                proposalId !== undefined &&
+                navigate(proposalUrl(projectName, proposalId))
               }
             >
               View Proposal

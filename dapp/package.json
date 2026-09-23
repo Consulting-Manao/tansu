@@ -40,6 +40,7 @@
     "react18-json-view": "0.2.10",
     "recharts": "3.10.1",
     "toml": "^5.0.0",
+    "workbox-window": "^7.4.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -65,7 +66,8 @@
     "tailwindcss": "^4.3.3",
     "ts-prune": "^0.10.3",
     "typescript": "~6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "workbox-build": "^7.4.1"
   },
   "name": "dapp",
   "engines": {
@@ -88,7 +90,8 @@
     "netlify:link:staging": "netlify link --id b637f4df-4886-4cc7-bc3b-6bfa12e6f351",
     "netlify:link:production": "netlify link --id 12f7130e-323b-42d5-b2cb-69df80676a79",
     "netlify:build": "netlify build",
-    "netlify:deploy": "netlify deploy --prod"
+    "netlify:deploy": "netlify deploy --prod",
+    "icons": "rsvg-convert -w 192 assets/icon.svg -o public/icon-192.png && rsvg-convert -w 512 assets/icon.svg -o public/icon-512.png && rsvg-convert -w 512 assets/icon-maskable.svg -o public/icon-maskable-512.png && rsvg-convert -w 180 assets/icon-maskable.svg -o public/apple-touch-icon.png"
   },
   "type": "module",
   "version": "0.0.1",

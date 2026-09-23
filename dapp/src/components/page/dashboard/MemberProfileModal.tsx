@@ -15,6 +15,7 @@ import { Buffer } from "buffer";
 import OnChainActions from "./OnChainActions";
 import { badgeName } from "../../../utils/badges";
 import AddressDisplay from "../proposal/AddressDisplay"; // use existing component
+import { projectUrl } from "utils/urls";
 
 interface Props extends ModalProps {
   member: Member | null;
@@ -51,7 +52,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   // Navigate to project page
   const navigateToProject = (projectName: string) => {
     refreshLocalStorage();
-    navigate(`/project?name=${encodeURIComponent(projectName)}`);
+    navigate(projectUrl(projectName));
   };
 
   useEffect(() => {

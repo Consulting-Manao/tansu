@@ -45,6 +45,7 @@ import {
 import MarkdownEditorWithImages, {
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
+import { projectUrl } from "utils/urls";
 
 // Define ModalProps type for the modal component
 type ModalProps = {
@@ -364,7 +365,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
 
       onClose();
 
-      navigate(`/project?name=${projectName}`);
+      navigate(projectUrl(projectName));
     } catch (err: any) {
       toast.error("Something Went Wrong!", err.message);
       return;
@@ -405,7 +406,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
       onClose={onClose}
       onSuccess={() => {
         onClose();
-        navigate(`/project?name=${projectName}`);
+        navigate(projectUrl(projectName));
       }}
       step={step}
       setStep={setStep}

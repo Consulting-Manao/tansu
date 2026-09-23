@@ -160,6 +160,7 @@ import Button from "components/utils/Button";
 <div id="read-more-modal-container"></div>
 
 <script>
+  import { governanceUrl } from "utils/urls";
   import { getIpfsBasicLink } from "utils/ipfsFunctions";
   import { navigate } from "astro:transitions/client";
   import type { ConfigData } from "types/projectConfig";
@@ -426,7 +427,7 @@ import Button from "components/utils/Button";
         const gotoDaoButton = document.getElementById("goto-dao");
         if (gotoDaoButton) {
           gotoDaoButton.addEventListener("click", () =>
-            navigate(`/governance?name=${projectInfo.name}`),
+            navigate(governanceUrl(projectInfo.name)),
           );
         }
 

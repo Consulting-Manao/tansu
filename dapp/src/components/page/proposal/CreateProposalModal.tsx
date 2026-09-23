@@ -27,6 +27,7 @@ import MarkdownEditorWithImages, {
 } from "components/utils/MarkdownEditorWithImages";
 import { navigate } from "astro:transitions/client";
 import Loading from "components/utils/Loading";
+import { proposalUrl } from "utils/urls";
 
 const CreateProposalModal = () => {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
@@ -519,7 +520,8 @@ const CreateProposalModal = () => {
       onClose={handleCloseModal}
       onSuccess={() => {
         setShowModal(false);
-        navigate(`/proposal?id=${proposalId}&name=${projectName}`);
+        if (projectName && proposalId !== null)
+          navigate(proposalUrl(projectName, proposalId));
       }}
       step={step}
       setStep={setStep}

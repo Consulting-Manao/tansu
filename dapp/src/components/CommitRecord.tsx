@@ -3,6 +3,7 @@ import { navigate } from "astro:transitions/client";
 import JsonView from "react18-json-view";
 import CopyButton from "components/utils/CopyButton";
 import { loadProjectLatestSha } from "../service/StateService";
+import { projectUrl } from "utils/urls";
 
 interface CommitRecordProps {
   /** Main title line – for on-chain rows this is a concise summary */
@@ -85,8 +86,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   // ---------------------------------------------------------------------------
 
   const handleNavigateProject = () => {
-    if (projectName)
-      navigate(`/project?name=${encodeURIComponent(projectName)}`);
+    if (projectName) navigate(projectUrl(projectName));
   };
 
   // ---------------------------------------------------------------------------

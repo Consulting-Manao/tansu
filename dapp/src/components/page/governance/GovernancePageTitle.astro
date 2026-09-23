@@ -17,6 +17,7 @@ import Button from "components/utils/Button";
 </div>
 
 <script>
+  import { projectUrl } from "utils/urls";
   import { getProjectFromName } from "@service/ReadContractService";
   import { connectedPublicKey } from "utils/store";
   import { toast } from "utils/utils";
@@ -26,10 +27,8 @@ import Button from "components/utils/Button";
     const projectName = urlParams.get("name");
 
     const backLink = document.getElementById("back-link");
-    if (backLink) {
-      if (backLink) {
-        backLink.setAttribute("href", `/project?name=${projectName}`);
-      }
+    if (backLink && projectName) {
+      backLink.setAttribute("href", projectUrl(projectName));
     }
 
     let maintainers: string[] = [];

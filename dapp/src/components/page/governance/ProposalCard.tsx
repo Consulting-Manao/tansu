@@ -4,6 +4,7 @@ import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { hasUserVoted, truncateMiddle } from "utils/utils";
 import ProposalStatusSection from "../proposal/ProposalStatusSection";
+import { proposalUrl } from "utils/urls";
 
 interface Props {
   proposal: ProposalView;
@@ -18,7 +19,7 @@ const ProposalCard: React.FC<Props> = ({ proposal, onVoteClick }) => {
 
   return (
     <a
-      href={`/proposal?id=${proposal.id}&name=${projectName}`}
+      href={proposalUrl(projectName, proposal.id)}
       className="p-[30px] flex flex-col gap-6 bg-white cursor-pointer"
     >
       <div className="flex flex-col gap-3">

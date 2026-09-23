@@ -59,6 +59,16 @@ See the [contributing guide](../CONTRIBUTING.md) for details about IPFS.
 
 5. **Open your browser**: Navigate to `http://localhost:4321`
 
+## Installable app and updates
+
+`bun run build` also writes `dist/sw.js` (the `serviceWorker()` integration in `astro.config.mjs`). It precaches the pages, scripts, styles and images, so the app installs and opens offline. It leaves out the large XDR wasm, which the HTTP cache keeps instead.
+
+The worker waits: a new deploy is offered by the "A new version is ready" card (`src/components/layout/UpdatePrompt.astro`, logic in `src/utils/serviceWorker.ts`), and a tab keeps its version until the user presses Reload. The app looks for a new `sw.js` every hour and whenever the tab comes back, since page changes through the ClientRouter never do. The service worker only registers in production builds: `bun dev` has none.
+
+Links to a project, its proposals and a proposal come from `projectUrl`, `governanceUrl` and `proposalUrl` in `src/utils/urls.ts`. Their trailing slash is the URL Netlify serves without a redirect and the one the precache matches.
+
+Icons: `bun run icons` renders `assets/icon.svg` and `assets/icon-maskable.svg` into the PNGs in `public/` (needs `rsvg-convert`).
+
 ## Git Metadata Providers
 
 The dapp fetches repository metadata directly from provider APIs in the browser.

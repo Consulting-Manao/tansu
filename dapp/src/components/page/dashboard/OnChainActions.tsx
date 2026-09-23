@@ -17,6 +17,7 @@ import {
   summaryForMethod,
 } from "../../../constants/onchain";
 import { badgeName } from "../../../utils/badges";
+import { proposalUrl } from "utils/urls";
 
 interface Props {
   /** Stellar address of the member we are displaying. */
@@ -179,8 +180,7 @@ function proposalLink(a: OnChainAction): string | undefined {
     a.details.proposalId !== undefined &&
     a.details.proposalId !== null
   ) {
-    const name = a.projectName ? encodeURIComponent(a.projectName) : "";
-    return `/proposal?id=${a.details.proposalId}&name=${name}`;
+    return proposalUrl(a.projectName ?? "", a.details.proposalId as number);
   }
   return undefined;
 }

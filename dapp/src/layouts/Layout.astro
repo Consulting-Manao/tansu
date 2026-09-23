@@ -1,6 +1,7 @@
 ---
 import Navbar from "../components/layout/Navbar.astro";
 import Footer from "../components/layout/Footer.astro";
+import UpdatePrompt from "../components/layout/UpdatePrompt.astro";
 import { ClientRouter } from "astro:transitions";
 import { SEO } from "astro-seo";
 
@@ -21,15 +22,6 @@ const { title, page } = Astro.props;
   global.Buffer = Buffer;
 
   const MODAL_CLASS = "fixed inset-0 z-[9999]";
-  const PRELOAD_RECOVERY_KEY = "tansu_vite_preload_recovery_once";
-
-  // Recover once per tab from missing deploy chunk hashes (stale HTML/client state).
-  window.addEventListener("vite:preloadError", (event) => {
-    event.preventDefault();
-    if (sessionStorage.getItem(PRELOAD_RECOVERY_KEY) === "1") return;
-    sessionStorage.setItem(PRELOAD_RECOVERY_KEY, "1");
-    window.location.reload();
-  });
   const GLOBAL_CREATE_PROJECT_MODAL_KEY = Symbol.for(
     "tansu.createProjectModalListenerInited",
   );
@@ -144,8 +136,8 @@ const { title, page } = Astro.props;
     }
 
     const checkTermsAcceptance = async () => {
-      const path = window.location.pathname;
-      if (path === "/terms" || path === "/privacy") return;
+      // The pages the terms link to, with or without the trailing slash.
+      if (/^\/(terms|privacy)\/?$/.test(window.location.pathname)) return;
       try {
         const accepted = localStorage.getItem("tansu_tos_accepted");
         if (!accepted) {
@@ -229,7 +221,7 @@ const { title, page } = Astro.props;
         // extending the default link tags
         link: [
           { rel: "icon", href: "/logo.svg" },
-          { rel: "apple-touch-icon", href: "/logo.svg" },
+          { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
           { rel: "manifest", href: "/manifest.json" },
         ],
         // extending the default meta tags
@@ -267,19 +259,11 @@ const { title, page } = Astro.props;
         }
       }
     </script>
-
-    <!-- Register service worker for caching (silent) -->
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(() => {});
-        });
-      }
-    </script>
   </head>
   <body class="font-firacode min-h-screen flex flex-col">
     <Navbar page={page} />
     <slot />
     <Footer />
+    <UpdatePrompt />
   </body>
 </html>

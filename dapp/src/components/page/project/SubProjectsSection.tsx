@@ -9,6 +9,7 @@ import { checkSimulationError } from "utils/contractErrors";
 import { fetchTomlFromIpfs } from "utils/ipfsFunctions";
 import { extractConfigData } from "utils/utils";
 import ProjectCard from "../dashboard/ProjectCard";
+import { projectUrl } from "utils/urls";
 
 const SubProjectsSection = () => {
   const isProjectInfoLoaded = useStore(projectInfoLoaded);
@@ -147,7 +148,7 @@ const SubProjectsSection = () => {
               <div
                 key={project.name}
                 onClick={() => {
-                  window.location.href = `/project?name=${encodeURIComponent(project.name)}`;
+                  window.location.href = projectUrl(project.name);
                 }}
                 className="cursor-pointer"
               >

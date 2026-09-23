@@ -6,6 +6,7 @@
 </div>
 
 <script>
+  import { governanceUrl } from "utils/urls";
   import { navigate } from "astro:transitions/client";
 
   document.addEventListener("astro:page-load", async () => {
@@ -16,7 +17,7 @@
     const backButton = document.getElementById("back-button");
     if (backButton) {
       backButton.addEventListener("click", () => {
-        navigate(`/governance?name=${name}`);
+        navigate(name ? governanceUrl(name) : "/");
       });
     }
   });
