@@ -41,13 +41,13 @@ one of them High.
 
 ## D1 — Public Goods Award
 
-| Item                    | Verdict                                                 | Evidence                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q3 round on Tansu       | **Done**                                                | Round ran at [`testnet.tansu.dev/governance/?name=stellarpgq3`](https://testnet.tansu.dev/governance/?name=stellarpgq3); intake, discussion, on-chain vote and execution all completed |
-| Program NQG score       | **Partial** — gated on SDF                              | `contract_membership.rs` `get_max_weight`, `set_nqg_contract` in `contract_tansu.rs`, `DataKey::NqgProjectKey` in `types.rs`                                                           |
-| SCF NFT / Neurons       | **Partial** — contract and app rebuilt, sync still open | `stellar-membership` on Radicle; extraction commits `07b55bd`, `f1631dc`, `cb79dd6`, `453f673`                                                                                         |
-| Mid-grant reviews       | **Done**                                                | Process worked out with the WG; AI assistance for the repetitive review work being added                                                                                               |
-| Nouns Builder alignment | **Postponed**                                           | Conditional item; calls held with the team                                                                                                                                             |
+| Item                    | Verdict                                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q3 round on Tansu       | **Done**                                                | Round ran at [`testnet.tansu.dev/governance/?name=stellarpgq3`](https://testnet.tansu.dev/governance/?name=stellarpgq3); intake, discussion, on-chain vote and execution all completed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Program NQG score       | **Partial** — gated on SDF                              | `contract_membership.rs` `get_max_weight`, `set_nqg_contract` in `contract_tansu.rs`, `DataKey::NqgProjectKey` in `types.rs`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| SCF NFT / Neurons       | **Partial** — contract and app rebuilt, sync still open | `stellar-membership` on Radicle; extraction commits [`07b55bd`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/07b55bda37b2f5408fa52d69113b98285b370f5c), [`f1631dc`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/f1631dcae8ed7a1978d58bd5fc06efa687ec861e), [`cb79dd6`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/cb79dd6b5ab3ab24658abe7cc1989d76372ec1b3), [`453f673`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/453f673a6b90314b8f60ad6adaaa2fdfc93913b5) |
+| Mid-grant reviews       | **Done**                                                | Process worked out with the WG; AI assistance for the repetitive review work being added                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Nouns Builder alignment | **Postponed**                                           | Conditional item; calls held with the team                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 **Q3 round.** The same testnet stack as Q2 carried the Q3 program. Nothing broke
 during voting, which is the point worth making: Q2 surfaced computational-cost
@@ -92,13 +92,13 @@ process is run and shown complete.
 
 ## D2 — Stellar Registry
 
-| Item                                   | Verdict                                | Evidence                                                                                                                                                                        |
-| -------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `registry-tansu-manager`               | **Done**                               | [stellar-registry/contracts#5](https://github.com/stellar-registry/contracts/pull/5), merged 2026-06-08; verified live end to end on testnet                                    |
-| Proposals created from the Registry UI | **Done**                               | [stellar-registry/ui#67](https://github.com/stellar-registry/ui/pull/67) and [#68](https://github.com/stellar-registry/ui/pull/68), merged September 2026                       |
-| Proposal and outcome templates         | **Partial**                            | `dapp/src/constants/outcomeTemplates.ts` (2), `proposalTemplates.ts` (6); largely superseded by the Registry's own forms                                                        |
-| Registry name to address               | **Done at creation**, not at execution | `dapp/src/service/StellarRegistryService.ts`, wired in `OutcomeInput.tsx` (`85e7a6b`)                                                                                           |
-| Contract lifecycle documentation       | **Done**                               | Tansu side: `website/docs/developers/governance.mdx` "Acting on other contracts"; Registry side: [stellarscaffold.org/docs/registry](https://stellarscaffold.org/docs/registry) |
+| Item                                   | Verdict                                | Evidence                                                                                                                                                                                                                              |
+| -------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry-tansu-manager`               | **Done**                               | [stellar-registry/contracts#5](https://github.com/stellar-registry/contracts/pull/5), merged 2026-06-08; verified live end to end on testnet                                                                                          |
+| Proposals created from the Registry UI | **Done**                               | [stellar-registry/ui#67](https://github.com/stellar-registry/ui/pull/67) and [#68](https://github.com/stellar-registry/ui/pull/68), merged September 2026                                                                             |
+| Proposal and outcome templates         | **Partial**                            | `dapp/src/constants/outcomeTemplates.ts` (2), `proposalTemplates.ts` (6); largely superseded by the Registry's own forms                                                                                                              |
+| Registry name to address               | **Done at creation**, not at execution | `dapp/src/service/StellarRegistryService.ts`, wired in `OutcomeInput.tsx` ([`85e7a6b`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/85e7a6baba813a3cdb1287cea3726164329d4901)) |
+| Contract lifecycle documentation       | **Done**                               | Tansu side: `website/docs/developers/governance.mdx` "Acting on other contracts"; Registry side: [stellarscaffold.org/docs/registry](https://stellarscaffold.org/docs/registry)                                                       |
 
 **The measure is met.** The Tansu-DAO-gated registry manager merged in the
 Registry's own repository and was verified live on testnet end to end: proposal →
@@ -135,7 +135,7 @@ manager. That is a direct input into the D3 outcome-flow rethink and should be
 treated as the highest-value governance work for Q4.
 
 **What is still ours to do.** The in-tree copy at
-`contracts/registry-tansu-manager/` (`841dd84`, v0.1.1) has coverage only on its
+`contracts/registry-tansu-manager/` ([`841dd84`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/841dd84790f3b8f2c8ae4fbf65ca10d5a9adab69), v0.1.1) has coverage only on its
 constructor, is not in `contract-release.yml`, has no Makefile target and is not
 deployed — the deployed one is the Registry's. Our `interact-stellar-registry`
 outcome template still hardcodes a wasm hash at version `0.1.0` and has drifted;
@@ -152,13 +152,13 @@ deploying and versioning on its side.
 
 ## D3 — Governance features
 
-| Item                     | Verdict                               | Evidence                                                                                                                 |
-| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Evidence in dApp         | **Done**                              | `CommitEvidenceModal.tsx`, `EvidenceService.ts`, `EvidenceUploadFlow.ts` (`c21688c`)                                     |
-| Endorsement of a commit  | **Done**                              | `attest` / `revoke_attestation` / finality in `contract_versioning.rs`, `AttestationCard.tsx` (`6c47a83`)                |
-| Discussions              | **Done**                              | `DiscussionSection.tsx` + `ProposalService.resolveDiscussionCid` (`844f8c1`), fed by the PG Award workflow               |
-| Governance configuration | **Partial**                           | Per-project overrides on-chain (`2f97539`, `4ee9d62`); UI exposes one of them                                            |
-| Collateral rework        | **Done** — resolved by relying on NQG | Voting collateral removed (`526395e`); rationale in `website/docs/developers/governance.mdx` "Spam and Sybil resistance" |
+| Item                     | Verdict                               | Evidence                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Evidence in dApp         | **Done**                              | `CommitEvidenceModal.tsx`, `EvidenceService.ts`, `EvidenceUploadFlow.ts` ([`c21688c`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/c21688cd3bbcaabd7974c4067583fb627dffce8f))                                                                                                                                          |
+| Endorsement of a commit  | **Done**                              | `attest` / `revoke_attestation` / finality in `contract_versioning.rs`, `AttestationCard.tsx` ([`6c47a83`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/6c47a833f591a6ae37affcc495933065b2e48da4))                                                                                                                     |
+| Discussions              | **Done**                              | `DiscussionSection.tsx` + `ProposalService.resolveDiscussionCid` ([`844f8c1`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/844f8c19de4ceda4695ded88cac858b22de4a325)), fed by the PG Award workflow                                                                                                                    |
+| Governance configuration | **Partial**                           | Per-project overrides on-chain ([`2f97539`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/2f97539ab7fb2a2ee46573906495d82b4267131f), [`4ee9d62`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/4ee9d627fc6bf6411363248ba6b73c1f391bb890)); UI exposes one of them |
+| Collateral rework        | **Done** — resolved by relying on NQG | Voting collateral removed ([`526395e`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/526395e941a6e1ec3f573f66446952d9eb05c4f7)); rationale in `website/docs/developers/governance.mdx` "Spam and Sybil resistance"                                                                                                      |
 
 **Evidence.** Complete vertical slice. The "Code Finality" modal groups SBOM,
 CVE and attestation records by kind, fetches the full append-only history per
@@ -209,7 +209,7 @@ concrete driver — see the Registry feedback under D2.
 locking collateral per ballot was the wrong lever: it made voting costly
 without adding protection. The Merkle-based rework was
 meant to make that lock cheaper; the better answer was to drop it. Voter
-collateral was removed (`526395e`), and vote integrity now rests on weight: on
+collateral was removed ([`526395e`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/526395e941a6e1ec3f573f66446952d9eb05c4f7)), and vote integrity now rests on weight: on
 the Public Goods project a vote counts for the voter's NQG score, a fresh
 address has none, and scores under the threshold count as zero. Reputation,
 not capital, decides who is heard, so spinning up addresses buys nothing. The
@@ -224,18 +224,18 @@ governance docs under "Spam and Sybil resistance".
 
 ## D4 — Maintenance, Security and Operations
 
-| Item                           | Verdict                                      | Evidence                                                                                                                                |
-| ------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Dependencies current           | **Done**                                     | `soroban-sdk 28.0.0-rc.1`, `@stellar/stellar-sdk ^17.0.1`, `.github/dependabot.yml` across 4 ecosystems (`30984c2`)                     |
-| Radicle                        | **Done**                                     | `rad` remote, `.radicle/` CI and release scripts, merged patch `f737729`, provider support `e75becc`, `stellar-membership` Radicle-only |
-| Drips Wave                     | **Ongoing**                                  | Continued participation; not a repository artifact                                                                                      |
-| Audit-bank prep                | **Partial** — refreshed, not yet audit-ready | `Audits/tansu-pre-audit-2026-09-23.md`, `docs/operations.md`                                                                            |
-| Nido wallet / passkey accounts | **Done**                                     | `c66c39c`, `5c21a20`, `95d3741`: Nido and GHOSTSIG in the wallet picker, Nido on testnet only                                           |
-| Result types                   | **Descoped**                                 | See below                                                                                                                               |
-| Storage / TTL                  | **Descoped**                                 | See below                                                                                                                               |
+| Item                           | Verdict                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependencies current           | **Done**                                     | `soroban-sdk 28.0.0-rc.1`, `@stellar/stellar-sdk ^17.0.1`, `.github/dependabot.yml` across 4 ecosystems ([`30984c2`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/30984c2828ddddc3031c12c23102e22bbd30070b))                                                                                                                                                                                                                                                                           |
+| Radicle                        | **Done**                                     | `rad` remote, `.radicle/` CI and release scripts, merged patch [`f737729`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/f73772921405f7dd8769c8964ffb1659bdbc9384), provider support [`e75becc`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/e75becc560c0a05c92d06baac61688d12051bf3d), `stellar-membership` Radicle-only                                                                                                       |
+| Drips Wave                     | **Ongoing**                                  | 12 `Stellar Wave` issues closed this quarter, 47 in total, see below                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Audit-bank prep                | **Partial** — refreshed, not yet audit-ready | `Audits/tansu-pre-audit-2026-09-23.md`, `docs/operations.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Nido wallet / passkey accounts | **Done**                                     | [`c66c39c`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/c66c39c5c1f231470371f7c373cdffdd7fbd02bd), [`5c21a20`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/5c21a20a8223cb84eca2a78108b4435d3689d43a), [`95d3741`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/95d374155fba765fc79fb6fccf71ba68b084d7c7): Nido and GHOSTSIG in the wallet picker, Nido on testnet only |
+| Result types                   | **Descoped**                                 | See below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Storage / TTL                  | **Descoped**                                 | See below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 **Audit-bank prep.** The material was refreshed this week. A new pre-audit
-covers `contracts/tansu` and `contracts/registry-tansu-manager` at `fc4c010` on
+covers `contracts/tansu` and `contracts/registry-tansu-manager` at [`fc4c010`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/fc4c010b6dd84b1e7949b266d4a8e6affb7709bb) on
 `soroban-sdk 28.0.0-rc.1`, reconciles every July finding (the membership ones
 moved out with the crate), and has an entry-point map, invariants and
 reproduced findings. An operations runbook now exists alongside it: roles,
@@ -266,7 +266,7 @@ relayer, so the dApp builds its transactions from a placeholder source, waits on
 the hash the wallet returns, and uploads to IPFS once the transaction has
 landed; the IPFS worker accepts that hash as proof. No contract change was
 needed beyond requesting legacy address credentials in the bindings, so that
-Nido can parse the authorization (`95d3741`). GHOSTSIG gives regular accounts
+Nido can parse the authorization ([`95d3741`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/95d374155fba765fc79fb6fccf71ba68b084d7c7)). GHOSTSIG gives regular accounts
 (`G...`) and works with the usual flow. A smart account covers the whole dApp
 except donations, which are classic XLM payments. One open question is fees: the relayer's default cap is 0.1 XLM, and
 votes already cost up to 0.067 XLM on testnet, growing with the proposal page,
@@ -274,13 +274,29 @@ so votes on busy pages may be refused. Worth noting the dependency shape: Nido
 is built by the same studio as the Registry, so this is coordination rather
 than cold integration work.
 
+**Drips Wave.** Tansu kept taking part in the Stellar Waves on Drips this
+quarter. Wave issues are tracked on the GitHub mirror, where Drips contributors
+work. Twelve
+`Stellar Wave` issues were closed since July, 47 in total. Several of them
+delivered items of this report, for instance:
+
+- [#15](https://github.com/Consulting-Manao/tansu/issues/15), [#26](https://github.com/Consulting-Manao/tansu/issues/26) and [#25](https://github.com/Consulting-Manao/tansu/issues/25): store SBOMs, CVE scans and
+  release attestations as commit evidence (D3),
+- [#215](https://github.com/Consulting-Manao/tansu/issues/215): discussions on proposals (D3),
+- [#230](https://github.com/Consulting-Manao/tansu/issues/230) and [#232](https://github.com/Consulting-Manao/tansu/issues/232): outcome templates and contract name
+  resolution through the Stellar Registry (D2),
+- [#16](https://github.com/Consulting-Manao/tansu/issues/16): Git identity binding at member registration,
+- [#85](https://github.com/Consulting-Manao/tansu/issues/85): marking and hiding malicious proposals,
+- [#196](https://github.com/Consulting-Manao/tansu/issues/196): on-chain validation of CIDs and commit hashes,
+- [#229](https://github.com/Consulting-Manao/tansu/issues/229): a downloadable voting receipt.
+
 ### Documentation refresh
 
 Not a listed deliverable, but it underpins several measures. The website docs
 had drifted from the contract and were checked page by page against the code:
 
 - **Wrong facts corrected.** Voters were told they "must pay the required
-  collateral deposit" (removed in `526395e`); project names were documented as
+  collateral deposit" (removed in [`526395e`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/526395e941a6e1ec3f573f66446952d9eb05c4f7)); project names were documented as
   15 lowercase characters (the rule is 4–30 letters and digits); registration
   collateral was described as forfeitable through governance (no such mechanism
   exists — it is simply not returned); proposals were said to be
