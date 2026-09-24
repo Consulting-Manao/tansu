@@ -1,17 +1,10 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { kitSignMock, disconnectMock, toastErrorMock, uploadMock } = vi.hoisted(
-  () => ({
-    kitSignMock: vi.fn(),
-    disconnectMock: vi.fn(),
-    toastErrorMock: vi.fn(),
-    uploadMock: vi.fn(),
-  }),
-);
-
-vi.mock("../../../src/utils/utils", () => ({
-  toast: { error: toastErrorMock },
+const { kitSignMock, disconnectMock, uploadMock } = vi.hoisted(() => ({
+  kitSignMock: vi.fn(),
+  disconnectMock: vi.fn(),
+  uploadMock: vi.fn(),
 }));
 
 vi.mock("../../../src/components/stellar-wallets-kit", () => ({
@@ -24,8 +17,10 @@ vi.mock("../../../src/utils/ipfsFunctions", async (importOriginal) => ({
 }));
 
 let connected = "";
-vi.mock("../../../src/service/walletService", () => ({
+vi.mock("../../../src/service/walletService", async (importOriginal) => ({
+  ...(await importOriginal()),
   loadedPublicKey: () => connected,
+  connectedAddress: () => connected,
   disconnect: disconnectMock,
 }));
 
@@ -196,16 +191,75 @@ describe("packUpload", () => {
 });
 
 describe("sendXLM", () => {
-  it("refuses to donate from a smart account", async () => {
+  const PROJECT = StellarSdk.Keypair.random().publicKey();
+  const HORIZON = import.meta.env.PUBLIC_HORIZON_URL;
+
+  beforeEach(() => {
     vi.clearAllMocks();
+    connected = StellarSdk.Keypair.random().publicKey();
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("signs the donation and the tip, and sends them through Horizon", async () => {
+    const horizon = vi.fn(async (url: string) =>
+      url.endsWith("/transactions")
+        ? Response.json({ successful: true })
+        : Response.json({
+            sequence: "41",
+            balances: [{ asset_type: "native", balance: "20.0000000" }],
+          }),
+    );
+    vi.stubGlobal("fetch", horizon);
+    kitSignMock.mockImplementation(async (xdr: string) => ({
+      signedTxXdr: xdr,
+    }));
+
+    await sendXLM("10", PROJECT, "2", "thanks");
+
+    expect(horizon.mock.calls[0]![0]).toBe(`${HORIZON}/accounts/${connected}`);
+    const [url, init] = horizon.mock.calls[1] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(`${HORIZON}/transactions`);
+    const sent = new StellarSdk.Transaction(
+      decodeURIComponent(String(init.body).slice("tx=".length)),
+      import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+    );
+    expect(sent.source).toBe(connected);
+    expect(sent.sequence).toBe("42");
+    expect(Buffer.from(sent.memo.value as Uint8Array).toString()).toBe(
+      "thanks",
+    );
+    expect(
+      sent.operations.map((op) => {
+        const { destination, amount } = op as StellarSdk.Operation.Payment;
+        return [destination, amount];
+      }),
+    ).toEqual([
+      [PROJECT, "10.0000000"],
+      [import.meta.env.PUBLIC_TANSU_OWNER_ID, "2.0000000"],
+    ]);
+  });
+
+  it("asks an account the network does not know to be funded first", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 })),
+    );
+
+    await expect(sendXLM("10", PROJECT, "0", "thanks")).rejects.toThrow(
+      "fund it, then donate",
+    );
+    expect(kitSignMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to donate from a smart account", async () => {
     connected = SMART_ACCOUNT;
 
-    await expect(sendXLM("10", SMART_ACCOUNT, "0", "thanks")).resolves.toBe(
-      false,
-    );
-    expect(toastErrorMock).toHaveBeenCalledWith(
-      "Transaction Failed",
-      expect.stringContaining("smart-account wallets"),
+    await expect(sendXLM("10", PROJECT, "0", "thanks")).rejects.toThrow(
+      "smart-account wallets",
     );
     expect(kitSignMock).not.toHaveBeenCalled();
   });

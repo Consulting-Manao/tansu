@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Bar from "components/utils/Bar";
 import type { ContributorActivity } from "../../../types/contributionMetrics";
 
 interface ContributorActivityChartProps {
@@ -106,12 +107,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
                     <span>Last: {formatDate(contributor.lastCommit)}</span>
                   </div>
 
-                  <div className="mt-1 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
+                  <Bar percent={percentage} className="mt-1 w-full" />
                 </div>
               </div>
             );

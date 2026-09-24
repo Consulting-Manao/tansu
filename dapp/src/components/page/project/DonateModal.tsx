@@ -13,6 +13,7 @@ import { toast } from "utils/utils";
 import Button from "components/utils/Button";
 
 import { sendXLM } from "service/TxService";
+import { errorMessage } from "utils/contractErrors";
 import { StrKey } from "@stellar/stellar-sdk";
 
 interface Props {
@@ -85,33 +86,17 @@ const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
         return;
       }
 
-      // Attempt payment (sendXLM handles wallet checks)
-      const payment = await sendXLM(
+      await sendXLM(
         amount.toString(),
         recipientAddress,
         tipAmount.toString(),
         donateMessage,
       );
-
-      if (payment) {
-        toast.success("Congratulations!", "You successfully donated.");
-        setIsOpen(false);
-        resetForm();
-      } else {
-        toast.error(
-          "Support",
-          "Donation failed. Please reconnect wallet and try again.",
-        );
-      }
-    } catch (error: any) {
-      if (import.meta.env.DEV) {
-        console.error("Error during donation:", error);
-      }
-      toast.error(
-        "Support",
-        error?.message ||
-          "An unexpected error occurred during the contribution process.",
-      );
+      toast.success("Congratulations!", "You successfully donated.");
+      setIsOpen(false);
+      resetForm();
+    } catch (error) {
+      toast.error("Support", errorMessage(error));
     } finally {
       setIsLoading(false);
     }

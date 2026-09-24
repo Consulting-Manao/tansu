@@ -1,74 +1,37 @@
-import { useState, useMemo } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useState } from "react";
+import Bar from "components/utils/Bar";
+import type { ContributionMetrics } from "../../../types/contributionMetrics";
 
-interface MonthlyStats {
-  [month: string]: {
-    commits: number;
-    contributors: number;
-    linesChanged: number;
-  };
-}
+type Metric = "commits" | "contributors";
 
-interface MonthlyActivityChartProps {
-  monthlyStats: MonthlyStats;
-}
+const RANGES = { "6m": 6, "12m": 12, all: Infinity } as const;
 
-const MonthlyActivityChart: React.FC<MonthlyActivityChartProps> = ({
+/** "2026-03" as "Mar 26". */
+const formatMonth = (month: string) => {
+  const [year, index] = month.split("-").map(Number);
+  return new Date(year!, index! - 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "2-digit",
+  });
+};
+
+/** Commits or contributors per active month, newest first. */
+const MonthlyActivityChart = ({
   monthlyStats,
+}: {
+  monthlyStats: ContributionMetrics["monthlyStats"];
 }) => {
-  const [metric, setMetric] = useState<"commits" | "contributors">("commits");
-  const [timeRange, setTimeRange] = useState<"6m" | "12m" | "all">("12m");
+  const [metric, setMetric] = useState<Metric>("commits");
+  const [timeRange, setTimeRange] = useState<keyof typeof RANGES>("12m");
 
-  const months = Object.keys(monthlyStats).sort(
-    (a, b) => new Date(a).getTime() - new Date(b).getTime(),
-  );
-
-  const getFilteredMonths = () => {
-    if (timeRange === "all") return months;
-    const monthCount = timeRange === "6m" ? 6 : 12;
-    return months.slice(-monthCount);
-  };
-
-  const filteredMonths = getFilteredMonths();
-
-  const formatMonth = (monthKey: string) => {
-    const [year, month] = monthKey.split("-");
-    if (!year || !month) return monthKey;
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      year: "2-digit",
-    });
-  };
-
-  const chartData = useMemo(() => {
-    return filteredMonths.map((month) => ({
-      month: formatMonth(month),
-      value: monthlyStats[month]?.[metric] || 0,
-      fullDate: month,
-    }));
-  }, [filteredMonths, monthlyStats, metric]);
-
-  const getTotalForPeriod = () => {
-    return filteredMonths.reduce((sum, month) => {
-      return sum + (monthlyStats[month]?.[metric] || 0);
-    }, 0);
-  };
-
-  const getAverageForPeriod = () => {
-    const total = getTotalForPeriod();
-    return filteredMonths.length > 0
-      ? Math.round(total / filteredMonths.length)
-      : 0;
-  };
+  // "YYYY-MM" keys sort as text.
+  const months = Object.keys(monthlyStats)
+    .sort()
+    .reverse()
+    .slice(0, RANGES[timeRange]);
+  const values = months.map((month) => monthlyStats[month]?.[metric] ?? 0);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const max = Math.max(...values, 1);
 
   return (
     <div className="bg-white p-6 rounded-lg border border-gray-200 h-full">
@@ -80,9 +43,7 @@ const MonthlyActivityChart: React.FC<MonthlyActivityChartProps> = ({
           <div className="flex gap-2 flex-wrap">
             <select
               value={metric}
-              onChange={(e) =>
-                setMetric(e.target.value as "commits" | "contributors")
-              }
+              onChange={(e) => setMetric(e.target.value as Metric)}
               className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-white"
             >
               <option value="commits">Commits</option>
@@ -91,7 +52,7 @@ const MonthlyActivityChart: React.FC<MonthlyActivityChartProps> = ({
             <select
               value={timeRange}
               onChange={(e) =>
-                setTimeRange(e.target.value as "6m" | "12m" | "all")
+                setTimeRange(e.target.value as keyof typeof RANGES)
               }
               className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-white"
             >
@@ -102,85 +63,39 @@ const MonthlyActivityChart: React.FC<MonthlyActivityChartProps> = ({
           </div>
         </div>
 
-        {/* Stats Summary */}
         <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">
-              {getTotalForPeriod()}
-            </div>
+            <div className="text-2xl font-bold text-primary">{total}</div>
             <div className="text-xs text-secondary">Total {metric}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">
-              {getAverageForPeriod()}
+              {months.length ? Math.round(total / months.length) : 0}
             </div>
             <div className="text-xs text-secondary">Monthly average</div>
           </div>
         </div>
 
-        {/* Chart */}
-        <div className="flex-1 min-h-[250px]">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={chartData}
-                margin={{ top: 5, right: 10, left: -40, bottom: 5 }}
+        {months.length > 0 ? (
+          <ul className="flex flex-col gap-2 max-h-[250px] overflow-y-auto">
+            {months.map((month, i) => (
+              <li
+                key={month}
+                className="flex items-center gap-3 text-xs text-secondary"
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 11 }}
-                  tickLine={{ stroke: "#9ca3af" }}
-                  stroke="#9ca3af"
-                />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  tickLine={{ stroke: "#9ca3af" }}
-                  stroke="#9ca3af"
-                  tickFormatter={(value) => Math.round(value).toString()}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    color: "#ffffff",
-                    padding: "8px 12px",
-                  }}
-                  formatter={(value) => {
-                    const numericValue =
-                      typeof value === "number"
-                        ? value
-                        : Number(value ?? 0) || 0;
-                    return [
-                      numericValue,
-                      metric === "commits" ? "Commits" : "Contributors",
-                    ];
-                  }}
-                  labelFormatter={(label) => label}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: "#8b5cf6" }}
-                  activeDot={{
-                    r: 6,
-                    stroke: "#a78bfa",
-                    strokeWidth: 2,
-                    fill: "#8b5cf6",
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-full text-secondary text-sm">
-              No data available
-            </div>
-          )}
-        </div>
+                <span className="w-12 shrink-0">{formatMonth(month)}</span>
+                <Bar percent={(values[i]! / max) * 100} className="flex-1" />
+                <span className="w-8 shrink-0 text-right text-primary">
+                  {values[i]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex items-center justify-center min-h-[120px] text-secondary text-sm">
+            No data available
+          </div>
+        )}
       </div>
     </div>
   );

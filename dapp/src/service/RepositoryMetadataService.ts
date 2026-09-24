@@ -7,6 +7,10 @@ import type { FormattedCommit } from "../types/github";
 import {
   buildRadicleBrowseUrl,
   parseRepositoryUrl,
+  RADICLE_PUBLIC_SEED_HOSTS,
+  type ParsedHostedRepositoryUrl,
+  type ParsedRadicleRepositoryUrl,
+  type ParsedRepositoryUrl,
 } from "../utils/editLinkFunctions";
 
 interface GitHistoryCommit {
@@ -27,28 +31,6 @@ interface GitCommitDetails {
     committer: { name: string; email?: string; date: string };
   };
 }
-
-type SupportedProvider =
-  "github" | "gitlab" | "bitbucket" | "gitea" | "radicle";
-
-interface ParsedHostedRepositoryInfo {
-  provider: Exclude<SupportedProvider, "radicle">;
-  host: string;
-  normalizedUrl: string;
-  owner: string;
-  projectPath: string;
-  repoName: string;
-}
-
-interface ParsedRadicleRepositoryInfo {
-  provider: "radicle";
-  normalizedUrl: string;
-  rid: string;
-  seedHost?: string;
-}
-
-type ParsedRepositoryInfo =
-  ParsedHostedRepositoryInfo | ParsedRadicleRepositoryInfo;
 
 interface RadicleRepoPayload {
   payloads?: {
@@ -78,7 +60,6 @@ const README_CANDIDATES = [
 
 const MINUTE = 60_000;
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
-const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
 
 /** A provider answered with an error status. */
 class HttpError extends Error {
@@ -95,65 +76,13 @@ const retryTransient = (failures: number, error: Error) =>
   failures < 2 &&
   !(error instanceof HttpError && !RETRYABLE_STATUS_CODES.has(error.status));
 
-function getRepositoryInfo(repoUrl: string): ParsedRepositoryInfo | undefined {
-  const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed) {
-    return undefined;
-  }
-
-  if (parsed.kind === "radicle") {
-    return {
-      provider: "radicle",
-      normalizedUrl: parsed.normalizedUrl,
-      rid: parsed.rid,
-      ...(parsed.seedHost ? { seedHost: parsed.seedHost } : {}),
-    };
-  }
-
-  const provider = getProviderForHost(parsed.host);
-  if (!provider) {
-    return undefined;
-  }
-
-  return {
-    provider,
-    host: parsed.host,
-    normalizedUrl: parsed.normalizedUrl,
-    owner: parsed.owner,
-    projectPath: parsed.projectPath,
-    repoName: parsed.repoName,
-  };
-}
-
-function getProviderForHost(
-  host: string,
-): Exclude<SupportedProvider, "radicle"> | undefined {
-  if (host === "github.com") {
-    return "github";
-  }
-
-  if (host === "gitlab.com") {
-    return "gitlab";
-  }
-
-  if (host === "bitbucket.org") {
-    return "bitbucket";
-  }
-
-  if (host === "codeberg.org" || host === "gitea.com") {
-    return "gitea";
-  }
-
-  return undefined;
-}
-
-function getRadicleSeedHosts(repo: ParsedRadicleRepositoryInfo): string[] {
+function getRadicleSeedHosts(repo: ParsedRadicleRepositoryUrl): string[] {
   return Array.from(
     new Set([repo.seedHost, ...RADICLE_PUBLIC_SEED_HOSTS]),
   ).filter((host): host is string => Boolean(host));
 }
 
-function getRadicleRepoBrowseUrl(repo: ParsedRadicleRepositoryInfo): string {
+function getRadicleRepoBrowseUrl(repo: ParsedRadicleRepositoryUrl): string {
   return buildRadicleBrowseUrl(repo.rid, repo.seedHost);
 }
 
@@ -194,7 +123,7 @@ function formatCommits(commits: GitHistoryCommit[]) {
   }));
 }
 
-function getEncodedRepositorySegments(repo: ParsedHostedRepositoryInfo) {
+function getEncodedRepositorySegments(repo: ParsedHostedRepositoryUrl) {
   return {
     owner: encodeURIComponent(repo.owner),
     repoName: encodeURIComponent(repo.repoName),
@@ -227,7 +156,7 @@ async function fetchMaybeJson<T>(
 }
 
 async function fetchRadicleJsonFromSeeds<T>(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
   buildUrl: (seedHost: string) => string,
 ): Promise<{ payload: T; seedHost: string } | undefined> {
   let lastError: Error | undefined;
@@ -265,7 +194,7 @@ function decodeBase64Utf8(value: string): string {
 }
 
 async function getRadicleRepoPayload(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
 ): Promise<RadicleRepoPayload | undefined> {
   const result = await fetchRadicleJsonFromSeeds<RadicleRepoPayload>(
     repo,
@@ -276,14 +205,14 @@ async function getRadicleRepoPayload(
 }
 
 async function getRadicleHead(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
 ): Promise<string | undefined> {
   const payload = await getRadicleRepoPayload(repo);
   return payload?.payloads?.["xyz.radicle.project"]?.meta?.head;
 }
 
 async function getProviderCommitHistory(
-  repo: ParsedRepositoryInfo,
+  repo: ParsedRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -294,6 +223,7 @@ async function getProviderCommitHistory(
       return getGitlabHistory(repo, page, perPage);
     case "bitbucket":
       return getBitbucketHistory(repo, page, perPage);
+    case "codeberg":
     case "gitea":
       return getGiteaHistory(repo, page, perPage);
     case "radicle":
@@ -302,7 +232,7 @@ async function getProviderCommitHistory(
 }
 
 async function getProviderCommitData(
-  repo: ParsedRepositoryInfo,
+  repo: ParsedRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   switch (repo.provider) {
@@ -312,6 +242,7 @@ async function getProviderCommitData(
       return getGitlabCommit(repo, sha);
     case "bitbucket":
       return getBitbucketCommit(repo, sha);
+    case "codeberg":
     case "gitea":
       return getGiteaCommit(repo, sha);
     case "radicle":
@@ -320,7 +251,7 @@ async function getProviderCommitData(
 }
 
 async function getProviderReadme(
-  repo: ParsedRepositoryInfo,
+  repo: ParsedRepositoryUrl,
 ): Promise<string | undefined> {
   switch (repo.provider) {
     case "github":
@@ -329,6 +260,7 @@ async function getProviderReadme(
       return getGitlabReadme(repo);
     case "bitbucket":
       return getBitbucketReadme(repo);
+    case "codeberg":
     case "gitea":
       return getGiteaReadme(repo);
     case "radicle":
@@ -337,7 +269,7 @@ async function getProviderReadme(
 }
 
 async function getGithubHistory(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -363,7 +295,7 @@ async function getGithubHistory(
 }
 
 async function getGithubCommit(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
@@ -397,7 +329,7 @@ async function getGithubCommit(
 }
 
 async function getGithubReadme(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   const response = await fetch(
@@ -418,7 +350,7 @@ async function getGithubReadme(
 }
 
 async function getGitlabHistory(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -441,7 +373,7 @@ async function getGitlabHistory(
 }
 
 async function getGitlabCommit(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   const project = encodeURIComponent(repo.projectPath);
@@ -472,7 +404,7 @@ async function getGitlabCommit(
 }
 
 async function getGitlabReadme(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
 ): Promise<string | undefined> {
   const project = encodeURIComponent(repo.projectPath);
 
@@ -495,7 +427,7 @@ async function getGitlabReadme(
 }
 
 async function getBitbucketHistory(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -519,7 +451,7 @@ async function getBitbucketHistory(
 }
 
 async function getBitbucketCommit(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
@@ -555,7 +487,7 @@ async function getBitbucketCommit(
 }
 
 async function getBitbucketReadme(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
@@ -577,7 +509,7 @@ async function getBitbucketReadme(
 }
 
 async function getGiteaHistory(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -600,7 +532,7 @@ async function getGiteaHistory(
 }
 
 async function getGiteaCommit(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
@@ -631,7 +563,7 @@ async function getGiteaCommit(
 }
 
 async function getGiteaReadme(
-  repo: ParsedHostedRepositoryInfo,
+  repo: ParsedHostedRepositoryUrl,
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
@@ -653,7 +585,7 @@ async function getGiteaReadme(
 }
 
 async function getRadicleHistory(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
   page: number,
   perPage: number,
 ): Promise<GitHistoryCommit[]> {
@@ -682,7 +614,7 @@ async function getRadicleHistory(
 }
 
 async function getRadicleCommit(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
   sha: string,
 ): Promise<GitCommitDetails | undefined> {
   const result = await fetchRadicleJsonFromSeeds<any>(
@@ -721,7 +653,7 @@ async function getRadicleCommit(
 }
 
 async function getRadicleReadme(
-  repo: ParsedRadicleRepositoryInfo,
+  repo: ParsedRadicleRepositoryUrl,
 ): Promise<string | undefined> {
   const head = await getRadicleHead(repo);
   if (!head) {
@@ -750,7 +682,7 @@ export const commitHistoryQuery = (repoUrl: string, page = 1, perPage = 30) =>
   queryOptions({
     queryKey: ["repo", repoUrl, "history", page, perPage],
     queryFn: async () => {
-      const repo = getRepositoryInfo(repoUrl);
+      const repo = parseRepositoryUrl(repoUrl);
       if (!repo) return null;
       const commits = await getProviderCommitHistory(repo, page, perPage);
       return groupCommitsByDate(formatCommits(commits));
@@ -764,7 +696,7 @@ export const repoCommitQuery = (repoUrl: string, sha: string) =>
   queryOptions({
     queryKey: ["repo", repoUrl, "commit", sha],
     queryFn: async () => {
-      const repo = getRepositoryInfo(repoUrl);
+      const repo = parseRepositoryUrl(repoUrl);
       return (repo && (await getProviderCommitData(repo, sha))) ?? null;
     },
     staleTime: 60 * MINUTE,
@@ -776,7 +708,7 @@ export const repoHeadQuery = (repoUrl: string) =>
   queryOptions({
     queryKey: ["repo", repoUrl, "head"],
     queryFn: async () => {
-      const repo = getRepositoryInfo(repoUrl);
+      const repo = parseRepositoryUrl(repoUrl);
       if (!repo) return null;
       const [latest] = await getProviderCommitHistory(repo, 1, 1);
       return latest?.sha ?? null;
@@ -790,7 +722,7 @@ export const repoReadmeQuery = (repoUrl: string) =>
   queryOptions({
     queryKey: ["repo", repoUrl, "readme"],
     queryFn: async () => {
-      const repo = getRepositoryInfo(repoUrl);
+      const repo = parseRepositoryUrl(repoUrl);
       const content = repo && (await getProviderReadme(repo));
       if (!repo || !content) return null;
       return { content, rawBaseUrl: await getReadmeRawBaseUrl(repo) };
@@ -799,9 +731,7 @@ export const repoReadmeQuery = (repoUrl: string) =>
     retry: retryTransient,
   });
 
-async function getReadmeRawBaseUrl(
-  repo: ParsedRepositoryInfo,
-): Promise<string> {
+async function getReadmeRawBaseUrl(repo: ParsedRepositoryUrl): Promise<string> {
   if (repo.provider === "radicle") {
     const head = await getRadicleHead(repo);
     if (!head || !repo.seedHost) {
@@ -819,6 +749,7 @@ async function getReadmeRawBaseUrl(
       return `https://gitlab.com/${repo.projectPath}/-/raw/HEAD`;
     case "bitbucket":
       return `https://bitbucket.org/${owner}/${repoName}/raw/HEAD`;
+    case "codeberg":
     case "gitea":
       return `https://${repo.host}/${repo.projectPath}/raw/branch/HEAD`;
   }

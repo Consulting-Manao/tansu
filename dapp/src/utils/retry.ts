@@ -1,3 +1,8 @@
+/**
+ * `fn`, tried again up to `retries` times, first after `backoffMs`, then
+ * twice as long each time. For calls outside a query: queries retry through
+ * TanStack Query.
+ */
 export async function retryAsync<T>(
   fn: () => Promise<T>,
   retries = 3,

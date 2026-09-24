@@ -3,7 +3,7 @@ import { navigate } from "astro:transitions/client";
 import { projectQuery, useProjectConfig } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
-import Spinner from "components/utils/Spinner";
+import Loading from "components/utils/Loading";
 import Modal from "../../utils/Modal";
 import {
   convertGitHubLink,
@@ -25,7 +25,7 @@ const ProjectInfoModal = ({
   return (
     <Modal onClose={onClose}>
       {project.isPending ? (
-        <Spinner />
+        <Loading />
       ) : !config ? (
         <p className="text-lg">
           {project.error?.message ?? `There is no such project: ${name}`}

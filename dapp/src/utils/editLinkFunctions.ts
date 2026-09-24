@@ -13,17 +13,77 @@ export function convertGitHubLink(link: string | null | undefined): string {
   }
 }
 
-const SUPPORTED_REPOSITORY_HOSTS = new Set([
-  "github.com",
-  "gitlab.com",
-  "bitbucket.org",
-  "codeberg.org",
-  "gitea.com",
+export type RepositoryProvider =
+  "github" | "gitlab" | "bitbucket" | "codeberg" | "gitea" | "radicle";
+
+/**
+ * The providers, and what the forms show for each. A provider's icon is
+ * `/icons/logos/<provider>.svg`; `releases` is its releases page, under the
+ * repository's URL.
+ */
+const PROVIDERS: Record<
+  RepositoryProvider,
+  {
+    label: string;
+    repoPlaceholder: string;
+    handlePlaceholder: string;
+    releases?: string;
+  }
+> = {
+  github: {
+    label: "GitHub",
+    repoPlaceholder: "https://github.com/owner/repo",
+    handlePlaceholder: "username",
+    releases: "/releases",
+  },
+  gitlab: {
+    label: "GitLab",
+    repoPlaceholder: "https://gitlab.com/group/project",
+    handlePlaceholder: "username",
+    releases: "/-/releases",
+  },
+  bitbucket: {
+    label: "Bitbucket",
+    repoPlaceholder: "https://bitbucket.org/workspace/repo",
+    handlePlaceholder: "workspace-or-user",
+  },
+  codeberg: {
+    label: "Codeberg",
+    repoPlaceholder: "https://codeberg.org/owner/repo",
+    handlePlaceholder: "username",
+    releases: "/releases",
+  },
+  gitea: {
+    label: "Gitea",
+    repoPlaceholder: "https://gitea.com/owner/repo",
+    handlePlaceholder: "username",
+    releases: "/releases",
+  },
+  radicle: {
+    label: "Radicle",
+    repoPlaceholder:
+      "https://radicle.network/nodes/iris.radicle.network/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    handlePlaceholder: "alias",
+  },
+};
+
+export const SUPPORTED_REPOSITORY_PROVIDERS = Object.keys(
+  PROVIDERS,
+) as RepositoryProvider[];
+
+type HostedProvider = Exclude<RepositoryProvider, "radicle">;
+
+/** Each hosted provider's host. Codeberg runs Gitea, and answers its API. */
+const PROVIDER_BY_HOST = new Map<string, HostedProvider>([
+  ["github.com", "github"],
+  ["gitlab.com", "gitlab"],
+  ["bitbucket.org", "bitbucket"],
+  ["codeberg.org", "codeberg"],
+  ["gitea.com", "gitea"],
 ]);
 
-const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
-
-const RADICLE_KNOWN_SEED_HOSTS = new Set<string>(RADICLE_PUBLIC_SEED_HOSTS);
+/** Seeds that serve public Radicle repositories, for a URL that names none. */
+export const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
 
 const RADICLE_EXPLORER_HOSTS = new Set(["radicle.network", "app.radicle.xyz"]);
 const RADICLE_RID_PATTERN = /^rad:(z[1-9A-HJ-NP-Za-km-z]+)$/;
@@ -34,75 +94,9 @@ const RADICLE_SEED_API_PATH_PATTERN =
 const RADICLE_EXPLORER_NODE_PATH_PATTERN =
   /^\/nodes\/([^/]+)\/(rad:(z[1-9A-HJ-NP-Za-km-z]+))\/?$/;
 
-export type RepositoryProvider =
-  "github" | "gitlab" | "bitbucket" | "codeberg" | "gitea" | "radicle";
-
-export const SUPPORTED_REPOSITORY_PROVIDERS: RepositoryProvider[] = [
-  "github",
-  "gitlab",
-  "bitbucket",
-  "codeberg",
-  "gitea",
-  "radicle",
-];
-
-const REPOSITORY_PROVIDER_BY_HOST: Record<
-  string,
-  Exclude<RepositoryProvider, "radicle">
-> = {
-  "github.com": "github",
-  "gitlab.com": "gitlab",
-  "bitbucket.org": "bitbucket",
-  "codeberg.org": "codeberg",
-  "gitea.com": "gitea",
-};
-
-const REPOSITORY_PROVIDER_ICON_PATHS: Record<RepositoryProvider, string> = {
-  github: "/icons/logos/github.svg",
-  gitlab: "/icons/logos/gitlab.svg",
-  bitbucket: "/icons/logos/bitbucket.svg",
-  codeberg: "/icons/logos/codeberg.svg",
-  gitea: "/icons/logos/gitea.svg",
-  radicle: "/icons/logos/radicle.svg",
-};
-
-const REPOSITORY_PROVIDER_LABELS: Record<RepositoryProvider, string> = {
-  github: "GitHub",
-  gitlab: "GitLab",
-  bitbucket: "Bitbucket",
-  codeberg: "Codeberg",
-  gitea: "Gitea",
-  radicle: "Radicle",
-};
-
-const REPOSITORY_PROVIDER_REPO_PLACEHOLDERS: Record<
-  RepositoryProvider,
-  string
-> = {
-  github: "https://github.com/owner/repo",
-  gitlab: "https://gitlab.com/group/project",
-  bitbucket: "https://bitbucket.org/workspace/repo",
-  codeberg: "https://codeberg.org/owner/repo",
-  gitea: "https://gitea.com/owner/repo",
-  radicle:
-    "https://radicle.network/nodes/iris.radicle.network/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
-};
-
-const REPOSITORY_PROVIDER_HANDLE_PLACEHOLDERS: Record<
-  RepositoryProvider,
-  string
-> = {
-  github: "username",
-  gitlab: "username",
-  bitbucket: "workspace-or-user",
-  codeberg: "username",
-  gitea: "username",
-  radicle: "alias",
-};
-
-interface ParsedHostedRepositoryUrl {
+export interface ParsedHostedRepositoryUrl {
   kind: "hosted";
-  provider: Exclude<RepositoryProvider, "radicle">;
+  provider: HostedProvider;
   host: string;
   normalizedUrl: string;
   projectPath: string;
@@ -110,7 +104,7 @@ interface ParsedHostedRepositoryUrl {
   owner: string;
 }
 
-interface ParsedRadicleRepositoryUrl {
+export interface ParsedRadicleRepositoryUrl {
   kind: "radicle";
   provider: "radicle";
   normalizedUrl: string;
@@ -140,11 +134,7 @@ function getRepositoryRootSegmentsForHost(
     return repositorySegments.length >= 2 ? repositorySegments : undefined;
   }
 
-  if (SUPPORTED_REPOSITORY_HOSTS.has(host)) {
-    return segments.length >= 2 ? segments.slice(0, 2) : undefined;
-  }
-
-  return segments.length >= 2 ? segments : undefined;
+  return segments.length >= 2 ? segments.slice(0, 2) : undefined;
 }
 
 function normalizeRepositoryProjectPath(
@@ -243,7 +233,7 @@ function parseRadicleHttpsUrl(
     return { rid: nodesMatch[2], seedHost };
   }
 
-  if (!RADICLE_KNOWN_SEED_HOSTS.has(host) && !isLikelyHostname(host)) {
+  if (!isLikelyHostname(host)) {
     return undefined;
   }
 
@@ -301,12 +291,31 @@ function parseRadicleRepositoryUrl(
   }
 }
 
-function getDefaultRadicleSeedHost(): string {
-  return RADICLE_PUBLIC_SEED_HOSTS[0];
+export function buildRadicleBrowseUrl(rid: string, seedHost?: string): string {
+  return `https://radicle.network/nodes/${seedHost || RADICLE_PUBLIC_SEED_HOSTS[0]}/${encodeURIComponent(rid)}`;
 }
 
-export function buildRadicleBrowseUrl(rid: string, seedHost?: string): string {
-  return `https://radicle.network/nodes/${seedHost || getDefaultRadicleSeedHost()}/${encodeURIComponent(rid)}`;
+/** A repository on a supported host, from its path there. */
+function parseHostedRepositoryUrl(
+  host: string,
+  path: string,
+): ParsedHostedRepositoryUrl | undefined {
+  const provider = PROVIDER_BY_HOST.get(host);
+  const projectPath = provider && normalizeRepositoryProjectPath(host, path);
+  if (!provider || !projectPath) {
+    return undefined;
+  }
+
+  const segments = projectPath.split("/");
+  return {
+    kind: "hosted",
+    provider,
+    host,
+    normalizedUrl: buildNormalizedRepositoryUrl(host, projectPath),
+    projectPath,
+    repoName: segments[segments.length - 1] || "",
+    owner: segments[segments.length - 2] || "",
+  };
 }
 
 export function parseRepositoryUrl(
@@ -321,72 +330,23 @@ export function parseRepositoryUrl(
     return radicle;
   }
 
+  const ssh = repoUrl.match(/^git@([^:]+):(.+)$/);
+  if (ssh?.[1] && ssh[2]) {
+    return parseHostedRepositoryUrl(ssh[1].toLowerCase(), ssh[2]);
+  }
+
   try {
-    if (repoUrl.startsWith("git@")) {
-      const match = repoUrl.match(/^git@([^:]+):(.+)$/);
-      if (!match?.[1] || !match[2]) {
-        return undefined;
-      }
-
-      const host = match[1].toLowerCase();
-      const projectPath = normalizeRepositoryProjectPath(host, match[2]);
-      if (!projectPath) {
-        return undefined;
-      }
-
-      const segments = projectPath.split("/").filter(Boolean);
-      const repoName = segments[segments.length - 1] || "";
-      const owner = segments[segments.length - 2] || "";
-      const provider = REPOSITORY_PROVIDER_BY_HOST[host];
-      if (!provider) {
-        return undefined;
-      }
-
-      return {
-        kind: "hosted",
-        provider,
-        host,
-        normalizedUrl: buildNormalizedRepositoryUrl(host, projectPath),
-        projectPath,
-        repoName,
-        owner,
-      };
-    }
-
     const parsedUrl = new URL(repoUrl);
-    if (parsedUrl.protocol !== "https:") {
+    if (
+      parsedUrl.protocol !== "https:" ||
+      (parsedUrl.port && parsedUrl.port !== "443")
+    ) {
       return undefined;
     }
-    const host = parsedUrl.hostname.toLowerCase();
-    if (parsedUrl.port && parsedUrl.port !== "443") {
-      return undefined;
-    }
-
-    const projectPath = normalizeRepositoryProjectPath(
-      host,
+    return parseHostedRepositoryUrl(
+      parsedUrl.hostname.toLowerCase(),
       parsedUrl.pathname,
     );
-    if (!projectPath) {
-      return undefined;
-    }
-
-    const segments = projectPath.split("/").filter(Boolean);
-    const repoName = segments[segments.length - 1] || "";
-    const owner = segments[segments.length - 2] || "";
-    const provider = REPOSITORY_PROVIDER_BY_HOST[host];
-    if (!provider) {
-      return undefined;
-    }
-
-    return {
-      kind: "hosted",
-      provider,
-      host,
-      normalizedUrl: buildNormalizedRepositoryUrl(host, projectPath),
-      projectPath,
-      repoName,
-      owner,
-    };
   } catch {
     return undefined;
   }
@@ -395,47 +355,18 @@ export function parseRepositoryUrl(
 export function normalizeRepositoryUrl(
   repoUrl: string | null | undefined,
 ): string | undefined {
-  const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed) {
-    return undefined;
-  }
-
-  if (
-    parsed.kind === "hosted" &&
-    !SUPPORTED_REPOSITORY_HOSTS.has(parsed.host)
-  ) {
-    return undefined;
-  }
-
-  return parsed.normalizedUrl;
+  return parseRepositoryUrl(repoUrl)?.normalizedUrl;
 }
 
+/** An https or SSH URL on a supported host, or a Radicle RID or URL. */
 export function isSupportedRepositoryUrl(
   repoUrl: string | null | undefined,
 ): boolean {
-  if (repoUrl == null || typeof repoUrl !== "string") {
-    return false;
-  }
-
-  if (
-    !repoUrl.startsWith("https://") &&
-    !repoUrl.startsWith("git@") &&
-    !repoUrl.startsWith("rad:") &&
-    !repoUrl.startsWith("rad://")
-  ) {
-    return false;
-  }
-
-  const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed) {
-    return false;
-  }
-
-  if (parsed.kind === "radicle") {
-    return true;
-  }
-
-  return SUPPORTED_REPOSITORY_HOSTS.has(parsed.host);
+  return (
+    typeof repoUrl === "string" &&
+    /^(https:\/\/|git@|rad:)/.test(repoUrl) &&
+    !!parseRepositoryUrl(repoUrl)
+  );
 }
 
 export function getRepositoryProvider(
@@ -464,15 +395,15 @@ export function getRepositoryIconInfo(repoUrl: string | null | undefined): {
 
   return {
     provider,
-    src: REPOSITORY_PROVIDER_ICON_PATHS[provider],
-    label: REPOSITORY_PROVIDER_LABELS[provider],
+    src: `/icons/logos/${provider}.svg`,
+    label: PROVIDERS[provider].label,
   };
 }
 
 export function getRepositoryProviderLabel(
   provider: RepositoryProvider | undefined,
 ): string {
-  return provider ? REPOSITORY_PROVIDER_LABELS[provider] : "Repository";
+  return provider ? PROVIDERS[provider].label : "Repository";
 }
 
 export function getRepositoryHandleLabel(
@@ -490,9 +421,7 @@ export function getRepositoryHandleLabel(
 export function getRepositoryHandlePlaceholder(
   provider: RepositoryProvider | undefined,
 ): string {
-  return provider
-    ? REPOSITORY_PROVIDER_HANDLE_PLACEHOLDERS[provider]
-    : "username";
+  return provider ? PROVIDERS[provider].handlePlaceholder : "username";
 }
 
 export function getRepositoryPrincipalField(
@@ -505,7 +434,7 @@ export function getRepositoryUrlPlaceholder(
   provider: RepositoryProvider | undefined,
 ): string {
   return provider
-    ? REPOSITORY_PROVIDER_REPO_PLACEHOLDERS[provider]
+    ? PROVIDERS[provider].repoPlaceholder
     : "https://provider.example/owner/repo";
 }
 
@@ -535,23 +464,12 @@ export function getRepositoryReleasesUrl(
   repoUrl: string | null | undefined,
 ): string | undefined {
   const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed || parsed.kind !== "hosted") {
+  if (!parsed) {
     return undefined;
   }
 
-  if (parsed.host === "github.com") {
-    return `${parsed.normalizedUrl}/releases`;
-  }
-
-  if (parsed.host === "gitlab.com") {
-    return `${parsed.normalizedUrl}/-/releases`;
-  }
-
-  if (parsed.host === "codeberg.org" || parsed.host === "gitea.com") {
-    return `${parsed.normalizedUrl}/releases`;
-  }
-
-  return undefined;
+  const releases = PROVIDERS[parsed.provider].releases;
+  return releases && `${parsed.normalizedUrl}${releases}`;
 }
 
 export function getRepositorySeedHost(

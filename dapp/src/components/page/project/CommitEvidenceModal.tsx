@@ -32,6 +32,7 @@ import Modal from "components/utils/Modal";
 import AttestationCard from "./AttestationCard";
 import { evidenceTarget } from "@service/AttestationService";
 import { useEffect, useState, useCallback, useRef } from "react";
+import Spinner from "components/utils/Spinner";
 
 const EVIDENCE_KINDS: { tag: EvidenceKindTag; label: string }[] = [
   { tag: "Sbom", label: "SBOM" },
@@ -447,7 +448,7 @@ const CommitEvidenceModal = ({
               {/* Loading state */}
               {isEvidenceLoading && (
                 <div className="flex items-center gap-3 py-4" aria-busy="true">
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="text-primary" />
                   <p className="text-sm text-tertiary">Loading evidence…</p>
                 </div>
               )}
@@ -666,7 +667,7 @@ const CommitEvidenceModal = ({
 
                 {isUploading && (
                   <div className="flex items-center gap-2 text-xs text-tertiary">
-                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <Spinner className="text-primary" />
                     Uploading to IPFS and recording on-chain…
                   </div>
                 )}

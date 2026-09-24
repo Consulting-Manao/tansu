@@ -65,31 +65,38 @@ async function checkAndNotifyFunding(address: string): Promise<void> {
   // Horizon does not know smart accounts, and their relayer pays the fees.
   if (StrKey.isValidContract(address)) return;
   try {
-    const { exists, balance } = await getWalletHealth(address);
-    if (!exists || balance < 1) {
+    const account = await horizonAccount(address);
+    if (!account || account.balance < 1) {
       const network = /Test/i.test(
         import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
       )
         ? "testnet"
         : "mainnet";
-      openModal("funding", { exists, balance, network });
+      openModal("funding", {
+        exists: !!account,
+        balance: account?.balance ?? 0,
+        network,
+      });
     }
   } catch {
     // Best effort.
   }
 }
 
-async function getWalletHealth(
+/**
+ * A classic account's sequence number and XLM balance, from Horizon; `null`
+ * when the network does not know it: never funded, or another network's.
+ */
+export async function horizonAccount(
   address: string,
-): Promise<{ exists: boolean; balance: number }> {
+): Promise<{ sequence: string; balance: number } | null> {
   const resp = await fetch(
     `${import.meta.env.PUBLIC_HORIZON_URL}/accounts/${address}`,
     { headers: { Accept: "application/json" } },
   );
-  if (!resp.ok) return { exists: false, balance: 0 };
-  const json = await resp.json();
-  const native = (json.balances || []).find(
-    (b: any) => b.asset_type === "native",
-  );
-  return { exists: true, balance: native ? Number(native.balance) : 0 };
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`Horizon error ${resp.status}`);
+  const { sequence, balances = [] } = await resp.json();
+  const native = balances.find((b: any) => b.asset_type === "native");
+  return { sequence, balance: native ? Number(native.balance) : 0 };
 }

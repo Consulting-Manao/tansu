@@ -1,6 +1,7 @@
 import Step from "./Step";
 import Title from "./Title";
 import type { FC } from "react";
+import Loading from "./Loading";
 
 interface Props {
   step: number; // 1-based index (1-5)
@@ -25,7 +26,7 @@ const ProgressStep: FC<Props> = ({ step, signLabel = "proposal" }) => {
   const captions = makeCaptions(signLabel);
   return (
     <div className="flex flex-col items-center gap-6">
-      <img src="/images/loading.svg" className="w-16 animate-spin" />
+      <Loading className="w-16" />
       <Step step={step} totalSteps={5} />
       <Title title={captions[step - 1] || ""} description="" />
       {step === 3 && <div data-testid="ipfs-uploading" />}

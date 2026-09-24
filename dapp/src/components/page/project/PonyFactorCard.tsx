@@ -1,3 +1,4 @@
+import Bar from "components/utils/Bar";
 import type { PonyFactorResult } from "../../../types/contributionMetrics";
 
 interface PonyFactorCardProps {
@@ -92,12 +93,7 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
                       <span className="text-xs text-secondary">
                         {contributor.commitCount} commits
                       </span>
-                      <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(percentage, 100)}%` }}
-                        />
-                      </div>
+                      <Bar percent={percentage} className="w-16" />
                     </div>
                   </div>
                 );

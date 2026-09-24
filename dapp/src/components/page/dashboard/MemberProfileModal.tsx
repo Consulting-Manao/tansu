@@ -21,6 +21,7 @@ import OnChainActions from "./OnChainActions";
 import { badgeName } from "../../../utils/badges";
 import AddressDisplay from "../proposal/AddressDisplay"; // use existing component
 import { projectUrl } from "utils/urls";
+import Loading from "components/utils/Loading";
 
 interface Props {
   /** The member's Stellar address. */
@@ -172,7 +173,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
     return (
       <Modal onClose={onClose}>
         <div className="flex items-center justify-center py-10">
-          <img src="/images/loading.svg" className="w-12 animate-spin" />
+          <Loading />
         </div>
       </Modal>
     );
@@ -238,9 +239,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
       <Modal onClose={onClose} fullWidth>
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
-            <div>
-              <img src="/images/loading.svg" className="w-12 animate-spin" />
-            </div>
+            <Loading />
           </div>
         ) : (
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">

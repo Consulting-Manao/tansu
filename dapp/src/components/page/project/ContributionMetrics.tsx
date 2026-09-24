@@ -4,6 +4,7 @@ import { queryClient } from "../../../service/queryClient";
 import PonyFactorCard from "./PonyFactorCard";
 import ContributorActivityChart from "./ContributorActivityChart";
 import MonthlyActivityChart from "./MonthlyActivityChart";
+import Loading from "components/utils/Loading";
 
 interface ContributionMetricsProps {
   repoUrl: string;
@@ -35,7 +36,7 @@ const ContributionMetrics = ({
           <div className="border-t border-[#EEEEEE]" />
         </div>
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <Loading />
         </div>
       </div>
     );

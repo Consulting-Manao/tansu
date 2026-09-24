@@ -96,6 +96,7 @@ One cache sits outside TanStack Query, on purpose: `src/utils/ipfsMissCache.ts` 
 The dapp fetches repository metadata directly from provider APIs in the browser.
 
 - Supported public providers are GitHub, GitLab, Bitbucket, Codeberg, and Gitea.
+- Each host and its provider are listed once, in `src/utils/editLinkFunctions.ts`, with the public Radicle seeds. Codeberg is read through the Gitea API.
 - Repository metadata features are intentionally limited to those provider APIs.
 - Access is unauthenticated only, so metadata is limited to public repositories and subject to provider CORS and rate
   limits.

@@ -1,16 +1,11 @@
-interface SpinnerProps {
-  className?: string;
-  color?: "white" | "primary";
-}
-
-const Spinner = ({ className = "", color = "white" }: SpinnerProps) => {
-  const borderColor = color === "primary" ? "border-[#311255]" : "border-white";
-
+/** Busy, inline: in a button or next to text, in the text's color. */
+export default function Spinner({ className = "" }: { className?: string }) {
   return (
-    <div
-      className={`w-4 h-4 border-2 ${borderColor} border-b-transparent rounded-full animate-spin ${className}`}
-    />
+    <span
+      role="status"
+      className={`inline-block w-4 h-4 shrink-0 rounded-full border-2 border-current border-b-transparent animate-spin ${className}`}
+    >
+      <span className="sr-only">Loading…</span>
+    </span>
   );
-};
-
-export default Spinner;
+}

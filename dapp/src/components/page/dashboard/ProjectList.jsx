@@ -9,7 +9,7 @@ import Button from "components/utils/Button";
 import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
-import Spinner from "components/utils/Spinner.tsx";
+import Loading from "components/utils/Loading";
 
 const featuredProjects = getFeaturedProjectsConfigData();
 
@@ -110,7 +110,7 @@ const ProjectList = () => {
 
       {isLoading ? (
         <div className="no-projects h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
-          <Spinner />
+          <Loading />
         </div>
       ) : memberNotFound ? (
         <div className="flex flex-col items-center justify-center py-12">
@@ -157,7 +157,7 @@ const ProjectList = () => {
 
           {onChain.isPending ? (
             <div className="no-projects h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
-              <Spinner />
+              <Loading />
               <p className="text-base text-secondary">Loading projects ...</p>
             </div>
           ) : onChain.isError ? (

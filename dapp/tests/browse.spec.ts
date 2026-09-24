@@ -53,6 +53,13 @@ test.describe("browsing without a wallet", () => {
     await expect(
       page.getByRole("heading", { name: "Pony Factor" }),
     ).toBeVisible();
+    // Its activity, month by month, newest first.
+    await expect(
+      page
+        .getByRole("list")
+        .filter({ hasText: "Aug 26" })
+        .getByRole("listitem"),
+    ).toHaveText([/^Sep 26\s*1$/, /^Aug 26\s*1$/]);
     await page.getByRole("button", { name: "Read More" }).click();
     await expect(
       page.getByText("The README of the demo project."),

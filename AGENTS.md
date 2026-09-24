@@ -321,6 +321,7 @@ This allows running Vitest commands via Bash when needed for testing.
 - **Error handling**: Use consistent error handling patterns; the dApp uses a centralized error mapping system.
 - **State management**: Reads are TanStack Query queries (see "Data and caching" in `dapp/README.md`); use nanostores for client state shared between islands; keep component state local when possible.
 - **Contract interactions**: All contract calls go through the service layer (`src/service/`) to maintain consistency.
+- **Shared UI pieces**: `Loading` for a page or a section that waits, `Spinner` inline (in a button, next to text), `Bar` for bar charts, `Markdown` for text users wrote (all in `src/components/utils/`); use them rather than inline copies.
 - **TypeScript**: Use strict mode; run `astro check` and `tsc` to validate types.
 
 ## File Locations and Important Paths

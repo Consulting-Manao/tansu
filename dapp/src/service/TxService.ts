@@ -11,9 +11,13 @@ import {
   uploadToIpfsProxy,
 } from "../utils/ipfsFunctions";
 import { retryAsync } from "../utils/retry";
-import { toast } from "utils/utils";
 import { invalidateAfter, queryClient } from "./queryClient";
-import { disconnect, loadedPublicKey } from "./walletService";
+import {
+  connectedAddress,
+  disconnect,
+  horizonAccount,
+  loadedPublicKey,
+} from "./walletService";
 
 const NETWORK_PASSPHRASE = import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE;
 
@@ -186,85 +190,62 @@ async function land<T>(
 }
 
 /**
- * Send XLM payment transaction (Stellar classic, not Soroban)
- * Used for donations and tips
+ * Donate XLM, with an optional tip to Tansu: a classic payment, sent through
+ * Horizon. Throws what to tell the user.
  */
 export async function sendXLM(
   donateAmount: string,
   projectAddress: string,
   tipAmount: string,
   donateMessage: string,
-): Promise<boolean> {
-  try {
-    const senderPublicKey = loadedPublicKey();
-    if (!senderPublicKey) throw new Error("Please connect your wallet first");
-    if (StellarSdk.StrKey.isValidContract(senderPublicKey)) {
-      throw new Error(
-        "Donations are classic XLM payments, which smart-account wallets such as Nido cannot send. Connect a G… account to donate.",
-      );
-    }
-
-    const horizonUrl = import.meta.env.PUBLIC_HORIZON_URL;
-
-    const accountResp = await fetch(
-      `${horizonUrl}/accounts/${senderPublicKey}`,
-      { headers: { Accept: "application/json" } },
+): Promise<void> {
+  const sender = connectedAddress();
+  if (StellarSdk.StrKey.isValidContract(sender)) {
+    throw new Error(
+      "Donations are classic XLM payments, which smart-account wallets such as Nido cannot send. Connect a G… account to donate.",
     );
-    // Detect unfunded or wrong-network wallets
-    if (!accountResp.ok) throw new Error("WALLET_UNFUNDED_OR_WRONG_NETWORK");
-
-    const accountJson = await accountResp.json();
-    const account = new StellarSdk.Account(
-      senderPublicKey,
-      accountJson.sequence,
+  }
+  const account = await horizonAccount(sender);
+  if (!account) {
+    throw new Error(
+      "Your account does not exist on this network yet: fund it, then donate.",
     );
+  }
 
-    // Build the payment transaction
-    const txBuilder = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: projectAddress,
-          asset: StellarSdk.Asset.native(),
-          amount: donateAmount,
-        }),
-      )
-      .addMemo(StellarSdk.Memo.text(donateMessage));
+  const txBuilder = new StellarSdk.TransactionBuilder(
+    new StellarSdk.Account(sender, account.sequence),
+    { fee: StellarSdk.BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE },
+  )
+    .addOperation(
+      StellarSdk.Operation.payment({
+        destination: projectAddress,
+        asset: StellarSdk.Asset.native(),
+        amount: donateAmount,
+      }),
+    )
+    .addMemo(StellarSdk.Memo.text(donateMessage));
+  if (Number(tipAmount) > 0) {
+    txBuilder.addOperation(
+      StellarSdk.Operation.payment({
+        destination: import.meta.env.PUBLIC_TANSU_OWNER_ID,
+        asset: StellarSdk.Asset.native(),
+        amount: tipAmount,
+      }),
+    );
+  }
+  const transaction = txBuilder.setTimeout(StellarSdk.TimeoutInfinite).build();
 
-    // Optional platform tip
-    if (Number(tipAmount) > 0) {
-      txBuilder.addOperation(
-        StellarSdk.Operation.payment({
-          destination: import.meta.env.PUBLIC_TANSU_OWNER_ID,
-          asset: StellarSdk.Asset.native(),
-          amount: tipAmount,
-        }),
-      );
-    }
-
-    const transaction = txBuilder
-      .setTimeout(StellarSdk.TimeoutInfinite)
-      .build();
-
-    const signed = await sign(transaction.toXDR(), senderPublicKey);
-    if (!("xdr" in signed)) {
-      throw new Error("The wallet submitted the payment instead of signing it");
-    }
-
-    const response = await fetch(`${horizonUrl}/transactions`, {
+  const signed = await sign(transaction.toXDR(), sender);
+  if (!("xdr" in signed)) {
+    throw new Error("The wallet submitted the payment instead of signing it");
+  }
+  const response = await fetch(
+    `${import.meta.env.PUBLIC_HORIZON_URL}/transactions`,
+    {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `tx=${encodeURIComponent(signed.xdr)}`,
-    });
-
-    if (!response.ok) throw new Error(await response.text());
-    const result = await response.json();
-    return result?.successful === true;
-  } catch (error: any) {
-    const msg = error?.message || "Unknown error";
-    toast.error("Transaction Failed", msg);
-    return false;
-  }
+    },
+  );
+  if (!response.ok) throw new Error(await response.text());
 }

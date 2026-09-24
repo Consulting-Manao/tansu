@@ -1,17 +1,19 @@
-/**
- * React Loading Component
- *
- * This is the React implementation of the Loading component, used for dynamic loading indicators
- * in React components. It provides a simple loading animation with theme options.
- *
- * NOTE: For static loading indicators in Astro components, use Loading.astro instead.
- * The two implementations should maintain identical styling for consistency.
- */
-
-export default function Loading() {
+/** Waiting for a page or a section: Tansu's logo, spinning. */
+export default function Loading({
+  className = "w-10",
+}: {
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3">
-      <img src="/images/loading.svg" className="w-10 animate-spin" />
+    <div
+      role="status"
+      className="flex flex-col items-center justify-center gap-3"
+    >
+      <img
+        src="/images/loading.svg"
+        alt=""
+        className={`${className} animate-spin`}
+      />
       <span className="sr-only">Loading…</span>
     </div>
   );

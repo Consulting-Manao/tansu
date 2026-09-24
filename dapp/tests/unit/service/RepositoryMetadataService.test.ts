@@ -71,6 +71,34 @@ describe("RepositoryMetadataService", () => {
     ]);
   });
 
+  it("reads a Codeberg repository through its Gitea API", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("/contents/")
+        ? createJsonResponse({ content: btoa("# Forgejo") })
+        : createJsonResponse([
+            {
+              sha: "abc123",
+              commit: {
+                author: { name: "Alice", date: "2026-04-24T00:00:00Z" },
+                message: "Initial commit",
+              },
+            },
+          ]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const repoUrl = "https://codeberg.org/forgejo/forgejo";
+
+    await expect(read(repoHeadQuery(repoUrl))).resolves.toBe("abc123");
+    await expect(read(repoReadmeQuery(repoUrl))).resolves.toEqual({
+      content: "# Forgejo",
+      rawBaseUrl: "https://codeberg.org/forgejo/forgejo/raw/branch/HEAD",
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "https://codeberg.org/api/v1/repos/forgejo/forgejo/commits?page=1&limit=1",
+      "https://codeberg.org/api/v1/repos/forgejo/forgejo/contents/README.md?ref=HEAD",
+    ]);
+  });
+
   it("retries transient failures with exponential backoff", async () => {
     const fetchMock = vi
       .fn()

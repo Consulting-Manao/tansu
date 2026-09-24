@@ -3,7 +3,7 @@
 // CommitRecord component for individual rows.
 
 import { useQuery } from "@tanstack/react-query";
-import Spinner from "../../utils/Spinner";
+import Loading from "../../utils/Loading";
 import {
   activityQuery,
   type OnChainAction,
@@ -53,7 +53,7 @@ const OnChainActions: React.FC<Props> = ({ address, projectNames }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6" aria-busy="true">
-        <Spinner />
+        <Loading />
       </div>
     );
   }
