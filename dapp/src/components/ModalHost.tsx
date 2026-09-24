@@ -5,8 +5,8 @@ import { closeModal, openedModal } from "utils/modals";
 const CreateProjectModal = lazy(
   () => import("components/page/dashboard/CreateProjectModal"),
 );
-const JoinCommunityModal = lazy(
-  () => import("components/page/dashboard/JoinCommunityModal"),
+const ProfileModal = lazy(
+  () => import("components/page/dashboard/ProfileModal"),
 );
 const MemberProfileModal = lazy(
   () => import("components/page/dashboard/MemberProfileModal"),
@@ -34,10 +34,7 @@ const ModalHost = () => {
         <CreateProjectModal onClose={closeModal} />
       )}
       {modal.name === "join" && (
-        <JoinCommunityModal
-          onClose={closeModal}
-          prefillAddress={modal.props.prefillAddress ?? ""}
-        />
+        <ProfileModal mode="join" onClose={closeModal} />
       )}
       {modal.name === "profile" && (
         <MemberProfileModal

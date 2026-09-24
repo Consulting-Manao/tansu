@@ -2,12 +2,17 @@ import Button from "components/utils/Button";
 import Textarea from "components/utils/Textarea";
 import Input from "components/utils/Input";
 import OutcomeModeSelector from "./OutcomeModeSelector";
-import OutcomeTemplateSelector from "./OutcomeTemplateSelector";
+import TemplateSelector from "./TemplateSelector";
 import EnhancedContractFunctionSelector from "components/EnhancedContractFunctionSelector";
 import ContractNameSearch from "components/ContractNameSearch";
 import { capitalizeFirstLetter } from "utils/utils";
 import type { OutcomeContract } from "types/proposal";
-import type { OutcomeType } from "constants/outcomeTemplates";
+import {
+  getOutcomeTemplateFills,
+  getOutcomeTemplatesByType,
+  type OutcomeTemplate,
+  type OutcomeType,
+} from "constants/outcomeTemplates";
 
 interface OutcomeInputProps {
   type: OutcomeType;
@@ -37,6 +42,59 @@ interface OutcomeInputProps {
   onModeChange?: (mode: "xdr" | "contract" | "none") => void;
   onRemove?: () => void;
 }
+
+/** What an outcome template fills in, on its card. */
+const outcomeTemplateTags = (template: OutcomeTemplate) => (
+  <div className="mt-2 flex flex-wrap gap-1">
+    {getOutcomeTemplateFills(template).map((fill) => (
+      <span
+        key={fill}
+        className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-medium text-primary"
+      >
+        {fill}
+      </span>
+    ))}
+  </div>
+);
+
+/** The contract call or transaction an outcome template fills in. */
+const outcomeTemplatePreview = ({ contract, xdr }: OutcomeTemplate) => (
+  <>
+    {contract && (
+      <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
+        <p className="text-sm font-semibold text-primary mb-2">
+          Contract call pre-filled
+        </p>
+        <div className="space-y-1 font-mono text-sm text-secondary">
+          <p>
+            <span className="text-primary">function:</span>{" "}
+            {contract.execute_fn}
+          </p>
+          <p>
+            <span className="text-primary">address:</span>{" "}
+            {contract.address || "(fill after applying)"}
+          </p>
+          {contract.args.length > 0 && (
+            <p>
+              <span className="text-primary">args:</span>{" "}
+              {JSON.stringify(contract.args)}
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+    {xdr && (
+      <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
+        <p className="text-sm font-semibold text-primary mb-2">
+          XDR transaction pre-filled
+        </p>
+        <pre className="whitespace-pre-wrap font-mono text-sm text-secondary break-all">
+          {xdr}
+        </pre>
+      </div>
+    )}
+  </>
+);
 
 const OutcomeInput = ({
   type,
@@ -149,8 +207,11 @@ const OutcomeInput = ({
           </div>
 
           {/* Outcome template selector */}
-          <OutcomeTemplateSelector
-            outcomeType={type}
+          <TemplateSelector
+            templates={getOutcomeTemplatesByType(type)}
+            purpose="this outcome"
+            renderTags={outcomeTemplateTags}
+            renderPreview={outcomeTemplatePreview}
             onTemplateSelect={(template) => {
               setDescription(template.content);
               if (onDescriptionChange) onDescriptionChange(template.content);

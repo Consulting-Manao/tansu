@@ -3,7 +3,8 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { useStore } from "@nanostores/react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
-const EditProfileModal = lazy(() => import("./EditProfileModal"));
+const ProfileModal = lazy(() => import("./ProfileModal"));
+import type { ProfileData } from "./ProfileModal";
 import Modal from "components/utils/Modal";
 import Button from "components/utils/Button";
 import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
@@ -25,13 +26,6 @@ interface Props {
   /** The member's Stellar address. */
   address: string;
   onClose: () => void;
-}
-
-interface ProfileData {
-  name: string;
-  description: string;
-  social: string;
-  image?: string; // optional path to profile image inside the IPFS directory
 }
 
 const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
@@ -171,7 +165,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
 
   const handleRegister = () => {
     onClose();
-    openModal("join", { prefillAddress: memberAddress });
+    openModal("join", {});
   };
 
   if (memberRead.isPending) {
@@ -472,9 +466,9 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
 
       {showEditModal && (
         <Suspense fallback={null}>
-          <EditProfileModal
+          <ProfileModal
+            mode="edit"
             onClose={() => setShowEditModal(false)}
-            onUpdated={() => setShowEditModal(false)}
             initialProfile={profileData}
           />
         </Suspense>

@@ -27,11 +27,8 @@ import { ProjectType } from "types/projectConfig";
 import {
   getRepositoryHandleLabel,
   getRepositoryHandlePlaceholder,
-  getRepositoryPrincipalField,
-  getRepositoryProjectPath,
   getRepositoryProvider,
   getRepositoryProviderLabel,
-  getRepositorySeedHost,
   getRepositoryUrlPlaceholder,
   SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
@@ -40,26 +37,16 @@ import MarkdownEditorWithImages, {
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
 import { projectUrl } from "utils/urls";
+import {
+  validateFullName,
+  validateHandle,
+  validateOrganization,
+  writeTansuToml,
+} from "utils/tansuToml";
 
 // Define ModalProps type for the modal component
 type ModalProps = {
   onClose: () => void;
-};
-
-// Validate DBA (Project Full Name): printable ASCII only, max 100 chars
-const validateDbaField = (value: string): string | null => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "Project full name is required";
-  }
-  if (trimmed.length > 100) {
-    return "Project full name must be 100 characters or fewer";
-  }
-  // Printable ASCII check (space through ~)
-  if (!/^[\x20-\x7E]+$/.test(trimmed)) {
-    return "Project full name may only contain ASCII characters";
-  }
-  return null;
 };
 
 const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
@@ -100,9 +87,6 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     activeRepositoryProvider,
   );
   const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
-    activeRepositoryProvider,
-  );
-  const repositoryPrincipalField = getRepositoryPrincipalField(
     activeRepositoryProvider,
   );
 
@@ -188,17 +172,10 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
       return null;
     });
 
-    const ghRegex = /^[A-Za-z0-9_-]{1,30}$/;
     const ghErrors = maintainerGithubs.map((gh) => {
-      if (!gh || gh.trim() === "") {
-        isValid = false;
-        return `${repositoryHandleLabel} is required`;
-      }
-      if (!ghRegex.test(gh)) {
-        isValid = false;
-        return `${repositoryHandleLabel} must use ASCII letters, digits, _ or -, and be 30 characters or fewer`;
-      }
-      return null;
+      const error = validateHandle(gh, repositoryHandleLabel);
+      if (error) isValid = false;
+      return error;
     });
 
     setMaintainersErrors(addrErrors);
@@ -212,37 +189,20 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     return error === null;
   };
 
-  // Simple validators for the new organisation fields
   const validateOrgFields = (): boolean => {
-    let valid = true;
-
-    if (!orgName.trim()) {
-      setOrgNameError("Organization name is required");
-      valid = false;
-    }
-
-    if (orgUrl && !orgUrl.startsWith("https://")) {
-      setOrgUrlError("URL must start with https://");
-      valid = false;
-    }
-
-    if (orgLogo && !orgLogo.startsWith("https://")) {
-      setOrgLogoError("Logo URL must start with https://");
-      valid = false;
-    }
-
-    if (!orgDescription.trim() || orgDescription.split(/\s+/).length < 3) {
-      setOrgDescriptionError("Description must contain at least 3 words");
-      valid = false;
-    }
-
+    const errors = validateOrganization({
+      orgName,
+      orgUrl,
+      orgLogo,
+      orgDescription,
+    });
+    setOrgNameError(errors.orgName ?? null);
+    setOrgUrlError(errors.orgUrl ?? null);
+    setOrgLogoError(errors.orgLogo ?? null);
+    setOrgDescriptionError(errors.orgDescription ?? null);
     const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
     setFinalityThresholdError(thresholdError);
-    if (thresholdError) {
-      valid = false;
-    }
-
-    return valid;
+    return Object.keys(errors).length === 0 && !thresholdError;
   };
 
   const handleRegisterProject = async () => {
@@ -254,30 +214,18 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
         throw new Error("Please connect your wallet first");
       }
 
-      // ── Build TOML content ───────────────────────────────────────────────
-      const repositorySeedHost =
-        activeRepositoryProvider === "radicle"
-          ? getRepositorySeedHost(githubRepoUrl)
-          : undefined;
-      const tomlContent = `VERSION="2.0.0"
-PROJECT_TYPE="${projectType}"
-
-ACCOUNTS=[
-${maintainerAddresses.map((a) => `    "${a}"`).join(",\n")}
-]
-
-[DOCUMENTATION]
-ORG_DBA="${projectFullName.trim()}"
-ORG_NAME="${orgName}"
-ORG_URL="${orgUrl}"
-ORG_LOGO="${orgLogo}"
-ORG_DESCRIPTION="${orgDescription}"
-${projectType === ProjectType.SOFTWARE && activeRepositoryProvider !== "radicle" ? `ORG_GITHUB="${getRepositoryProjectPath(githubRepoUrl)}"` : ""}
-${projectType === ProjectType.SOFTWARE && activeRepositoryProvider === "radicle" ? `ORG_REPOSITORY_PROVIDER="radicle"` : ""}
-${projectType === ProjectType.SOFTWARE && activeRepositoryProvider === "radicle" && repositorySeedHost ? `ORG_REPOSITORY_SEED="${repositorySeedHost}"` : ""}
-
-${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${gh}"`).join("\n\n")}
-`;
+      const tomlContent = writeTansuToml({
+        projectType,
+        maintainers: maintainerAddresses,
+        handles: maintainerGithubs,
+        fullName: projectFullName,
+        orgName,
+        orgUrl,
+        orgLogo,
+        orgDescription,
+        repositoryUrl: githubRepoUrl,
+        repositoryProvider: activeRepositoryProvider,
+      });
 
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
@@ -548,7 +496,7 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
                   setIsLoading(true);
                   try {
                     // Validate DBA field first
-                    const dbaError = validateDbaField(projectFullName);
+                    const dbaError = validateFullName(projectFullName);
                     if (dbaError) {
                       setProjectFullNameError(dbaError);
                       setIsLoading(false);

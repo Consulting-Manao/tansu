@@ -1,46 +1,42 @@
-import { useState, useCallback } from "react";
-import {
-  PROPOSAL_TEMPLATES,
-  type ProposalTemplate,
-} from "../../../constants/proposalTemplates";
+import { useState, type ReactNode } from "react";
 import Modal from "../../../components/utils/Modal";
 import Button from "../../../components/utils/Button";
 
-interface TemplateSelectorProps {
-  onTemplateSelect: (template: ProposalTemplate) => void;
-  currentContent?: string;
+interface Template {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
 }
 
-export default function TemplateSelector({
+/**
+ * Browse templates, preview one, and apply it. A kind of template adds its own
+ * details with `renderTags` (on its card) and `renderPreview`.
+ */
+export default function TemplateSelector<T extends Template>({
+  templates,
+  purpose,
   onTemplateSelect,
-}: TemplateSelectorProps) {
+  renderTags,
+  renderPreview,
+}: {
+  templates: T[];
+  /** What the templates structure, e.g. "your proposal". */
+  purpose: string;
+  onTemplateSelect: (template: T) => void;
+  renderTags?: (template: T) => ReactNode;
+  renderPreview?: (template: T) => ReactNode;
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const [previewTemplate, setPreviewTemplate] =
-    useState<ProposalTemplate | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<T | null>(null);
 
-  const handleTemplateClick = useCallback(
-    (template: ProposalTemplate) => {
-      onTemplateSelect(template);
-      setIsOpen(false);
-    },
-    [onTemplateSelect],
-  );
+  const select = (template: T) => {
+    onTemplateSelect(template);
+    setPreviewTemplate(null);
+    setIsOpen(false);
+  };
 
-  const handlePreviewClick = useCallback(
-    (template: ProposalTemplate, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setPreviewTemplate(template);
-    },
-    [],
-  );
-
-  const handleUseTemplate = useCallback(() => {
-    if (previewTemplate) {
-      onTemplateSelect(previewTemplate);
-      setPreviewTemplate(null);
-      setIsOpen(false);
-    }
-  }, [previewTemplate, onTemplateSelect]);
+  if (templates.length === 0) return null;
 
   return (
     <div className="template-selector mb-4">
@@ -50,7 +46,7 @@ export default function TemplateSelector({
             Start with a template
           </p>
           <p className="text-xs text-secondary">
-            Choose a structured format for your proposal
+            Choose a structured format for {purpose}
           </p>
         </div>
         <Button type="tertiary" size="sm" onClick={() => setIsOpen(!isOpen)}>
@@ -61,10 +57,10 @@ export default function TemplateSelector({
       {isOpen && !previewTemplate && (
         <div className="mt-3 p-4 border border-primary rounded-lg bg-[#F5F1F9] shadow-lg">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
-            {PROPOSAL_TEMPLATES.map((template) => (
+            {templates.map((template) => (
               <div
                 key={template.id}
-                onClick={() => handleTemplateClick(template)}
+                onClick={() => select(template)}
                 className="cursor-pointer p-3 border border-primary rounded-lg hover:bg-white transition-all hover:shadow-md"
               >
                 <div className="flex justify-between items-start mb-2">
@@ -76,7 +72,10 @@ export default function TemplateSelector({
                   <Button
                     type="secondary"
                     size="xs"
-                    onClick={(e) => handlePreviewClick(template, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewTemplate(template);
+                    }}
                     className="hover:bg-gray-200 bg-white border border-primary/20 shadow-sm"
                   >
                     Preview
@@ -85,13 +84,13 @@ export default function TemplateSelector({
                 <p className="text-xs text-secondary line-clamp-2">
                   {template.description}
                 </p>
+                {renderTags?.(template)}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Preview Modal */}
       {previewTemplate && (
         <Modal onClose={() => setPreviewTemplate(null)} fullWidth>
           <div className="flex flex-col gap-6">
@@ -110,6 +109,8 @@ export default function TemplateSelector({
               </pre>
             </div>
 
+            {renderPreview?.(previewTemplate)}
+
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-primary">
               <Button
                 type="tertiary"
@@ -118,7 +119,9 @@ export default function TemplateSelector({
               >
                 Close
               </Button>
-              <Button onClick={handleUseTemplate}>Use This Template</Button>
+              <Button onClick={() => select(previewTemplate)}>
+                Use This Template
+              </Button>
             </div>
           </div>
         </Modal>

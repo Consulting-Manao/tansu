@@ -22,6 +22,7 @@ import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { validateProposalName, validateTextContent } from "utils/validations";
 import OutcomeInput from "./OutcomeInput";
 import TemplateSelector from "./TemplateSelector";
+import { PROPOSAL_TEMPLATES } from "constants/proposalTemplates";
 import { generateRSAKeyPair } from "utils/crypto";
 import { createProposal, setupAnonymousVoting } from "@service/ProposalService";
 import MarkdownEditorWithImages, {
@@ -612,6 +613,8 @@ const CreateProposalModal = ({
           {/* Description Section */}
           <div className="space-y-4">
             <TemplateSelector
+              templates={PROPOSAL_TEMPLATES}
+              purpose="your proposal"
               onTemplateSelect={(template) => {
                 setMdText(template.content);
                 setDescriptionError(null);

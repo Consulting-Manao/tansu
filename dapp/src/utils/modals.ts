@@ -7,7 +7,7 @@ import { atom } from "nanostores";
 
 export interface Modals {
   createProject: Record<string, never>;
-  join: { prefillAddress?: string };
+  join: Record<string, never>;
   profile: { address: string };
   funding: { exists: boolean; balance: number; network: "mainnet" | "testnet" };
   terms: Record<string, never>;

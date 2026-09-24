@@ -28,201 +28,23 @@ import type { ConfigData } from "types/projectConfig";
 import {
   getRepositoryHandleLabel,
   getRepositoryHandlePlaceholder,
-  getRepositoryPrincipalField,
-  getRepositoryProjectPath,
   getRepositoryProvider,
   getRepositoryProviderLabel,
-  getRepositoryRid,
-  getRepositorySeedHost,
   getRepositoryUrlPlaceholder,
   SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
 } from "utils/editLinkFunctions";
 import toml from "toml";
-
-// Validate DBA (Project Full Name): ASCII-only, max 100 chars
-const validateDbaField = (value: string): string | null => {
-  if (!value.trim()) {
-    return "Project full name is required";
-  }
-  if (value.length > 100) {
-    return "Project full name must be 100 characters or fewer";
-  }
-  // Printable ASCII characters only
-  if (!/^[\x20-\x7E]+$/.test(value)) {
-    return "Project full name may only contain ASCII characters";
-  }
-  return null;
-};
+import {
+  validateFullName,
+  validateHandle,
+  validateOrganization,
+  writeTansuToml,
+} from "utils/tansuToml";
 
 /** A file of the project's IPFS directory; `null` when it cannot be read. */
 const readIpfsFile = (cid: string, path: string) =>
   queryClient.query(ipfsQuery(cid, path)).catch(() => null);
-
-/**
- * Merge form-managed fields into the existing parsed TOML object,
- * preserving every field we don't explicitly manage (e.g. PROJECT_TYPE).
- *
- * TOML structure we manage:
- *   VERSION
- *   ACCOUNTS = [...]
- *   [DOCUMENTATION]
- *     ORG_DBA, ORG_NAME, ORG_URL, ORG_LOGO, ORG_DESCRIPTION, ORG_GITHUB
- *   [[PRINCIPALS]]
- *     github = "..." or radicle = "..."
- */
-function mergeTomlData(
-  existing: Record<string, any>,
-  fields: {
-    maintainerAddresses: string[];
-    maintainerGithubs: string[];
-    projectFullName: string;
-    orgName: string;
-    orgUrl: string;
-    orgLogo: string;
-    orgDescription: string;
-    githubRepoUrl: string;
-    originalRepositoryUrl?: string;
-    isSoftwareProject: boolean;
-    repositoryProvider?: RepositoryProvider;
-  },
-): Record<string, any> {
-  const merged = { ...existing };
-
-  // Always bump / set version
-  merged["VERSION"] = "2.0.0";
-
-  // Overwrite only the accounts array
-  merged["ACCOUNTS"] = fields.maintainerAddresses;
-
-  // Merge DOCUMENTATION sub-table — preserve unknown keys inside it
-  const existingDoc: Record<string, any> =
-    typeof existing["DOCUMENTATION"] === "object" &&
-    existing["DOCUMENTATION"] !== null
-      ? { ...existing["DOCUMENTATION"] }
-      : {};
-
-  existingDoc["ORG_DBA"] = fields.projectFullName.trim();
-  existingDoc["ORG_NAME"] = fields.orgName;
-  existingDoc["ORG_URL"] = fields.orgUrl;
-  existingDoc["ORG_LOGO"] = fields.orgLogo;
-  existingDoc["ORG_DESCRIPTION"] = fields.orgDescription;
-  if (fields.isSoftwareProject && fields.repositoryProvider === "radicle") {
-    existingDoc["ORG_GITHUB"] = "";
-    existingDoc["ORG_REPOSITORY_PROVIDER"] = "radicle";
-    const seedHost = getRepositorySeedHost(fields.githubRepoUrl);
-    if (seedHost) {
-      existingDoc["ORG_REPOSITORY_SEED"] = seedHost;
-    } else {
-      const currentRid = getRepositoryRid(fields.githubRepoUrl);
-      const originalRid = getRepositoryRid(fields.originalRepositoryUrl);
-
-      if (!currentRid || currentRid !== originalRid) {
-        delete existingDoc["ORG_REPOSITORY_SEED"];
-      }
-    }
-  } else {
-    existingDoc["ORG_GITHUB"] = fields.isSoftwareProject
-      ? getRepositoryProjectPath(fields.githubRepoUrl)
-      : "";
-    delete existingDoc["ORG_REPOSITORY_PROVIDER"];
-    delete existingDoc["ORG_REPOSITORY_SEED"];
-  }
-
-  // README is now only stored as a separate file, so we explicitly remove it
-  // from the TOML if it was previously there to enforce a single source of truth.
-  delete existingDoc["README"];
-
-  merged["DOCUMENTATION"] = existingDoc;
-
-  // Replace PRINCIPALS array entirely with provider-aware aliases.
-  const principalField = getRepositoryPrincipalField(fields.repositoryProvider);
-  merged["PRINCIPALS"] = fields.maintainerGithubs.map((gh) => ({
-    [principalField]: gh,
-  }));
-
-  return merged;
-}
-
-/**
- * Serialize a merged TOML object back to a TOML string.
- *
- * We do this manually so we keep the same key ordering the contract expects
- * and handle the array-of-tables ([[PRINCIPALS]]) syntax correctly.
- * Unknown top-level scalar/string keys (like PROJECT_TYPE) are emitted first.
- */
-function serializeToml(data: Record<string, any>): string {
-  const lines: string[] = [];
-
-  // 1. Known scalar keys first
-  const knownTopLevelKeys = new Set([
-    "VERSION",
-    "ACCOUNTS",
-    "DOCUMENTATION",
-    "PRINCIPALS",
-  ]);
-
-  // Emit VERSION
-  if (data["VERSION"] !== undefined) {
-    lines.push(`VERSION="${data["VERSION"]}"`);
-  }
-
-  // Emit unknown top-level scalars/strings (e.g. PROJECT_TYPE) — preserve them
-  for (const key of Object.keys(data)) {
-    if (knownTopLevelKeys.has(key)) continue;
-    const val = data[key];
-    if (typeof val === "string") {
-      lines.push(`${key}="${val}"`);
-    } else if (typeof val === "number" || typeof val === "boolean") {
-      lines.push(`${key}=${val}`);
-    }
-    // arrays/objects that are not in our known set: skip (rare edge case)
-  }
-
-  lines.push("");
-
-  // 2. ACCOUNTS array
-  if (Array.isArray(data["ACCOUNTS"])) {
-    const accounts = (data["ACCOUNTS"] as string[])
-      .map((a) => `    "${a}"`)
-      .join(",\n");
-    lines.push(`ACCOUNTS=[\n${accounts}\n]`);
-  }
-
-  lines.push("");
-
-  // 3. [DOCUMENTATION] table
-  if (data["DOCUMENTATION"] && typeof data["DOCUMENTATION"] === "object") {
-    lines.push("[DOCUMENTATION]");
-    const doc = data["DOCUMENTATION"] as Record<string, any>;
-    for (const key of Object.keys(doc)) {
-      const val = doc[key];
-      if (typeof val === "string") {
-        lines.push(`${key}="${val}"`);
-      } else if (typeof val === "number" || typeof val === "boolean") {
-        lines.push(`${key}=${val}`);
-      }
-    }
-  }
-
-  lines.push("");
-
-  // 4. [[PRINCIPALS]] array of tables
-  if (Array.isArray(data["PRINCIPALS"])) {
-    for (const principal of data["PRINCIPALS"] as Record<string, any>[]) {
-      lines.push("[[PRINCIPALS]]");
-      for (const key of Object.keys(principal)) {
-        const val = principal[key];
-        if (typeof val === "string") {
-          lines.push(`${key}="${val}"`);
-        }
-      }
-      lines.push("");
-    }
-  }
-
-  return lines.join("\n");
-}
 
 /** For maintainers: change the project's maintainers and tansu.toml. */
 const UpdateConfigModal = ({
@@ -278,6 +100,9 @@ const UpdateConfigModal = ({
   const [finalityThresholdError, setFinalityThresholdError] = useState<
     string | null
   >(null);
+  const [orgErrors, setOrgErrors] = useState<
+    ReturnType<typeof validateOrganization>
+  >({});
   const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
   const activeRepositoryProvider = isSoftwareProject
     ? parsedRepositoryProvider || selectedRepositoryProvider
@@ -380,7 +205,6 @@ const UpdateConfigModal = ({
   };
 
   // validation helpers
-  const ghRegex = /^[A-Za-z0-9_-]{1,30}$/;
   const validateMaintainers = () => {
     let ok = true;
     const newAddrErr = maintainerAddresses.map((a) => {
@@ -389,15 +213,9 @@ const UpdateConfigModal = ({
       return e;
     });
     const newGhErr = maintainerGithubs.map((h) => {
-      if (!h.trim()) {
-        ok = false;
-        return `${repositoryHandleLabel} is required`;
-      }
-      if (!ghRegex.test(h)) {
-        ok = false;
-        return `${repositoryHandleLabel} must use ASCII letters, digits, _ or -, and be 30 characters or fewer`;
-      }
-      return null;
+      const e = validateHandle(h, repositoryHandleLabel);
+      if (e) ok = false;
+      return e;
     });
     setAddrErrors(newAddrErr);
     setGhErrors(newGhErr);
@@ -411,45 +229,29 @@ const UpdateConfigModal = ({
   };
 
   const validateProjectFullName = (): boolean => {
-    const dbaError = validateDbaField(projectFullName);
+    const dbaError = validateFullName(projectFullName);
     setProjectFullNameError(dbaError);
     return dbaError === null;
   };
 
-  /**
-   * Build the TOML string by:
-   * 1. Starting from the existing parsed TOML (preserves PROJECT_TYPE etc.)
-   * 2. Merging only the fields managed by this form
-   * 3. Serializing back to TOML
-   *
-   * Falls back to a blank base object if the existing file couldn't be fetched.
-   */
-  const buildToml = (): string => {
-    const base: Record<string, any> = existingTomlRef.current ?? {};
-
-    // Critical fix: ensure PROJECT_TYPE is preserved even if existingTomlRef is empty
-    if (!base["PROJECT_TYPE"] && config.projectType) {
-      base["PROJECT_TYPE"] = config.projectType;
-    }
-
-    const merged = mergeTomlData(base, {
-      maintainerAddresses,
-      maintainerGithubs,
-      projectFullName,
-      orgName,
-      orgUrl,
-      orgLogo,
-      orgDescription,
-      githubRepoUrl,
-      originalRepositoryUrl: originalRepositoryUrlRef.current,
-      isSoftwareProject,
-      ...(activeRepositoryProvider
-        ? { repositoryProvider: activeRepositoryProvider }
-        : {}),
-    });
-
-    return serializeToml(merged);
-  };
+  /** The new tansu.toml, over the current one so its other fields stay. */
+  const buildToml = (): string =>
+    writeTansuToml(
+      {
+        projectType: config.projectType,
+        maintainers: maintainerAddresses,
+        handles: maintainerGithubs,
+        fullName: projectFullName,
+        orgName,
+        orgUrl,
+        orgLogo,
+        orgDescription,
+        repositoryUrl: githubRepoUrl,
+        repositoryProvider: activeRepositoryProvider,
+      },
+      existingTomlRef.current ?? {},
+      originalRepositoryUrlRef.current,
+    );
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -547,11 +349,20 @@ const UpdateConfigModal = ({
 
   const handleNextFromStep2 = () => {
     const isDbaValid = validateProjectFullName();
+    const errors = validateOrganization({
+      orgName,
+      orgUrl,
+      orgLogo,
+      orgDescription,
+    });
+    setOrgErrors(errors);
 
     const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
     setFinalityThresholdError(thresholdError);
 
-    if (isDbaValid && !thresholdError) setStep(3);
+    if (isDbaValid && Object.keys(errors).length === 0 && !thresholdError) {
+      setStep(3);
+    }
   };
 
   const handleNextFromStep1 = () => {
@@ -753,21 +564,25 @@ const UpdateConfigModal = ({
                       label="Organisation name"
                       value={orgName}
                       onChange={(e) => setOrgName(e.target.value)}
+                      error={orgErrors.orgName}
                     />
                     <Input
                       label="Organisation URL"
                       value={orgUrl}
                       onChange={(e) => setOrgUrl(e.target.value)}
+                      error={orgErrors.orgUrl}
                     />
                     <Input
                       label="Logo URL"
                       value={orgLogo}
                       onChange={(e) => setOrgLogo(e.target.value)}
+                      error={orgErrors.orgLogo}
                     />
                     <Textarea
                       label="Description"
                       value={orgDescription}
                       onChange={(e) => setOrgDescription(e.target.value)}
+                      error={orgErrors.orgDescription}
                     />
                     <Input
                       label="Finality threshold (%)"
