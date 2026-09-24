@@ -46,6 +46,12 @@ export default defineConfig({
   integrations: [react(), serviceWorker()],
   adapter: netlify(),
   vite: {
+    define: {
+      // A new build must not restore queries cached in an older data shape.
+      "import.meta.env.PUBLIC_BUILD": JSON.stringify(
+        process.env.COMMIT_REF ?? String(Date.now()),
+      ),
+    },
     optimizeDeps: {
       include: ["ipfs-car"],
     },

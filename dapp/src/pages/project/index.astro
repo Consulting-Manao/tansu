@@ -23,10 +23,6 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
     getIpfsUrl,
   } from "../../utils/ipfsFunctions";
   import {
-    getProjectFromName,
-    getProjectHash,
-  } from "../../service/ReadContractService";
-  import {
     refreshLocalStorage,
     setConfigData,
     setProject,
@@ -48,6 +44,10 @@ import ProjectInfoTitle from "../../components/page/project/ProjectInfoTitle.ast
     {
       setProjectId(projectName);
       try {
+        // Not a static import: the query cache loads before it resolves, and
+        // this listener must be in place for the first page load.
+        const { getProjectFromName, getProjectHash } =
+          await import("../../service/ReadContractService");
         const project = await getProjectFromName(projectName);
         if (project && project.name && project.config && project.maintainers) {
           setProject(project);

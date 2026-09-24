@@ -13,7 +13,7 @@ import { Badge } from "../../packages/tansu/dist";
 // Lazy-loaded imports to avoid circular dependency issues in Astro/SSR
 async function getTansu() {
   const mod = await import("../contracts/soroban_tansu");
-  return mod.default;
+  return mod.tansuReads;
 }
 
 // Helper to derive the project_key (32-byte buffer)

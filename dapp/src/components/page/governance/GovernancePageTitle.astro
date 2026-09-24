@@ -18,7 +18,6 @@ import Button from "components/utils/Button";
 
 <script>
   import { projectUrl } from "utils/urls";
-  import { getProjectFromName } from "@service/ReadContractService";
   import { connectedPublicKey } from "utils/store";
   import { toast } from "utils/utils";
 
@@ -37,6 +36,10 @@ import Button from "components/utils/Button";
     );
 
     try {
+      // Not a static import: the query cache loads before it resolves, and
+      // this listener must be in place for the first page load.
+      const { getProjectFromName } =
+        await import("@service/ReadContractService");
       const projectInfo = await getProjectFromName(projectName!);
       if (projectInfo && projectInfo.maintainers) {
         maintainers = projectInfo?.maintainers;

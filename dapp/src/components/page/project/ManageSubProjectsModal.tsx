@@ -12,6 +12,7 @@ import {
   sendSignedTransaction,
 } from "@service/TxService";
 import { loadedPublicKey, txSourceFor } from "@service/walletService";
+import { invalidateAfter } from "@service/queryClient";
 import Tansu from "contracts/soroban_tansu";
 import { checkSimulationError } from "utils/contractErrors";
 import { deriveProjectKey, normalizeSubProjectKeys } from "utils/projectKey";
@@ -158,7 +159,10 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
       checkSimulationError(tx as any);
 
       const signed = await signAssembledTransaction(tx);
-      await sendSignedTransaction(signed);
+      await invalidateAfter(sendSignedTransaction(signed), [
+        "project",
+        projectKey.toString("hex"),
+      ]);
 
       toast.success(
         "Sub-projects updated",

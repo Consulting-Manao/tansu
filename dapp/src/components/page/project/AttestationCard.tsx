@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import {
+  attestationsQuery,
   commitTarget,
-  getAttestations,
-  getAttestationThreshold,
-  getCommitFinality,
-  type CommitFinality,
+  finalityQuery,
+  thresholdQuery,
 } from "@service/AttestationService";
 import { attest, revokeAttestation } from "@service/ContractService";
-import type {
-  Attestation,
-  AttestationTarget,
-} from "../../../../packages/tansu";
+import { queryClient } from "@service/queryClient";
+import type { AttestationTarget } from "../../../../packages/tansu";
 import { isAttestationRevocable } from "constants/attestation";
 import { truncateMiddle, toast } from "utils/utils";
 import Button from "components/utils/Button";
@@ -47,54 +45,28 @@ const AttestationCard = ({
   onChanged,
 }: AttestationCardProps) => {
   const resolvedTarget = target ?? commitTarget();
+  const name = projectName ?? "";
+  const enabled = !!name && !!commitHash.trim();
 
-  const [finality, setFinality] = useState<CommitFinality | null>(null);
-  const [attestations, setAttestations] = useState<Attestation[]>([]);
-  const [threshold, setThreshold] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const finalityRead = useQuery(
+    { ...finalityQuery(name, commitHash, resolvedTarget), enabled },
+    queryClient,
+  );
+  const attestationsRead = useQuery(
+    { ...attestationsQuery(name, commitHash, resolvedTarget), enabled },
+    queryClient,
+  );
+  const thresholdRead = useQuery(
+    { ...thresholdQuery(name), enabled: enabled && showThreshold },
+    queryClient,
+  );
+  const finality = finalityRead.data ?? null;
+  const attestations = attestationsRead.data ?? [];
+  const threshold = thresholdRead.data ?? null;
+  const isLoading = finalityRead.isLoading || attestationsRead.isLoading;
+
   const [isAttesting, setIsAttesting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
-
-  const targetKey =
-    resolvedTarget.tag === "Commit"
-      ? "Commit"
-      : `${resolvedTarget.values[0].tag}:${resolvedTarget.values[1]}`;
-
-  const load = useCallback(async () => {
-    if (!projectName || !commitHash.trim()) {
-      setFinality(null);
-      setAttestations([]);
-      setThreshold(null);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const [finalityResult, attestationsResult, thresholdResult] =
-        await Promise.all([
-          getCommitFinality(projectName, commitHash, resolvedTarget),
-          getAttestations(projectName, commitHash, resolvedTarget),
-          showThreshold
-            ? getAttestationThreshold(projectName)
-            : Promise.resolve(null),
-        ]);
-
-      setFinality(finalityResult);
-      setAttestations(attestationsResult);
-      setThreshold(thresholdResult);
-    } catch {
-      setFinality(null);
-      setAttestations([]);
-      setThreshold(null);
-    } finally {
-      setIsLoading(false);
-    }
-    // targetKey stands in for resolvedTarget, which is a fresh object each render
-  }, [projectName, commitHash, targetKey, showThreshold]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const ownAttestation = connectedPublicKey
     ? attestations.find((a) => a.attester === connectedPublicKey)
@@ -114,11 +86,6 @@ const AttestationCard = ({
     Number.isFinite(finality.total) &&
     finality.total > 0;
 
-  const afterChange = async () => {
-    await load();
-    onChanged?.();
-  };
-
   const handleAttest = async () => {
     if (!projectName || !canAttest) return;
 
@@ -126,7 +93,7 @@ const AttestationCard = ({
     try {
       await attest(projectName, commitHash, resolvedTarget);
       toast.success("Attestation", "Your attestation was recorded on-chain.");
-      await afterChange();
+      onChanged?.();
     } catch (err: any) {
       toast.error("Attestation", err?.message || "Failed to attest.");
     } finally {
@@ -141,7 +108,7 @@ const AttestationCard = ({
     try {
       await revokeAttestation(projectName, commitHash, resolvedTarget);
       toast.success("Attestation", "Your attestation was withdrawn.");
-      await afterChange();
+      onChanged?.();
     } catch (err: any) {
       toast.error("Attestation", err?.message || "Failed to withdraw.");
     } finally {

@@ -1,9 +1,91 @@
+import { queryOptions } from "@tanstack/react-query";
 import {
   getIpfsBasicLink,
   fetchTextFromIpfs,
   fetchJsonFromIpfs,
 } from "utils/ipfsFunctions";
 import type { Proposal, ProposalOutcome } from "types/proposal";
+import type { Proposal as ContractProposal } from "../../packages/tansu";
+import { tansuReads } from "../contracts/soroban_tansu";
+import { readResult } from "../utils/contractErrors";
+import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
+
+const MINUTE = 60_000;
+/** The contract's MAX_PROPOSALS_PER_PAGE: proposal `id` is on page `id / 9`. */
+const PROPOSALS_PER_PAGE = 9;
+
+/**
+ * How many proposals a project has: their ids run from 0 to count - 1.
+ *
+ * Pages fill in order, so the count comes from the last page that is not
+ * empty, found by doubling then bisecting.
+ */
+export const proposalCountQuery = (name: string) =>
+  queryOptions({
+    queryKey: ["proposals", projectKeyHex(name)],
+    queryFn: async () => {
+      const project_key = deriveProjectKey(name);
+      const sizes = new Map<number, number>();
+      const size = async (page: number) => {
+        if (!sizes.has(page)) {
+          const dao = readResult(
+            await tansuReads.get_dao({ project_key, page }),
+            200,
+            301,
+          );
+          sizes.set(page, dao?.proposals.length ?? 0);
+        }
+        return sizes.get(page)!;
+      };
+      if (!(await size(0))) return 0;
+      let [full, empty] = [0, 1];
+      while (await size(empty)) [full, empty] = [empty, empty * 2];
+      while (empty - full > 1) {
+        const middle = Math.floor((full + empty) / 2);
+        if (await size(middle)) full = middle;
+        else empty = middle;
+      }
+      return full * PROPOSALS_PER_PAGE + (await size(full));
+    },
+    staleTime: MINUTE,
+  });
+
+/** A proposal with its votes; `null` when the project has no such id. */
+export const proposalQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["proposal", projectKeyHex(name), id],
+    queryFn: async () =>
+      readResult(
+        await tansuReads.get_proposal({
+          project_key: deriveProjectKey(name),
+          proposal_id: id,
+        }),
+        301,
+      ),
+    staleTime: MINUTE,
+  });
+
+/** Combines proposal queries for `useQueries`: the loaded ones, in order. */
+export const loadedProposals = (
+  reads: { data: ContractProposal | null | undefined; isLoading: boolean }[],
+) => ({
+  proposals: reads.flatMap(({ data }) => (data ? [data] : [])),
+  isLoading: reads.some(({ isLoading }) => isLoading),
+});
+
+/** The addresses that may not vote on a proposal. */
+export const conflictsQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["conflicts", projectKeyHex(name), id],
+    queryFn: async () =>
+      readResult(
+        await tansuReads.get_conflict_of_interest({
+          project_key: deriveProjectKey(name),
+          proposal_id: id,
+        }),
+      ),
+    staleTime: MINUTE,
+  });
 
 const PROPOSAL_MD_PATH = "/proposal.md";
 const OUTCOMES_JSON_PATH = "/outcomes.json";

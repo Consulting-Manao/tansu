@@ -87,7 +87,7 @@ Cross-contract references (`ContractRef` in `types.rs`) carry an optional WASM h
 
 ### dApp (`dapp/`)
 
-Astro pages with React islands; nanostores for state. A Workbox service worker, generated at build time, precaches the app and waits for the user's Reload before a new version takes over (`UpdatePrompt.astro`); link to project pages with the `utils/urls.ts` helpers. All contract interaction goes through the service layer in `src/service/` (e.g. `TxService`, `ReadContractService`, `FlowService`, `ProposalService`, `walletService`) on top of the generated bindings in `dapp/packages/`. User journeys funnel through the `FlowProgressModal` flow component. Wallets via Stellar Wallets Kit. Repository metadata is fetched unauthenticated in the browser from public provider APIs (GitHub, GitLab, Bitbucket, Codeberg, Gitea) — no server proxy.
+Astro pages with React islands. Contract reads are TanStack Query queries (one `queryClient` in `src/service/queryClient.ts`, kept in IndexedDB; factories like `projectQuery` next to their service), and writes refresh them with `invalidateAfter`; see "Data and caching" in `dapp/README.md`. nanostores hold the wallet. A Workbox service worker, generated at build time, precaches the app and waits for the user's Reload before a new version takes over (`UpdatePrompt.astro`); link to project pages with the `utils/urls.ts` helpers. All contract interaction goes through the service layer in `src/service/` (e.g. `TxService`, `ProjectService`, `FlowService`, `ProposalService`, `walletService`) on top of the generated bindings in `dapp/packages/`. User journeys funnel through the `FlowProgressModal` flow component. Wallets via Stellar Wallets Kit. Repository metadata is fetched unauthenticated in the browser from public provider APIs (GitHub, GitLab, Bitbucket, Codeberg, Gitea) — no server proxy.
 
 ### Events pipeline (`tansu/`)
 
@@ -185,7 +185,7 @@ export default defineConfig({
 - React components live under `dapp/src` and are used in Astro pages/layouts.
 - To make a component interactive, use a **client directive** in the `.astro` file: `client:load`, `client:visible`, `client:idle`, or `client:only="react"`.
 - Props passed from Astro to hydrated React components must be serializable (no functions).
-- Project also uses **nanostores** and `@nanostores/react` for shared state; use them for cross-component state where appropriate.
+- Data from the chain goes through **TanStack Query**: `useQuery(someQuery(...), queryClient)` with a factory from `src/service/` (islands have no provider). **nanostores** and `@nanostores/react` hold client state such as the wallet.
 - Use React 19 APIs; follow existing patterns in the codebase for components and hooks.
 
 **Reference**: [React Learn](https://react.dev/learn), [API Reference](https://react.dev/reference/react)
@@ -319,7 +319,7 @@ This allows running Vitest commands via Bash when needed for testing.
 
 - **Non-blocking UI**: Load critical data first to render the page, then fetch additional data in parallel in the background.
 - **Error handling**: Use consistent error handling patterns; the dApp uses a centralized error mapping system.
-- **State management**: Use nanostores for cross-component state; keep component state local when possible.
+- **State management**: Contract reads are TanStack Query queries (see "Data and caching" in `dapp/README.md`); use nanostores for client state shared between islands; keep component state local when possible.
 - **Contract interactions**: All contract calls go through the service layer (`src/service/`) to maintain consistency.
 - **TypeScript**: Use strict mode; run `astro check` and `tsc` to validate types.
 

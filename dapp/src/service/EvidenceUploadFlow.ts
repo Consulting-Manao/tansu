@@ -13,8 +13,9 @@ import { checkSimulationError } from "../utils/contractErrors";
 import { deriveProjectKey } from "../utils/projectKey";
 import { loadedPublicKey, txSourceFor } from "./walletService";
 import type { EvidenceKind } from "../../packages/tansu";
-import { invalidateEvidenceCache, toEvidenceKind } from "./EvidenceService";
+import { toEvidenceKind } from "./EvidenceService";
 import type { EvidenceKindTag } from "./EvidenceService";
+import { invalidateAfter } from "./queryClient";
 
 /**
  * Upload an evidence file to IPFS and record its CID on-chain.
@@ -25,7 +26,7 @@ import type { EvidenceKindTag } from "./EvidenceService";
  * 3. Sign the transaction with the user's wallet
  * 4. Upload the CAR to the IPFS delegation proxy and send the transaction,
  *    in the order the wallet allows (see `uploadAndSend`)
- * 5. Invalidate the evidence cache so the UI picks up the change
+ * 5. Refetch the commit's evidence so the UI picks up the change
  *
  * @returns The IPFS CID of the uploaded evidence file
  */
@@ -59,11 +60,12 @@ export async function setEvidenceWithIpfsUpload(
   const signed = await signAssembledTransaction(tx);
 
   // Step 4 – Upload the CAR to the IPFS proxy (proxy validates & pins) and
-  // send the transaction
-  await uploadAndSend(signed, { cid, carBlob });
-
-  // Step 5 – Invalidate evidence cache
-  invalidateEvidenceCache(projectKey, commit_hash);
+  // send the transaction; step 5 – refetch the commit's evidence
+  await invalidateAfter(uploadAndSend(signed, { cid, carBlob }), [
+    "evidence",
+    projectKey.toString("hex"),
+    commit_hash,
+  ]);
 
   return cid;
 }

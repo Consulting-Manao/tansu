@@ -18,3 +18,9 @@ const options: contract.ClientOptions &
 };
 
 export default new Client.Client(options);
+
+/**
+ * For reads: writes set `publicKey` on the default client, and a client with a
+ * source account loads it from the RPC before every call.
+ */
+export const tansuReads = new Client.Client(options);

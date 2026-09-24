@@ -5,10 +5,8 @@ const mockGetMaxWeight = vi.fn();
 const mockGetTokenBalance = vi.fn();
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
-  default: {
-    options: {
-      publicKey: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-    },
+  default: { options: {} },
+  tansuReads: {
     get_proposal: (...args: unknown[]) => mockGetProposal(...args),
     get_max_weight: (...args: unknown[]) => mockGetMaxWeight(...args),
   },
@@ -26,10 +24,6 @@ vi.mock("../../../src/service/StateService", () => ({
 
 vi.mock("../../../src/service/TxService", () => ({
   signAndSend: vi.fn(),
-}));
-
-vi.mock("../../../src/service/ReadContractService", () => ({
-  invalidateProposalCache: vi.fn(),
 }));
 
 vi.mock("../../../src/utils/crypto", () => ({

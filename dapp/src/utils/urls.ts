@@ -22,6 +22,11 @@ export function getStellarExpertUrl(
 // The trailing slash is the URL Netlify serves without a redirect, and the one
 // the service worker's precache matches.
 
+/** The project the page is about: `?name=` in its address. */
+export function projectNameFromUrl(): string {
+  return new URLSearchParams(window.location.search).get("name") ?? "";
+}
+
 export function projectUrl(name: string): string {
   return `/project/?name=${encodeURIComponent(name)}`;
 }

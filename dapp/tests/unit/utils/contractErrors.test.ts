@@ -2,7 +2,27 @@ import { describe, it, expect } from "vitest";
 import {
   parseContractError,
   checkSimulationError,
+  readResult,
 } from "../../../src/utils/contractErrors";
+
+describe("readResult", () => {
+  it("tells a missing record from a failed read", () => {
+    expect(readResult({ result: 5 })).toBe(5);
+
+    const missing = {
+      result: undefined,
+      simulation: { error: "HostError: Error(Contract, #200)" },
+    };
+    expect(readResult(missing, 200, 300)).toBeNull();
+    // Not a not-found error for this read: it fails with its message.
+    expect(() => readResult(missing, 300)).toThrow(
+      "The provided key is invalid.",
+    );
+    expect(() =>
+      readResult({ result: undefined, simulation: { error: "timeout" } }, 200),
+    ).toThrow("timeout");
+  });
+});
 
 describe("parseContractError", () => {
   it("returns user message for Error(Contract, #N) format", () => {

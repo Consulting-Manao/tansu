@@ -5,7 +5,7 @@ import type { OutcomeContract } from "../types/proposal";
 import Tansu from "../contracts/soroban_tansu";
 import { connectedPublicKey } from "../utils/store";
 import { loadedProjectId } from "./StateService";
-import { deriveProjectKey } from "../utils/projectKey";
+import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 //
 
@@ -18,8 +18,7 @@ import {
 import { txSourceFor } from "./walletService";
 import { checkSimulationError } from "../utils/contractErrors";
 import { Buffer } from "buffer";
-import { invalidateQuery } from "./cache/cacheStore";
-import { queryKeys } from "./cache/cacheKeys";
+import { invalidateAfter } from "./queryClient";
 
 interface CreateProposalFlowParams {
   projectName: string;
@@ -216,9 +215,10 @@ export async function createProposalFlow({
   );
 
   // Steps 3-5: Upload the CAR to IPFS (UI index 3) and send the transaction
-  const result = await uploadAndSend(signed, { cid, carBlob }, onProgress);
-  invalidateQuery(queryKeys.proposals.all(projectName));
-  invalidateQuery(queryKeys.proposals.pages(projectName));
+  const result = await invalidateAfter(
+    uploadAndSend(signed, { cid, carBlob }, onProgress),
+    ["proposals", projectKeyHex(projectName)],
+  );
 
   // The result should be the proposal ID
   if (typeof result === "number") return result;
@@ -255,12 +255,14 @@ export async function joinCommunityFlow({
   );
 
   // Steps 3-5: Upload the profile CAR, if any, and send the transaction
-  await uploadAndSend(
-    signed,
-    profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
-    onProgress,
+  await invalidateAfter(
+    uploadAndSend(
+      signed,
+      profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
+      onProgress,
+    ),
+    ["member", memberAddress],
   );
-  invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
 
@@ -313,12 +315,14 @@ export async function updateMemberFlow({
   onProgress?.(7);
   const signed = await createSignedUpdateMemberTransaction(memberAddress, cid);
 
-  await uploadAndSend(
-    signed,
-    profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
-    onProgress,
+  await invalidateAfter(
+    uploadAndSend(
+      signed,
+      profileFiles.length > 0 && carBlob ? { cid, carBlob } : undefined,
+      onProgress,
+    ),
+    ["member", memberAddress],
   );
-  invalidateQuery(queryKeys.membership.detail(memberAddress));
   return true;
 }
 
@@ -368,10 +372,10 @@ export async function createProjectFlow({
   const signed = await signAssembledTransaction(tx);
 
   // Steps 3-5 – Upload the CAR to IPFS and send the transaction
-  await uploadAndSend(signed, { cid, carBlob }, onProgress);
-  invalidateQuery(queryKeys.projects.all);
-  invalidateQuery(
-    queryKeys.project.byId(deriveProjectKey(projectName).toString("hex")),
+  await invalidateAfter(
+    uploadAndSend(signed, { cid, carBlob }, onProgress),
+    ["projects"],
+    ["project", projectKeyHex(projectName)],
   );
 
   return true;
@@ -455,14 +459,13 @@ export async function updateConfigFlow({
   );
 
   // Step 3 – upload and send
-  await uploadAndSend(signed, { cid, carBlob }, onProgress);
-  const projectId = loadedProjectId();
-  if (projectId) {
-    const projectKey = Buffer.isBuffer(projectId)
-      ? projectId
-      : Buffer.from(projectId, "hex");
-    invalidateQuery(queryKeys.project.byId(projectKey.toString("hex")));
-  }
+  const key = loadedProjectId()?.toString("hex") ?? "";
+  await invalidateAfter(
+    uploadAndSend(signed, { cid, carBlob }, onProgress),
+    ["project", key],
+    ["projects"],
+    ["threshold", key],
+  );
   return true;
 }
 
@@ -496,9 +499,9 @@ export async function removeVoteFlow({
   checkSimulationError(tx as any);
 
   const signed = await signAssembledTransaction(tx);
-  await sendSignedTransaction(signed);
-  invalidateQuery(queryKeys.proposal.raw(projectName, proposalId));
-  invalidateQuery(queryKeys.proposal.detail(projectName, proposalId));
-  invalidateQuery(queryKeys.proposals.all(projectName));
-  invalidateQuery(queryKeys.proposals.pages(projectName));
+  await invalidateAfter(sendSignedTransaction(signed), [
+    "proposal",
+    projectKey.toString("hex"),
+    proposalId,
+  ]);
 }

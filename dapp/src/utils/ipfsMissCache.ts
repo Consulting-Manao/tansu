@@ -142,6 +142,11 @@ export function clearIpfsMisses(cid: string): void {
   });
 }
 
+/** Forget every miss, e.g. when the query cache is reset for a new build. */
+export function clearAllIpfsMisses(): void {
+  update((entries) => entries.clear());
+}
+
 export class IpfsMissError extends Error {
   override name = "IpfsMissError";
   readonly cid: string;

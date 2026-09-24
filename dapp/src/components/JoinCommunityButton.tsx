@@ -1,30 +1,23 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Button from "components/utils/Button";
 import JoinCommunityModal from "components/page/dashboard/JoinCommunityModal";
 
-import { getMember } from "@service/ReadContractService";
+import { memberQuery } from "@service/MemberService";
+import { queryClient } from "@service/queryClient";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey } from "utils/store";
-import { useCachedQuery } from "@service/cache/cacheHooks";
-import { queryKeys } from "@service/cache/cacheKeys";
 
 const JoinCommunityButton = () => {
   const publicKey = useStore(connectedPublicKey);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const memberQuery = useCachedQuery({
-    queryKey: queryKeys.membership.detail(publicKey || ""),
-    queryFn: async () => {
-      if (!publicKey) return null;
-      return await getMember(publicKey);
-    },
-    ttlMs: 4 * 60 * 60 * 1000,
-    enabled: !!publicKey,
-  });
-
-  const isMember = !!memberQuery.data;
+  const { data: member } = useQuery(
+    { ...memberQuery(publicKey ?? ""), enabled: !!publicKey },
+    queryClient,
+  );
 
   // Hide button only when wallet is connected AND user is already a member
-  if (publicKey && isMember) {
+  if (publicKey && member) {
     return null;
   }
 
@@ -43,10 +36,7 @@ const JoinCommunityButton = () => {
       {showJoinModal && (
         <JoinCommunityModal
           onClose={() => setShowJoinModal(false)}
-          onJoined={() => {
-            void memberQuery.refetch({ force: true });
-            setShowJoinModal(false);
-          }}
+          onJoined={() => setShowJoinModal(false)}
           prefillAddress={publicKey || ""}
         />
       )}

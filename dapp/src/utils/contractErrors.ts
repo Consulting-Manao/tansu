@@ -56,6 +56,26 @@ export function parseContractError(error: any): string {
   return errorMessage || "Unknown error during simulation";
 }
 
+type Read<T> = { result: T; simulation?: unknown };
+
+/**
+ * The value of a contract read, or `null` when the contract answers with one of
+ * the `notFound` errors (e.g. 200, no such project). Any other failure throws
+ * its user-facing message, so an RPC error never passes for missing data.
+ */
+export function readResult<T>(tx: Read<T>): T;
+export function readResult<T>(
+  tx: Read<T>,
+  ...notFound: [number, ...number[]]
+): T | null;
+export function readResult<T>(tx: Read<T>, ...notFound: number[]): T | null {
+  const error = (tx.simulation as { error?: string } | undefined)?.error;
+  if (!error) return tx.result;
+  const code = Number(error.match(/Error\(Contract, #(\d+)\)/)?.[1]);
+  if (notFound.includes(code)) return null;
+  throw new Error(parseContractError({ message: error }));
+}
+
 /** Throws with parsed message if result has simulation.error or result.error. */
 export function checkSimulationError(result: any): void {
   if (result?.simulation?.error) {

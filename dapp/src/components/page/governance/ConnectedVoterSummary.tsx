@@ -1,71 +1,67 @@
-import { getMemberMaxWeight } from "@service/ContractService";
-import { getProposalPages, getProposals } from "@service/ReadContractService";
-import { queryKeys } from "@service/cache/cacheKeys";
-import { useCachedQuery } from "@service/cache/cacheHooks";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useStore } from "@nanostores/react";
+import { useMemo } from "react";
+import { votingPowerQuery } from "@service/MemberService";
+import {
+  loadedProposals,
+  proposalCountQuery,
+  proposalQuery,
+} from "@service/ProposalService";
+import { queryClient } from "@service/queryClient";
+import { projectNameFromUrl } from "utils/urls";
 import {
   countVoterProposalStats,
+  modifyProposalFromContract,
   modifyProposalToView,
   truncateMiddle,
 } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 
-const TTL_4H = 4 * 60 * 60 * 1000;
-
 const ConnectedVoterSummary: React.FC = () => {
-  const projectName =
-    new URLSearchParams(window.location.search).get("name") || "";
+  const projectName = projectNameFromUrl();
   const connectedAddress = useStore(connectedPublicKey);
+  const enabled = projectName.length > 0 && !!connectedAddress;
 
-  const summaryQuery = useCachedQuery({
-    queryKey: queryKeys.proposals.voterSummary(
-      projectName,
-      connectedAddress ?? "",
-    ),
-    queryFn: async () => {
-      if (!projectName || !connectedAddress) {
-        return { voted: 0, toVote: 0, votingPower: 0 };
-      }
-
-      const contractPages = Math.max(
-        1,
-        (await getProposalPages(projectName)) ?? 1,
-      );
-      const proposals = (
-        await Promise.all(
-          Array.from({ length: contractPages }, (_, page) =>
-            getProposals(projectName, page),
-          ),
-        )
-      ).flatMap((pageProposals) => pageProposals ?? []);
-
-      const views = proposals
-        .map((proposal) => modifyProposalToView(proposal, projectName))
-        .filter((proposal) => proposal.status !== "malicious");
-
-      const { voted, toVote } = countVoterProposalStats(
-        views,
-        connectedAddress,
-      );
-
-      let votingPower: number;
-      try {
-        votingPower = await getMemberMaxWeight(projectName, connectedAddress);
-      } catch {
-        // ponytail: show counts even if weight RPC fails
-        votingPower = 0;
-      }
-
-      return { voted, toVote, votingPower };
+  // The same queries as the list: every proposal, loaded once.
+  const countRead = useQuery(
+    { ...proposalCountQuery(projectName), enabled },
+    queryClient,
+  );
+  const { proposals, isLoading: areProposalsLoading } = useQueries(
+    {
+      queries: Array.from({ length: countRead.data ?? 0 }, (_, id) => ({
+        ...proposalQuery(projectName, id),
+        enabled,
+      })),
+      combine: loadedProposals,
     },
-    ttlMs: TTL_4H,
-    enabled: projectName.length > 0 && !!connectedAddress,
-  });
+    queryClient,
+  );
+  // Counts still show when the weight cannot be read.
+  const { data: votingPower = 0 } = useQuery(
+    { ...votingPowerQuery(projectName, connectedAddress ?? ""), enabled },
+    queryClient,
+  );
+
+  const { voted, toVote } = useMemo(
+    () =>
+      countVoterProposalStats(
+        proposals
+          .map((proposal) =>
+            modifyProposalToView(
+              modifyProposalFromContract(proposal),
+              projectName,
+            ),
+          )
+          .filter((proposal) => proposal.status !== "malicious"),
+        connectedAddress,
+      ),
+    [proposals, connectedAddress, projectName],
+  );
 
   if (!connectedAddress || !projectName) return null;
 
-  const data = summaryQuery.data;
-  const isLoading = summaryQuery.isLoading || data === undefined;
+  const isLoading = countRead.isPending || areProposalsLoading;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 bg-[#F5F1F9]">
@@ -78,17 +74,15 @@ const ConnectedVoterSummary: React.FC = () => {
         ) : (
           <>
             <span>
-              Voted{" "}
-              <span className="text-primary font-medium">{data.voted}</span>
+              Voted <span className="text-primary font-medium">{voted}</span>
             </span>
             <span>
-              To vote{" "}
-              <span className="text-primary font-medium">{data.toVote}</span>
+              To vote <span className="text-primary font-medium">{toVote}</span>
             </span>
             <span>
               Voting power{" "}
               <span className="text-primary font-medium">
-                {data.votingPower.toLocaleString()}
+                {votingPower.toLocaleString()}
               </span>
             </span>
           </>

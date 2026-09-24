@@ -12,6 +12,11 @@ export function deriveProjectKey(projectName: string): Buffer {
   return Buffer.from(keccak256.create().update(projectName).digest());
 }
 
+/** The project key in hex, as query keys and the UI show it. */
+export function projectKeyHex(projectName: string): string {
+  return deriveProjectKey(projectName).toString("hex");
+}
+
 const SUBPROJECT_KEY_BYTES = 32;
 
 /**

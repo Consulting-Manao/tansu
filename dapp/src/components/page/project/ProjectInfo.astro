@@ -180,7 +180,9 @@ import Button from "components/utils/Button";
     projectInfoLoaded,
     projectState as projectStateStore,
   } from "../../../utils/store";
-  import { getBadges, getMember } from "@service/ReadContractService";
+  // Not a static import: the query cache loads before it resolves, and the
+  // listener below must be in place for the first page load.
+  const reads = () => import("@service/ReadContractService");
 
   document.addEventListener("astro:page-load", async () => {
     // Wait for DOM to be fully ready
@@ -697,7 +699,7 @@ import Button from "components/utils/Button";
 
     const updateCommunityList = async () => {
       try {
-        const badgeData = await getBadges();
+        const badgeData = await (await reads()).getBadges();
         if (!badgeData) return;
 
         const communityContainer = document.getElementById("project-community");
@@ -761,7 +763,7 @@ import Button from "components/utils/Button";
 
     async function openProfileModal(address: any) {
       try {
-        const memberData = await getMember(address);
+        const memberData = await (await reads()).getMember(address);
 
         const container = document.createElement("div");
         document.body.appendChild(container);

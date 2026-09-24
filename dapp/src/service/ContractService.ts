@@ -9,7 +9,7 @@ import {
   type Vote,
   type VoteChoice,
 } from "../../packages/tansu";
-import Tansu from "../contracts/soroban_tansu";
+import Tansu, { tansuReads } from "../contracts/soroban_tansu";
 import { loadedPublicKey, txSourceFor } from "./walletService";
 import { loadedProjectId } from "./StateService";
 import { Buffer } from "buffer";
@@ -23,15 +23,15 @@ import { handleFreighterError } from "../utils/errorHandler";
 import type { VoteReceipt, VoteType } from "types/proposal";
 import { signAndSend } from "./TxService";
 import { encryptWithPublicKey } from "../utils/crypto";
-import { invalidateProposalCache } from "./ReadContractService";
 import {
   getTokenBalance,
   tokenVoteWeightToContract,
 } from "./TokenBalanceService";
 import { parseContractOptionString } from "../utils/utils";
-import { invalidateQuery } from "./cache/cacheStore";
-import { queryKeys } from "./cache/cacheKeys";
-import { invalidateAttestationCache } from "./AttestationService";
+import { invalidateAfter, queryClient } from "./queryClient";
+import { anonymousConfigQuery } from "./ProjectService";
+import { proposalQuery } from "./ProposalService";
+import { votingPowerQuery } from "./MemberService";
 
 export interface VotingPowerResult {
   maxWeight: number;
@@ -149,9 +149,10 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
-  invalidateQuery(queryKeys.project.byId(projectKey.toString("hex")));
-  invalidateQuery(queryKeys.project.hash(projectKey.toString("hex")));
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "commit",
+    projectKey.toString("hex"),
+  ]);
   return true;
 }
 
@@ -183,8 +184,11 @@ export async function attest(
 
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
-  invalidateAttestationCache(projectKey, commit_hash);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "attestations",
+    projectKey.toString("hex"),
+    commit_hash,
+  ]);
   return true;
 }
 
@@ -214,8 +218,11 @@ export async function revokeAttestation(
 
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
-  invalidateAttestationCache(projectKey, commit_hash);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "attestations",
+    projectKey.toString("hex"),
+    commit_hash,
+  ]);
   return true;
 }
 
@@ -227,20 +234,16 @@ export async function getVotingPower(
   proposal_id: number,
   voterAddress?: string,
 ): Promise<VotingPowerResult> {
-  const client = getClient();
   const member = voterAddress ?? loadedPublicKey();
   if (!member) throw new Error("Wallet not connected");
 
-  const projectKey = getProjectKey(project_name);
-
-  const proposalTx = await client.get_proposal({
-    project_key: projectKey,
-    proposal_id: Number(proposal_id),
-  });
-  checkSimulationError(proposalTx);
+  const proposal = await queryClient.query(
+    proposalQuery(project_name, Number(proposal_id)),
+  );
+  if (!proposal) throw new Error("Proposal not found");
 
   const tokenContract = parseContractOptionString(
-    proposalTx.result.vote_data.token_contract,
+    proposal.vote_data.token_contract,
   );
 
   if (tokenContract) {
@@ -254,32 +257,11 @@ export async function getVotingPower(
     };
   }
 
-  const maxWeight = await getMemberMaxWeight(project_name, member);
+  const maxWeight = await queryClient.query(
+    votingPowerQuery(project_name, member),
+  );
 
   return { maxWeight, isTokenVoting: false, tokenContract: null };
-}
-
-/**
- * Project-level max vote weight for a member (badges or NQG on-chain).
- * Not proposal-specific — token-balance proposals use getVotingPower instead.
- */
-export async function getMemberMaxWeight(
-  project_name: string,
-  memberAddress?: string,
-): Promise<number> {
-  const client = getClient();
-  const member = memberAddress ?? loadedPublicKey();
-  if (!member) throw new Error("Wallet not connected");
-
-  const weightTx = await client.get_max_weight({
-    project_key: getProjectKey(project_name),
-    member_address: member,
-  });
-  checkSimulationError(weightTx);
-  const parsedWeight = Number(weightTx.result);
-  return Number.isFinite(parsedWeight)
-    ? Math.max(0, Math.round(parsedWeight))
-    : 0;
 }
 
 /**
@@ -297,14 +279,13 @@ export async function voteToProposal(
 
   const projectKey = getProjectKey(project_name);
 
-  const proposalTx = await client.get_proposal({
-    project_key: projectKey,
-    proposal_id: Number(proposal_id),
-  });
-  checkSimulationError(proposalTx);
-  const isPublicVoting = proposalTx.result.vote_data.public_voting;
+  const proposal = await queryClient.query(
+    proposalQuery(project_name, Number(proposal_id)),
+  );
+  if (!proposal) throw new Error("Proposal not found");
+  const isPublicVoting = proposal.vote_data.public_voting;
   const tokenContract = parseContractOptionString(
-    proposalTx.result.vote_data.token_contract,
+    proposal.vote_data.token_contract,
   );
 
   // Badge: u32 badge weight. Token: u32 whole-token units (contract checks balance).
@@ -369,14 +350,8 @@ export async function voteToProposal(
     const r = crypto.getRandomValues(new Uint32Array(3));
     const seedsArr = [Number(r[0]), Number(r[1]), Number(r[2])];
 
-    // Get anonymous voting config
-    const configTx = await client.get_anonymous_voting_config({
-      project_key: projectKey,
-    });
-    // Ensure config actually exists (not an error bubbled in result)
-    checkSimulationError(configTx);
-
-    const publicKey = configTx.result?.public_key;
+    const config = await queryClient.query(anonymousConfigQuery(project_name));
+    const publicKey = config?.public_key;
     if (!publicKey)
       throw new Error("Anonymous voting config missing public key");
 
@@ -403,7 +378,7 @@ export async function voteToProposal(
             encryptWithPublicKey(`${saltPrefix}:${v}`, publicKey),
           ),
         ),
-        client.build_commitments_from_votes({
+        tansuReads.build_commitments_from_votes({
           project_key: projectKey,
           votes: votesU128 as unknown as bigint[],
           seeds: seedsU128 as unknown as bigint[],
@@ -446,8 +421,11 @@ export async function voteToProposal(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  const result = await submitTransaction(assembledTx);
-  invalidateProposalCache(project_name, proposal_id);
+  const result = await invalidateAfter(submitTransaction(assembledTx), [
+    "proposal",
+    projectKey.toString("hex"),
+    Number(proposal_id),
+  ]);
 
   return {
     projectName: project_name,
@@ -485,9 +463,11 @@ async function execute(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  const result = await submitTransaction(assembledTx);
-  invalidateProposalCache(project_name, proposal_id);
-  return result;
+  return await invalidateAfter(submitTransaction(assembledTx), [
+    "proposal",
+    projectKey.toString("hex"),
+    Number(proposal_id),
+  ]);
 }
 
 // Direct export - no wrapper needed
@@ -525,8 +505,13 @@ export async function setBadges(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
-  invalidateQuery(queryKeys.membership.detail(member_address));
+  const key = projectKey.toString("hex");
+  await invalidateAfter(
+    submitTransaction(assembledTx),
+    ["badges", key],
+    ["member", member_address],
+    ["votingPower", key, member_address],
+  );
   return true;
 }
 
@@ -552,7 +537,11 @@ export async function addConflictOfInterest(
   });
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "conflicts",
+    projectKey.toString("hex"),
+    Number(proposal_id),
+  ]);
   return true;
 }
 
@@ -578,7 +567,11 @@ export async function removeConflictOfInterest(
   });
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "conflicts",
+    projectKey.toString("hex"),
+    Number(proposal_id),
+  ]);
   return true;
 }
 
@@ -602,8 +595,11 @@ export async function revokeProposal(
   });
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
-  invalidateProposalCache(project_name, proposal_id);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "proposal",
+    projectKey.toString("hex"),
+    Number(proposal_id),
+  ]);
   return true;
 }
 
@@ -621,17 +617,12 @@ export async function setupAnonymousVoting(
 
   const projectKey = getProjectKey(project_name);
 
-  // Check if already configured
+  // Check if already configured; set it up on a failed read too.
   if (!force) {
-    try {
-      const configTx = await client.get_anonymous_voting_config({
-        project_key: projectKey,
-      });
-      checkSimulationError(configTx);
-      if (configTx.result) return true;
-    } catch {
-      // Fall-through to setup on network/simulation errors
-    }
+    const config = await queryClient
+      .query(anonymousConfigQuery(project_name))
+      .catch(() => null);
+    if (config) return true;
   }
 
   const assembledTx = await client.anonymous_voting_setup({
@@ -643,6 +634,9 @@ export async function setupAnonymousVoting(
   // Check for simulation errors (contract errors) before submitting
   checkSimulationError(assembledTx);
 
-  await submitTransaction(assembledTx);
+  await invalidateAfter(submitTransaction(assembledTx), [
+    "anonymousConfig",
+    projectKey.toString("hex"),
+  ]);
   return true;
 }

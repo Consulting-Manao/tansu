@@ -21,7 +21,8 @@ import {
   validateGithubUrl,
 } from "utils/validations";
 import { updateConfigFlow } from "@service/FlowService";
-import { getAttestationThreshold } from "@service/AttestationService";
+import { thresholdQuery } from "@service/AttestationService";
+import { queryClient } from "@service/queryClient";
 import {
   DEFAULT_FINALITY_THRESHOLD_PERCENT,
   MAX_FINALITY_THRESHOLD_PERCENT,
@@ -320,7 +321,9 @@ const UpdateConfigModal = () => {
 
   const loadThreshold = async (name: string) => {
     if (!name) return;
-    const value = await getAttestationThreshold(name);
+    const value = await queryClient
+      .query(thresholdQuery(name))
+      .catch(() => DEFAULT_FINALITY_THRESHOLD_PERCENT);
     const resolved = String(value || DEFAULT_FINALITY_THRESHOLD_PERCENT);
     originalThresholdRef.current = resolved;
     setFinalityThreshold(resolved);

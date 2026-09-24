@@ -17,7 +17,7 @@ vi.mock("../../../src/contracts/soroban_tansu", () => {
     values: [{ address, weight, encrypted_votes, encrypted_seeds }],
   });
   return {
-    default: {
+    tansuReads: {
       get_proposal: async () => ({
         result: {
           proposer: "GPROPOSER",

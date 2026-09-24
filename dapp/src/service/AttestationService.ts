@@ -1,19 +1,12 @@
-import { Buffer } from "buffer";
+import { queryOptions } from "@tanstack/react-query";
 
-import type {
-  Attestation,
-  AttestationTarget,
-  EvidenceKind,
-  FinalityStatus,
-} from "../../packages/tansu";
-import Tansu from "../contracts/soroban_tansu";
-import { checkSimulationError } from "../utils/contractErrors";
-import { deriveProjectKey } from "../utils/projectKey";
-import { fetchWithCache, invalidateQuery } from "./cache/cacheStore";
-import { queryKeys } from "./cache/cacheKeys";
+import type { AttestationTarget, EvidenceKind } from "../../packages/tansu";
+import { tansuReads } from "../contracts/soroban_tansu";
+import { readResult } from "../utils/contractErrors";
+import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { toEvidenceKind, type EvidenceKindTag } from "./EvidenceService";
 
-const TTL_4H = 4 * 60 * 60 * 1000;
+const MINUTE = 60_000;
 
 export interface CommitFinality {
   attested: number;
@@ -21,18 +14,6 @@ export interface CommitFinality {
   percent: number;
   isFinal: boolean;
   finalizedAt: number | null;
-}
-
-const EMPTY_FINALITY: CommitFinality = {
-  attested: 0,
-  total: 0,
-  percent: 0,
-  isFinal: false,
-  finalizedAt: null,
-};
-
-function projectKeyFromInput(project: string | Buffer): Buffer {
-  return Buffer.isBuffer(project) ? project : deriveProjectKey(project);
 }
 
 export function commitTarget(): AttestationTarget {
@@ -46,148 +27,86 @@ export function evidenceTarget(
   return { tag: "Evidence", values: [toEvidenceKind(kind), cid] };
 }
 
-/** Stable cache-key fragment for a target. */
-function attestationTargetKey(target: AttestationTarget): string {
+/** Stable query-key fragment for a target. */
+function targetKey(target: AttestationTarget): string {
   if (target.tag === "Commit") return "Commit";
   const [kind, cid] = target.values;
   return `Evidence:${kind.tag}:${cid}`;
 }
 
-async function readAttestationsFromContract(
-  projectKey: Buffer,
+/**
+ * The attestations recorded for a commit or evidence target: oldest first,
+ * at most one per attester.
+ */
+export const attestationsQuery = (
+  name: string,
   commitHash: string,
   target: AttestationTarget,
-): Promise<Attestation[]> {
-  const res = await Tansu.get_attestations({
-    project_key: projectKey,
-    commit_hash: commitHash,
-    target,
-  });
-
-  checkSimulationError(res);
-  return (res.result as Attestation[] | undefined) ?? [];
-}
-
-/**
- * Read the attestations recorded for a commit or evidence target.
- *
- * Entries come back oldest-first with at most one per attester; empty when
- * nothing has been attested.
- */
-export async function getAttestations(
-  project: string | Buffer,
-  commitHash: string,
-  target: AttestationTarget = commitTarget(),
-): Promise<Attestation[]> {
-  if (!commitHash.trim()) return [];
-
-  const projectKey = projectKeyFromInput(project);
-  const projectId = projectKey.toString("hex");
-
-  return await fetchWithCache(
-    queryKeys.attestations.byTarget(
-      projectId,
+) =>
+  queryOptions({
+    queryKey: [
+      "attestations",
+      projectKeyHex(name),
       commitHash,
-      attestationTargetKey(target),
-    ),
-    async () => {
-      try {
-        return await readAttestationsFromContract(
-          projectKey,
-          commitHash,
-          target,
-        );
-      } catch {
-        return [];
-      }
-    },
-    { ttlMs: TTL_4H },
-  );
-}
-
-/**
- * Read the contract-computed finality for a target.
- *
- * The threshold comparison runs on-chain; this never re-derives the decision.
- * `finalizedAt` is set once the target has latched as final.
- */
-export async function getCommitFinality(
-  project: string | Buffer,
-  commitHash: string,
-  target: AttestationTarget = commitTarget(),
-): Promise<CommitFinality> {
-  if (!commitHash.trim()) return EMPTY_FINALITY;
-
-  const projectKey = projectKeyFromInput(project);
-  const projectId = projectKey.toString("hex");
-
-  return await fetchWithCache(
-    queryKeys.attestations.finality(
-      projectId,
-      commitHash,
-      attestationTargetKey(target),
-    ),
-    async () => {
-      try {
-        const res = await Tansu.get_attestation_finality({
-          project_key: projectKey,
+      targetKey(target),
+    ],
+    queryFn: async () =>
+      readResult(
+        await tansuReads.get_attestations({
+          project_key: deriveProjectKey(name),
           commit_hash: commitHash,
           target,
-        });
-        checkSimulationError(res);
+        }),
+      ),
+    staleTime: MINUTE,
+  });
 
-        const { attested, total, is_final, finalized_at } =
-          res.result as FinalityStatus;
-
-        return {
-          attested,
-          total,
-          percent: total ? Math.round((attested / total) * 100) : 0,
-          isFinal: is_final,
-          finalizedAt: finalized_at != null ? Number(finalized_at) : null,
-        };
-      } catch {
-        return EMPTY_FINALITY;
-      }
+/**
+ * Whether a target is final, as the contract computes it: the threshold
+ * comparison runs on chain and is never re-derived here. `finalizedAt` is set
+ * once the target has latched as final.
+ */
+export const finalityQuery = (
+  name: string,
+  commitHash: string,
+  target: AttestationTarget,
+) =>
+  queryOptions({
+    queryKey: [
+      "attestations",
+      projectKeyHex(name),
+      commitHash,
+      targetKey(target),
+      "finality",
+    ],
+    queryFn: async (): Promise<CommitFinality> => {
+      const { attested, total, is_final, finalized_at } = readResult(
+        await tansuReads.get_attestation_finality({
+          project_key: deriveProjectKey(name),
+          commit_hash: commitHash,
+          target,
+        }),
+      );
+      return {
+        attested,
+        total,
+        percent: total ? Math.round((attested / total) * 100) : 0,
+        isFinal: is_final,
+        finalizedAt: finalized_at != null ? Number(finalized_at) : null,
+      };
     },
-    { ttlMs: TTL_4H },
-  );
-}
+    staleTime: MINUTE,
+  });
 
-/** Per-project finality threshold, in percent. */
-export async function getAttestationThreshold(
-  project: string | Buffer,
-): Promise<number> {
-  const projectKey = projectKeyFromInput(project);
-  const projectId = projectKey.toString("hex");
-
-  return await fetchWithCache(
-    queryKeys.attestations.threshold(projectId),
-    async () => {
-      try {
-        const res = await Tansu.get_attestation_threshold({
-          project_key: projectKey,
-        });
-        checkSimulationError(res);
-        return (res.result as number | undefined) ?? 0;
-      } catch {
-        return 0;
-      }
-    },
-    { ttlMs: TTL_4H },
-  );
-}
-
-export function invalidateAttestationCache(
-  project: string | Buffer,
-  commitHash?: string,
-): void {
-  const projectId = projectKeyFromInput(project).toString("hex");
-
-  if (commitHash) {
-    invalidateQuery(queryKeys.attestations.commit(projectId, commitHash));
-    return;
-  }
-
-  invalidateQuery(queryKeys.attestations.all(projectId));
-}
+/** The project's finality threshold, in percent. */
+export const thresholdQuery = (name: string) =>
+  queryOptions({
+    queryKey: ["threshold", projectKeyHex(name)],
+    queryFn: async () =>
+      readResult(
+        await tansuReads.get_attestation_threshold({
+          project_key: deriveProjectKey(name),
+        }),
+      ),
+    staleTime: 10 * MINUTE,
+  });

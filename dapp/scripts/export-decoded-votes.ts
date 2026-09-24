@@ -11,13 +11,15 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { QueryClient } from "@tanstack/react-query";
 import {
-  getProposalPages,
-  getProposals,
-} from "../src/service/ReadContractService";
+  proposalCountQuery,
+  proposalQuery,
+} from "../src/service/ProposalService";
 import { computeAnonymousVotingData } from "../src/utils/anonymousVoting";
 import { buildDecodedVotesCsv } from "../src/utils/anonymousVotingCsv";
 import type { Proposal } from "../src/types/proposal";
+import { modifyProposalFromContract } from "../src/utils/utils";
 
 export interface ExportResult {
   outDir: string;
@@ -45,12 +47,12 @@ export async function exportDecodedVotes(
   const outDir = join(scriptDir, "..", "..", "decoded-votes-export");
   mkdirSync(outDir, { recursive: true });
 
-  const pages = (await getProposalPages(projectName)) ?? 1;
-
+  const client = new QueryClient();
+  const count = await client.query(proposalCountQuery(projectName));
   const proposals: Proposal[] = [];
-  for (let page = 0; page < pages; page++) {
-    const pageProposals = await getProposals(projectName, page);
-    if (pageProposals) proposals.push(...pageProposals);
+  for (let id = 0; id < count; id++) {
+    const proposal = await client.query(proposalQuery(projectName, id));
+    if (proposal) proposals.push(modifyProposalFromContract(proposal));
   }
 
   console.log(

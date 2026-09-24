@@ -17,7 +17,8 @@ import {
 import { getProjectHash } from "@service/ReadContractService";
 import { loadProjectInfo, loadProjectName } from "@service/StateService";
 import { loadedPublicKey } from "@service/walletService";
-import { getEvidenceHistory } from "@service/EvidenceService";
+import { evidenceQuery } from "@service/EvidenceService";
+import { queryClient } from "@service/queryClient";
 import type { CommitEvidence, EvidenceKindTag } from "@service/EvidenceService";
 import { getIpfsUrl } from "utils/ipfsFunctions";
 import { formatDate } from "utils/formatTimeFunctions";
@@ -134,9 +135,9 @@ const CommitEvidenceModal = () => {
       // Fetch full append-only history for each evidence kind in parallel
       const historyByKind = await Promise.all(
         EVIDENCE_KINDS.map((kind) =>
-          getEvidenceHistory(projectName, commitHashValue, kind.tag).catch(
-            () => [] as CommitEvidence[],
-          ),
+          queryClient
+            .query(evidenceQuery(projectName, commitHashValue, kind.tag))
+            .catch(() => [] as CommitEvidence[]),
         ),
       );
       const allEvidence = historyByKind.flat();

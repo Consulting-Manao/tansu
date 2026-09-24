@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly PUBLIC_DEFAULT_FEE: string;
   readonly PUBLIC_DEFAULT_TIMEOUT: number;
   readonly PUBLIC_DELEGATION_API_URL: string;
+  /** Set by astro.config.mjs: the commit being built, or the build time. */
+  readonly PUBLIC_BUILD: string;
 }
 
 interface ImportMeta {

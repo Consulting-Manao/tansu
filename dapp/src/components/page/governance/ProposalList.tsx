@@ -1,64 +1,55 @@
-import { getProposalPages, getProposals } from "@service/ReadContractService";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  loadedProposals,
+  proposalCountQuery,
+  proposalQuery,
+} from "@service/ProposalService";
+import { queryClient } from "@service/queryClient";
+import { projectNameFromUrl } from "utils/urls";
 import Loading from "components/utils/Loading";
 import { useEffect, useMemo, useState } from "react";
-import { modifyProposalToView, orderProposalsForVoter } from "utils/utils";
+import {
+  modifyProposalFromContract,
+  modifyProposalToView,
+  orderProposalsForVoter,
+} from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 import { useStore } from "@nanostores/react";
-import type { Proposal } from "types/proposal";
+import Button from "../../utils/Button";
 import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
-import { queryKeys } from "@service/cache/cacheKeys";
-import { useCachedQuery } from "@service/cache/cacheHooks";
 
-const EMPTY_PROPOSALS: Proposal[] = [];
+const PROPOSALS_PER_PAGE = 18;
 
 const ProposalList: React.FC = () => {
-  const projectName =
-    new URLSearchParams(window.location.search).get("name") || "";
+  const projectName = projectNameFromUrl();
   const [currentPage, setCurrentPage] = useState(0);
   const [showVotingModal, setShowVotingModal] = useState(false);
   const [proposalId, setProposalId] = useState<number>();
   const [proposalTitle, setProposalTitle] = useState<string>();
   const connectedAddress = useStore(connectedPublicKey);
 
-  const proposalPagesQuery = useCachedQuery({
-    queryKey: queryKeys.proposals.pages(projectName),
-    queryFn: async () => {
-      if (!projectName) return 1;
-      return Math.max(1, (await getProposalPages(projectName)) ?? 1);
+  const countRead = useQuery(
+    { ...proposalCountQuery(projectName), enabled: projectName.length > 0 },
+    queryClient,
+  );
+  const count = countRead.data ?? 0;
+  const totalPage = Math.max(1, Math.ceil(count / PROPOSALS_PER_PAGE));
+
+  // Newest first: the page's ids count down from its newest one.
+  const newest = count - 1 - currentPage * PROPOSALS_PER_PAGE;
+  const ids = Array.from(
+    { length: Math.max(0, Math.min(PROPOSALS_PER_PAGE, newest + 1)) },
+    (_, index) => newest - index,
+  );
+  const { proposals, isLoading: isPageLoading } = useQueries(
+    {
+      queries: ids.map((id) => proposalQuery(projectName, id)),
+      combine: loadedProposals,
     },
-    ttlMs: 4 * 60 * 60 * 1000,
-  });
-
-  const contractTotalPage = Math.max(1, proposalPagesQuery.data ?? 1);
-  const totalPage = Math.max(1, Math.ceil(contractTotalPage / 2));
-
-  const proposalDataQuery = useCachedQuery({
-    queryKey: queryKeys.proposals.list(projectName, currentPage),
-    queryFn: async () => {
-      if (!projectName) return [];
-
-      const latestContractPage = contractTotalPage - 1 - currentPage * 2;
-      const contractPagesToFetch = [
-        latestContractPage,
-        latestContractPage - 1,
-      ].filter((page) => page >= 0);
-
-      const proposals = (
-        await Promise.all(
-          contractPagesToFetch.map((page) => getProposals(projectName, page)),
-        )
-      ).flatMap((pageProposals) => pageProposals ?? []);
-
-      return proposals;
-    },
-    ttlMs: 4 * 60 * 60 * 1000,
-    enabled: projectName.length > 0 && proposalPagesQuery.data !== undefined,
-  });
-
-  // Stable empty fallback so useMemo does not reshuffle on every loading render.
-  const rawProposals = proposalDataQuery.data ?? EMPTY_PROPOSALS;
+    queryClient,
+  );
 
   useEffect(() => {
     setCurrentPage((previousPage) =>
@@ -71,24 +62,30 @@ const ProposalList: React.FC = () => {
     setCurrentPage(Math.min(Math.max(page, 0), totalPage - 1));
   };
 
-  const isLoading =
-    proposalPagesQuery.isLoading ||
-    proposalPagesQuery.data === undefined ||
-    proposalDataQuery.isLoading;
+  const isLoading = countRead.isLoading || isPageLoading;
 
-  // Map + order inside useMemo; deps are cache snapshot + wallet (not a
-  // freshly allocated views array) so sibling re-renders do not reshuffle.
+  // `proposals` only changes with the queries' data, so re-renders from
+  // elsewhere do not reshuffle the list.
   const sortedProposals = useMemo(() => {
-    const views = rawProposals
-      .map((proposal) => modifyProposalToView(proposal, projectName))
+    const views = proposals
+      .map((proposal) =>
+        modifyProposalToView(modifyProposalFromContract(proposal), projectName),
+      )
       .filter((proposal) => proposal.status !== "malicious");
     return orderProposalsForVoter(views, connectedAddress);
-  }, [rawProposals, connectedAddress, projectName]);
+  }, [proposals, connectedAddress, projectName]);
 
   return (
     <>
       {isLoading ? (
         <Loading />
+      ) : countRead.isError ? (
+        <div className="flex flex-col items-start gap-3">
+          <p>Could not load the proposals: {countRead.error.message}</p>
+          <Button size="sm" onClick={() => countRead.refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : (
         <div className="w-full flex flex-col gap-12">
           <div className="flex flex-col gap-[18px]">
@@ -116,10 +113,7 @@ const ProposalList: React.FC = () => {
           projectName={projectName}
           proposalId={proposalId}
           proposalTitle={proposalTitle}
-          onVoteSuccess={() => {
-            proposalDataQuery.refetch({ force: true });
-            setShowVotingModal(false);
-          }}
+          onVoteSuccess={() => setShowVotingModal(false)}
           onClose={() => setShowVotingModal(false)}
         />
       )}

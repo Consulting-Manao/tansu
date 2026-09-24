@@ -15,12 +15,15 @@
         "@stellar/freighter-api": "^6.0.1",
         "@stellar/stellar-sdk": "^17.0.1",
         "@stellar/stellar-xdr-json": "^28.0.0",
+        "@tanstack/query-persist-client-core": "^5.103.2",
+        "@tanstack/react-query": "^5.103.2",
         "astro": "^7.2.9",
         "astro-seo": "1.1.0",
         "buffer": "^6.0.3",
         "classnames": "^2.5.1",
         "dompurify": "^3.4.14",
         "github-markdown-css": "^5.9.0",
+        "idb-keyval": "^6.3.0",
         "ipfs-car": "^3.1.0",
         "js-sha3": "^0.13.0",
         "lossless-json": "^4.3.1",
@@ -1308,6 +1311,12 @@
 
     "@tailwindcss/postcss": ["@tailwindcss/postcss@4.3.3", "", { "dependencies": { "@alloc/quick-lru": "^5.2.0", "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "postcss": "^8.5.16", "tailwindcss": "4.3.3" } }, "sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg=="],
 
+    "@tanstack/query-core": ["@tanstack/query-core@5.103.2", "", {}, "sha512-I8DkFXls5jXLqtm8+QpOhEmG07hIblhSZFzafg9wHsMSEvMzULy9hK17wU1T/ahfhMbtITJhbxutwwCoihkR7A=="],
+
+    "@tanstack/query-persist-client-core": ["@tanstack/query-persist-client-core@5.103.2", "", { "dependencies": { "@tanstack/query-core": "5.103.2" } }, "sha512-yd//zcQILITjto5G1Rq0lTCd1AgXgwdmeCgqh3sTIqIdALPj8Ry7ilELfzEltMvHcoB612TLxPnF/6Yy9HoJ8Q=="],
+
+    "@tanstack/react-query": ["@tanstack/react-query@5.103.2", "", { "dependencies": { "@tanstack/query-core": "5.103.2" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-B+fWiYZBc+0uUD5zDZAeLw9dKj7XEsdnuu6zRZ+no6LNKpeE3P3bJ+N6HINjcIlWR6fW3vUoTneEaGa2V6ehqw=="],
+
     "@trezor/analytics": ["@trezor/analytics@1.5.0", "", { "dependencies": { "@trezor/env-utils": "1.5.0", "@trezor/utils": "9.5.0" }, "peerDependencies": { "tslib": "^2.6.2" } }, "sha512-evILW5XJEmfPlf0TY1duOLtGJ47pdGeSKVE3P75ODEUsRNxtPVqlkOUBPmYpCxPnzS8XDmkatT8lf9/DF0G6nA=="],
 
     "@trezor/blockchain-link": ["@trezor/blockchain-link@2.6.1", "", { "dependencies": { "@solana-program/compute-budget": "^0.8.0", "@solana-program/stake": "^0.2.1", "@solana-program/token": "^0.5.1", "@solana-program/token-2022": "^0.4.2", "@solana/kit": "^2.3.0", "@solana/rpc-types": "^2.3.0", "@stellar/stellar-sdk": "14.2.0", "@trezor/blockchain-link-types": "1.5.0", "@trezor/blockchain-link-utils": "1.5.1", "@trezor/env-utils": "1.5.0", "@trezor/utils": "9.5.0", "@trezor/utxo-lib": "2.5.0", "@trezor/websocket-client": "1.3.0", "@types/web": "^0.0.197", "crypto-browserify": "3.12.0", "socks-proxy-agent": "8.0.5", "stream-browserify": "^3.0.0", "xrpl": "4.4.3" }, "peerDependencies": { "tslib": "^2.6.2" } }, "sha512-SPwxkihOMI0o79BOy0RkfgVL2meuJhIe1yWHCeR8uoqf5KGblUyeXxvNCy6w8ckJ9LRpM1+bZhsUODuNs3083Q=="],
@@ -2510,7 +2519,7 @@
 
     "idb": ["idb@7.1.1", "", {}, "sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ=="],
 
-    "idb-keyval": ["idb-keyval@6.2.4", "", {}, "sha512-D/NzHWUmYJGXi++z67aMSrnisb9A3621CyRK5G89JyTlN13C8xf0g04DLxUKMufPem3e3L2JAXR6Z00OWy183Q=="],
+    "idb-keyval": ["idb-keyval@6.3.0", "", {}, "sha512-um+2dgAWmYsu615EXpWVwSmapJhON0G43t3Ka/EVaohzPQXSMqKEqeDK/oIW3Ow+BXaF2PvSc+oBTFp793A5Ow=="],
 
     "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
 
@@ -4509,6 +4518,8 @@
     "@walletconnect/jsonrpc-http-connection/cross-fetch": ["cross-fetch@3.2.0", "", { "dependencies": { "node-fetch": "^2.7.0" } }, "sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q=="],
 
     "@walletconnect/jsonrpc-utils/tslib": ["tslib@1.14.1", "", {}, "sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg=="],
+
+    "@walletconnect/keyvaluestorage/idb-keyval": ["idb-keyval@6.2.4", "", {}, "sha512-D/NzHWUmYJGXi++z67aMSrnisb9A3621CyRK5G89JyTlN13C8xf0g04DLxUKMufPem3e3L2JAXR6Z00OWy183Q=="],
 
     "@walletconnect/logger/pino": ["pino@10.0.0", "", { "dependencies": { "atomic-sleep": "^1.0.0", "on-exit-leak-free": "^2.1.0", "pino-abstract-transport": "^2.0.0", "pino-std-serializers": "^7.0.0", "process-warning": "^5.0.0", "quick-format-unescaped": "^4.0.3", "real-require": "^0.2.0", "safe-stable-stringify": "^2.3.1", "slow-redact": "^0.3.0", "sonic-boom": "^4.0.1", "thread-stream": "^3.0.0" }, "bin": { "pino": "bin.js" } }, "sha512-eI9pKwWEix40kfvSzqEP6ldqOoBIN7dwD/o91TY5z8vQI12sAffpR/pOqAD1IVVwIVHDpHjkq0joBPdJD0rafA=="],
 
