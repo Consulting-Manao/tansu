@@ -15,9 +15,9 @@
     "ipfs-car": "^3.1.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260804.1",
+    "@cloudflare/workers-types": "^5.20260924.1",
     "typescript": "^7.0.2",
-    "wrangler": "^4.119.0"
+    "wrangler": "^4.138.0"
   },
   "type": "module"
 }
