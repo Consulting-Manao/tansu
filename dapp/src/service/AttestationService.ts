@@ -1,10 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import type { AttestationTarget, EvidenceKind } from "../../packages/tansu";
-import { tansuReads } from "../contracts/soroban_tansu";
+import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { readResult } from "../utils/contractErrors";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { toEvidenceKind, type EvidenceKindTag } from "./EvidenceService";
+import { sendTransaction } from "./TxService";
+import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
 
@@ -110,3 +112,47 @@ export const thresholdQuery = (name: string) =>
       ),
     staleTime: 10 * MINUTE,
   });
+
+/**
+ * Endorse a commit or an evidence artifact. One per maintainer and target:
+ * attesting again is rejected on chain (`AlreadyAttested`).
+ */
+export async function attest(
+  name: string,
+  commitHash: string,
+  target: AttestationTarget,
+  note?: string,
+): Promise<void> {
+  const attester = connectedAddress();
+  const tx = await tansuFor(attester).attest({
+    attester,
+    project_key: deriveProjectKey(name),
+    commit_hash: commitHash,
+    target,
+    note,
+  });
+  await sendTransaction(tx, {
+    invalidate: [["attestations", projectKeyHex(name), commitHash]],
+  });
+}
+
+/**
+ * Withdraw one's attestation: rejected on chain once the target is final, or
+ * after the revocation window.
+ */
+export async function revokeAttestation(
+  name: string,
+  commitHash: string,
+  target: AttestationTarget,
+): Promise<void> {
+  const attester = connectedAddress();
+  const tx = await tansuFor(attester).revoke_attestation({
+    attester,
+    project_key: deriveProjectKey(name),
+    commit_hash: commitHash,
+    target,
+  });
+  await sendTransaction(tx, {
+    invalidate: [["attestations", projectKeyHex(name), commitHash]],
+  });
+}

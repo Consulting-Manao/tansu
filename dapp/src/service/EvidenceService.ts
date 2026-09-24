@@ -1,9 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import type { Evidence, EvidenceKind } from "../../packages/tansu";
-import { tansuReads } from "../contracts/soroban_tansu";
+import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { readResult } from "../utils/contractErrors";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
+import { packUpload, sendTransaction } from "./TxService";
+import { connectedAddress } from "./walletService";
 
 export type EvidenceKindTag = EvidenceKind["tag"];
 
@@ -46,3 +48,29 @@ export const evidenceQuery = (
       ).map((evidence) => ({ kind, ...evidence })),
     staleTime: 5 * 60_000,
   });
+
+/**
+ * Upload an evidence file to IPFS and record its CID for a commit. Returns the
+ * CID.
+ */
+export async function setEvidence(
+  name: string,
+  commitHash: string,
+  kind: EvidenceKindTag,
+  file: File,
+): Promise<string> {
+  const upload = await packUpload([file]);
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).set_evidence({
+    maintainer,
+    project_key: deriveProjectKey(name),
+    commit_hash: commitHash,
+    kind: toEvidenceKind(kind),
+    cid: upload.cid,
+  });
+  await sendTransaction(tx, {
+    upload,
+    invalidate: [["evidence", projectKeyHex(name), commitHash]],
+  });
+  return upload.cid;
+}

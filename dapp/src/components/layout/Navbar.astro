@@ -1,7 +1,8 @@
 ---
-import ConnectWallet from "../ConnectWallet.astro";
+import ConnectButton from "../ConnectButton.tsx";
 import JoinCommunityButton from "../JoinCommunityButton.tsx";
 import NavbarSearch from "../NavbarSearch.tsx";
+import WalletFundingWrapper from "../wallet/WalletFundingWrapper.tsx";
 ---
 
 <header role="banner">
@@ -39,9 +40,9 @@ import NavbarSearch from "../NavbarSearch.tsx";
         <!-- Wallet connect + community button -->
         <div class="flex items-center gap-4 md:gap-6 flex-shrink-0">
           <div class="ml-6">
-            <ConnectWallet />
+            <ConnectButton client:only="react" />
           </div>
-          <div id="join-community-wrapper" class="hidden sm:block">
+          <div class="hidden sm:block">
             <JoinCommunityButton client:only="react" />
           </div>
         </div>
@@ -50,16 +51,11 @@ import NavbarSearch from "../NavbarSearch.tsx";
   </nav>
 </header>
 
+<!-- The offer to fund a new or empty account -->
+<WalletFundingWrapper client:load />
+
 <script>
   const GLOBAL_KEY = Symbol.for("globalListenersInited");
-
-  const updateJoinButtonVisibility = () => {
-    const publicKey = localStorage.getItem("publicKey");
-    const wrapper = document.getElementById("join-community-wrapper");
-    if (wrapper) {
-      wrapper.style.display = publicKey ? "none" : "block";
-    }
-  };
 
   const initGlobalListeners = () => {
     if ((window as any)[GLOBAL_KEY]) return;
@@ -74,17 +70,7 @@ import NavbarSearch from "../NavbarSearch.tsx";
         document.dispatchEvent(new CustomEvent("create-project-global"));
       }
     });
-
-    window.addEventListener("walletConnected", updateJoinButtonVisibility);
-    window.addEventListener("walletDisconnected", updateJoinButtonVisibility);
   };
 
-  document.addEventListener("astro:page-load", () => {
-    updateJoinButtonVisibility();
-    initGlobalListeners();
-  });
-
-  // immediate run on first load
-  updateJoinButtonVisibility();
   initGlobalListeners();
 </script>

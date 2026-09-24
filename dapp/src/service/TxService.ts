@@ -1,211 +1,188 @@
-import { retryAsync } from "../utils/retry";
-import { parseContractError } from "../utils/contractErrors";
+/**
+ * The one write path: sign a contract call once, land it, refetch what it
+ * changed. Donations, classic payments, sign through the same wallet.
+ */
 import * as StellarSdk from "@stellar/stellar-sdk";
+import type { QueryKey } from "@tanstack/react-query";
+import { checkSimulationError } from "../utils/contractErrors";
+import {
+  ipfsQuery,
+  packFilesToCar,
+  uploadToIpfsProxy,
+} from "../utils/ipfsFunctions";
+import { retryAsync } from "../utils/retry";
 import { toast } from "utils/utils";
+import { invalidateAfter, queryClient } from "./queryClient";
 import { disconnect, loadedPublicKey } from "./walletService";
 
-// Freighter kept ONLY as legacy fallback — not the primary signer
-import freighterPkg from "@stellar/freighter-api";
-const {
-  isConnected,
-  requestAccess,
-  signTransaction: freighterSign,
-} = freighterPkg;
-
 const NETWORK_PASSPHRASE = import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE;
-
-async function withActiveWallet<T>({
-  kitAction,
-  freighterAction,
-  fallbackErrorMessage,
-}: {
-  kitAction: (StellarWalletsKit: any) => Promise<T>;
-  freighterAction: () => Promise<T>;
-  fallbackErrorMessage: string;
-}): Promise<T> {
-  try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
-    return await kitAction(StellarWalletsKit);
-  } catch (kitErr: any) {
-    const errMsg = kitErr?.message || "";
-    if (errMsg.includes("no wallet") || errMsg.includes("wallet not set")) {
-      try {
-        return await freighterAction();
-      } catch {
-        throw new Error(fallbackErrorMessage);
-      }
-    }
-    throw kitErr;
-  }
-}
 
 /**
  * A signed envelope to submit, or the hash of a transaction the wallet
  * submitted itself (Nido relays smart-account transactions).
  */
-export type SignedTransaction = { xdr: string } | { hash: string };
+type Signed = { xdr: string } | { hash: string };
 
 // `error.name` Nido rejects with when the user picks "Use a different account".
 const ACCOUNT_SWITCH_REQUESTED = "ACCOUNT_SWITCH_REQUESTED";
 
-/**
- * Sign a transaction XDR using whichever wallet is currently active in the kit.
- * Falls back to Freighter's direct API only if the kit has no active wallet set.
- */
-async function signWithActiveWallet(
+/** Sign with the wallet the user connected. */
+async function sign(
   xdr: string,
   address: string | undefined = loadedPublicKey(),
-): Promise<SignedTransaction> {
-  return withActiveWallet<SignedTransaction>({
-    kitAction: async (StellarWalletsKit) => {
-      let result: { signedTxXdr?: string; submitted?: boolean };
-      try {
-        result = await StellarWalletsKit.signTransaction(xdr, {
-          networkPassphrase: NETWORK_PASSPHRASE,
-          address,
-        });
-      } catch (err: any) {
-        if (err?.name === ACCOUNT_SWITCH_REQUESTED) {
-          disconnect();
-          throw new Error(
-            "Connect again, pick the account you want, then retry.",
-            { cause: err },
-          );
-        }
-        throw err;
-      }
-      const { signedTxXdr, submitted } = result;
-      if (!signedTxXdr) {
-        throw new Error("signedTxXdr returned from wallet is undefined.");
-      }
-      // A wallet that submitted the transaction returns its hash instead.
-      return submitted === true ? { hash: signedTxXdr } : { xdr: signedTxXdr };
-    },
-    freighterAction: async () => {
-      const signedResp = await freighterSign(xdr, {
-        networkPassphrase: NETWORK_PASSPHRASE,
-      });
-      const signedTxXdr =
-        typeof signedResp === "string"
-          ? signedResp
-          : ((signedResp as any)?.signedTxXdr ?? (signedResp as any)?.xdr);
-      if (!signedTxXdr) {
-        throw new Error("signedTxXdr returned from wallet is undefined.");
-      }
-      return { xdr: signedTxXdr };
-    },
-    fallbackErrorMessage: "Failed to get signed transaction XDR",
-  });
-}
-
-/**
- * Decode Soroban transaction return values
- */
-export async function decodeReturnValue(returnValue: any): Promise<any> {
-  if (returnValue === undefined) return true;
-  if (typeof returnValue === "number" || typeof returnValue === "boolean")
-    return returnValue;
-
+): Promise<Signed> {
+  const { StellarWalletsKit } =
+    await import("../components/stellar-wallets-kit");
+  let result: { signedTxXdr?: string; submitted?: boolean };
   try {
-    const { xdr, scValToNative } = StellarSdk;
-    let decoded: any;
-
-    if (typeof returnValue === "string") {
-      const scVal = xdr.ScVal.fromXdr(returnValue, "base64");
-      decoded = scValToNative(scVal);
-    } else {
-      decoded = scValToNative(returnValue);
-    }
-
-    if (typeof decoded === "bigint") return Number(decoded);
-    if (typeof decoded === "number" || typeof decoded === "boolean")
-      return decoded;
-
-    const coerced = Number(decoded);
-    return isNaN(coerced) ? decoded : coerced;
-  } catch (_) {
-    return true;
-  }
-}
-
-/**
- * Wait for a submitted transaction to leave NOT_FOUND and decode its return
- * value.
- */
-async function waitForTransaction(
-  server: StellarSdk.rpc.Server,
-  hash: string,
-): Promise<any> {
-  let retries = 0;
-  let getResponse = await server.getTransaction(hash);
-  const maxRetries = 30;
-
-  while (getResponse.status === "NOT_FOUND" && retries < maxRetries) {
-    await new Promise((res) => setTimeout(res, 1000));
-    getResponse = await server.getTransaction(hash);
-    retries++;
-  }
-
-  if (getResponse.status === "SUCCESS")
-    return decodeReturnValue(getResponse.returnValue);
-
-  if (getResponse.status === "FAILED") {
-    const errStr = JSON.stringify(getResponse);
-    const match = errStr.match(/Error\(Contract, #(\d+)\)/);
-    if (match) throw new Error(parseContractError({ message: errStr } as any));
-    throw new Error(`Transaction failed with status: ${getResponse.status}`);
-  }
-
-  throw new Error(`Transaction failed with status: ${getResponse.status}`);
-}
-
-/**
- * Send a signed transaction (Soroban) and decode typical return values.
- * - Accepts base64 XDR directly (soroban-rpc supports it)
- * - Falls back to classic Transaction envelope when necessary
- * - Waits for PENDING → SUCCESS/FAILED and attempts returnValue decoding
- * - A transaction the wallet already submitted is only awaited
- */
-export async function sendSignedTransaction(
-  signed: SignedTransaction,
-): Promise<any> {
-  const { rpc } = StellarSdk;
-  const server = new rpc.Server(import.meta.env.PUBLIC_SOROBAN_RPC_URL);
-
-  if ("hash" in signed) return waitForTransaction(server, signed.hash);
-  const signedTxXdr = signed.xdr;
-
-  let sendResponse: any;
-  try {
-    //Deserialize XDR string back into a Transaction object
-    const tx = StellarSdk.TransactionBuilder.fromXdr(
-      signedTxXdr,
-      import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-    );
-    sendResponse = await retryAsync(() => (server as any).sendTransaction(tx));
+    result = await StellarWalletsKit.signTransaction(xdr, {
+      networkPassphrase: NETWORK_PASSPHRASE,
+      ...(address ? { address } : {}),
+    });
   } catch (err: any) {
-    console.error("Soroban sendTransaction error:", err);
-    throw new Error(
-      "Failed to send Soroban transaction: " + (err?.message || err),
-      { cause: err },
-    );
+    if (err?.name === ACCOUNT_SWITCH_REQUESTED) {
+      disconnect();
+      throw new Error("Connect again, pick the account you want, then retry.", {
+        cause: err,
+      });
+    }
+    throw err;
+  }
+  const { signedTxXdr, submitted } = result;
+  if (!signedTxXdr) {
+    throw new Error("The wallet returned no signed transaction.");
+  }
+  // A wallet that submitted the transaction returns its hash instead.
+  return submitted === true ? { hash: signedTxXdr } : { xdr: signedTxXdr };
+}
+
+const server = () =>
+  new StellarSdk.rpc.Server(import.meta.env.PUBLIC_SOROBAN_RPC_URL, {
+    allowHttp: import.meta.env.DEV,
+  });
+
+/** A call that landed: its result, as the binding types it, and its hash. */
+export interface Landed<T> {
+  result: T;
+  hash: string;
+}
+
+/** Wait for a transaction to be in a ledger, and read its result. */
+async function confirm<T>(
+  tx: StellarSdk.contract.AssembledTransaction<T>,
+  hash: string,
+): Promise<Landed<T>> {
+  const response = await server().pollTransaction(hash, { attempts: 30 });
+  if (response.status === "SUCCESS") {
+    const value = response.returnValue ?? StellarSdk.xdr.ScVal.scvVoid();
+    return { result: tx.options.parseResultXdr(value), hash };
+  }
+  if (response.status === "FAILED") {
+    throw new Error(`Transaction ${hash} failed on-chain.`);
+  }
+  throw new Error(`Transaction ${hash} was not confirmed in time.`);
+}
+
+/** Submit a signed envelope and wait for it. */
+async function submit<T>(
+  tx: StellarSdk.contract.AssembledTransaction<T>,
+  xdr: string,
+): Promise<Landed<T>> {
+  const envelope = StellarSdk.TransactionBuilder.fromXDR(
+    xdr,
+    NETWORK_PASSPHRASE,
+  );
+  const sent = await retryAsync(() => server().sendTransaction(envelope));
+  if (sent.status === "ERROR") {
+    const code = sent.errorResult?.result.type ?? "error";
+    throw new Error(`The network rejected the transaction (${code}).`);
+  }
+  if (sent.status === "TRY_AGAIN_LATER") {
+    throw new Error("The network is busy: try again in a moment.");
+  }
+  return confirm(tx, sent.hash);
+}
+
+/** Files packed for a call to point to, by their directory's CID. */
+export interface Upload {
+  cid: string;
+  carBlob: Blob;
+}
+
+/**
+ * Pack files into one IPFS directory. Content under a CID never changes, so
+ * its text files show at once when the call lands, without asking a gateway
+ * that may not serve them yet.
+ */
+export async function packUpload(files: File[]): Promise<Upload> {
+  const upload = await packFilesToCar(files);
+  for (const file of files) {
+    if (/\.(toml|md|json)$/.test(file.name)) {
+      queryClient.setQueryData(
+        ipfsQuery(upload.cid, file.name).queryKey,
+        await file.text(),
+      );
+    }
+  }
+  return upload;
+}
+
+export interface SendOptions {
+  /** IPFS content the call points to, uploaded as it lands. */
+  upload?: Upload | undefined;
+  /** The queries the call changes, refetched once it settles. */
+  invalidate?: QueryKey[];
+  /** Flow steps: 8 uploading, 9 sending. */
+  onProgress?: ((step: number) => void) | undefined;
+}
+
+/**
+ * Sign a contract call once and land it, in the order the wallet allows. A
+ * signed envelope authorizes the IPFS upload, then is sent. A transaction the
+ * wallet submitted itself is confirmed first, and its hash authorizes the
+ * upload. `uploadToIpfsProxy` checks the uploaded CID either way. The queries
+ * the call changes are refetched even when it failed: it may have landed.
+ */
+export async function sendTransaction<T>(
+  tx: StellarSdk.contract.AssembledTransaction<T>,
+  { upload, invalidate = [], onProgress }: SendOptions = {},
+): Promise<Landed<T>> {
+  // A contract error shows before the wallet is asked to sign.
+  checkSimulationError(tx);
+  const signed = await sign(tx.toXDR());
+  return invalidateAfter(land(tx, signed, upload, onProgress), ...invalidate);
+}
+
+async function land<T>(
+  tx: StellarSdk.contract.AssembledTransaction<T>,
+  signed: Signed,
+  upload: SendOptions["upload"],
+  onProgress: SendOptions["onProgress"],
+): Promise<Landed<T>> {
+  if (!upload) {
+    onProgress?.(9);
+    return "hash" in signed ? confirm(tx, signed.hash) : submit(tx, signed.xdr);
   }
 
-  if (sendResponse.status === "ERROR") {
-    const errStr = JSON.stringify(sendResponse.errorResult);
-    const match = errStr.match(/Error\(Contract, #(\d+)\)/);
-    if (match) throw new Error(parseContractError({ message: errStr } as any));
-    throw new Error(`Transaction failed: ${errStr}`);
+  if ("hash" in signed) {
+    const landed = await confirm(tx, signed.hash);
+    onProgress?.(8);
+    try {
+      await uploadToIpfsProxy({ ...upload, txHash: signed.hash });
+    } catch (error: any) {
+      throw new Error(
+        `Transaction ${signed.hash} is on-chain but its IPFS upload failed: ${error?.message ?? error}`,
+        { cause: error },
+      );
+    }
+    onProgress?.(9);
+    return landed;
   }
 
-  if (sendResponse.status === "SUCCESS")
-    return decodeReturnValue(sendResponse.returnValue);
-
-  if (sendResponse.status === "PENDING")
-    return waitForTransaction(server, sendResponse.hash);
-
-  return sendResponse;
+  onProgress?.(8);
+  await uploadToIpfsProxy({ ...upload, signedTxXdr: signed.xdr });
+  onProgress?.(9);
+  return submit(tx, signed.xdr);
 }
 
 /**
@@ -219,34 +196,8 @@ export async function sendXLM(
   donateMessage: string,
 ): Promise<boolean> {
   try {
-    // Try kit first; if no wallet is set, fall back to Freighter check
-    let senderPublicKey: string | undefined;
-
-    try {
-      const { StellarWalletsKit } =
-        await import("../components/stellar-wallets-kit");
-      const { address } = await StellarWalletsKit.getAddress();
-      senderPublicKey = address;
-    } catch {
-      // Kit has no wallet — try Freighter legacy path
-      const connectedResult = await isConnected();
-      const walletConnected =
-        typeof connectedResult === "boolean"
-          ? connectedResult
-          : (connectedResult as any)?.isConnected === true;
-
-      if (!walletConnected) throw new Error("WALLET_NOT_CONNECTED");
-
-      // requestAccess() returns { publicKey: string } — handle both shapes
-      const accessResult = await requestAccess();
-      senderPublicKey =
-        typeof accessResult === "string"
-          ? accessResult
-          : ((accessResult as any)?.publicKey ??
-            (accessResult as any)?.address);
-    }
-
-    if (!senderPublicKey) throw new Error("WALLET_NOT_CONNECTED");
+    const senderPublicKey = loadedPublicKey();
+    if (!senderPublicKey) throw new Error("Please connect your wallet first");
     if (StellarSdk.StrKey.isValidContract(senderPublicKey)) {
       throw new Error(
         "Donations are classic XLM payments, which smart-account wallets such as Nido cannot send. Connect a G… account to donate.",
@@ -271,7 +222,7 @@ export async function sendXLM(
     // Build the payment transaction
     const txBuilder = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
-      networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+      networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
         StellarSdk.Operation.payment({
@@ -297,11 +248,7 @@ export async function sendXLM(
       .setTimeout(StellarSdk.TimeoutInfinite)
       .build();
 
-    // Sign and extract the raw XDR — handle both old and new signTransaction response shapes
-    const signed = await signWithActiveWallet(
-      transaction.toXdr(),
-      senderPublicKey,
-    );
+    const signed = await sign(transaction.toXDR(), senderPublicKey);
     if (!("xdr" in signed)) {
       throw new Error("The wallet submitted the payment instead of signing it");
     }
@@ -320,27 +267,4 @@ export async function sendXLM(
     toast.error("Transaction Failed", msg);
     return false;
   }
-}
-
-/**
- * Sign an assembled Soroban transaction
- */
-export async function signAssembledTransaction(
-  assembledTx: any,
-): Promise<SignedTransaction> {
-  const sim = await assembledTx.simulate();
-  if ((assembledTx as any).prepare) await (assembledTx as any).prepare(sim);
-
-  const preparedXdr = assembledTx.toXdr();
-
-  // Sign and extract XDR
-  return await signWithActiveWallet(preparedXdr);
-}
-
-/**
- * Convenience helper that signs an assembled transaction and sends it to the network.
- */
-export async function signAndSend(assembledTx: any): Promise<any> {
-  const signed = await signAssembledTransaction(assembledTx);
-  return await sendSignedTransaction(signed);
 }

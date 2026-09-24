@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+  attest,
   attestationsQuery,
   commitTarget,
   finalityQuery,
+  revokeAttestation,
   thresholdQuery,
 } from "@service/AttestationService";
-import { attest, revokeAttestation } from "@service/ContractService";
 import { queryClient } from "@service/queryClient";
 import type { AttestationTarget } from "../../../../packages/tansu";
 import { isAttestationRevocable } from "constants/attestation";

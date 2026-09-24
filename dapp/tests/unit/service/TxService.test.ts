@@ -1,130 +1,170 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import {
-  decodeReturnValue,
-  sendSignedTransaction,
-  sendXLM,
-  signAssembledTransaction,
-} from "../../../src/service/TxService";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { xdr } = StellarSdk;
-
-const { kitSignMock, kitGetAddressMock, disconnectMock, toastErrorMock } =
-  vi.hoisted(() => ({
+const { kitSignMock, disconnectMock, toastErrorMock, uploadMock } = vi.hoisted(
+  () => ({
     kitSignMock: vi.fn(),
-    kitGetAddressMock: vi.fn(),
     disconnectMock: vi.fn(),
     toastErrorMock: vi.fn(),
-  }));
+    uploadMock: vi.fn(),
+  }),
+);
 
-// Mock the toast dependency that TxService imports via the "utils/utils" alias.
 vi.mock("../../../src/utils/utils", () => ({
   toast: { error: toastErrorMock },
 }));
 
 vi.mock("../../../src/components/stellar-wallets-kit", () => ({
-  StellarWalletsKit: {
-    signTransaction: kitSignMock,
-    getAddress: kitGetAddressMock,
-  },
+  StellarWalletsKit: { signTransaction: kitSignMock },
 }));
 
+vi.mock("../../../src/utils/ipfsFunctions", async (importOriginal) => ({
+  ...(await importOriginal()),
+  uploadToIpfsProxy: uploadMock,
+}));
+
+let connected = "";
 vi.mock("../../../src/service/walletService", () => ({
-  loadedPublicKey: () => ACCOUNT,
+  loadedPublicKey: () => connected,
   disconnect: disconnectMock,
 }));
 
-const ACCOUNT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+import { queryClient } from "../../../src/service/queryClient";
+import {
+  packUpload,
+  sendTransaction,
+  sendXLM,
+} from "../../../src/service/TxService";
+import { ipfsQuery } from "../../../src/utils/ipfsFunctions";
+
+const { rpc, xdr } = StellarSdk;
 const SMART_ACCOUNT =
   "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 
-describe("decodeReturnValue", () => {
-  it("returns true for undefined", async () => {
-    expect(await decodeReturnValue(undefined)).toBe(true);
-  });
+/** A signed envelope, as a wallet returns it. */
+function signedEnvelope(): string {
+  const account = new StellarSdk.Account(
+    StellarSdk.Keypair.random().publicKey(),
+    "1",
+  );
+  return new StellarSdk.TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+  })
+    .addOperation(StellarSdk.Operation.bumpSequence({ bumpTo: "2" }))
+    .setTimeout(30)
+    .build()
+    .toXDR();
+}
 
-  it("returns number unchanged", async () => {
-    expect(await decodeReturnValue(42)).toBe(42);
-    expect(await decodeReturnValue(0)).toBe(0);
-    expect(await decodeReturnValue(-1)).toBe(-1);
-  });
+/** A contract call, simulated, whose result is a u32. */
+function call(simulation: object = {}) {
+  return {
+    simulation,
+    toXDR: () => "unsigned-xdr",
+    options: {
+      parseResultXdr: (value: StellarSdk.xdr.ScVal) =>
+        StellarSdk.scValToNative(value),
+    },
+  } as unknown as StellarSdk.contract.AssembledTransaction<number>;
+}
 
-  it("returns boolean unchanged", async () => {
-    expect(await decodeReturnValue(true)).toBe(true);
-    expect(await decodeReturnValue(false)).toBe(false);
-  });
+const upload = { cid: "bafy-dir", carBlob: new Blob(["car"]) };
 
-  it("decodes base64 u32 ScVal to number", async () => {
-    const scVal = xdr.ScVal.scvU32(12345);
-    const b64 = scVal.toXdr("base64");
-    expect(await decodeReturnValue(b64)).toBe(12345);
-  });
-
-  it("decodes base64 i64 ScVal to number", async () => {
-    const scVal = xdr.ScVal.scvI64(999n);
-    const b64 = scVal.toXdr("base64");
-    expect(await decodeReturnValue(b64)).toBe(999);
-  });
-
-  it("decodes base64 bool ScVal to true (passes through scValToNative)", async () => {
-    const scVal = xdr.ScVal.scvBool(true);
-    const b64 = scVal.toXdr("base64");
-    expect(await decodeReturnValue(b64)).toBe(true);
-  });
-
-  it("returns true for invalid base64 XDR (catch fallback)", async () => {
-    expect(await decodeReturnValue("not-valid-xdr")).toBe(true);
-  });
-
-  it("converts bigint to number", async () => {
-    const scVal = xdr.ScVal.scvU64(5000n);
-    const b64 = scVal.toXdr("base64");
-    const result = await decodeReturnValue(b64);
-    expect(typeof result).toBe("number");
-    expect(result).toBe(5000);
-  });
-
-  it("decodes i128 ScVal (bigint -> number)", async () => {
-    const parts = new xdr.Int128Parts({ lo: 100n, hi: 0n });
-    const scVal = xdr.ScVal.scvI128(parts);
-    const b64 = scVal.toXdr("base64");
-    const result = await decodeReturnValue(b64);
-    expect(typeof result).toBe("number");
-    expect(result).toBe(100);
-  });
-});
-
-describe("signAssembledTransaction", () => {
-  const assembled = {
-    simulate: vi.fn(),
-    toXdr: () => "unsigned-xdr",
-  };
+describe("sendTransaction", () => {
+  const order: string[] = [];
+  let send: ReturnType<typeof vi.spyOn>;
+  let poll: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    order.length = 0;
+    connected = StellarSdk.Keypair.random().publicKey();
+    uploadMock.mockImplementation(async () => void order.push("upload"));
+    send = vi
+      .spyOn(rpc.Server.prototype, "sendTransaction")
+      .mockImplementation(async () => {
+        order.push("send");
+        return { status: "PENDING", hash: "a".repeat(64) } as any;
+      });
+    poll = vi
+      .spyOn(rpc.Server.prototype, "pollTransaction")
+      .mockImplementation(async () => {
+        order.push("confirm");
+        return { status: "SUCCESS", returnValue: xdr.ScVal.scvU32(7) } as any;
+      });
   });
 
-  it("returns the signed envelope and names the connected account", async () => {
-    kitSignMock.mockResolvedValue({ signedTxXdr: "signed-xdr" });
+  afterEach(() => vi.restoreAllMocks());
 
-    await expect(signAssembledTransaction(assembled)).resolves.toEqual({
-      xdr: "signed-xdr",
-    });
+  it("signs once, uploads with the envelope, sends, and refetches", async () => {
+    const envelope = signedEnvelope();
+    kitSignMock.mockResolvedValue({ signedTxXdr: envelope });
+    const refetch = vi.spyOn(queryClient, "invalidateQueries");
+    const onProgress = vi.fn();
+
+    await expect(
+      sendTransaction(call(), {
+        upload,
+        onProgress,
+        invalidate: [["proposals", "ab"]],
+      }),
+    ).resolves.toEqual({ result: 7, hash: "a".repeat(64) });
+
+    expect(kitSignMock).toHaveBeenCalledOnce();
     expect(kitSignMock).toHaveBeenCalledWith(
       "unsigned-xdr",
-      expect.objectContaining({ address: ACCOUNT }),
+      expect.objectContaining({ address: connected }),
+    );
+    expect(uploadMock).toHaveBeenCalledWith({
+      ...upload,
+      signedTxXdr: envelope,
+    });
+    expect(order).toEqual(["upload", "send", "confirm"]);
+    expect(onProgress.mock.calls).toEqual([[8], [9]]);
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["proposals", "ab"] });
+  });
+
+  it("confirms a transaction the wallet submitted, then uploads with its hash", async () => {
+    const hash = "b".repeat(64);
+    kitSignMock.mockResolvedValue({ signedTxXdr: hash, submitted: true });
+
+    await expect(sendTransaction(call(), { upload })).resolves.toEqual({
+      result: 7,
+      hash,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(poll).toHaveBeenCalledWith(hash, expect.anything());
+    expect(uploadMock).toHaveBeenCalledWith({ ...upload, txHash: hash });
+    expect(order).toEqual(["confirm", "upload"]);
+  });
+
+  it("says the transaction is on-chain when the late upload fails", async () => {
+    const hash = "c".repeat(64);
+    kitSignMock.mockResolvedValue({ signedTxXdr: hash, submitted: true });
+    uploadMock.mockRejectedValue(new Error("Filebase HTTP 502"));
+
+    await expect(sendTransaction(call(), { upload })).rejects.toThrow(
+      `Transaction ${hash} is on-chain but its IPFS upload failed: Filebase HTTP 502`,
     );
   });
 
-  it("returns the hash of a transaction the wallet submitted", async () => {
-    kitSignMock.mockResolvedValue({
-      signedTxXdr: "b".repeat(64),
-      submitted: true,
-    });
+  it("refetches after a failed transaction: it may still have landed", async () => {
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope() });
+    poll.mockResolvedValue({ status: "FAILED" } as any);
+    const refetch = vi.spyOn(queryClient, "invalidateQueries");
 
-    await expect(signAssembledTransaction(assembled)).resolves.toEqual({
-      hash: "b".repeat(64),
-    });
+    await expect(
+      sendTransaction(call(), { invalidate: [["commit", "ab"]] }),
+    ).rejects.toThrow("failed on-chain");
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["commit", "ab"] });
+  });
+
+  it("shows a contract error before asking the wallet", async () => {
+    await expect(
+      sendTransaction(call({ error: "HostError: Error(Contract, #201)" })),
+    ).rejects.toThrow("already exist");
+    expect(kitSignMock).not.toHaveBeenCalled();
   });
 
   it("disconnects when the user asks for a different account", async () => {
@@ -132,49 +172,37 @@ describe("signAssembledTransaction", () => {
     switchError.name = "ACCOUNT_SWITCH_REQUESTED";
     kitSignMock.mockRejectedValue(switchError);
 
-    await expect(signAssembledTransaction(assembled)).rejects.toThrow(
+    await expect(sendTransaction(call())).rejects.toThrow(
       "Connect again, pick the account you want, then retry.",
     );
     expect(disconnectMock).toHaveBeenCalled();
   });
 });
 
-describe("sendSignedTransaction", () => {
-  beforeEach(() => {
-    vi.stubEnv("PUBLIC_SOROBAN_RPC_URL", "https://rpc.example");
-  });
+describe("packUpload", () => {
+  it("shows the text files it packs without asking a gateway", async () => {
+    const toml = new File(['VERSION = "2.0.0"'], "tansu.toml");
+    const logo = new File([new Uint8Array([1, 2])], "logo.png");
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
-  });
+    const { cid } = await packUpload([toml, logo]);
 
-  it("only waits for a transaction the wallet submitted", async () => {
-    const send = vi.spyOn(StellarSdk.rpc.Server.prototype, "sendTransaction");
-    const get = vi
-      .spyOn(StellarSdk.rpc.Server.prototype, "getTransaction")
-      .mockResolvedValue({
-        status: "SUCCESS",
-        returnValue: xdr.ScVal.scvU32(7),
-      } as any);
-
-    await expect(sendSignedTransaction({ hash: "c".repeat(64) })).resolves.toBe(
-      7,
-    );
-    expect(get).toHaveBeenCalledWith("c".repeat(64));
-    expect(send).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(ipfsQuery(cid, "/tansu.toml").queryKey),
+    ).toBe('VERSION = "2.0.0"');
+    expect(
+      queryClient.getQueryData(ipfsQuery(cid, "/logo.png").queryKey),
+    ).toBeUndefined();
   });
 });
 
 describe("sendXLM", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("refuses to donate from a smart account", async () => {
-    kitGetAddressMock.mockResolvedValue({ address: SMART_ACCOUNT });
+    vi.clearAllMocks();
+    connected = SMART_ACCOUNT;
 
-    await expect(sendXLM("10", ACCOUNT, "0", "thanks")).resolves.toBe(false);
+    await expect(sendXLM("10", SMART_ACCOUNT, "0", "thanks")).resolves.toBe(
+      false,
+    );
     expect(toastErrorMock).toHaveBeenCalledWith(
       "Transaction Failed",
       expect.stringContaining("smart-account wallets"),

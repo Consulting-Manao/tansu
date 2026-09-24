@@ -17,7 +17,7 @@ flowchart TD
   subgraph Frontend
     C["Astro / React UI Components"]
     D["Queries (TanStack Query, kept in IndexedDB)"]
-    F["FlowService / ContractService / TxService"]
+    F["Writes (ProjectService, ProposalService, ...) via TxService"]
   end
   subgraph Blockchain
     J["Soroban Smart Contracts"]
@@ -79,7 +79,7 @@ sequenceDiagram
 #### Frontend Components
 
 - **CreateProjectModal**: Multi-step form with validation
-- **FlowService.createProjectFlow()**: Orchestrates the registration process
+- **ProjectService.registerProject()**: Uploads the project's files and registers it, through the one write path (`TxService.sendTransaction`)
 - **Name validation**: Real-time name availability checking via contract
 
 #### Validation Steps

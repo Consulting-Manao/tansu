@@ -4,7 +4,7 @@ import VoterInfo from "components/utils/VoterInfo";
 import { useState, type FC } from "react";
 import type { VoteStatus } from "types/proposal";
 import { toast, truncateMiddle } from "utils/utils";
-import { removeVoteFlow } from "@service/FlowService";
+import { removeVote } from "@service/ProposalService";
 
 interface RemoveVoteModalProps {
   projectName: string;
@@ -32,7 +32,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
   const handleRemove = async (voterAddress: string) => {
     setRemoving(voterAddress);
     try {
-      await removeVoteFlow({ projectName, proposalId, voterAddress });
+      await removeVote(projectName, proposalId, voterAddress);
       toast.success(
         "Vote Removed",
         `Vote from ${truncateMiddle(voterAddress, 16)} has been removed.`,

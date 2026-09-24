@@ -5,7 +5,6 @@ const mockGetMaxWeight = vi.fn();
 const mockGetTokenBalance = vi.fn();
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
-  default: { options: {} },
   tansuReads: {
     get_proposal: (...args: unknown[]) => mockGetProposal(...args),
     get_max_weight: (...args: unknown[]) => mockGetMaxWeight(...args),
@@ -13,21 +12,8 @@ vi.mock("../../../src/contracts/soroban_tansu", () => ({
 }));
 
 vi.mock("../../../src/service/walletService", () => ({
-  loadedPublicKey: () =>
+  connectedAddress: () =>
     "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-  txSourceFor: (address: string) => address,
-}));
-
-vi.mock("../../../src/service/TxService", () => ({
-  signAndSend: vi.fn(),
-}));
-
-vi.mock("../../../src/utils/crypto", () => ({
-  encryptWithPublicKey: vi.fn(),
-}));
-
-vi.mock("../../../src/utils/errorHandler", () => ({
-  handleFreighterError: vi.fn(),
 }));
 
 vi.mock("../../../src/service/TokenBalanceService", async (importOriginal) => {
@@ -41,7 +27,7 @@ vi.mock("../../../src/service/TokenBalanceService", async (importOriginal) => {
   };
 });
 
-import { getVotingPower } from "../../../src/service/ContractService";
+import { getVotingPower } from "../../../src/service/ProposalService";
 
 describe("getVotingPower", () => {
   beforeEach(() => {

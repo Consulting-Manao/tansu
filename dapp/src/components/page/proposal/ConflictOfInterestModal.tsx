@@ -8,10 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { conflictsQuery } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
-import {
-  addConflictOfInterest,
-  removeConflictOfInterest,
-} from "@service/ContractService";
+import { changeConflictOfInterest } from "@service/ProposalService";
 import { toast } from "utils/utils";
 import { validateStellarPrincipal } from "utils/validations";
 
@@ -138,7 +135,12 @@ const ConflictOfInterestModal: React.FC<Props> = ({
 
     setIsSubmitting(true);
     try {
-      await addConflictOfInterest(projectName, proposalId, pendingAddresses);
+      await changeConflictOfInterest(
+        "add",
+        projectName,
+        proposalId,
+        pendingAddresses,
+      );
       toast.success(
         "Conflict of Interest",
         `${pendingAddresses.length} address(es) added to the conflict list.`,
@@ -158,7 +160,9 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   const handleRemove = async (address: string) => {
     setIsSubmitting(true);
     try {
-      await removeConflictOfInterest(projectName, proposalId, [address]);
+      await changeConflictOfInterest("remove", projectName, proposalId, [
+        address,
+      ]);
       toast.success(
         "Conflict of Interest",
         "Address removed from the conflict list.",
@@ -181,7 +185,8 @@ const ConflictOfInterestModal: React.FC<Props> = ({
 
     setIsSubmitting(true);
     try {
-      await removeConflictOfInterest(
+      await changeConflictOfInterest(
+        "remove",
         projectName,
         proposalId,
         Array.from(selectedAddresses),

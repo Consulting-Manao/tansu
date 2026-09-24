@@ -1,7 +1,7 @@
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import { useState, type FC } from "react";
-import { revokeProposal } from "@service/ContractService";
+import { revokeProposal } from "@service/ProposalService";
 import { toast } from "utils/utils";
 
 interface MarkMaliciousModalProps {

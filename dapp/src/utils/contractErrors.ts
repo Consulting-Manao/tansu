@@ -1,59 +1,49 @@
 import { contractErrorMessages } from "../constants/contractErrorMessages";
 
-/** Parses simulation/error message and returns user-facing contract error message. */
-export function parseContractError(error: any): string {
-  const errorMessage = error.message || error.toString();
+const CONTRACT_ERROR = /Error\(Contract, #(\d+)\)/;
 
-  const errorMatch = errorMessage.match(/Error\(Contract, #(\d+)\)/);
-  if (errorMatch && errorMatch[1]) {
-    const errorCode = parseInt(errorMatch[1]);
-    const parsedErrorMessage =
-      contractErrorMessages[errorCode as keyof typeof contractErrorMessages];
-    if (parsedErrorMessage) {
-      return parsedErrorMessage;
-    }
-    return `Contract error #${errorCode}`;
+/** The contract error code in a message, e.g. 200 for "Error(Contract, #200)". */
+function contractErrorCode(message: string): number | undefined {
+  const code = message.match(CONTRACT_ERROR)?.[1];
+  return code === undefined ? undefined : Number(code);
+}
+
+/**
+ * What to tell the user about a failure: the contract's own words for a
+ * contract error, a hint for a VM trap, else the error's message.
+ */
+export function errorMessage(error: unknown): string {
+  const message =
+    typeof error === "string"
+      ? error
+      : ((error as { message?: string } | null)?.message ?? String(error));
+
+  const code = contractErrorCode(message);
+  if (code !== undefined) {
+    return (
+      contractErrorMessages[code as keyof typeof contractErrorMessages] ??
+      `Contract error #${code}`
+    );
   }
 
-  const hostErrorMatch = errorMessage.match(
-    /HostError: Error\(Contract, #(\d+)\)/,
-  );
-  if (hostErrorMatch && hostErrorMatch[1]) {
-    const errorCode = parseInt(hostErrorMatch[1]);
-    const parsedErrorMessage =
-      contractErrorMessages[errorCode as keyof typeof contractErrorMessages];
-    if (parsedErrorMessage) {
-      return parsedErrorMessage;
-    }
-    return `Contract error #${errorCode}`;
-  }
-
-  if (/HostError: Error\(WasmVm,/.test(errorMessage)) {
-    const fnMatch = errorMessage.match(
+  if (/HostError: Error\(WasmVm,/.test(message)) {
+    const fnName = message.match(
       /topics:\[fn_call,[^,]+,\s*([a-zA-Z0-9_]+)\]/,
-    );
-    const fnName = fnMatch?.[1];
+    )?.[1];
     const where = fnName ? ` in ${fnName}()` : "";
-    const hasInvalidInputPattern = /UnreachableCodeReached|InvalidAction/i.test(
-      errorMessage,
-    );
-
-    if (hasInvalidInputPattern && fnName === "build_commitments_from_votes") {
+    if (!/UnreachableCodeReached|InvalidAction/i.test(message)) {
+      return `Contract VM error${where}. Please retry. If the issue persists, check project configuration.`;
+    }
+    if (fnName === "build_commitments_from_votes") {
       return `Invalid input for contract execution${where}. For anonymous voting, ensure your key file matches this proposal and try again.`;
     }
-
-    if (hasInvalidInputPattern && fnName === "transfer") {
+    if (fnName === "transfer") {
       return `Invalid input for contract execution${where}. Check the configured contract address and arguments for this proposal outcome.`;
     }
-
-    if (hasInvalidInputPattern) {
-      return `Invalid input for contract execution${where}. Please verify proposal inputs and try again.`;
-    }
-
-    return `Contract VM error${where}. Please retry. If the issue persists, check project configuration.`;
+    return `Invalid input for contract execution${where}. Please verify proposal inputs and try again.`;
   }
 
-  return errorMessage || "Unknown error during simulation";
+  return message || "Unknown error";
 }
 
 type Read<T> = { result: T; simulation?: unknown };
@@ -71,17 +61,17 @@ export function readResult<T>(
 export function readResult<T>(tx: Read<T>, ...notFound: number[]): T | null {
   const error = (tx.simulation as { error?: string } | undefined)?.error;
   if (!error) return tx.result;
-  const code = Number(error.match(/Error\(Contract, #(\d+)\)/)?.[1]);
-  if (notFound.includes(code)) return null;
-  throw new Error(parseContractError({ message: error }));
+  const code = contractErrorCode(error);
+  if (code !== undefined && notFound.includes(code)) return null;
+  throw new Error(errorMessage(error));
 }
 
 /** Throws with parsed message if result has simulation.error or result.error. */
 export function checkSimulationError(result: any): void {
   if (result?.simulation?.error) {
-    throw new Error(parseContractError({ message: result.simulation.error }));
+    throw new Error(errorMessage(result.simulation.error));
   }
   if (result?.error) {
-    throw new Error(parseContractError({ message: result.error }));
+    throw new Error(errorMessage(result.error));
   }
 }

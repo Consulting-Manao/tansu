@@ -10,6 +10,7 @@ import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
 import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
 import { memberQuery } from "@service/MemberService";
+import { disconnect } from "@service/walletService";
 import { projectByKeyQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import { navigate } from "astro:transitions/client";
@@ -161,7 +162,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
 
   // Handle disconnect button click
   const handleDisconnect = () => {
-    window.dispatchEvent(new CustomEvent("walletDisconnected"));
+    disconnect();
     onClose();
     // Force reload and navigate to main page
     window.location.href = "/";

@@ -8,7 +8,7 @@ import { deriveProjectKey } from "./projectKey";
 import type { VoteStatus } from "types/proposal";
 import { VoteType } from "types/proposal";
 import { decryptWithPrivateKey } from "utils/crypto";
-import { parseContractError } from "utils/contractErrors";
+import { errorMessage } from "utils/contractErrors";
 import { Badge } from "../../packages/tansu/dist";
 // Lazy-loaded imports to avoid circular dependency issues in Astro/SSR
 async function getTansu() {
@@ -264,7 +264,7 @@ export async function computeAnonymousVotingData(
       }
     } catch (e: any) {
       proofOk = false;
-      proofErrorMessage = parseContractError(e) ?? "Proof verification failed.";
+      proofErrorMessage = errorMessage(e);
     }
   }
 

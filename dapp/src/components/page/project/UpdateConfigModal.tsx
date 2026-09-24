@@ -12,7 +12,7 @@ import {
   validateMaintainerAddress,
   validateGithubUrl,
 } from "utils/validations";
-import { updateConfigFlow } from "@service/FlowService";
+import { updateConfig } from "@service/ProjectService";
 import { thresholdQuery } from "@service/AttestationService";
 import { queryClient } from "@service/queryClient";
 import {
@@ -520,10 +520,9 @@ const UpdateConfigModal = ({
         additionalFiles.push(...imageFilesToInclude);
       }
 
-      await updateConfigFlow({
-        projectName: project.name,
+      await updateConfig(project.name, {
         tomlFile,
-        githubRepoUrl,
+        repositoryUrl: githubRepoUrl,
         maintainers: maintainerAddresses,
         onProgress: setStep,
         additionalFiles,

@@ -15,8 +15,8 @@ import {
   repoCommitQuery,
   repoHeadQuery,
 } from "@service/RepositoryMetadataService";
-import { commitQuery } from "@service/ProjectService";
-import { evidenceQuery } from "@service/EvidenceService";
+import { commitHash, commitQuery } from "@service/ProjectService";
+import { evidenceQuery, setEvidence } from "@service/EvidenceService";
 import { queryClient } from "@service/queryClient";
 import type { EvidenceKindTag } from "@service/EvidenceService";
 import type { Project } from "../../../../packages/tansu";
@@ -29,9 +29,7 @@ import { toast } from "utils/utils";
 import Button from "components/utils/Button";
 import CopyButton from "components/utils/CopyButton";
 import Modal from "components/utils/Modal";
-import { setEvidenceWithIpfsUpload } from "@service/EvidenceUploadFlow";
 import AttestationCard from "./AttestationCard";
-import { commitHash } from "@service/ContractService";
 import { evidenceTarget } from "@service/AttestationService";
 import { useEffect, useState, useCallback, useRef } from "react";
 
@@ -167,7 +165,7 @@ const CommitEvidenceModal = ({
 
     setIsUploading(true);
     try {
-      const cid = await setEvidenceWithIpfsUpload(
+      const cid = await setEvidence(
         projectName,
         commitHashValue,
         selectedKind,

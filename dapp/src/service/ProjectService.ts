@@ -7,15 +7,18 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Buffer } from "buffer";
 import { useMemo } from "react";
-import type { Project } from "../../packages/tansu";
-import { tansuReads } from "../contracts/soroban_tansu";
+import type { Badge, Project } from "../../packages/tansu";
+import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import type { ConfigData } from "../types/projectConfig";
-import { isValidCid } from "../utils/contentHashes";
+import { isValidCid, isValidCommitHash } from "../utils/contentHashes";
 import { readResult } from "../utils/contractErrors";
+import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 import { ipfsQuery, parseTansuToml } from "../utils/ipfsFunctions";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { extractConfigData } from "../utils/utils";
 import { queryClient } from "./queryClient";
+import { packUpload, sendTransaction } from "./TxService";
+import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
 
@@ -113,4 +116,134 @@ export function useProjectConfig(project: Project | null | undefined) {
     [project, toml.data],
   );
   return { config, isLoading: toml.isLoading };
+}
+
+/** A project's configuration: maintainers, repository and tansu.toml. */
+interface ProjectConfigWrite {
+  tomlFile: File;
+  repositoryUrl: string;
+  maintainers: string[];
+  /** More files for the project's directory, e.g. a README. */
+  additionalFiles?: File[];
+  /**
+   * Governance settings; `undefined` keeps the current value, or the
+   * contract's default for a new project.
+   */
+  minVotingPeriod?: bigint;
+  executeDelay?: bigint;
+  attestationThreshold?: number;
+  onProgress?: (step: number) => void;
+}
+
+/** Register a project: its files on IPFS, its name and settings on chain. */
+export async function registerProject(
+  name: string,
+  config: ProjectConfigWrite,
+): Promise<void> {
+  const upload = await packUpload([
+    config.tomlFile,
+    ...(config.additionalFiles ?? []),
+  ]);
+  config.onProgress?.(7);
+  const address = connectedAddress();
+  const tx = await tansuFor(address).register({
+    maintainer: address,
+    name,
+    maintainers: config.maintainers,
+    url: normalizeRepositoryUrl(config.repositoryUrl) ?? config.repositoryUrl,
+    ipfs: upload.cid,
+    min_voting_period: config.minVotingPeriod,
+    execute_delay: config.executeDelay,
+    attestation_threshold: config.attestationThreshold,
+  });
+  await sendTransaction(tx, {
+    upload,
+    onProgress: config.onProgress,
+    invalidate: [["projects"], ["project", projectKeyHex(name)]],
+  });
+}
+
+/** Replace a project's configuration; its name stays. */
+export async function updateConfig(
+  name: string,
+  config: ProjectConfigWrite,
+): Promise<void> {
+  const upload = await packUpload([
+    config.tomlFile,
+    ...(config.additionalFiles ?? []),
+  ]);
+  config.onProgress?.(7);
+  const address = connectedAddress();
+  const tx = await tansuFor(address).update_config({
+    maintainer: address,
+    key: deriveProjectKey(name),
+    maintainers: config.maintainers,
+    url: normalizeRepositoryUrl(config.repositoryUrl) ?? config.repositoryUrl,
+    ipfs: upload.cid,
+    min_voting_period: config.minVotingPeriod,
+    execute_delay: config.executeDelay,
+    attestation_threshold: config.attestationThreshold,
+  });
+  const key = projectKeyHex(name);
+  await sendTransaction(tx, {
+    upload,
+    onProgress: config.onProgress,
+    invalidate: [["project", key], ["projects"], ["threshold", key]],
+  });
+}
+
+/**
+ * Record the project's latest commit. For software it is a Git object name,
+ * SHA-1 or SHA-256; other projects use it as a milestone identifier.
+ */
+export async function commitHash(name: string, hash: string): Promise<void> {
+  if (!isValidCommitHash(hash)) {
+    throw new Error(
+      "Invalid commit hash: expected a 40-character (SHA-1) or 64-character (SHA-256) hex string",
+    );
+  }
+  const address = connectedAddress();
+  const tx = await tansuFor(address).commit({
+    maintainer: address,
+    project_key: deriveProjectKey(name),
+    hash,
+  });
+  await sendTransaction(tx, { invalidate: [["commit", projectKeyHex(name)]] });
+}
+
+/** Set the badges a member holds in the project. */
+export async function setBadges(
+  name: string,
+  member: string,
+  badges: Badge[],
+): Promise<void> {
+  const address = connectedAddress();
+  const tx = await tansuFor(address).set_badges({
+    maintainer: address,
+    key: deriveProjectKey(name),
+    member,
+    badges,
+  });
+  const key = projectKeyHex(name);
+  await sendTransaction(tx, {
+    invalidate: [
+      ["badges", key],
+      ["member", member],
+      ["votingPower", key, member],
+    ],
+  });
+}
+
+/** Make the project an organization of these projects (none: it is not). */
+export async function setSubProjects(
+  name: string,
+  subProjects: string[],
+): Promise<void> {
+  const address = connectedAddress();
+  const tx = await tansuFor(address).set_sub_projects({
+    maintainer: address,
+    project_key: deriveProjectKey(name),
+    sub_projects: subProjects.map(deriveProjectKey),
+  });
+  await sendTransaction(tx, { invalidate: [["project", projectKeyHex(name)]] });
 }

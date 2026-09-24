@@ -187,11 +187,6 @@ export interface CarPackResult {
   carBlob: Blob;
 }
 
-export async function calculateDirectoryCid(files: File[]): Promise<string> {
-  const { cid } = await packFilesToCar(files);
-  return cid;
-}
-
 /**
  * Pack files into a CAR so the same payload can be reused for upload.
  */

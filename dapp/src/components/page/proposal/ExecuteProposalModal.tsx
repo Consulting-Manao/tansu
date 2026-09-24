@@ -177,7 +177,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
     }
 
     try {
-      const { executeProposal } = await import("@service/ContractService");
+      const { executeProposal } = await import("@service/ProposalService");
       await executeProposal(
         projectName,
         proposalId,

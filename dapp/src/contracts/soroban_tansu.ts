@@ -1,5 +1,5 @@
 import * as Client from "../../packages/tansu";
-import type { contract } from "@stellar/stellar-sdk";
+import { StrKey, type contract } from "@stellar/stellar-sdk";
 import { assertEnv } from "../utils/envAssert";
 
 assertEnv();
@@ -17,10 +17,20 @@ const options: contract.ClientOptions &
   useUpgradedAuth: false,
 };
 
-export default new Client.Client(options);
+/** For reads: without a source account, a call does not load one first. */
+export const tansuReads = new Client.Client(options);
 
 /**
- * For reads: writes set `publicKey` on the default client, and a client with a
- * source account loads it from the RPC before every call.
+ * For calls the wallet at `address` signs: they are built from its account.
+ * A smart account (C...) cannot source a transaction: its wallet relays it and
+ * the relayer becomes the source, so any existing account serves to build and
+ * simulate it.
  */
-export const tansuReads = new Client.Client(options);
+export function tansuFor(address: string): Client.Client {
+  return new Client.Client({
+    ...options,
+    publicKey: StrKey.isValidContract(address)
+      ? import.meta.env.PUBLIC_TANSU_OWNER_ID
+      : address,
+  });
+}

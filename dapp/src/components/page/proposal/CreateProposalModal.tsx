@@ -23,7 +23,7 @@ import { validateProposalName, validateTextContent } from "utils/validations";
 import OutcomeInput from "./OutcomeInput";
 import TemplateSelector from "./TemplateSelector";
 import { generateRSAKeyPair } from "utils/crypto";
-import { setupAnonymousVoting } from "@service/ContractService";
+import { createProposal, setupAnonymousVoting } from "@service/ProposalService";
 import MarkdownEditorWithImages, {
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
@@ -340,9 +340,7 @@ const CreateProposalModal = ({
         collectOutcome(cancelledMode, cancelledContract),
       ].filter((oc): oc is OutcomeContract => oc !== null);
 
-      const { createProposalFlow } = await import("@service/FlowService");
-
-      const proposalId = await createProposalFlow({
+      const { id, cid } = await createProposal({
         projectName: projectName!,
         proposalName,
         proposalFiles: files,
@@ -355,10 +353,7 @@ const CreateProposalModal = ({
         onProgress: setStep,
       });
 
-      setProposalId(proposalId);
-
-      const { calculateDirectoryCid } = await import("utils/ipfsFunctions");
-      const cid = await calculateDirectoryCid(files);
+      setProposalId(id);
       setIpfsLink(getIpfsBasicLink(cid));
 
       setIsSuccessful(true);

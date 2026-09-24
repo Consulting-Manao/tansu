@@ -1,5 +1,4 @@
-import { createProjectFlow } from "@service/FlowService";
-import { projectQuery } from "@service/ProjectService";
+import { projectQuery, registerProject } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey, walletInitialized } from "utils/store";
@@ -312,10 +311,9 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
       // show progress
       setStep(6);
 
-      await createProjectFlow({
-        projectName,
+      await registerProject(projectName, {
         tomlFile,
-        githubRepoUrl:
+        repositoryUrl:
           projectType === ProjectType.SOFTWARE ? githubRepoUrl : "",
         maintainers: maintainerAddresses,
         onProgress: setStep,

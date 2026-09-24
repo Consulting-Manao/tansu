@@ -5,17 +5,9 @@ import Button from "components/utils/Button";
 import Input from "components/utils/Input";
 import Modal from "components/utils/Modal";
 import { toast } from "utils/utils";
-import { projectByKeyQuery } from "@service/ProjectService";
-import {
-  signAssembledTransaction,
-  sendSignedTransaction,
-} from "@service/TxService";
-import { loadedPublicKey, txSourceFor } from "@service/walletService";
-import { invalidateAfter, queryClient } from "@service/queryClient";
-import Tansu from "contracts/soroban_tansu";
+import { projectByKeyQuery, setSubProjects } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import type { Project } from "../../../../packages/tansu";
-import { checkSimulationError } from "utils/contractErrors";
-import { deriveProjectKey } from "utils/projectKey";
 
 /** For maintainers: the projects an organization groups. */
 const ManageSubProjectsModal = ({ project }: { project: Project }) => {
@@ -69,37 +61,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
     setError(null);
 
     try {
-      const projectKey = deriveProjectKey(project.name);
-      const subProjectKeys = subProjectNames.map((name) =>
-        deriveProjectKey(name),
-      );
-
-      const publicKey = loadedPublicKey();
-      if (!publicKey) {
-        throw new Error("Please connect your wallet first");
-      }
-
-      Tansu.options.publicKey = txSourceFor(publicKey);
-
-      if (typeof (Tansu as any).set_sub_projects !== "function") {
-        throw new Error(
-          "set_sub_projects method not available. The contract needs deployment with new methods.",
-        );
-      }
-
-      const tx = await (Tansu as any).set_sub_projects({
-        maintainer: publicKey,
-        project_key: projectKey,
-        sub_projects: subProjectKeys,
-      });
-
-      checkSimulationError(tx as any);
-
-      const signed = await signAssembledTransaction(tx);
-      await invalidateAfter(sendSignedTransaction(signed), [
-        "project",
-        projectKey.toString("hex"),
-      ]);
+      await setSubProjects(project.name, subProjectNames);
 
       toast.success(
         "Sub-projects updated",

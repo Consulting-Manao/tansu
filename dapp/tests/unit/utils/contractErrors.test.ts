@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseContractError,
+  errorMessage,
   checkSimulationError,
   readResult,
 } from "../../../src/utils/contractErrors";
@@ -24,30 +24,30 @@ describe("readResult", () => {
   });
 });
 
-describe("parseContractError", () => {
+describe("errorMessage", () => {
   it("returns user message for Error(Contract, #N) format", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message: "Error(Contract, #100)",
     });
     expect(msg).toBe("The user is not a maintainer.");
   });
 
   it("returns user message for HostError: Error(Contract, #N) format", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message: "HostError: Error(Contract, #400)",
     });
     expect(msg).toBe("You have already voted.");
   });
 
   it("returns contract error #N when code not in map", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message: "Error(Contract, #999)",
     });
     expect(msg).toBe("Contract error #999");
   });
 
   it("returns VM hint for WasmVm with build_commitments_from_votes", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message:
         "HostError: Error(WasmVm, InvalidAction) topics:[fn_call,x,build_commitments_from_votes]",
     });
@@ -56,7 +56,7 @@ describe("parseContractError", () => {
   });
 
   it("returns neutral VM hint for WasmVm in create_proposal", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message:
         "HostError: Error(WasmVm, UnreachableCodeReached) topics:[fn_call,x,create_proposal]",
     });
@@ -66,7 +66,7 @@ describe("parseContractError", () => {
   });
 
   it("returns a transfer-specific hint for invalid proposal outcome inputs", () => {
-    const msg = parseContractError({
+    const msg = errorMessage({
       message:
         "HostError: Error(WasmVm, InvalidAction) topics:[fn_call,x,transfer]",
     });
@@ -75,7 +75,7 @@ describe("parseContractError", () => {
   });
 
   it("returns raw message for unknown format", () => {
-    const msg = parseContractError({ message: "Network timeout" });
+    const msg = errorMessage({ message: "Network timeout" });
     expect(msg).toBe("Network timeout");
   });
 });

@@ -1,4 +1,4 @@
-import { setBadges } from "@service/ContractService";
+import { setBadges } from "@service/ProjectService";
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import type { Badge } from "../../../../packages/tansu";

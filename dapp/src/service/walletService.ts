@@ -1,94 +1,57 @@
-import { StrKey } from "@stellar/stellar-sdk";
-import { connectedPublicKey, walletInitialized } from "utils/store";
-
-interface ConnectionState {
-  publicKey: string | undefined;
-}
-
-const connectionState: ConnectionState = {
-  publicKey: undefined,
-};
-
-function loadedPublicKey(): string | undefined {
-  return connectionState.publicKey;
-}
-
 /**
- * Transaction source for an address. A smart account (C...) cannot source a
- * transaction: its wallet relays it and the relayer becomes the source, so
- * any existing account serves to build and simulate it.
+ * The connected wallet: one address, in `connectedPublicKey`. The wallets kit
+ * is heavy, so it loads when a wallet is needed.
  */
-function txSourceFor(address: string): string {
-  return StrKey.isValidContract(address)
-    ? import.meta.env.PUBLIC_TANSU_OWNER_ID
-    : address;
+import { StrKey } from "@stellar/stellar-sdk";
+import {
+  connectedPublicKey,
+  WALLET_STORAGE_KEY,
+  walletInitialized,
+} from "utils/store";
+
+const kit = async () =>
+  (await import("../components/stellar-wallets-kit")).StellarWalletsKit;
+
+export function loadedPublicKey(): string | undefined {
+  return connectedPublicKey.get();
 }
 
-function setConnection(publicKey: string): void {
-  connectionState.publicKey = publicKey;
-
-  localStorage.setItem("publicKey", publicKey);
-
-  connectedPublicKey.set(publicKey);
+/** The connected wallet's address, for a write; throws when there is none. */
+export function connectedAddress(): string {
+  const address = loadedPublicKey();
+  if (!address) throw new Error("Please connect your wallet first");
+  return address;
 }
-function disconnect(): void {
-  connectionState.publicKey = undefined;
 
-  localStorage.removeItem("publicKey");
+function setConnection(address: string): void {
+  localStorage.setItem(WALLET_STORAGE_KEY, address);
+  connectedPublicKey.set(address);
+  void checkAndNotifyFunding(address);
+}
 
+export function disconnect(): void {
+  localStorage.removeItem(WALLET_STORAGE_KEY);
   connectedPublicKey.set(undefined);
 }
 
-export async function checkAndNotifyFunding(): Promise<void> {
-  if (import.meta.env.MODE === "test") return;
-
-  const publicKey = loadedPublicKey();
-  // Horizon does not know smart accounts, and their relayer pays the fees.
-  if (!publicKey || StrKey.isValidContract(publicKey)) return;
-
-  try {
-    const { exists, balance } = await getWalletHealth();
-
-    const minRequired = 1;
-    const networkPass = import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE || "";
-
-    const network = /Test/i.test(networkPass) ? "testnet" : "mainnet";
-
-    if (!exists || balance < minRequired) {
-      window.dispatchEvent(
-        new CustomEvent("openFundingModal", {
-          detail: { exists, balance, network },
-        }),
-      );
-    }
-  } catch (_) {
-    // Funding check is best-effort; swallow errors silently
-  }
+/** Let the user pick a wallet; resolves with its address. */
+export async function connect(): Promise<string> {
+  const { address } = await (await kit()).authModal();
+  setConnection(address);
+  return address;
 }
 
-async function initializeConnection(): Promise<void> {
-  const storedPublicKey = localStorage.getItem("publicKey");
-
-  if (storedPublicKey) {
-    connectionState.publicKey = storedPublicKey;
-    connectedPublicKey.set(storedPublicKey);
-  }
-
-  if (import.meta.env.MODE === "test" || !storedPublicKey) {
-    walletInitialized.set(true);
-    return;
-  }
-
+/**
+ * Follow the wallet: the user may have switched accounts in it since the
+ * address was stored. Forgets the connection when the wallet is gone.
+ */
+export async function followWallet(): Promise<void> {
+  const stored = loadedPublicKey();
   try {
-    const { StellarWalletsKit } =
-      await import("../components/stellar-wallets-kit");
-    const { address } = await StellarWalletsKit.getAddress();
-
-    if (address && address !== storedPublicKey) {
-      setConnection(address);
-    } else if (!address) {
-      disconnect();
-    }
+    if (!stored) return;
+    const { address } = await (await kit()).getAddress();
+    if (!address) disconnect();
+    else if (address !== stored) setConnection(address);
   } catch {
     disconnect();
   } finally {
@@ -96,51 +59,40 @@ async function initializeConnection(): Promise<void> {
   }
 }
 
-/**
- * Check if the connected wallet exists and has funds.
- * Returns { exists: boolean, balance: number }.
- */
-async function getWalletHealth(): Promise<{
-  exists: boolean;
-  balance: number;
-}> {
-  const publicKey = loadedPublicKey();
-  const horizonUrl = import.meta.env.PUBLIC_HORIZON_URL;
-
-  if (!publicKey) return { exists: false, balance: 0 };
-
+/** Offer to fund an account that does not exist yet or holds under 1 XLM. */
+async function checkAndNotifyFunding(address: string): Promise<void> {
+  // Horizon does not know smart accounts, and their relayer pays the fees.
+  if (StrKey.isValidContract(address)) return;
   try {
-    const resp = await fetch(`${horizonUrl}/accounts/${publicKey}`, {
-      headers: { Accept: "application/json" },
-    });
-
-    if (resp.status === 404) {
-      // Account not found on this network
-      return { exists: false, balance: 0 };
+    const { exists, balance } = await getWalletHealth(address);
+    if (!exists || balance < 1) {
+      const network = /Test/i.test(
+        import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+      )
+        ? "testnet"
+        : "mainnet";
+      window.dispatchEvent(
+        new CustomEvent("openFundingModal", {
+          detail: { exists, balance, network },
+        }),
+      );
     }
-
-    if (!resp.ok) {
-      console.warn(`Unexpected Horizon response: ${resp.status}`);
-      return { exists: false, balance: 0 };
-    }
-
-    const json = await resp.json();
-    const native = (json.balances || []).find(
-      (b: any) => b.asset_type === "native",
-    );
-    const balance = native ? Number(native.balance) : 0;
-
-    return { exists: true, balance };
-  } catch (error) {
-    console.error("Error checking wallet health:", error);
-    return { exists: false, balance: 0 };
+  } catch {
+    // Best effort.
   }
 }
 
-export {
-  loadedPublicKey,
-  txSourceFor,
-  setConnection,
-  disconnect,
-  initializeConnection,
-};
+async function getWalletHealth(
+  address: string,
+): Promise<{ exists: boolean; balance: number }> {
+  const resp = await fetch(
+    `${import.meta.env.PUBLIC_HORIZON_URL}/accounts/${address}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!resp.ok) return { exists: false, balance: 0 };
+  const json = await resp.json();
+  const native = (json.balances || []).find(
+    (b: any) => b.asset_type === "native",
+  );
+  return { exists: true, balance: native ? Number(native.balance) : 0 };
+}

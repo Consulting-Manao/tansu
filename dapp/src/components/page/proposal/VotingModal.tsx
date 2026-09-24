@@ -6,8 +6,8 @@ import { useState, useEffect } from "react";
 import { VoteType } from "types/proposal";
 import VoteTypeCheckbox from "./VoteTypeCheckbox";
 import { loadedPublicKey } from "../../../service/walletService";
-import { getVotingPower } from "../../../service/ContractService";
-import { parseContractError } from "../../../utils/contractErrors";
+import { getVotingPower, vote } from "../../../service/ProposalService";
+import { errorMessage } from "../../../utils/contractErrors";
 import { toast } from "../../../utils/utils";
 
 interface VotersModalProps extends ModalProps {
@@ -76,7 +76,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
           setIsTokenVoting(false);
           setVoteError(
             err instanceof Error
-              ? parseContractError(err)
+              ? errorMessage(err)
               : "Failed to load voting power. Check your wallet and token contract.",
           );
         }
@@ -122,10 +122,8 @@ const VotingModal: React.FC<VotersModalProps> = ({
     if (!validateVote()) return;
 
     setIsLoading(true);
-    const { voteToProposal } = await import("@service/ContractService");
-
     try {
-      const receipt = await voteToProposal(
+      const receipt = await vote(
         projectName,
         proposalId!,
         selectedOption as VoteType,
@@ -140,19 +138,13 @@ const VotingModal: React.FC<VotersModalProps> = ({
       );
       // We do not close the modal here, we show the receipt instead
     } catch (error: any) {
-      let errorMessage = "Failed to cast vote";
-
-      if (typeof error === "string") {
-        errorMessage += `: ${error}`;
-      } else if (error?.message) {
-        errorMessage += `: ${error.message}`;
-      } else if (error?.code === 4001) {
-        errorMessage += ": The transaction was cancelled by the user";
-      } else {
-        errorMessage += `: ${JSON.stringify(error)}`;
-      }
-
-      setVoteError(errorMessage);
+      setVoteError(
+        `Failed to cast vote: ${
+          error?.code === 4001
+            ? "The transaction was cancelled by the user"
+            : errorMessage(error)
+        }`,
+      );
       return;
     } finally {
       setIsLoading(false);

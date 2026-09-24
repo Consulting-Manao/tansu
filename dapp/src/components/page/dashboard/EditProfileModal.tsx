@@ -130,8 +130,8 @@ const EditProfileModal: FC<{
       setIsLoading(true);
       setIsUploading(true);
       setStep(6);
-      const { updateMemberFlow } = await import("@service/FlowService");
-      await updateMemberFlow({
+      const { updateMember } = await import("@service/MemberService");
+      await updateMember({
         memberAddress,
         profileFiles: files,
         onProgress: setStep,

@@ -2,7 +2,7 @@ import { useState, type FC, useEffect, useRef } from "react";
 import Input from "components/utils/Input";
 import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
-import { loadedPublicKey, setConnection } from "@service/walletService";
+import { connect, loadedPublicKey } from "@service/walletService";
 import { validateStellarPrincipal, validateUrl } from "utils/validations";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import GitVerification, { type GitIdentityData } from "./GitVerification";
@@ -128,13 +128,12 @@ const JoinCommunityModal: FC<{
     const gitIdentity = gitDataRef.current;
 
     if (!hasProfileData() && !gitIdentity) {
-      const { joinCommunityFlow } = await import("@service/FlowService");
-      const flowParams: Parameters<typeof joinCommunityFlow>[0] = {
+      const { joinCommunity } = await import("@service/MemberService");
+      await joinCommunity({
         memberAddress,
         profileFiles: [],
         onProgress: setStep,
-      };
-      await joinCommunityFlow(flowParams);
+      });
       onJoined?.();
       setUpdateSuccessful(true);
       setStep(0);
@@ -160,16 +159,13 @@ const JoinCommunityModal: FC<{
           ),
         );
       }
-      const { joinCommunityFlow } = await import("@service/FlowService");
-      const withGit: Parameters<typeof joinCommunityFlow>[0] = {
+      const { joinCommunity } = await import("@service/MemberService");
+      await joinCommunity({
         memberAddress,
         profileFiles: files,
+        gitIdentity: gitIdentity ?? undefined,
         onProgress: setStep,
-      };
-      if (gitIdentity) {
-        withGit.gitIdentity = gitIdentity;
-      }
-      await joinCommunityFlow(withGit);
+      });
       onJoined?.();
       setUpdateSuccessful(true);
       setStep(0);
@@ -203,17 +199,7 @@ const JoinCommunityModal: FC<{
     }
 
     try {
-      const { StellarWalletsKit } = await import("../../stellar-wallets-kit");
-
-      // authModal handles wallet selection + address retrieval in one step,
-      const { address: connectedAddress } = await StellarWalletsKit.authModal();
-
-      setConnection(connectedAddress);
-      window.dispatchEvent(
-        new CustomEvent("walletConnected", {
-          detail: { address: connectedAddress },
-        }),
-      );
+      const connectedAddress = await connect();
 
       try {
         setIsLoading(true);

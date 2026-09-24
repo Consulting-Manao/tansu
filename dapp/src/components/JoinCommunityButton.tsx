@@ -1,23 +1,17 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import Button from "components/utils/Button";
 import JoinCommunityModal from "components/page/dashboard/JoinCommunityModal";
 
-import { memberQuery } from "@service/MemberService";
-import { queryClient } from "@service/queryClient";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey } from "utils/store";
 
+/** For visitors: join, connecting a wallet on the way. */
 const JoinCommunityButton = () => {
   const publicKey = useStore(connectedPublicKey);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const { data: member } = useQuery(
-    { ...memberQuery(publicKey ?? ""), enabled: !!publicKey },
-    queryClient,
-  );
 
-  // Hide button only when wallet is connected AND user is already a member
-  if (publicKey && member) {
+  // A connected wallet joins from its profile; a join in progress stays.
+  if (publicKey && !showJoinModal) {
     return null;
   }
 

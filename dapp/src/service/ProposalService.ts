@@ -1,11 +1,31 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
-import type { Proposal, ProposalOutcome } from "types/proposal";
-import type { Proposal as ContractProposal } from "../../packages/tansu";
-import { tansuReads } from "../contracts/soroban_tansu";
-import { readResult } from "../utils/contractErrors";
+import type {
+  OutcomeContract,
+  Proposal,
+  ProposalOutcome,
+  VoteReceipt,
+  VoteType,
+} from "types/proposal";
+import type {
+  Proposal as ContractProposal,
+  Vote,
+  VoteChoice,
+} from "../../packages/tansu";
+import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
+import { errorMessage, readResult } from "../utils/contractErrors";
+import { encryptWithPublicKey } from "../utils/crypto";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
+import { parseContractOptionString } from "../utils/utils";
+import { votingPowerQuery } from "./MemberService";
+import { anonymousConfigQuery } from "./ProjectService";
 import { queryClient } from "./queryClient";
+import {
+  getTokenBalance,
+  tokenVoteWeightToContract,
+} from "./TokenBalanceService";
+import { packUpload, sendTransaction } from "./TxService";
+import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
 /** The contract's MAX_PROPOSALS_PER_PAGE: proposal `id` is on page `id / 9`. */
@@ -252,3 +272,343 @@ export async function fetchProposalOutcomeData(
 }
 
 export { fetchProposalFromIPFS };
+
+/** The queries a change to a proposal refetches. */
+const proposalKey = (name: string, id: number) => [
+  "proposal",
+  projectKeyHex(name),
+  id,
+];
+
+/**
+ * Submit a proposal: its description and outcomes on IPFS, the vote on
+ * chain. Returns the new proposal's id and its IPFS directory.
+ */
+export async function createProposal({
+  projectName,
+  proposalName,
+  proposalFiles,
+  votingEndsAt,
+  publicVoting = true,
+  outcomeContracts,
+  tokenContract,
+  onProgress,
+}: {
+  projectName: string;
+  proposalName: string;
+  proposalFiles: File[];
+  votingEndsAt: number;
+  publicVoting?: boolean;
+  /** Contracts to call on execution: approved, rejected, cancelled. */
+  outcomeContracts?: OutcomeContract[] | undefined;
+  /** A token for token-weighted voting (its SAC address). */
+  tokenContract?: string | undefined;
+  onProgress?: (step: number) => void;
+}): Promise<{ id: number; cid: string }> {
+  const upload = await packUpload(proposalFiles);
+  onProgress?.(7);
+  const address = connectedAddress();
+  const tx = await tansuFor(address).create_proposal({
+    proposer: address,
+    project_key: deriveProjectKey(projectName),
+    title: proposalName,
+    ipfs: upload.cid,
+    voting_ends_at: BigInt(votingEndsAt),
+    public_voting: publicVoting,
+    outcome_contracts: outcomeContracts,
+    token_contract: tokenContract,
+  });
+  const { result } = await sendTransaction(tx, {
+    upload,
+    onProgress,
+    invalidate: [["proposals", projectKeyHex(projectName)]],
+  });
+  return { id: result, cid: upload.cid };
+}
+
+export interface VotingPowerResult {
+  maxWeight: number;
+  isTokenVoting: boolean;
+  tokenContract: string | null;
+  /** Whole-token balance from SAC (for display). */
+  tokenBalance?: number;
+  tokenDecimals?: number;
+}
+
+/**
+ * The weight a voter may use: their token balance for a token-weighted
+ * proposal, their badges' weight otherwise.
+ */
+export async function getVotingPower(
+  projectName: string,
+  proposalId: number,
+  voterAddress?: string,
+): Promise<VotingPowerResult> {
+  const member = voterAddress ?? connectedAddress();
+  const proposal = await queryClient.query(
+    proposalQuery(projectName, proposalId),
+  );
+  if (!proposal) throw new Error("Proposal not found");
+
+  const tokenContract = parseContractOptionString(
+    proposal.vote_data.token_contract,
+  );
+  if (tokenContract) {
+    const tokenBalance = await getTokenBalance(tokenContract, member);
+    return {
+      maxWeight: tokenBalance.maxVoteWeight,
+      isTokenVoting: true,
+      tokenContract,
+      tokenBalance: tokenBalance.balanceInTokens,
+      tokenDecimals: tokenBalance.decimals,
+    };
+  }
+
+  const maxWeight = await queryClient.query(
+    votingPowerQuery(projectName, member),
+  );
+  return { maxWeight, isTokenVoting: false, tokenContract: null };
+}
+
+const VOTE_CHOICES: Record<VoteType, VoteChoice> = {
+  approve: { tag: "Approve", values: undefined },
+  reject: { tag: "Reject", values: undefined },
+  abstain: { tag: "Abstain", values: undefined },
+};
+
+/**
+ * Vote on a proposal, publicly or anonymously as the proposal says. The
+ * receipt holds what an anonymous voter keeps to prove their vote later.
+ */
+export async function vote(
+  projectName: string,
+  proposalId: number,
+  voteType: VoteType,
+  customWeight?: number,
+): Promise<VoteReceipt> {
+  const voter = connectedAddress();
+  const project_key = deriveProjectKey(projectName);
+
+  const proposal = await queryClient.query(
+    proposalQuery(projectName, proposalId),
+  );
+  if (!proposal) throw new Error("Proposal not found");
+  const isPublicVoting = proposal.vote_data.public_voting;
+  const tokenContract = parseContractOptionString(
+    proposal.vote_data.token_contract,
+  );
+
+  // Badges: a u32 badge weight. Token: u32 whole-token units, which the
+  // contract checks against the balance.
+  let weight: number;
+  if (tokenContract) {
+    const tokenBalance = await getTokenBalance(tokenContract, voter);
+    weight = tokenVoteWeightToContract(
+      customWeight ??
+        (tokenBalance.maxVoteWeight > 0 ? tokenBalance.maxVoteWeight : 1),
+    );
+    if (weight <= 0) throw new Error("Vote weight must be greater than zero");
+  } else if (customWeight !== undefined) {
+    weight = customWeight;
+  } else {
+    const maxWeight = await queryClient
+      .query(votingPowerQuery(projectName, voter))
+      .catch(() => 0);
+    weight = maxWeight > 0 ? maxWeight : 1;
+  }
+
+  let payload: Vote;
+  let receipt: Pick<
+    VoteReceipt,
+    "seeds" | "votes" | "commitments" | "publicKey"
+  > = {};
+  if (isPublicVoting) {
+    payload = {
+      tag: "PublicVote",
+      values: [{ address: voter, vote_choice: VOTE_CHOICES[voteType], weight }],
+    };
+  } else {
+    // Commitments are built from the raw votes and seeds, without weights:
+    // the contract applies the weight, so the chosen option is 1 and the
+    // others 0, which keeps later tallies within u32.
+    const votes = [0, 0, 0];
+    votes[["approve", "reject", "abstain"].indexOf(voteType)] = 1;
+    const seeds = [...crypto.getRandomValues(new Uint32Array(3))].map(Number);
+
+    const config = await queryClient.query(anonymousConfigQuery(projectName));
+    const publicKey = config?.public_key;
+    if (!publicKey) {
+      throw new Error("Anonymous voting config missing public key");
+    }
+    const saltPrefix = `${voter}:${projectName}:${proposalId}`;
+
+    try {
+      const [encryptedSeeds, encryptedVotes, commitmentsTx] = await Promise.all(
+        [
+          Promise.all(
+            seeds.map((seed) =>
+              encryptWithPublicKey(`${saltPrefix}:${seed}`, publicKey),
+            ),
+          ),
+          Promise.all(
+            votes.map((v) =>
+              encryptWithPublicKey(`${saltPrefix}:${v}`, publicKey),
+            ),
+          ),
+          tansuReads.build_commitments_from_votes({
+            project_key,
+            votes: votes.map(BigInt),
+            seeds: seeds.map(BigInt),
+          }),
+        ],
+      );
+      const commitments = readResult(commitmentsTx);
+      receipt = {
+        seeds: seeds.map(String),
+        votes: votes.map(String),
+        commitments: commitments.map((c) => c.toString()),
+        publicKey,
+      };
+      payload = {
+        tag: "AnonymousVote",
+        values: [
+          {
+            address: voter,
+            weight,
+            encrypted_seeds: encryptedSeeds,
+            encrypted_votes: encryptedVotes,
+            commitments,
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(errorMessage(error), { cause: error });
+    }
+  }
+
+  const tx = await tansuFor(voter).vote({
+    voter,
+    project_key,
+    proposal_id: proposalId,
+    vote: payload,
+  });
+  const { hash } = await sendTransaction(tx, {
+    invalidate: [proposalKey(projectName, proposalId)],
+  });
+  return {
+    projectName,
+    proposalId,
+    voteType,
+    weight,
+    isPublicVoting,
+    transactionHash: hash,
+    ...receipt,
+  };
+}
+
+/**
+ * Close a proposal whose vote ended. An anonymous one needs the tallies and
+ * seeds its maintainers decoded.
+ */
+export async function executeProposal(
+  projectName: string,
+  proposalId: number,
+  tallies?: bigint[],
+  seeds?: bigint[],
+): Promise<void> {
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).execute({
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    proposal_id: proposalId,
+    tallies,
+    seeds,
+  });
+  await sendTransaction(tx, {
+    invalidate: [proposalKey(projectName, proposalId)],
+  });
+}
+
+/** Revoke a proposal as malicious. */
+export async function revokeProposal(
+  projectName: string,
+  proposalId: number,
+): Promise<void> {
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).revoke_proposal({
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    proposal_id: proposalId,
+  });
+  await sendTransaction(tx, {
+    invalidate: [proposalKey(projectName, proposalId)],
+  });
+}
+
+/** Remove a malicious vote from a proposal. */
+export async function removeVote(
+  projectName: string,
+  proposalId: number,
+  voterAddress: string,
+): Promise<void> {
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).remove_vote({
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    proposal_id: proposalId,
+    voter: voterAddress,
+  });
+  await sendTransaction(tx, {
+    invalidate: [proposalKey(projectName, proposalId)],
+  });
+}
+
+/** Add addresses to, or remove them from, those who may not vote. */
+export async function changeConflictOfInterest(
+  change: "add" | "remove",
+  projectName: string,
+  proposalId: number,
+  addresses: string[],
+): Promise<void> {
+  const maintainer = connectedAddress();
+  const args = {
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    proposal_id: proposalId,
+    addresses,
+  };
+  const client = tansuFor(maintainer);
+  const tx = await (change === "add"
+    ? client.add_conflict_of_interest(args)
+    : client.remove_conflict_of_interest(args));
+  await sendTransaction(tx, {
+    invalidate: [["conflicts", projectKeyHex(projectName), proposalId]],
+  });
+}
+
+/**
+ * Give the project the key anonymous votes are encrypted to, unless it has
+ * one already (`force` replaces it).
+ */
+export async function setupAnonymousVoting(
+  projectName: string,
+  publicKey: string,
+  force = false,
+): Promise<void> {
+  // Set it up on a failed read too.
+  if (!force) {
+    const config = await queryClient
+      .query(anonymousConfigQuery(projectName))
+      .catch(() => null);
+    if (config) return;
+  }
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).anonymous_voting_setup({
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    public_key: publicKey,
+  });
+  await sendTransaction(tx, {
+    invalidate: [["anonymousConfig", projectKeyHex(projectName)]],
+  });
+}

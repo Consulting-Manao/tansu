@@ -1,8 +1,5 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
-import {
-  checkSimulationError,
-  parseContractError,
-} from "../utils/contractErrors";
+import { checkSimulationError, errorMessage } from "../utils/contractErrors";
 import { MAX_VOTE_WEIGHT_U32 } from "../utils/utils";
 
 /** Soroban contract IDs used for SAC / SEP-41 tokens. */
@@ -265,10 +262,9 @@ export async function getTokenBalance(
       decimals = await fetchTokenDecimals(contractId);
       balanceStroops = await simulateBalanceViaRpc(contractId, ownerAddress);
     } catch (rpcErr) {
-      throw new Error(
-        `Failed to read token balance: ${parseContractError(rpcErr)}`,
-        { cause: rpcErr },
-      );
+      throw new Error(`Failed to read token balance: ${errorMessage(rpcErr)}`, {
+        cause: rpcErr,
+      });
     }
   }
 
