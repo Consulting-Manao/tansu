@@ -45,7 +45,7 @@ bun install
 cp .env.example .env       # all variables are required
 bun dev                    # dev server on http://localhost:4321
 bun run build
-bun run test               # Playwright e2e on the production build, against fakes (tests/*.spec.ts)
+bun run test               # Playwright e2e: the production build against testnet (tests/*.spec.ts)
 bunx playwright test tests/governance.spec.ts   # single e2e file
 bun run test:unit          # vitest, includes tests/unit/**/*.test.ts
 bunx vitest run tests/unit/utils/errorHandler.test.ts # single unit test
@@ -255,8 +255,11 @@ export default defineConfig({
 - **Running**: `npx playwright test` or, in this repo, `bun playwright test`. Use `--ui` for UI mode, `--headed` to see the browser, `--project=chromium` for one browser.
 
 **Project usage**:
-- **dapp**: Tests run with `bun playwright test --reporter=dot` (see `dapp/package.json`). Config in `dapp/playwright.config.ts`; workers set to 1 in CI for stability.
-- Tests run on the production build (`bun run build`, served from `dist/`) against the fakes in `dapp/tests/helpers/`: `chain.ts` (Tansu behind a Soroban RPC), `web.ts` (IPFS gateway, Horizon, upload worker, GitHub) and `wallet.ts` (a GHOSTSIG wallet). Mock by host, never by module: module paths do not exist in a build. Start a test from `world()` in `app.ts`.
+- **dapp**: Tests run with `bun playwright test --reporter=dot` (see `dapp/package.json`). Config in `dapp/playwright.config.ts`.
+- Tests are user journeys on the production build (`bun run build`, served from `dist/` on port 4321, the origin the testnet upload worker accepts) against **testnet**: the Tansu contract, Soroban RPC, Horizon, the IPFS upload worker and git hosts are real. Nothing is mocked except the wallet UI: `wallet.ts` answers the GHOSTSIG popup protocol and signs with a friendbot-funded account (`wallet` fixture in `app.ts`).
+- Set up what a journey starts from through the contract bindings in `testnet.ts` (`registerProject`, `join`, `setBadges`, `createProposal`), drive the journey itself through the UI, and assert on-chain state with `read.*`. Register projects with short governance periods (`minVotingPeriod`, `executeDelay`) to vote on and execute a proposal within one test. Name everything with `uniqueName()`: runs share the testnet contract.
+- Use the Tansu Radicle repository (`RADICLE_REPO`) for set-up projects: GitHub allows 60 unauthenticated calls an hour.
+- A transaction takes a few seconds to land; wait on what the user sees or poll `read.*`, never sleep.
 - **Reports**: Use `npx playwright show-report` (or `bunx playwright show-report`) to open the HTML report after a run.
 
 **Reference**: [Playwright Introduction](https://playwright.dev/docs/intro), [Configuration](https://playwright.dev/docs/test-configuration), [Writing tests](https://playwright.dev/docs/writing-tests), [Running tests](https://playwright.dev/docs/running-tests)

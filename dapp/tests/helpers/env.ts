@@ -13,17 +13,12 @@ type Env = Record<
 >;
 
 /**
- * What the app is built with for e2e: the documented contract ids, and hosts
- * that never resolve, so a request no test mocks fails instead of reaching a
- * real network.
+ * What the app is built with for e2e: the documented testnet configuration,
+ * so flows run against the real contract, RPC, Horizon and upload worker.
  */
-export const E2E_ENV: Env = {
-  ...(parseEnv(
-    readFileSync(new URL("../../.env.example", import.meta.url), "utf8"),
-  ) as Env),
-  PUBLIC_SOROBAN_RPC_URL: "https://rpc.e2e.test",
-  PUBLIC_HORIZON_URL: "https://horizon.e2e.test",
-  PUBLIC_DELEGATION_API_URL: "https://ipfs.e2e.test/",
-};
+export const E2E_ENV = parseEnv(
+  readFileSync(new URL("../../.env.example", import.meta.url), "utf8"),
+) as Env;
 
-export const E2E_PORT = 4329;
+// The dev server port: the upload worker only answers these origins.
+export const E2E_PORT = 4321;

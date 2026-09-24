@@ -3,12 +3,20 @@ name: E2E Tests
 permissions:
   contents: read
 
+# The flows run on testnet (real contract, RPC, Horizon and upload worker) with
+# accounts funded by friendbot, so they need no secrets.
 on:
   pull_request:
     paths:
       - "dapp/**"
       - ".github/workflows/e2e.yml"
-
+  push:
+    branches: [main]
+    paths:
+      - "dapp/**"
+      - ".github/workflows/e2e.yml"
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -76,8 +84,8 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: bunx playwright install-deps chromium
 
-      # Playwright builds the app with its own environment (tests/helpers/env.ts)
-      # and serves dist/.
+      # Playwright builds the app for testnet (tests/helpers/env.ts) and serves
+      # dist/.
       - name: Run E2E tests
         run: bun run test
         env:

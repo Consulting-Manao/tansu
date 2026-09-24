@@ -1,31 +1,45 @@
-import { GRACE, expect, test } from "./helpers/app";
+import { Badge } from "../packages/tansu/src/index.ts";
+import { expect, test } from "./helpers/app";
+import {
+  RADICLE_REPO,
+  fundedKeypair,
+  join,
+  read,
+  registerProject,
+  uniqueName,
+} from "./helpers/testnet";
 import { connectWallet } from "./helpers/wallet";
 
 test("register a project, update a config and give a badge", async ({
   page,
-  chain,
-  web,
+  wallet,
 }) => {
+  test.setTimeout(360_000);
+  const taken = uniqueName("taken");
+  const orbit = uniqueName("orbit");
+  const grace = await fundedKeypair();
+  await Promise.all([registerProject(taken, [wallet]), join(grace, "Grace")]);
+
   await page.goto("/");
   await connectWallet(page);
 
-  // Register "orbit", hosted on Radicle. "demo" is already taken.
+  // Register a project hosted on Radicle; the first name is already taken.
   await page.getByRole("button", { name: "+ Add Project" }).click();
   const wizard = page.getByRole("dialog");
   const name = page.getByPlaceholder(
     "Write the project name (e.g., myproject)",
   );
-  await name.fill("demo");
+  await name.fill(taken);
   await page.getByPlaceholder("My Awesome Project").fill("Orbit Toolkit");
   await page
     .getByPlaceholder("https://github.com/owner/repo")
-    .fill("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5");
+    .fill(RADICLE_REPO);
   await wizard.getByRole("button", { name: "Next" }).click();
   await expect(
     wizard.getByText("Project name already registered"),
   ).toBeVisible();
   await expect(wizard.getByRole("combobox")).toHaveValue("radicle");
-  await name.fill("orbit");
+  await name.fill(orbit);
   await wizard.getByRole("button", { name: "Next" }).click();
   await page.getByPlaceholder("alias").fill("ada");
   await wizard.getByRole("button", { name: "Next" }).click();
@@ -37,40 +51,51 @@ test("register a project, update a config and give a badge", async ({
     .fill("Tools for orbital mechanics");
   await wizard.getByRole("button", { name: "Next" }).click();
   await wizard.getByRole("button", { name: "Register Project" }).click();
-
-  await expect(page).toHaveURL(/\/project\/?\?name=orbit/);
-  expect(chain.sent).toEqual(["register"]);
-  expect(chain.project("orbit").project).toMatchObject({
-    config: { url: "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5", ipfs: web.uploads[0] },
+  await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${orbit}`), {
+    timeout: 120_000,
+  });
+  expect(await read.project(orbit)).toMatchObject({
+    maintainers: [wallet.publicKey()],
+    config: { url: RADICLE_REPO },
   });
 
-  // Update the configuration of "demo".
-  await page.goto("/project/?name=demo");
-  await page.getByRole("heading", { name: "Pony Factor" }).waitFor();
+  // Update the configuration of the first project.
+  const before = (await read.project(taken))!.config.ipfs;
+  await page.goto(`/project/?name=${taken}`);
+  // A maintainer edits what the page shows, once its tansu.toml is read.
+  await expect(page.getByText("E2E Labs").first()).toBeVisible();
   await page.getByRole("button", { name: "Update config" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByPlaceholder("My Awesome Project").fill("Demo Project");
-  await page.getByRole("button", { name: "Next" }).click();
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
   await page
     .getByRole("button", { name: "Update Config", exact: true })
     .click();
-  await expect.poll(() => chain.sent).toEqual(["register", "update_config"]);
-  expect(chain.project("demo").project.config.ipfs).toBe(web.uploads[1]);
+  await expect
+    .poll(async () => (await read.project(taken))!.config.ipfs, {
+      timeout: 120_000,
+    })
+    .not.toBe(before);
   // The page shows the new configuration at once.
   await page.getByRole("button", { name: "OK" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Demo Project", { exact: true })).toBeVisible();
 
   // Grace, a member, becomes part of the community.
-  await page.goto("/project/?name=demo");
-  await page.getByRole("heading", { name: "Pony Factor" }).waitFor();
   await page.getByRole("button", { name: "Add badge" }).click();
-  await page.getByPlaceholder("Member address as G...").fill(GRACE);
+  await page.getByPlaceholder("Member address as G...").fill(grace.publicKey());
   await page.getByRole("checkbox", { name: "Community" }).check();
   await page.getByRole("button", { name: "Add Badges" }).click();
   await expect
-    .poll(() => chain.sent)
-    .toEqual(["register", "update_config", "set_badges"]);
-  expect(chain.project("demo").badges.community).toEqual([GRACE]);
-  await expect(page.getByText(`${GRACE.slice(0, 20)}...`)).toBeVisible();
+    .poll(async () => (await read.badges(taken)).community, {
+      timeout: 120_000,
+    })
+    .toEqual([grace.publicKey()]);
+  expect((await read.member(grace.publicKey()))?.projects).toEqual([
+    expect.objectContaining({ badges: [Badge.Community] }),
+  ]);
+  await expect(
+    page.getByText(`${grace.publicKey().slice(0, 20)}...`),
+  ).toBeVisible();
 });

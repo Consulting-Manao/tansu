@@ -1,11 +1,33 @@
-import { DEAD_CID, expect, test } from "./helpers/app";
+import { expect, test } from "./helpers/app";
+import {
+  createProposal,
+  fundedKeypair,
+  registerProject,
+  uniqueName,
+} from "./helpers/testnet";
+
+const project = uniqueName("browse");
+
+// One setup for the file: the flows below read the same project.
+test.describe.configure({ mode: "serial" });
+
+test.beforeAll(async () => {
+  test.setTimeout(180_000);
+  const maintainer = await fundedKeypair();
+  await registerProject(project, [maintainer]);
+  await createProposal(
+    maintainer,
+    project,
+    "Adopt a code of conduct",
+    2 * 24 * 3600,
+  );
+});
 
 test.describe("browsing without a wallet", () => {
   test.use({ acceptTerms: false });
 
   test("accept the terms, find a project and read it through", async ({
     page,
-    web,
   }) => {
     await page.goto("/");
 
@@ -20,68 +42,25 @@ test.describe("browsing without a wallet", () => {
     await accept.click();
     await expect(terms).toBeHidden();
 
-    // Cards fill in from each tansu.toml. A CID nobody provides leaves a bare
-    // card and is asked for once, even across reloads.
-    const cards = page.locator(".all-projects-section .project-card");
-    await expect(cards.filter({ hasText: "demo" })).toContainText(
-      "Demo Foundation",
-    );
-    await expect(cards.filter({ hasText: "ghost" })).toContainText(
-      "No description",
-    );
-    await page.reload();
-    await expect(cards.filter({ hasText: "ghost" })).toContainText(
-      "No description",
-    );
-    expect(web.ipfsRequests.filter((r) => r.startsWith(DEAD_CID))).toHaveLength(
-      1,
-    );
-
-    // Search finds the project on chain; its card leads to the project page.
+    // Search finds the project on chain; its card leads to the project page,
+    // filled in from its tansu.toml and its Radicle repository.
     const search = page.getByRole("textbox", {
       name: "Search projects or community...",
     });
-    await search.fill("demo");
+    await search.fill(project);
     await search.press("Enter");
-    await page
-      .locator(".project-list-container .project-card img")
-      .first()
-      .click();
+    await page.getByRole("img", { name: project, exact: true }).click();
     await page.getByRole("button", { name: "View Details" }).click();
-
-    await expect(page).toHaveURL(/\/project\/?\?name=demo/);
+    await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${project}`));
+    await expect(page.getByText("E2E Labs").first()).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Pony Factor" }),
-    ).toBeVisible();
-    // Its activity, month by month, newest first.
-    await expect(
-      page
-        .getByRole("list")
-        .filter({ hasText: "Aug 26" })
-        .getByRole("listitem"),
-    ).toHaveText([/^Sep 26\s*1$/, /^Aug 26\s*1$/]);
-    await page.getByRole("button", { name: "Read More" }).click();
-    await expect(
-      page.getByText("The README of the demo project."),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Close modal" }).click();
+    ).toBeVisible({ timeout: 60_000 });
 
-    // Its proposals, then one of them.
+    // Its proposals, then one of them, read from IPFS.
     await page.getByRole("button", { name: "Proposals" }).click();
-    await expect(
-      page.getByRole("link", {
-        name: /Ship the dark theme.*Pending execution/,
-      }),
-    ).toBeVisible();
     await page.getByRole("link", { name: /Adopt a code of conduct/ }).click();
-    await expect(
-      page.getByText("We adopt the Contributor Covenant."),
-    ).toBeVisible();
-    await expect(page.getByText("if (a < b && c) {}")).toBeVisible();
-    await expect(page.locator('meta[http-equiv="refresh"], form')).toHaveCount(
-      0,
-    );
-    await expect(page.getByText("Merge the code of conduct.")).toBeVisible();
+    await expect(page.getByText("Set up by the e2e flows.")).toBeVisible();
   });
 });
 

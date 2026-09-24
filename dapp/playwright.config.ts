@@ -11,17 +11,19 @@ const chromiumExecutablePath = [
 
 /**
  * The tests walk through the production build, served from dist/, against
- * the fakes in tests/helpers: a Tansu contract behind a Soroban RPC, the IPFS
- * gateway, Horizon, the upload worker, GitHub and a GHOSTSIG wallet.
+ * testnet: the Tansu contract, Soroban RPC, Horizon, the IPFS upload worker
+ * and git hosts are real. The GHOSTSIG wallet signs with friendbot-funded
+ * test accounts (tests/helpers).
  */
 export default defineConfig({
   testDir: "./tests",
   testMatch: "*.spec.ts",
-  timeout: 60_000,
-  expect: { timeout: 15_000 },
+  // Real transactions: a ledger closes about every 5 seconds.
+  timeout: 180_000,
+  expect: { timeout: 30_000 },
   fullyParallel: true,
   retries: 0,
-  ...(process.env.CI ? { workers: 1 } : {}),
+  workers: 2,
   reporter: [["line"]],
   use: {
     ...devices["Desktop Chrome"],
@@ -51,6 +53,6 @@ export default defineConfig({
     },
     url: `http://localhost:${E2E_PORT}`,
     timeout: 180_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });

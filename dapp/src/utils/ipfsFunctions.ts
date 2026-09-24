@@ -26,8 +26,9 @@ const GATEWAYS: ReadonlyArray<{
   },
 ];
 
+// A file just uploaded can take the gateway several seconds to serve.
 const DEFAULT_IPFS_TIMEOUT_MS = 10000;
-const PER_ATTEMPT_MS = 3000;
+const PER_ATTEMPT_MS = 10000;
 
 type FetchFromIpfsOptions = {
   timeoutMs?: number;
@@ -37,25 +38,17 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-async function fetchOne(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    clearTimeout(id);
-    return res;
-  } catch (e) {
-    clearTimeout(id);
-    throw e;
-  }
+/**
+ * One gateway request, body included, within `timeoutMs`: a gateway can
+ * answer with headers and then stall.
+ */
+async function fetchOne(url: string, timeoutMs: number): Promise<Response> {
+  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  return new Response(await response.arrayBuffer(), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 /**
@@ -84,32 +77,13 @@ export async function fetchFromIpfs(
   for (let i = 0; i < GATEWAYS.length; i++) {
     const gateway = GATEWAYS[i]!;
     try {
-      const res = await fetchOne(
-        gateway.buildUrl(cid, pathNorm),
-        {},
-        attemptMs,
-      );
+      const res = await fetchOne(gateway.buildUrl(cid, pathNorm), attemptMs);
       if (!res.ok) {
         lastError = new Error(`HTTP ${res.status} from ${gateway.name}`);
         // Only a 504 body tells a dead CID from a slow one.
-        let body = "";
-        if (res.status === 504) {
-          try {
-            body = await res.text();
-          } catch {
-            // Unreadable: treated as temporary.
-          }
-        }
+        const body = res.status === 504 ? await res.text() : "";
         const scope = classifyIpfsFailure(res.status, body);
         if (scope) misses.push({ scope, status: res.status });
-        continue;
-      }
-      // Only accept when the final response body is readable (outcome of redirect), not just status
-      try {
-        const verifyClone = res.clone();
-        await verifyClone.arrayBuffer();
-      } catch (bodyErr) {
-        lastError = bodyErr;
         continue;
       }
       return res;
