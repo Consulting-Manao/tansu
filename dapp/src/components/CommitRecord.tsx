@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { navigate } from "astro:transitions/client";
 import JsonView from "react18-json-view";
 import CopyButton from "components/utils/CopyButton";
-import { loadProjectLatestSha } from "../service/StateService";
 import { projectUrl } from "utils/urls";
 
 interface CommitRecordProps {
@@ -30,6 +29,8 @@ interface CommitRecordProps {
   proposalLink?: string | null | undefined;
   /** Attestation control rendered next to the hash; omit to hide entirely */
   attestation?: React.ReactNode;
+  /** The commit is the project's latest one on chain. */
+  isLatest?: boolean;
 }
 
 const CommitRecord: React.FC<CommitRecordProps> = ({
@@ -45,12 +46,12 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   showXDR = null,
   proposalLink = null,
   attestation = null,
+  isLatest = false,
 }) => {
   const messageRef = useRef<HTMLAnchorElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
-  const [isLatestCommit, setIsLatestCommit] = useState(false);
 
   const [firstLine, ...otherLines] = useMemo(
     () =>
@@ -62,11 +63,6 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   );
 
   const hasMoreLines = isOverflowing || otherLines.length > 0;
-
-  useEffect(() => {
-    if (!sha) return;
-    setIsLatestCommit(sha === loadProjectLatestSha());
-  }, [sha]);
 
   useEffect(() => {
     const checkOverflow = () => {
@@ -95,9 +91,9 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
     <div
       className={`relative p-[15px] lg:p-[30px] flex flex-col gap-3 ${bgClass}`}
     >
-      {(isLatestCommit || isMaintainer) && (
+      {(isLatest || isMaintainer) && (
         <div className="absolute top-0.5 left-1 flex space-x-1">
-          {isLatestCommit && (
+          {isLatest && (
             <span className="text-xs font-bold leading-3 bg-lime rounded-sm p-0.5">
               verified commit
             </span>

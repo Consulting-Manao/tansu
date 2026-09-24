@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import { useQuery } from "@tanstack/react-query";
 import Button from "components/utils/Button";
 import { useState } from "react";
 import type { ProposalView } from "types/proposal";
@@ -13,8 +12,6 @@ import VoteStatusBar from "./VoteStatusBar";
 import VotingResultModal from "./VotingResultModal";
 import VerifyAnonymousVotesModal from "./VerifyAnonymousVotesModal";
 import RemoveVoteModal from "./RemoveVoteModal";
-import { memberQuery } from "@service/MemberService";
-import { queryClient } from "@service/queryClient";
 
 interface Props {
   proposal: ProposalView | null;
@@ -36,11 +33,6 @@ const ProposalTitle: React.FC<Props> = ({
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [showMarkMaliciousModal, setShowMarkMaliciousModal] = useState(false);
   const [showMemberProfile, setShowMemberProfile] = useState(false);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
-  const proposer = useQuery(
-    { ...memberQuery(proposal?.proposer ?? ""), enabled: !!proposal?.proposer },
-    queryClient,
-  );
 
   const openVotingResultModal = () => {
     if (proposal?.status == "active") {
@@ -51,20 +43,6 @@ const ProposalTitle: React.FC<Props> = ({
       return;
     }
     setShowVotingResultModal(true);
-  };
-
-  const openMemberProfile = async () => {
-    if (!proposal?.proposer) return;
-
-    setIsLoadingProfile(true);
-    try {
-      await queryClient.query(memberQuery(proposal.proposer));
-      setShowMemberProfile(true);
-    } catch {
-      toast.error("Member Profile", "Failed to load member profile");
-    } finally {
-      setIsLoadingProfile(false);
-    }
   };
 
   const isAnonymousProposal = proposal ? !proposal.publicVoting : false;
@@ -102,12 +80,8 @@ const ProposalTitle: React.FC<Props> = ({
               <p className="leading-4 text-base text-[#695A77]">Created by</p>
               <div className="flex items-center gap-2">
                 <p
-                  className={`leading-4 text-base font-semibold text-primary font-mono ${
-                    isLoadingProfile
-                      ? "opacity-50"
-                      : "cursor-pointer hover:underline"
-                  }`}
-                  onClick={isLoadingProfile ? undefined : openMemberProfile}
+                  className="leading-4 text-base font-semibold text-primary font-mono cursor-pointer hover:underline"
+                  onClick={() => setShowMemberProfile(true)}
                 >
                   {proposal?.proposer
                     ? truncateMiddle(proposal.proposer, 20)
@@ -218,6 +192,7 @@ const ProposalTitle: React.FC<Props> = ({
       </div>
       {showVotingResultModal && proposal?.voteStatus && (
         <VotingResultModal
+          projectName={proposal.projectName}
           voteStatus={proposal?.voteStatus}
           status={proposal?.status}
           projectMaintainers={maintainers}
@@ -252,7 +227,6 @@ const ProposalTitle: React.FC<Props> = ({
       {showMemberProfile && proposal?.proposer && (
         <MemberProfileModal
           onClose={() => setShowMemberProfile(false)}
-          member={proposer.data ?? null}
           address={proposal.proposer}
         />
       )}

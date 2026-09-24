@@ -1,19 +1,16 @@
 import { useStore } from "@nanostores/react";
+import { useQuery } from "@tanstack/react-query";
 import { getLatestCommitData } from "@service/RepositoryMetadataService";
-import { getProjectHash } from "@service/ReadContractService";
-import { loadProjectInfo, loadProjectName } from "@service/StateService";
-import { loadedPublicKey } from "@service/walletService";
+import { commitQuery } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import AttestationCard from "./AttestationCard";
 import Tooltip from "components/utils/Tooltip";
 import CopyButton from "components/utils/CopyButton";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { Project } from "../../../../packages/tansu";
+import type { ConfigData } from "types/projectConfig";
 import { formatDate } from "utils/formatTimeFunctions";
-import {
-  configData as configDataStore,
-  projectHasSubProjects,
-  projectInfoLoaded,
-} from "utils/store";
-import { getIpfsBasicLink } from "utils/ipfsFunctions";
+import { connectedPublicKey } from "utils/store";
 
 enum Status {
   Match,
@@ -21,16 +18,23 @@ enum Status {
   NotFound,
 }
 
-const LatestCommit = () => {
-  const isProjectInfoLoaded = useStore(projectInfoLoaded);
-  const hasSubProjects = useStore(projectHasSubProjects);
-  const configData = useStore(configDataStore);
-
-  // configData is undefined until the TOML/IPFS fetch completes
-  const configLoaded = configData !== undefined;
-  // Only treat as software when configData has loaded AND projectType is SOFTWARE
-  const isSoftwareProject =
-    configLoaded && configData?.projectType === "SOFTWARE";
+/** The commit a maintainer set on chain, checked against the repository. */
+const LatestCommit = ({
+  project,
+  config,
+  isOrganization,
+  tomlLink,
+}: {
+  project: Project;
+  config: ConfigData;
+  isOrganization: boolean;
+  tomlLink: ReactNode;
+}) => {
+  const publicKey = useStore(connectedPublicKey);
+  const isMaintainer = !!publicKey && project.maintainers.includes(publicKey);
+  const onChain = useQuery(commitQuery(project.name), queryClient);
+  const onChainSha = onChain.data ?? null;
+  const repositoryUrl = config.officials.githubLink || project.config.url;
 
   const [commitData, setCommitData] = useState<{
     sha: string;
@@ -47,79 +51,44 @@ const LatestCommit = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [onChainSha, setOnChainSha] = useState<string | null>(null);
-
-  const connectedPublicKey = loadedPublicKey();
-  const projectInfo = loadProjectInfo();
-  const isMaintainer = connectedPublicKey
-    ? (projectInfo?.maintainers?.includes(connectedPublicKey) ?? false)
-    : false;
-
-  const loadLatestCommitData = async () => {
-    if (!isSoftwareProject) {
-      setIsLoading(false);
-      return;
-    }
-    setLoadError(null);
-    setIsLoading(true);
-    const projectInfo = loadProjectInfo();
-    const latestSha = await getProjectHash();
-    setOnChainSha(latestSha ?? null);
-    const repositoryUrl =
-      configData?.officials?.githubLink || projectInfo?.config?.url;
-    if (projectInfo && projectInfo.config && repositoryUrl && latestSha) {
-      try {
-        const latestCommit = await getLatestCommitData(
-          repositoryUrl,
-          latestSha,
-        );
-        if (latestCommit) {
-          setCommitData(latestCommit);
-          setLatestCommitStatus(
-            latestCommit.sha === latestSha ? Status.Match : Status.NotMatch,
-          );
-        } else {
-          setLatestCommitStatus(Status.NotFound);
-        }
-      } catch {
-        setLatestCommitStatus(Status.NotFound);
-        setLoadError("Could not load commit data.");
-      }
-    } else {
-      setLatestCommitStatus(Status.NotFound);
-    }
-    setIsLoading(false);
-  };
-
   useEffect(() => {
-    if (!configLoaded) return;
-    loadLatestCommitData();
-  }, [isProjectInfoLoaded, isSoftwareProject, configLoaded]);
+    if (onChain.isPending) return;
+    let active = true;
+    (async () => {
+      setLoadError(null);
+      setIsLoading(true);
+      if (repositoryUrl && onChainSha) {
+        try {
+          const latestCommit = await getLatestCommitData(
+            repositoryUrl,
+            onChainSha,
+          );
+          if (!active) return;
+          setCommitData(latestCommit ?? null);
+          setLatestCommitStatus(
+            !latestCommit
+              ? Status.NotFound
+              : latestCommit.sha === onChainSha
+                ? Status.Match
+                : Status.NotMatch,
+          );
+        } catch {
+          if (!active) return;
+          setLatestCommitStatus(Status.NotFound);
+          setLoadError("Could not load commit data.");
+        }
+      } else {
+        setLatestCommitStatus(Status.NotFound);
+      }
+      if (active) setIsLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [onChain.isPending, onChainSha, repositoryUrl]);
 
-  const configCid = loadProjectInfo()?.config?.ipfs;
-  const tomlLink =
-    configCid && getIpfsBasicLink(configCid) ? (
-      <a
-        href={`${getIpfsBasicLink(configCid)}/tansu.toml`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1 text-[#07711E] hover:underline"
-      >
-        <img src="/icons/ipfs.svg" className="w-4 h-4" alt="" />
-        <span className="text-base">tansu.toml</span>
-      </a>
-    ) : null;
-
-  // Don't render anything until we know the project type
-  if (!configLoaded) return null;
-
-  if (hasSubProjects) {
+  if (isOrganization) {
     return <div className="flex flex-col gap-3">{tomlLink}</div>;
-  }
-
-  // Non-software: render nothing (tomlLink is shown in the sync status section instead)
-  if (!isSoftwareProject) {
-    return null;
   }
 
   if (isLoading) {
@@ -188,9 +157,9 @@ const LatestCommit = () => {
           </div>
           {onChainSha && (
             <AttestationCard
-              projectName={loadProjectName()}
+              projectName={project.name}
               commitHash={onChainSha}
-              connectedPublicKey={connectedPublicKey}
+              connectedPublicKey={publicKey}
               isMaintainer={isMaintainer}
               variant="compact"
             />

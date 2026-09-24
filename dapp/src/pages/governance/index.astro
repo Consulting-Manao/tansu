@@ -1,6 +1,5 @@
 ---
-import GovernancePageTitle from "components/page/governance/GovernancePageTitle.astro";
-import CreateProposalModalWithBoundary from "components/page/proposal/CreateProposalModalWithBoundary";
+import GovernanceHeader from "components/page/governance/GovernanceHeader";
 import Container from "../../components/layout/Container.astro";
 import GovernancePage from "../../components/page/governance/GovernancePage.astro";
 import Layout from "../../layouts/Layout.astro";
@@ -12,8 +11,7 @@ import Layout from "../../layouts/Layout.astro";
 
 <Layout title="Tansu" page="governance">
   <Container>
-    <GovernancePageTitle />
+    <GovernanceHeader client:only="react" />
     <GovernancePage />
-    <CreateProposalModalWithBoundary client:load />
   </Container>
 </Layout>

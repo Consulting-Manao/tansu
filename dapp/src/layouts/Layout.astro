@@ -100,18 +100,10 @@ const { title, page } = Astro.props;
         const currentAddress = loadedPublicKey();
         if (!currentAddress) return;
 
-        let memberData = null;
-        try {
-          const { getMember } = await import("service/ReadContractService");
-          memberData = await getMember(currentAddress);
-        } catch {
-          memberData = null;
-        }
-
         await mountModal(
           `profile-modal-container ${MODAL_CLASS}`,
           () => import("components/page/dashboard/MemberProfileModal.tsx"),
-          () => ({ address: currentAddress, member: memberData }),
+          () => ({ address: currentAddress }),
         );
       } catch (e) {
         console.error("Error opening profile modal:", e);

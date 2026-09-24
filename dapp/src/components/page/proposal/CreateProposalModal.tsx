@@ -1,4 +1,6 @@
-import { getProjectFromName } from "@service/ReadContractService";
+import { useStore } from "@nanostores/react";
+import { anonymousConfigQuery } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
 import { DatePicker } from "components/utils/DatePicker";
 import { ExpandableText } from "components/utils/ExpandableText";
@@ -7,7 +9,7 @@ import Label from "components/utils/Label";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Step from "components/utils/Step";
 import Title from "components/utils/Title";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   OutcomeContract,
   StoredOutcomeNode,
@@ -29,11 +31,22 @@ import { navigate } from "astro:transitions/client";
 import Loading from "components/utils/Loading";
 import { proposalUrl } from "utils/urls";
 
-const CreateProposalModal = () => {
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
-  const [projectName, setProjectName] = useState<string | null>(null);
-  const [maintainers, setMaintainers] = useState<string[]>([]);
-  const [showModal, setShowModal] = useState(false);
+/**
+ * The proposal wizard. It stays mounted while closed, so a draft survives
+ * closing it.
+ */
+const CreateProposalModal = ({
+  projectName,
+  maintainers,
+  open: showModal,
+  onClose,
+}: {
+  projectName: string;
+  maintainers: string[];
+  open: boolean;
+  onClose: () => void;
+}) => {
+  const connectedAddress = useStore(connectedPublicKey);
   const [step, setStep] = useState(1);
   const [proposalName, setProposalName] = useState("");
   const [mdText, setMdText] = useState("");
@@ -164,68 +177,10 @@ const CreateProposalModal = () => {
 
   const checkSubmitAvailability = () => {
     if (!connectedAddress) throw new Error("Please connect your wallet first");
-    if (!projectName) throw new Error("Project name is not provided");
     if (!maintainers.includes(connectedAddress))
       throw new Error("Only maintainers can submit proposals");
     validateTokenContractForVoting();
   };
-
-  const handleSubmitProposal = useCallback(() => {
-    try {
-      checkSubmitAvailability();
-      setShowModal(true);
-    } catch (err: any) {
-      toast.error("Submit proposal", err.message);
-    }
-  }, [connectedAddress, projectName, maintainers]);
-
-  useEffect(() => {
-    const unsubscribe = connectedPublicKey.subscribe((publicKey) =>
-      setConnectedAddress(publicKey ?? null),
-    );
-    const name = new URLSearchParams(window.location.search).get("name");
-    setProjectName(name);
-    const showModalButton = document.querySelector("#create-proposal-button");
-
-    if (
-      import.meta.env.DEV &&
-      typeof (window as Window & { __nextFunc?: string }).__nextFunc ===
-        "string" &&
-      (window as Window & { __nextFunc?: string }).__nextFunc ===
-        "create_proposal"
-    ) {
-      setShowModal(true);
-      setStep(1);
-    }
-
-    if (showModalButton) {
-      setStep(1);
-      showModalButton.addEventListener("click", handleSubmitProposal);
-      return () => {
-        unsubscribe();
-        showModalButton.removeEventListener("click", handleSubmitProposal);
-      };
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, [handleSubmitProposal]);
-
-  useEffect(() => {
-    if (projectName) {
-      (async () => {
-        try {
-          const projectInfo = await getProjectFromName(projectName);
-          if (projectInfo?.maintainers) {
-            setMaintainers(projectInfo.maintainers);
-          }
-        } catch (error) {
-          console.error("Error fetching project info:", error);
-        }
-      })();
-    }
-  }, [projectName]);
 
   const prepareProposalFiles = (): File[] => {
     // Helper to build an outcome node with an optional execution subtree
@@ -461,10 +416,9 @@ const CreateProposalModal = () => {
     if (!projectName) return;
 
     try {
-      const { hasAnonymousVotingConfig } =
-        await import("@service/ReadContractService");
-
-      const exists = await hasAnonymousVotingConfig(projectName);
+      const exists = !!(await queryClient
+        .query(anonymousConfigQuery(projectName))
+        .catch(() => null));
 
       if (exists) {
         setExistingAnonConfig(true);
@@ -508,7 +462,7 @@ const CreateProposalModal = () => {
     // Preserve the draft (description markdown + attached images + their live
     // blob: URLs) so reopening the modal shows the images correctly. Object URLs
     // are revoked on unmount instead (see effect above). Fixes issue #177.
-    setShowModal(false);
+    onClose();
     setStep(1);
   };
 
@@ -519,7 +473,7 @@ const CreateProposalModal = () => {
       isOpen={showModal}
       onClose={handleCloseModal}
       onSuccess={() => {
-        setShowModal(false);
+        onClose();
         if (projectName && proposalId !== null)
           navigate(proposalUrl(projectName, proposalId));
       }}
@@ -693,7 +647,7 @@ const CreateProposalModal = () => {
 
           {/* Footer Buttons */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px] mt-6">
-            <Button type="secondary" onClick={() => setShowModal(false)}>
+            <Button type="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button

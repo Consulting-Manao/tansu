@@ -1,12 +1,8 @@
-import { getProjectFromName } from "@service/ReadContractService";
 import { createProjectFlow } from "@service/FlowService";
+import { projectQuery } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey, walletInitialized } from "utils/store";
-import {
-  setConfigData,
-  setProject,
-  setProjectRepoUrl,
-} from "@service/StateService";
 import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button.tsx";
 import Input from "components/utils/Input.tsx";
@@ -15,7 +11,7 @@ import FlowProgressModal from "components/utils/FlowProgressModal.tsx";
 import Step from "components/utils/Step.tsx";
 import Title from "components/utils/Title.tsx";
 import { useState, type FC, useEffect, useRef } from "react";
-import { extractConfigData, toast } from "utils/utils";
+import { toast } from "utils/utils";
 import {
   validateProjectName as validateProjectNameUtil,
   validateGithubUrl,
@@ -27,7 +23,6 @@ import {
   MIN_FINALITY_THRESHOLD_PERCENT,
   validateFinalityThresholdPercent,
 } from "constants/attestation";
-import { fetchTomlFromIpfs } from "utils/ipfsFunctions";
 import Textarea from "components/utils/Textarea.tsx";
 import { ProjectType } from "types/projectConfig";
 import {
@@ -171,23 +166,10 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const checkProjectNameAvailable = async (name: string): Promise<boolean> => {
-    try {
-      const project = await getProjectFromName(name);
-      return !(project && project.name === name);
-    } catch (error: any) {
-      if (
-        error.message &&
-        (error.message.includes("No project defined") ||
-          error.message.includes("not found") ||
-          error.message.includes("record not found") ||
-          error.message.includes("Invalid Key"))
-      ) {
-        return true;
-      }
-      return true;
-    }
-  };
+  // Free only when the contract has no project by that name: a failed read
+  // throws, and its message shows instead of a guess.
+  const checkProjectNameAvailable = async (name: string): Promise<boolean> =>
+    (await queryClient.query(projectQuery(name))) === null;
 
   // Update maintainersErrors array when maintainers change
   useEffect(() => {
@@ -340,24 +322,6 @@ ${maintainerGithubs.map((gh) => `[[PRINCIPALS]]\n${repositoryPrincipalField}="${
         attestationThreshold: Number(finalityThreshold),
         ...(additionalFiles && { additionalFiles }),
       });
-
-      // ── Continue with existing UI/state updates ───────────────────────
-      const project = await getProjectFromName(projectName);
-      if (project && project.name && project.config && project.maintainers) {
-        setProject(project);
-
-        if (project.config.url) {
-          setProjectRepoUrl(project.config.url);
-        }
-
-        const tomlData = await fetchTomlFromIpfs(project.config.ipfs);
-        if (tomlData) {
-          const configData = extractConfigData(tomlData, project);
-          setConfigData(configData);
-        } else {
-          setConfigData({});
-        }
-      }
 
       setStep(10);
 

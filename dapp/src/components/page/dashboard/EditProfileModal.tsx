@@ -41,7 +41,6 @@ const EditProfileModal: FC<{
   const [imageError, setImageError] = useState<string | null>(null);
 
   const handleClose = () => {
-    if (updateSuccessful) window.location.reload();
     setUpdateSuccessful(false);
     setStep(0);
     setIsLoading(false);

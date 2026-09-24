@@ -1,15 +1,17 @@
 import type { FC } from "react";
 import { useState, useEffect, lazy, Suspense } from "react";
+import { useStore } from "@nanostores/react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 const EditProfileModal = lazy(() => import("./EditProfileModal"));
-import Modal, { type ModalProps } from "components/utils/Modal";
+import Modal from "components/utils/Modal";
 import Button from "components/utils/Button";
-import type { Member, Badge } from "../../../../packages/tansu";
 import { getIpfsBasicLink, fetchJsonFromIpfs } from "utils/ipfsFunctions";
 import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
-import { refreshLocalStorage } from "@service/StateService";
-import { getProjectFromId } from "../../../service/ReadContractService";
+import { memberQuery } from "@service/MemberService";
+import { projectByKeyQuery } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import { navigate } from "astro:transitions/client";
 import { Buffer } from "buffer";
 import OnChainActions from "./OnChainActions";
@@ -17,10 +19,10 @@ import { badgeName } from "../../../utils/badges";
 import AddressDisplay from "../proposal/AddressDisplay"; // use existing component
 import { projectUrl } from "utils/urls";
 
-interface Props extends ModalProps {
-  member: Member | null;
-  // The Stellar address of the member
-  address?: string;
+interface Props {
+  /** The member's Stellar address. */
+  address: string;
+  onClose: () => void;
 }
 
 interface ProfileData {
@@ -30,28 +32,32 @@ interface ProfileData {
   image?: string; // optional path to profile image inside the IPFS directory
 }
 
-interface ProjectWithName {
-  name: string;
-  badges: Array<Badge>;
-  projectId: Buffer;
-}
+const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
+  const memberRead = useQuery(memberQuery(address), queryClient);
+  const member = memberRead.data ?? null;
+  const projectReads = useQueries(
+    {
+      queries: (member?.projects ?? []).map(({ project }) =>
+        projectByKeyQuery(Buffer.from(project).toString("hex")),
+      ),
+    },
+    queryClient,
+  );
+  const projectsWithNames = (member?.projects ?? []).map((project, index) => ({
+    name: projectReads[index]?.data?.name ?? "Unknown Project",
+    badges: project.badges,
+    projectId: project.project,
+  }));
 
-const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [hasValidMetadata, setHasValidMetadata] = useState(false);
-  const [projectsWithNames, setProjectsWithNames] = useState<ProjectWithName[]>(
-    [],
-  );
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // Use the address prop directly or extract the address from the search query if needed
-  const memberAddress = address || "";
+  const memberAddress = address;
 
-  // Navigate to project page
   const navigateToProject = (projectName: string) => {
-    refreshLocalStorage();
     navigate(projectUrl(projectName));
   };
 
@@ -138,42 +144,12 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
       }
     };
 
-    const fetchProjectNames = async () => {
-      const allProjects: ProjectWithName[] = [];
-
-      if (member && member.projects && member.projects.length > 0) {
-        const memberProjectsPromises = member.projects.map(async (proj) => {
-          try {
-            const projectData = await getProjectFromId(proj.project);
-
-            return {
-              name: projectData?.name || "Unknown Project",
-              badges: proj.badges,
-              projectId: proj.project,
-            };
-          } catch {
-            return {
-              name: "Unknown Project",
-              badges: proj.badges,
-              projectId: proj.project,
-            };
-          }
-        });
-
-        const memberProjects = await Promise.all(memberProjectsPromises);
-        allProjects.push(...memberProjects);
-      }
-
-      setProjectsWithNames(allProjects);
-    };
-
     if (member) {
       fetchProfileData();
-      fetchProjectNames();
     } else {
       setIsLoading(false);
     }
-  }, [member, memberAddress]);
+  }, [member]);
 
   // Get the initial letter for the avatar
   const getInitialLetter = (name: string | undefined): string => {
@@ -181,8 +157,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
     return name.charAt(0).toUpperCase();
   };
 
-  // Get the connected public key
-  const publicKey = connectedPublicKey.get();
+  const publicKey = useStore(connectedPublicKey);
 
   // Handle disconnect button click
   const handleDisconnect = () => {
@@ -203,6 +178,16 @@ const MemberProfileModal: FC<Props> = ({ onClose, member, address }) => {
       }),
     );
   };
+
+  if (memberRead.isPending) {
+    return (
+      <Modal onClose={onClose}>
+        <div className="flex items-center justify-center py-10">
+          <img src="/images/loading.svg" className="w-12 animate-spin" />
+        </div>
+      </Modal>
+    );
+  }
 
   // If member is null, show registration message
   if (!member) {

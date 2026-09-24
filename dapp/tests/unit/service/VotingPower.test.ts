@@ -18,10 +18,6 @@ vi.mock("../../../src/service/walletService", () => ({
   txSourceFor: (address: string) => address,
 }));
 
-vi.mock("../../../src/service/StateService", () => ({
-  loadedProjectId: vi.fn(),
-}));
-
 vi.mock("../../../src/service/TxService", () => ({
   signAndSend: vi.fn(),
 }));

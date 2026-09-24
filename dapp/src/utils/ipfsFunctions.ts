@@ -1,5 +1,6 @@
 /** IPFS gateway and fetch helpers. Single retrieval path: CID + path → cache → gateways. */
 
+import { queryOptions } from "@tanstack/react-query";
 import toml from "toml";
 
 import { isValidCid } from "./contentHashes";
@@ -212,36 +213,37 @@ export async function fetchJsonFromIpfs(
   }
 }
 
-const TANSU_TOML_PATH = "/tansu.toml";
-
 /**
- * Fetch and parse project tansu.toml from IPFS.
+ * A file under a CID, as text. Content under a CID never changes, so it is
+ * never refetched, and `null` (the gateway says the file is not there) is
+ * final too. A dead CID or a temporary failure throws: the first is not
+ * cached, since a re-upload revives the CID, and the miss cache already spares
+ * the requests; a gateway's final answer is not retried either.
  */
-export async function fetchTomlFromIpfs(
-  cid: string,
-  options: FetchFromIpfsOptions = {},
-): Promise<any | undefined> {
-  if (!isValidCid(cid)) return undefined;
+export const ipfsQuery = (cid: string, path: string) =>
+  queryOptions({
+    queryKey: ["ipfs", cid, normalizePath(path)],
+    queryFn: async () => {
+      try {
+        return await (await fetchFromIpfs(cid, path)).text();
+      } catch (error) {
+        if (error instanceof IpfsMissError && error.scope === "path") {
+          return null;
+        }
+        throw error;
+      }
+    },
+    staleTime: Infinity,
+    retry: (failures, error) =>
+      !(error instanceof IpfsMissError) && failures < 2,
+  });
 
-  const cache = getGlobalIpfsCache();
-  const cachedToml = cache.toml[cid];
-  if (cachedToml !== undefined) return cachedToml;
-
+/** A tansu.toml's data; `undefined` when missing or not a Tansu file. */
+export function parseTansuToml(text: string | null): any | undefined {
+  if (!text?.trim()) return undefined;
   try {
-    const text = await fetchTextFromIpfs(cid, TANSU_TOML_PATH, options);
-    if (!text?.trim()) return undefined;
-
     const data = toml.parse(text);
-    if (
-      !data ||
-      (typeof data === "object" &&
-        !(data as any).DOCUMENTATION &&
-        !(data as any).ACCOUNTS)
-    ) {
-      return undefined;
-    }
-    setCapped(cache.toml, cid, data);
-    return data;
+    return data?.DOCUMENTATION || data?.ACCOUNTS ? data : undefined;
   } catch {
     return undefined;
   }

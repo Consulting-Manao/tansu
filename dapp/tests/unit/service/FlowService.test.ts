@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Buffer } from "buffer";
 
 const {
   packFilesToCarMock,
@@ -7,7 +6,6 @@ const {
   registerMock,
   updateConfigMock,
   connectedPublicKeyGetMock,
-  loadedProjectIdMock,
   signAssembledTransactionMock,
   sendSignedTransactionMock,
   checkSimulationErrorMock,
@@ -17,13 +15,13 @@ const {
   registerMock: vi.fn(),
   updateConfigMock: vi.fn(),
   connectedPublicKeyGetMock: vi.fn(),
-  loadedProjectIdMock: vi.fn(),
   signAssembledTransactionMock: vi.fn(),
   sendSignedTransactionMock: vi.fn(),
   checkSimulationErrorMock: vi.fn(),
 }));
 
-vi.mock("../../../src/utils/ipfsFunctions", () => ({
+vi.mock("../../../src/utils/ipfsFunctions", async (importOriginal) => ({
+  ...(await importOriginal()),
   packFilesToCar: packFilesToCarMock,
   uploadToIpfsProxy: uploadToIpfsProxyMock,
 }));
@@ -42,10 +40,6 @@ vi.mock("../../../src/utils/store", () => ({
   },
 }));
 
-vi.mock("../../../src/service/StateService", () => ({
-  loadedProjectId: loadedProjectIdMock,
-}));
-
 vi.mock("../../../src/service/TxService", () => ({
   signAssembledTransaction: signAssembledTransactionMock,
   sendSignedTransaction: sendSignedTransactionMock,
@@ -60,9 +54,12 @@ import {
   updateConfigFlow,
   uploadAndSend,
 } from "../../../src/service/FlowService";
+import { queryClient } from "../../../src/service/queryClient";
+import { ipfsQuery } from "../../../src/utils/ipfsFunctions";
+import { deriveProjectKey } from "../../../src/utils/projectKey";
 
 function createTomlFile() {
-  return new File(['PROJECT_TYPE = "SOFTWARE"'], "project.toml", {
+  return new File(['PROJECT_TYPE = "SOFTWARE"'], "tansu.toml", {
     type: "text/plain",
   });
 }
@@ -77,7 +74,6 @@ describe("FlowService repository URL persistence", () => {
     });
     uploadToIpfsProxyMock.mockResolvedValue("bafy-test-cid");
     connectedPublicKeyGetMock.mockReturnValue("GTESTPUBLICKEY");
-    loadedProjectIdMock.mockReturnValue(Buffer.from("1234", "hex"));
     registerMock.mockResolvedValue({ simulation: {} });
     updateConfigMock.mockResolvedValue({ simulation: {} });
     signAssembledTransactionMock.mockResolvedValue({ xdr: "signed-xdr" });
@@ -104,6 +100,7 @@ describe("FlowService repository URL persistence", () => {
 
   it("normalizes repository URLs before updating project config", async () => {
     await updateConfigFlow({
+      projectName: "example",
       tomlFile: createTomlFile(),
       githubRepoUrl:
         "https://gitlab.com/group/subgroup/project/-/tree/main/docs",
@@ -112,7 +109,7 @@ describe("FlowService repository URL persistence", () => {
 
     expect(updateConfigMock).toHaveBeenCalledWith({
       maintainer: "GTESTPUBLICKEY",
-      key: Buffer.from("1234", "hex"),
+      key: deriveProjectKey("example"),
       maintainers: ["GMAINTAINER"],
       url: "https://gitlab.com/group/subgroup/project",
       ipfs: "bafy-test-cid",
@@ -135,6 +132,7 @@ describe("FlowService repository URL persistence", () => {
 
   it("forwards the attestation threshold when updating project config", async () => {
     await updateConfigFlow({
+      projectName: "example",
       tomlFile: createTomlFile(),
       githubRepoUrl: "https://github.com/group/project",
       maintainers: ["GMAINTAINER"],
@@ -144,6 +142,21 @@ describe("FlowService repository URL persistence", () => {
     expect(updateConfigMock).toHaveBeenCalledWith(
       expect.objectContaining({ attestation_threshold: 80 }),
     );
+  });
+
+  it("shows the uploaded tansu.toml without asking a gateway", async () => {
+    await createProjectFlow({
+      projectName: "example",
+      tomlFile: createTomlFile(),
+      githubRepoUrl: "https://github.com/group/project",
+      maintainers: ["GMAINTAINER"],
+    });
+
+    expect(
+      queryClient.getQueryData(
+        ipfsQuery("bafy-test-cid", "/tansu.toml").queryKey,
+      ),
+    ).toBe('PROJECT_TYPE = "SOFTWARE"');
   });
 });
 

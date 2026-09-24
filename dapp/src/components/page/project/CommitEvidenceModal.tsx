@@ -10,19 +10,21 @@
  */
 
 import { useStore } from "@nanostores/react";
+import { useQueries } from "@tanstack/react-query";
 import {
   getLatestCommitData,
   getLatestCommitHash,
 } from "@service/RepositoryMetadataService";
-import { getProjectHash } from "@service/ReadContractService";
-import { loadProjectInfo, loadProjectName } from "@service/StateService";
-import { loadedPublicKey } from "@service/walletService";
+import { commitQuery } from "@service/ProjectService";
 import { evidenceQuery } from "@service/EvidenceService";
 import { queryClient } from "@service/queryClient";
-import type { CommitEvidence, EvidenceKindTag } from "@service/EvidenceService";
+import type { EvidenceKindTag } from "@service/EvidenceService";
+import type { Project } from "../../../../packages/tansu";
+import type { ConfigData } from "types/projectConfig";
+import { isValidCommitHash } from "utils/contentHashes";
 import { getIpfsUrl } from "utils/ipfsFunctions";
 import { formatDate } from "utils/formatTimeFunctions";
-import { configData as configDataStore, projectInfoLoaded } from "utils/store";
+import { connectedPublicKey as connectedPublicKeyStore } from "utils/store";
 import { toast } from "utils/utils";
 import Button from "components/utils/Button";
 import CopyButton from "components/utils/CopyButton";
@@ -32,8 +34,6 @@ import AttestationCard from "./AttestationCard";
 import { commitHash } from "@service/ContractService";
 import { evidenceTarget } from "@service/AttestationService";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { getProject } from "@service/ReadContractService";
-import { setProject } from "@service/StateService";
 
 const EVIDENCE_KINDS: { tag: EvidenceKindTag; label: string }[] = [
   { tag: "Sbom", label: "SBOM" },
@@ -41,10 +41,13 @@ const EVIDENCE_KINDS: { tag: EvidenceKindTag; label: string }[] = [
   { tag: "Attestation", label: "Attestation" },
 ];
 
-const CommitEvidenceModal = () => {
-  const isProjectInfoLoaded = useStore(projectInfoLoaded);
-  const configData = useStore(configDataStore);
-
+const CommitEvidenceModal = ({
+  project,
+  config,
+}: {
+  project: Project;
+  config: ConfigData;
+}) => {
   // Modal state
   const [isOpen, setIsOpen] = useState(false);
 
@@ -58,11 +61,6 @@ const CommitEvidenceModal = () => {
   } | null>(null);
   const [isUpdatingHash, setIsUpdatingHash] = useState(false);
 
-  // Evidence state
-  const [evidence, setEvidence] = useState<CommitEvidence[]>([]);
-  const [isEvidenceLoading, setIsEvidenceLoading] = useState(false);
-  const [evidenceError, setEvidenceError] = useState<string | null>(null);
-
   // Add-evidence state
   const [selectedKind, setSelectedKind] = useState<EvidenceKindTag>("Sbom");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -70,16 +68,27 @@ const CommitEvidenceModal = () => {
   const [lastUploadedCid, setLastUploadedCid] = useState<string | null>(null);
 
   // Derived
-  const projectInfo = isProjectInfoLoaded ? loadProjectInfo() : null;
-  const projectName = loadProjectName();
-  const repositoryUrl =
-    configData?.officials?.githubLink || projectInfo?.config?.url;
+  const projectName = project.name;
+  const repositoryUrl = config.officials.githubLink || project.config.url;
 
-  const connectedPublicKey = loadedPublicKey();
+  const connectedPublicKey = useStore(connectedPublicKeyStore);
   const isMaintainer =
-    connectedPublicKey && projectInfo
-      ? projectInfo.maintainers.includes(connectedPublicKey)
-      : false;
+    !!connectedPublicKey && project.maintainers.includes(connectedPublicKey);
+
+  // The commit's evidence, one history per kind; a write refetches it.
+  const evidenceReads = useQueries(
+    {
+      queries: EVIDENCE_KINDS.map(({ tag }) => ({
+        ...evidenceQuery(projectName, commitHashValue, tag),
+        enabled: isOpen && isValidCommitHash(commitHashValue),
+      })),
+    },
+    queryClient,
+  );
+  const evidence = evidenceReads.flatMap(({ data }) => data ?? []);
+  const isEvidenceLoading = evidenceReads.some(({ isLoading }) => isLoading);
+  const evidenceError =
+    evidenceReads.find(({ error }) => error)?.error?.message ?? null;
 
   // Track whether hash was manually changed by the user
   const [, setHashManuallyChanged] = useState(false);
@@ -94,7 +103,9 @@ const CommitEvidenceModal = () => {
     if (!projectName) return;
 
     // Get the latest commit hash from on-chain
-    const latestSha = await getProjectHash();
+    const latestSha = await queryClient
+      .query(commitQuery(projectName))
+      .catch(() => null);
     if (!latestSha) {
       setCommitHashValue("");
       setCommitData(null);
@@ -123,44 +134,11 @@ const CommitEvidenceModal = () => {
     }
   }, [projectName, repositoryUrl]);
 
-  const loadEvidence = useCallback(async () => {
-    if (!projectName || !commitHashValue.trim()) {
-      setEvidence([]);
-      return;
-    }
-
-    setIsEvidenceLoading(true);
-    setEvidenceError(null);
-    try {
-      // Fetch full append-only history for each evidence kind in parallel
-      const historyByKind = await Promise.all(
-        EVIDENCE_KINDS.map((kind) =>
-          queryClient
-            .query(evidenceQuery(projectName, commitHashValue, kind.tag))
-            .catch(() => [] as CommitEvidence[]),
-        ),
-      );
-      const allEvidence = historyByKind.flat();
-      setEvidence(allEvidence);
-    } catch (err: any) {
-      setEvidenceError(err?.message || "Failed to load evidence");
-      setEvidence([]);
-    } finally {
-      setIsEvidenceLoading(false);
-    }
-  }, [projectName, commitHashValue]);
-
   // Reload everything when the modal opens
   useEffect(() => {
-    if (!isOpen || !isProjectInfoLoaded) return;
-    loadCommitData();
-  }, [isOpen, isProjectInfoLoaded, loadCommitData]);
-
-  // Reload evidence whenever the commit hash changes
-  useEffect(() => {
     if (!isOpen) return;
-    loadEvidence();
-  }, [isOpen, commitHashValue, loadEvidence]);
+    loadCommitData();
+  }, [isOpen, loadCommitData]);
 
   // ── Evidence grouped by kind ────────────────────────────────────────
 
@@ -209,9 +187,6 @@ const CommitEvidenceModal = () => {
         "evidence-file-input",
       ) as HTMLInputElement | null;
       if (fileInput) fileInput.value = "";
-
-      // Reload evidence to include the newly added one
-      await loadEvidence();
     } catch (err: any) {
       toast.error(
         "Add Evidence",
@@ -232,26 +207,13 @@ const CommitEvidenceModal = () => {
 
     setIsUpdatingHash(true);
     try {
-      await commitHash(commitHashValue);
-
-      // Refresh project data
-      try {
-        const project = await getProject();
-        if (project && project.name && project.config && project.maintainers) {
-          setProject(project);
-        }
-      } catch (refreshError) {
-        if (import.meta.env.DEV)
-          console.error("Error refreshing project data:", refreshError);
-      }
+      await commitHash(projectName, commitHashValue);
 
       toast.success(
         "Hash Updated",
         "Commit hash has been updated on-chain. Evidence will reload.",
       );
 
-      // Reload evidence for the new hash
-      await loadEvidence();
       setHashManuallyChanged(false);
       setIsEditing(false);
       onChainHashRef.current = commitHashValue;
@@ -472,7 +434,7 @@ const CommitEvidenceModal = () => {
                   <AttestationCard
                     projectName={projectName}
                     commitHash={commitHashValue}
-                    maintainers={projectInfo?.maintainers ?? []}
+                    maintainers={project.maintainers}
                     connectedPublicKey={connectedPublicKey}
                     isMaintainer={isMaintainer}
                     showThreshold

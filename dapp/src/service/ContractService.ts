@@ -11,8 +11,7 @@ import {
 } from "../../packages/tansu";
 import Tansu, { tansuReads } from "../contracts/soroban_tansu";
 import { loadedPublicKey, txSourceFor } from "./walletService";
-import { loadedProjectId } from "./StateService";
-import { Buffer } from "buffer";
+import type { Buffer } from "buffer";
 import { deriveProjectKey } from "../utils/projectKey";
 import { isValidCommitHash } from "../utils/contentHashes";
 import {
@@ -119,7 +118,10 @@ function getProjectKey(projectName: string): Buffer {
  *
  * The hash is stored on-chain and serves as a verifiable record of project updates.
  */
-export async function commitHash(commit_hash: string): Promise<boolean> {
+export async function commitHash(
+  project_name: string,
+  commit_hash: string,
+): Promise<boolean> {
   // Guard against malformed input before it is written on-chain. Accepts both
   // SHA-1 (40 hex) and SHA-256 (64 hex) object names so the check stays valid
   // through Git's SHA-256 transition.
@@ -129,17 +131,11 @@ export async function commitHash(commit_hash: string): Promise<boolean> {
     );
   }
 
-  const projectId = loadedProjectId();
-  if (!projectId) throw new Error("No project defined");
-
   const client = getClient();
   const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
-  // Ensure projectId is a proper Buffer
-  const projectKey = Buffer.isBuffer(projectId)
-    ? projectId
-    : Buffer.from(projectId, "hex");
+  const projectKey = getProjectKey(project_name);
 
   const assembledTx = await client.commit({
     maintainer,
@@ -477,20 +473,15 @@ export { execute as executeProposal };
  * Set badges for member
  */
 export async function setBadges(
+  project_name: string,
   member_address: string,
   badges: Badge[],
 ): Promise<boolean> {
-  const projectId = loadedProjectId();
-  if (!projectId) throw new Error("No project defined");
-
   const client = getClient();
   const maintainer = loadedPublicKey();
   if (!maintainer) throw new Error("Wallet not connected");
 
-  // Ensure projectId is a proper Buffer
-  const projectKey = Buffer.isBuffer(projectId)
-    ? projectId
-    : Buffer.from(projectId, "hex");
+  const projectKey = getProjectKey(project_name);
 
   // Rely on contract validation rather than duplicating checks
 

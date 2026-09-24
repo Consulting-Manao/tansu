@@ -1,3 +1,5 @@
+import { useStore } from "@nanostores/react";
+import { useQuery } from "@tanstack/react-query";
 import { navigate } from "astro:transitions/client";
 import Button from "components/utils/Button";
 import Modal, { type ModalProps } from "components/utils/Modal";
@@ -18,7 +20,9 @@ import {
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
 import type { DecodedVote } from "utils/anonymousVoting";
-import { loadedPublicKey } from "@service/walletService";
+import { projectQuery } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
+import { connectedPublicKey } from "utils/store";
 import classNames from "classnames";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
 import { proposalUrl } from "utils/urls";
@@ -48,7 +52,10 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const [tallies, setTallies] = useState<bigint[] | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isMaintainer, setIsMaintainer] = useState(false);
+  const publicKey = useStore(connectedPublicKey);
+  const { data: project } = useQuery(projectQuery(projectName), queryClient);
+  const isMaintainer =
+    !!publicKey && !!project?.maintainers.includes(publicKey);
   const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
   const [proofOk, setProofOk] = useState<boolean | null>(null);
   const [proofErrorMessage, setProofErrorMessage] = useState<string | null>(
@@ -104,23 +111,6 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   useEffect(() => {
     setIsAnonymous(proposal ? !proposal.publicVoting : false);
   }, [proposal]);
-
-  useEffect(() => {
-    const checkMaintainer = async () => {
-      try {
-        const { getProjectFromName } =
-          await import("@service/ReadContractService");
-        const project = await getProjectFromName(projectName);
-        const addr = loadedPublicKey();
-        if (project && addr) {
-          setIsMaintainer(project.maintainers.includes(addr));
-        }
-      } catch (_) {
-        setIsMaintainer(false);
-      }
-    };
-    checkMaintainer();
-  }, [projectName]);
 
   const handleKeyFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,

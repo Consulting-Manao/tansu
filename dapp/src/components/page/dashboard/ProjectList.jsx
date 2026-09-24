@@ -1,106 +1,79 @@
 import { useStore } from "@nanostores/react";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { getFeaturedProjectsConfigData } from "../../../constants/featuredProjectsConfigData.js";
-import {
-  getProjectFromName,
-  getMember,
-  getProjectsPage,
-} from "../../../service/ReadContractService";
-import { convertGitHubLink } from "../../../utils/editLinkFunctions";
-import {
-  configData as configDataStore,
-  connectedPublicKey,
-  projectCardModalOpen,
-  walletInitialized,
-} from "../../../utils/store.ts";
+import { memberQuery } from "../../../service/MemberService";
+import { projectQuery, projectsQuery } from "../../../service/ProjectService";
+import { queryClient } from "../../../service/queryClient";
+import { connectedPublicKey, walletInitialized } from "../../../utils/store.ts";
 import { toast } from "../../../utils/utils";
+import Button from "components/utils/Button";
 import CreateProjectModal from "./CreateProjectModal.tsx";
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
-import ProjectInfoModal from "./ProjectInfoModal.jsx";
 import MemberProfileModal from "./MemberProfileModal.tsx";
 import Spinner from "components/utils/Spinner.tsx";
 
+const featuredProjects = getFeaturedProjectsConfigData();
+
+const scrollToAllProjects = () =>
+  document.querySelector(".all-projects-section")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+
 const ProjectList = () => {
-  const isProjectInfoModalOpen = useStore(projectCardModalOpen);
-  const configDataFromStore = useStore(configDataStore);
   const isWalletReady = useStore(walletInitialized);
 
-  const [projects, setProjects] = useState(undefined);
-  const [filteredProjects, setFilteredProjects] = useState(undefined);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInOnChain, setIsInOnChain] = useState(false);
-  const [searchedProject, setSearchedProject] = useState();
-  const [_prevPath, setPrevPath] = useState("");
-  const [memberNotFound, setMemberNotFound] = useState(false);
-
-  const [showProjectInfoModal, setShowProjectInfoModal] = useState(false);
-  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-  const [memberResult, setMemberResult] = useState(undefined);
+  // Set when the search is for a member: their address.
+  const [memberAddress, setMemberAddress] = useState("");
   const [showMemberProfileModal, setShowMemberProfileModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [page, setPage] = useState(0);
 
-  const [onChainProjects, setOnChainProjects] = useState([]);
-  const [isLoadingOnChain, setIsLoadingOnChain] = useState(false);
-  const [currentUIPage, setCurrentUIPage] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(true);
+  // Featured projects matching the search; when none match, the project of
+  // that name on chain.
+  const filteredProjects = featuredProjects.filter((project) =>
+    project.projectName.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+  const searched = useQuery(
+    {
+      ...projectQuery(searchTerm),
+      enabled: !!searchTerm && !memberAddress && !filteredProjects.length,
+    },
+    queryClient,
+  );
+  const member = useQuery(
+    { ...memberQuery(memberAddress), enabled: !!memberAddress },
+    queryClient,
+  );
+  // Cards render as soon as the contract answers; each fills in its own
+  // tansu.toml, so a dead or slow CID never holds the list back.
+  const onChain = useQuery(
+    { ...projectsQuery(page), placeholderData: keepPreviousData },
+    queryClient,
+  );
+  const onChainProjects = onChain.data ?? [];
+  const hasNextPage = onChainProjects.length > 0;
 
-  const searchTimeoutRef = useRef(null);
-  const modalSyncSkipRef = useRef(true);
-  // Only the latest page or search request may update the list.
-  const pageRequestRef = useRef(0);
-  const searchRequestRef = useRef(0);
+  const isLoading = searched.isLoading || member.isLoading;
+  const memberNotFound =
+    !!memberAddress && (member.isError || member.data === null);
+  const isInOnChain = !!searched.data;
 
-  // Modal handlers
-  const handleCreateProjectModal = useCallback(() => {
-    setShowCreateProjectModal(true);
-  }, []);
-
-  const closeCreateProjectModal = useCallback(() => {
-    setShowCreateProjectModal(false);
-  }, []);
-
-  // Initial fetch + URL search handling
   useEffect(() => {
-    projectCardModalOpen.set(false);
-
-    const fetchProjects = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const data = getFeaturedProjectsConfigData();
-      setProjects(data);
-      setFilteredProjects(data);
-    };
-
-    fetchProjects();
-
-    const referrer = document.referrer;
-    if (referrer && !referrer.includes(window.location.host))
-      setPrevPath(referrer);
-
     const searchParams = new URLSearchParams(window.location.search);
     const urlSearchTerm = searchParams.get("search");
     if (urlSearchTerm) {
       setSearchTerm(urlSearchTerm);
-      setTimeout(() => handleSearch(), 300);
-    }
-
-    const isMemberSearch = searchParams.get("member") === "true";
-    if (isMemberSearch && urlSearchTerm) handleMemberSearch(urlSearchTerm);
-
-    const pendingMemberProfile = sessionStorage.getItem("pendingMemberProfile");
-    if (pendingMemberProfile) {
-      try {
-        const memberData = JSON.parse(pendingMemberProfile);
-        setMemberResult(memberData);
+      if (searchParams.get("member") === "true") {
+        setMemberAddress(urlSearchTerm);
         setShowMemberProfileModal(true);
-        sessionStorage.removeItem("pendingMemberProfile");
-      } catch {}
+      }
     }
 
-    const openCreateProjectModal = sessionStorage.getItem(
-      "openCreateProjectModal",
-    );
-    if (openCreateProjectModal === "true") {
+    if (sessionStorage.getItem("openCreateProjectModal") === "true") {
       sessionStorage.removeItem("openCreateProjectModal");
 
       const tryOpenModal = () => {
@@ -125,8 +98,18 @@ const ProjectList = () => {
       }
     }
 
+    const handleSearchProjectEvent = (event) => {
+      setSearchTerm(event.detail);
+      setMemberAddress("");
+    };
+    const handleSearchMemberEvent = (event) => {
+      setSearchTerm(event.detail);
+      setMemberAddress(event.detail);
+      setShowMemberProfileModal(true);
+    };
+    const handleCreateProjectModal = () => setShowCreateProjectModal(true);
+
     window.addEventListener("search-projects", handleSearchProjectEvent);
-    window.addEventListener("show-member-profile", handleMemberProfileEvent);
     window.addEventListener("search-member", handleSearchMemberEvent);
     document.addEventListener(
       "show-create-project-modal",
@@ -138,12 +121,7 @@ const ProjectList = () => {
     );
 
     return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
       window.removeEventListener("search-projects", handleSearchProjectEvent);
-      window.removeEventListener(
-        "show-member-profile",
-        handleMemberProfileEvent,
-      );
       window.removeEventListener("search-member", handleSearchMemberEvent);
       document.removeEventListener(
         "show-create-project-modal",
@@ -154,183 +132,35 @@ const ProjectList = () => {
         handleCreateProjectModal,
       );
     };
-  }, [handleCreateProjectModal]);
-
-  useEffect(() => {
-    if (modalSyncSkipRef.current) {
-      modalSyncSkipRef.current = false;
-      return;
-    }
-    setShowProjectInfoModal(isProjectInfoModalOpen);
-  }, [isProjectInfoModalOpen]);
-
-  useEffect(() => {
-    if (projects && searchTerm) handleSearch();
-  }, [projects, searchTerm]);
-
-  const handleSearchProjectEvent = useCallback((event) => {
-    const term = event.detail;
-    setSearchTerm(term);
-    setMemberNotFound(false);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => handleSearch(), 100);
   }, []);
 
-  const handleSearchMemberEvent = (event) => {
-    const address = event.detail;
-    setSearchTerm(address);
-    handleMemberSearch(address);
-  };
-
-  const handleMemberProfileEvent = (event) => {
-    const member = event.detail;
-    setMemberResult(member);
-    setShowMemberProfileModal(true);
-  };
-
-  const handleSearch = () => {
-    if (!projects) return;
-    setMemberNotFound(false);
-
-    const filtered = projects.filter(
-      (project) =>
-        project &&
-        project.projectName &&
-        project.projectName.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    setFilteredProjects(filtered);
-
-    if (searchTerm && filtered.length === 0) checkProjectOnChain(searchTerm);
-  };
-
-  const checkProjectOnChain = async (projectName) => {
-    const request = ++searchRequestRef.current;
-    setIsLoading(true);
-    try {
-      const project = await getProjectFromName(projectName);
-      if (request !== searchRequestRef.current) return;
-      if (project && project.name && project.config && project.maintainers) {
-        setSearchedProject(project);
-        setIsInOnChain(true);
-      } else {
-        setIsInOnChain(false);
-      }
-    } catch {
-      if (request === searchRequestRef.current) setIsInOnChain(false);
-    } finally {
-      if (request === searchRequestRef.current) setIsLoading(false);
-    }
-  };
-
-  const _handleClearSearch = () => {
-    setSearchTerm("");
-    setMemberNotFound(false);
-    window.location.href = "/";
-  };
-
-  const handleMemberSearch = async (address) => {
-    if (!address) return;
-
-    setIsLoading(true);
-    setMemberNotFound(false);
-
-    try {
-      const member = await getMember(address);
-      if (member) {
-        setMemberResult(member);
-        setShowMemberProfileModal(true);
-      } else setMemberNotFound(true);
-    } catch {
-      setMemberNotFound(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Cards render as soon as the contract answers; each fills in its own
-  // tansu.toml, so a dead or slow CID never holds the list back.
-  const fetchProjectsForPage = async (uiPage) => {
-    const request = ++pageRequestRef.current;
-    setIsLoadingOnChain(true);
-    try {
-      const projectsPage = await getProjectsPage(uiPage - 1);
-      if (request !== pageRequestRef.current) return;
-      setOnChainProjects(projectsPage);
-      setHasNextPage(projectsPage.length > 0);
-    } catch {
-      if (request !== pageRequestRef.current) return;
-      setOnChainProjects([]);
-      setHasNextPage(false);
-    } finally {
-      if (request === pageRequestRef.current) setIsLoadingOnChain(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProjectsForPage(1);
-  }, []);
-
-  const handleNextPage = async () => {
-    if (!hasNextPage) return;
-
-    const nextPage = currentUIPage + 1;
-    setCurrentUIPage(nextPage);
-    await fetchProjectsForPage(nextPage);
-
-    document.querySelector(".all-projects-section")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
-
-  const handlePrevPage = async () => {
-    if (currentUIPage <= 1) return;
-
-    const prevPage = currentUIPage - 1;
-    setCurrentUIPage(prevPage);
-    await fetchProjectsForPage(prevPage);
-
-    document.querySelector(".all-projects-section")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  const showPage = (next) => {
+    setPage(next);
+    scrollToAllProjects();
   };
 
   const showFeaturedHeading =
-    !searchTerm ||
-    (filteredProjects && filteredProjects.length > 0 && !isInOnChain);
+    !searchTerm || (filteredProjects.length > 0 && !isInOnChain);
 
   const paginationControls = (
     <div className="flex justify-center items-center gap-4 py-4">
       <button
-        onClick={handlePrevPage}
-        disabled={currentUIPage <= 1 || isLoadingOnChain}
+        onClick={() => showPage(page - 1)}
+        disabled={page === 0 || onChain.isFetching}
         className="disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
         <img src="/icons/arrow-left.svg" alt="Previous page" />
       </button>
-      <span className="text-base text-primary font-medium">
-        {currentUIPage}
-      </span>
+      <span className="text-base text-primary font-medium">{page + 1}</span>
       <button
-        onClick={handleNextPage}
-        disabled={!hasNextPage || isLoadingOnChain}
+        onClick={() => showPage(page + 1)}
+        disabled={!hasNextPage || onChain.isFetching}
         className="disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
         <img src="/icons/arrow-right.svg" alt="Next page" />
       </button>
     </div>
   );
-
-  const projectInfo = configDataFromStore
-    ? {
-        ...configDataFromStore,
-        logoImageLink: configDataFromStore.logoImageLink
-          ? convertGitHubLink(configDataFromStore.logoImageLink)
-          : configDataFromStore.logoImageLink,
-      }
-    : null;
 
   return (
     <div className="project-list-container relative mx-auto w-full max-w-[984px] px-4">
@@ -355,10 +185,10 @@ const ProjectList = () => {
             Member not found. Try searching for something else.
           </p>
         </div>
-      ) : filteredProjects && filteredProjects.length > 0 ? (
+      ) : memberAddress ? null : filteredProjects.length > 0 ? (
         <div className="project-list grid gap-6 md:gap-8 grid-cols-1 sm:grid-cols-2 justify-items-center items-stretch">
-          {filteredProjects.map((project, index) => (
-            <div className="w-full h-full" key={index}>
+          {filteredProjects.map((project) => (
+            <div className="w-full h-full" key={project.projectName}>
               <ProjectCard config={project} />
             </div>
           ))}
@@ -366,26 +196,22 @@ const ProjectList = () => {
       ) : isInOnChain ? (
         <div className="w-full sm:w-1/2 mx-auto pb-[120px]">
           <OnChainProjectCard
-            key={`${searchedProject.name}:${searchedProject.config.ipfs}`}
-            project={searchedProject}
+            key={`${searched.data.name}:${searched.data.config.ipfs}`}
+            project={searched.data}
           />
         </div>
-      ) : searchTerm ? (
+      ) : (
         <div className="flex flex-col items-center justify-center py-12">
           <img className="mx-auto mb-8" src="/images/no-result.svg" />
           <p className="text-xl text-center font-medium text-zinc-700">
-            Project not found. Try searching for something else.
-          </p>
-        </div>
-      ) : (
-        <div className="h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
-          <p className="px-3 py-1 text-base sm:text-lg font-medium">
-            No projects found. Try searching for something.
+            {searched.isError
+              ? `Could not search: ${searched.error.message}`
+              : "Project not found. Try searching for something else."}
           </p>
         </div>
       )}
 
-      {!searchTerm && !memberNotFound && !isInOnChain && (
+      {!searchTerm && (
         <div className="mt-16 all-projects-section">
           <div className="flex flex-col items-center gap-[30px] md:gap-[60px] mb-8">
             <div className="w-full flex justify-center items-center">
@@ -395,10 +221,19 @@ const ProjectList = () => {
             </div>
           </div>
 
-          {isLoadingOnChain ? (
+          {onChain.isPending ? (
             <div className="no-projects h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
               <Spinner />
               <p className="text-base text-secondary">Loading projects ...</p>
+            </div>
+          ) : onChain.isError ? (
+            <div className="flex flex-col items-center gap-4 py-12">
+              <p className="text-xl text-center font-medium text-zinc-700">
+                Could not load the projects: {onChain.error.message}
+              </p>
+              <Button type="secondary" onClick={() => onChain.refetch()}>
+                Retry
+              </Button>
             </div>
           ) : onChainProjects.length > 0 ? (
             <div className="flex flex-col gap-8">
@@ -414,7 +249,7 @@ const ProjectList = () => {
               </div>
               {paginationControls}
             </div>
-          ) : currentUIPage > 1 ? (
+          ) : page > 0 ? (
             <div className="flex flex-col gap-8">
               <div className="flex flex-col items-center justify-center py-12">
                 <p className="text-xl text-center font-medium text-zinc-700">
@@ -436,24 +271,17 @@ const ProjectList = () => {
         </div>
       )}
 
-      {showProjectInfoModal && (
-        <ProjectInfoModal
-          id="project-info-modal"
-          projectInfo={projectInfo}
-          onClose={() => projectCardModalOpen.set(false)}
-        />
-      )}
-
       {showCreateProjectModal && (isWalletReady || window.__TEST_MODE__) && (
         <div className="project-modal-container">
-          <CreateProjectModal onClose={closeCreateProjectModal} />
+          <CreateProjectModal
+            onClose={() => setShowCreateProjectModal(false)}
+          />
         </div>
       )}
 
-      {showMemberProfileModal && memberResult && (
+      {showMemberProfileModal && member.data && (
         <MemberProfileModal
-          member={memberResult}
-          address={searchTerm}
+          address={memberAddress}
           onClose={() => setShowMemberProfileModal(false)}
         />
       )}

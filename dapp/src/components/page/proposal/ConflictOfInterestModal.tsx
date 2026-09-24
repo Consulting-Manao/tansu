@@ -4,8 +4,10 @@ import VoterInfo from "components/utils/VoterInfo";
 import Loading from "components/utils/Loading";
 import Modal, { type ModalProps } from "components/utils/Modal";
 import Title from "components/utils/Title";
-import { useEffect, useState } from "react";
-import { getConflictOfInterest } from "@service/ReadContractService";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { conflictsQuery } from "@service/ProposalService";
+import { queryClient } from "@service/queryClient";
 import {
   addConflictOfInterest,
   removeConflictOfInterest,
@@ -27,7 +29,16 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   connectedAddress,
   onClose,
 }) => {
-  const [addresses, setAddresses] = useState<string[]>([]);
+  // A failed read shows as an error, not as an empty list.
+  const conflicts = useQuery(
+    conflictsQuery(projectName, proposalId),
+    queryClient,
+  );
+  const addresses = conflicts.data ?? [];
+  const isLoading = conflicts.isPending;
+  const loadError = conflicts.error
+    ? conflicts.error.message || "Failed to load the conflict of interest list."
+    : null;
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
   const [selectedAddresses, setSelectedAddresses] = useState<Set<string>>(
     new Set(),
@@ -35,32 +46,11 @@ const ConflictOfInterestModal: React.FC<Props> = ({
   const [selectedPendingAddresses, setSelectedPendingAddresses] = useState<
     Set<string>
   >(new Set());
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAddress, setNewAddress] = useState<string>("");
   const [inputError, setInputError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   const canEdit = !!connectedAddress && maintainers.includes(connectedAddress);
-
-  const loadAddresses = async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const list = await getConflictOfInterest(projectName, proposalId);
-      setAddresses(list);
-    } catch (error: any) {
-      setAddresses([]);
-      setLoadError(
-        error?.message || "Failed to load the conflict of interest list.",
-      );
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    loadAddresses();
-  }, [projectName, proposalId]);
 
   const handleToggleSelection = (address: string) => {
     setSelectedAddresses((prev) => {
@@ -155,7 +145,6 @@ const ConflictOfInterestModal: React.FC<Props> = ({
       );
       setPendingAddresses([]);
       setSelectedPendingAddresses(new Set());
-      await loadAddresses();
     } catch (error: any) {
       toast.error(
         "Failed to add",
@@ -177,7 +166,6 @@ const ConflictOfInterestModal: React.FC<Props> = ({
       if (selectedAddresses.has(address)) {
         handleToggleSelection(address);
       }
-      await loadAddresses();
     } catch (error: any) {
       toast.error(
         "Failed to remove",
@@ -203,7 +191,6 @@ const ConflictOfInterestModal: React.FC<Props> = ({
         `${selectedAddresses.size} address(es) removed from the conflict list.`,
       );
       setSelectedAddresses(new Set());
-      await loadAddresses();
     } catch (error: any) {
       toast.error(
         "Failed to remove",
@@ -284,7 +271,11 @@ const ConflictOfInterestModal: React.FC<Props> = ({
             <div className="flex flex-col gap-2">
               <p className="text-sm text-red-600">{loadError}</p>
               <div>
-                <Button type="tertiary" size="xs" onClick={loadAddresses}>
+                <Button
+                  type="tertiary"
+                  size="xs"
+                  onClick={() => conflicts.refetch()}
+                >
                   Retry
                 </Button>
               </div>

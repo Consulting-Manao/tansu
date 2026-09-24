@@ -1,105 +1,47 @@
-import { useStore } from "@nanostores/react";
-import { loadProjectInfo } from "@service/StateService";
-import { projectInfoLoaded } from "utils/store";
-import { useEffect, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
+import { Buffer } from "buffer";
+import { useState } from "react";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
 import Modal from "components/utils/Modal";
 import { toast } from "utils/utils";
-import { getProjectFromId } from "@service/ReadContractService";
+import { projectByKeyQuery } from "@service/ProjectService";
 import {
   signAssembledTransaction,
   sendSignedTransaction,
 } from "@service/TxService";
 import { loadedPublicKey, txSourceFor } from "@service/walletService";
-import { invalidateAfter } from "@service/queryClient";
+import { invalidateAfter, queryClient } from "@service/queryClient";
 import Tansu from "contracts/soroban_tansu";
+import type { Project } from "../../../../packages/tansu";
 import { checkSimulationError } from "utils/contractErrors";
-import { deriveProjectKey, normalizeSubProjectKeys } from "utils/projectKey";
-import React from "react";
+import { deriveProjectKey } from "utils/projectKey";
 
-interface ManageSubProjectsModalProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-}
-
-const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
-  isOpen: _isOpen,
-  onClose: _onClose,
-}) => {
-  const infoLoaded = useStore(projectInfoLoaded);
-  const [showButton, setShowButton] = useState(false);
+/** For maintainers: the projects an organization groups. */
+const ManageSubProjectsModal = ({ project }: { project: Project }) => {
+  const subProjects = useQueries(
+    {
+      queries: (project.sub_projects ?? []).map((key) =>
+        projectByKeyQuery(Buffer.from(key).toString("hex")),
+      ),
+    },
+    queryClient,
+  );
   const [subProjectNames, setSubProjectNames] = useState<string[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    if (!infoLoaded) return;
-    const projectInfo = loadProjectInfo();
-    if (!projectInfo || !projectInfo.maintainers) {
-      setShowButton(false);
-      return;
-    }
-
-    import("@service/walletService")
-      .then(({ loadedPublicKey }) => {
-        const publicKey = loadedPublicKey();
-        const isMaintainer = publicKey
-          ? projectInfo.maintainers.includes(publicKey)
-          : false;
-        setShowButton(isMaintainer);
-      })
-      .catch(() => setShowButton(false));
-
-    loadCurrentSubProjects();
-  }, [infoLoaded]);
-
-  useEffect(() => {
-    if (isOpen && infoLoaded) {
-      loadCurrentSubProjects();
-    }
-  }, [isOpen, infoLoaded]);
+  const handleOpen = () => {
+    setSubProjectNames(
+      subProjects.flatMap(({ data }) => (data ? [data.name] : [])),
+    );
+    setIsOpen(true);
+  };
 
   const handleClose = () => {
     setIsOpen(false);
-  };
-
-  const loadCurrentSubProjects = async () => {
-    try {
-      const projectInfo = loadProjectInfo();
-      if (!projectInfo) return;
-
-      const projectKey = deriveProjectKey(projectInfo.name);
-
-      if (typeof (Tansu as any).get_sub_projects !== "function") {
-        setSubProjectNames([]);
-        return;
-      }
-
-      const res = await (Tansu as any).get_sub_projects({
-        project_key: projectKey,
-      });
-
-      checkSimulationError(res);
-
-      const subProjectKeys = normalizeSubProjectKeys(res.result);
-      const names: string[] = [];
-
-      for (const keyBuffer of subProjectKeys) {
-        const project = await getProjectFromId(keyBuffer);
-        if (project?.name) {
-          names.push(project.name);
-        } else {
-          names.push(keyBuffer.toString("hex").slice(0, 8) + "...");
-        }
-      }
-
-      setSubProjectNames(names);
-    } catch {
-      setSubProjectNames([]);
-    }
   };
 
   const handleAddProject = () => {
@@ -127,12 +69,7 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
     setError(null);
 
     try {
-      const projectInfo = loadProjectInfo();
-      if (!projectInfo) {
-        throw new Error("Project info not found");
-      }
-
-      const projectKey = deriveProjectKey(projectInfo.name);
+      const projectKey = deriveProjectKey(project.name);
       const subProjectKeys = subProjectNames.map((name) =>
         deriveProjectKey(name),
       );
@@ -178,13 +115,11 @@ const ManageSubProjectsModal: React.FC<ManageSubProjectsModalProps> = ({
     }
   };
 
-  if (!showButton) return null;
-
   return (
     <>
       <button
         className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
       >
         <img
           src="/icons/plus-fill.svg"

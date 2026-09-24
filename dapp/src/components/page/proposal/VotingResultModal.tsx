@@ -6,20 +6,28 @@ import type { VoteStatus } from "types/proposal";
 import { VoteType } from "types/proposal";
 import { truncateMiddle } from "utils/utils";
 import VotingResult from "./VotingResult";
-import { loadConfigData } from "@service/StateService";
+import { useQuery } from "@tanstack/react-query";
+import { projectQuery, useProjectConfig } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
+import type { ConfigData } from "types/projectConfig";
 
 interface VotingResultModal extends ModalProps {
+  projectName: string;
   voteStatus?: VoteStatus;
   status?: string;
   projectMaintainers: string[];
 }
 
 const VotingResultModal: React.FC<VotingResultModal> = ({
+  projectName,
   voteStatus,
   status,
   projectMaintainers,
   onClose,
 }) => {
+  // Maintainers show with their handle from the tansu.toml.
+  const { data: project } = useQuery(projectQuery(projectName), queryClient);
+  const { config } = useProjectConfig(project);
   return (
     <Modal onClose={onClose}>
       <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
@@ -47,12 +55,14 @@ const VotingResultModal: React.FC<VotingResultModal> = ({
           <Voters
             voteStatus={voteStatus}
             projectMaintainers={projectMaintainers}
+            configData={config}
             onlyMaintainers
           />
 
           <Voters
             voteStatus={voteStatus}
             projectMaintainers={projectMaintainers}
+            configData={config}
             onlyMaintainers={false}
           />
 
@@ -70,18 +80,18 @@ export default VotingResultModal;
 interface VotersProps {
   voteStatus: VoteStatus | undefined;
   projectMaintainers: string[];
+  configData: ConfigData | null;
   onlyMaintainers: boolean;
 }
 
 const Voters: FC<VotersProps> = ({
   voteStatus,
   projectMaintainers,
+  configData,
   onlyMaintainers,
 }) => {
   const [currentType, setCurrentType] = useState<VoteType>(VoteType.APPROVE);
   const [showAll, setShowAll] = useState(false);
-
-  const configData = useMemo(() => loadConfigData(), []);
 
   const voters = useMemo(() => {
     return voteStatus?.[currentType].voters
@@ -101,7 +111,13 @@ const Voters: FC<VotersProps> = ({
         }
         return voter;
       });
-  }, [currentType]);
+  }, [
+    currentType,
+    configData,
+    voteStatus,
+    projectMaintainers,
+    onlyMaintainers,
+  ]);
 
   useEffect(() => {
     setShowAll(false);

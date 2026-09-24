@@ -1,116 +1,83 @@
 import { useStore } from "@nanostores/react";
+import { useQuery } from "@tanstack/react-query";
 import Markdown from "markdown-to-jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts";
-import {
-  loadConfigData,
-  loadProjectInfo,
-  loadProjectName,
-} from "../../../service/StateService.ts";
-import { loadedPublicKey } from "../../../service/walletService.ts";
+import { commitQuery } from "../../../service/ProjectService";
+import { queryClient } from "../../../service/queryClient";
+import { isValidCid } from "../../../utils/contentHashes";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
-import {
-  configData as configDataStore,
-  latestCommit,
-  projectInfoLoaded,
-} from "../../../utils/store.ts";
+import { getIpfsUrl, ipfsQuery } from "../../../utils/ipfsFunctions";
+import { connectedPublicKey } from "../../../utils/store.ts";
 import CommitPeriod from "./CommitPeriod.jsx";
 import CommitRecord from "../../CommitRecord";
 import AttestationCard from "./AttestationCard.tsx";
 
-const CommitHistory = () => {
-  const isProjectInfoLoaded = useStore(projectInfoLoaded);
-  const configData = useStore(configDataStore);
-  const isSoftwareProject = configData?.projectType === "SOFTWARE";
+/** The repository's commits, or the README of a project without code. */
+const CommitHistory = ({ project, config, isSoftware }) => {
+  const publicKey = useStore(connectedPublicKey);
+  const isMaintainer = !!publicKey && project.maintainers.includes(publicKey);
+  const { data: onChainSha } = useQuery(commitQuery(project.name), queryClient);
+  const readmeRead = useQuery(
+    {
+      ...ipfsQuery(project.config.ipfs, "/README.md"),
+      enabled: !isSoftware && isValidCid(project.config.ipfs),
+    },
+    queryClient,
+  );
+  // Relative images point into the project's IPFS directory.
+  const readme = useMemo(
+    () =>
+      readmeRead.data?.replace(
+        /!\[([^\]]*)\]\((?!https?:\/\/)\.?\/?([^)]+)\)/g,
+        (_, alt, src) => `![${alt}](${getIpfsUrl(project.config.ipfs)}/${src})`,
+      ),
+    [readmeRead.data, project.config.ipfs],
+  );
+  const authors = config.authorGithubNames
+    .filter((name) => typeof name === "string")
+    .map((name) => name.toLowerCase());
+  const repositoryUrl = config.officials.githubLink || project.config.url;
+
   const [commitHistory, setCommitHistory] = useState([]);
-  const [authors, setAuthors] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const connectedPublicKey = loadedPublicKey();
-  const isMaintainer = connectedPublicKey
-    ? (loadProjectInfo()?.maintainers?.includes(connectedPublicKey) ?? false)
-    : false;
 
-  const fetchCommitHistory = async (page = 1) => {
-    setLoadError(null);
-    const projectRepoUrl =
-      configData?.officials?.githubLink || loadProjectInfo()?.config?.url;
-    if (projectRepoUrl) {
-      setIsLoading(true);
-      try {
-        const history = await getCommitHistory(projectRepoUrl, page);
-
-        if (history) {
-          setCommitHistory(history);
-          setCurrentPage(page);
-
-          if (history.length > 0 && history[0].commits.length > 0) {
-            latestCommit.set(history[0].commits[0].sha);
-          }
-        } else {
-          setCommitHistory([]);
-        }
-      } catch (_) {
-        setLoadError("Could not load commit history.");
-        setCommitHistory([]);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
+  useEffect(() => {
+    if (!isSoftware) return;
+    if (!repositoryUrl) {
       setLoadError("Project repository URL not available.");
       setIsLoading(false);
+      return;
     }
-  };
-
-  const addMaintainerBadge = () => {
-    try {
-      loadConfigData();
-      if (
-        configData &&
-        configData.authorGithubNames &&
-        Array.isArray(configData.authorGithubNames) &&
-        configData.authorGithubNames.length > 0
-      ) {
-        const authorList = configData.authorGithubNames
-          .map((name) =>
-            name && typeof name === "string" ? name.toLowerCase() : "",
-          )
-          .filter(Boolean);
-        setAuthors(authorList);
-      }
-    } catch (_) {
-      setAuthors([]);
-    }
-  };
-
-  useEffect(() => {
-    if (isProjectInfoLoaded && isSoftwareProject) {
-      fetchCommitHistory();
-    } else {
-      setIsLoading(false);
-    }
-  }, [isProjectInfoLoaded, isSoftwareProject]);
-
-  useEffect(() => {
-    if (configData) {
-      addMaintainerBadge();
-    }
-  }, [configData]);
-
-  const readme = configData?.readmeContent;
+    let active = true;
+    setLoadError(null);
+    setIsLoading(true);
+    getCommitHistory(repositoryUrl, currentPage)
+      .then((history) => active && setCommitHistory(history ?? []))
+      .catch(() => {
+        if (!active) return;
+        setLoadError("Could not load commit history.");
+        setCommitHistory([]);
+      })
+      .finally(() => active && setIsLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [isSoftware, repositoryUrl, currentPage]);
 
   return (
     <>
       <div className="px-[16px] lg:px-[72px] flex flex-col gap-12">
         <div className="flex flex-col gap-[18px]">
           <p className="leading-6 text-2xl font-medium text-primary">
-            {isSoftwareProject ? "Commit History" : "README"}
+            {isSoftware ? "Commit History" : "README"}
           </p>
           <div className="border-t border-[#EEEEEE]" />
         </div>
 
-        {!isSoftwareProject ? (
+        {!isSoftware ? (
           readme ? (
             <div className="markdown-body border border-gray-200 rounded max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
               <Markdown
@@ -158,18 +125,15 @@ const CommitHistory = () => {
                           authorGithubLink={commit.author.html_url}
                           sha={commit.sha}
                           commitLink={commit.html_url}
-                          isMaintainer={
-                            authors
-                              ? authors.includes(
-                                  commit.author.name.toLowerCase(),
-                                )
-                              : false
-                          }
+                          isMaintainer={authors.includes(
+                            commit.author.name.toLowerCase(),
+                          )}
+                          isLatest={commit.sha === onChainSha}
                           attestation={
                             <AttestationCard
-                              projectName={loadProjectName()}
+                              projectName={project.name}
                               commitHash={commit.sha}
-                              connectedPublicKey={connectedPublicKey}
+                              connectedPublicKey={publicKey}
                               isMaintainer={isMaintainer}
                               variant="compact"
                             />
@@ -185,7 +149,7 @@ const CommitHistory = () => {
               startDate={commitHistory[0]?.date}
               endDate={commitHistory[commitHistory.length - 1]?.date}
               currentPage={currentPage}
-              onPageChange={(page) => fetchCommitHistory(page)}
+              onPageChange={setCurrentPage}
             />
           </>
         )}

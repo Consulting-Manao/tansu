@@ -1,12 +1,8 @@
-import { useStore } from "@nanostores/react";
-import { loadProjectInfo } from "@service/StateService";
-import { loadedPublicKey } from "@service/walletService";
 import { setBadges } from "@service/ContractService";
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import type { Badge } from "../../../../packages/tansu";
-import { useEffect, useState } from "react";
-import { projectInfoLoaded } from "utils/store";
+import { useState } from "react";
 import { toast } from "utils/utils";
 
 const badgeOptions: { label: string; value: Badge }[] = [
@@ -15,26 +11,12 @@ const badgeOptions: { label: string; value: Badge }[] = [
   { label: "Community", value: 1000000 },
 ];
 
-const AddBadgeModal = () => {
-  const isProjectInfoLoaded = useStore(projectInfoLoaded);
-  const [showButton, setShowButton] = useState(false);
+/** For maintainers: give a member badges in the project. */
+const AddBadgeModal = ({ projectName }: { projectName: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [memberAddress, setMemberAddress] = useState("");
   const [selectedBadges, setSelectedBadges] = useState<Badge[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (isProjectInfoLoaded) {
-      const projectInfo = loadProjectInfo();
-      if (projectInfo) {
-        const publicKey = loadedPublicKey();
-        const isMaintainer = publicKey
-          ? projectInfo.maintainers.includes(publicKey)
-          : false;
-        setShowButton(isMaintainer);
-      }
-    }
-  }, [isProjectInfoLoaded]);
 
   const handleClose = () => {
     setIsOpen(false);
@@ -53,8 +35,7 @@ const AddBadgeModal = () => {
     }
     setIsLoading(true);
     try {
-      await setBadges(memberAddress, selectedBadges);
-      window.dispatchEvent(new CustomEvent("badgesUpdated"));
+      await setBadges(projectName, memberAddress, selectedBadges);
       toast.success("Add badge", "Badges added successfully");
       setMemberAddress("");
       setSelectedBadges([]);
@@ -68,20 +49,18 @@ const AddBadgeModal = () => {
 
   return (
     <>
-      {showButton && (
-        <button
-          id="badge-button"
-          className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
-          onClick={() => setIsOpen(true)}
-        >
-          <img
-            src="/icons/plus-fill.svg"
-            className="w-5 h-5 flex-shrink-0"
-            alt=""
-          />
-          <span>Add badge</span>
-        </button>
-      )}
+      <button
+        id="badge-button"
+        className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
+        onClick={() => setIsOpen(true)}
+      >
+        <img
+          src="/icons/plus-fill.svg"
+          className="w-5 h-5 flex-shrink-0"
+          alt=""
+        />
+        <span>Add badge</span>
+      </button>
       {isOpen && (
         <Modal onClose={handleClose}>
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">

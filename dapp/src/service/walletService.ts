@@ -143,5 +143,4 @@ export {
   setConnection,
   disconnect,
   initializeConnection,
-  getWalletHealth,
 };

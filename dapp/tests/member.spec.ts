@@ -52,11 +52,10 @@ test("connect a wallet, join with a git identity and see the profile", async ({
     git_identity: "github:ada",
   });
 
-  // The page reloads and the profile now reads the member from the chain.
-  await Promise.all([
-    page.waitForEvent("load"),
-    page.getByRole("button", { name: "Continue" }).click(),
-  ]);
+  // The profile reads the new member from the chain, without a reload.
+  await page.evaluate(() => ((window as any).stayed = true));
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Open user profile" }).click();
   await expect(page.getByText("github:ada")).toBeVisible();
+  expect(await page.evaluate(() => (window as any).stayed)).toBe(true);
 });

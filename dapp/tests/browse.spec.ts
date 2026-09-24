@@ -50,9 +50,9 @@ test.describe("browsing without a wallet", () => {
     await page.getByRole("button", { name: "View Details" }).click();
 
     await expect(page).toHaveURL(/\/project\/?\?name=demo/);
-    await expect(page.locator("#contribution-metrics-section")).toContainText(
-      "Pony Factor",
-    );
+    await expect(
+      page.getByRole("heading", { name: "Pony Factor" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Read More" }).click();
     await expect(
       page.getByText("The README of the demo project."),

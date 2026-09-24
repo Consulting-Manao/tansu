@@ -4,11 +4,18 @@
  * Keys start with the domain and the project key in hex, so a write refreshes
  * what it changed by prefix (see `invalidateAfter` in queryClient.ts).
  */
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Buffer } from "buffer";
+import { useMemo } from "react";
+import type { Project } from "../../packages/tansu";
 import { tansuReads } from "../contracts/soroban_tansu";
+import type { ConfigData } from "../types/projectConfig";
+import { isValidCid } from "../utils/contentHashes";
 import { readResult } from "../utils/contractErrors";
+import { ipfsQuery, parseTansuToml } from "../utils/ipfsFunctions";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
+import { extractConfigData } from "../utils/utils";
+import { queryClient } from "./queryClient";
 
 const MINUTE = 60_000;
 
@@ -75,3 +82,35 @@ export const anonymousConfigQuery = (name: string) =>
       ),
     staleTime: 60 * MINUTE,
   });
+
+/**
+ * A project's display config, from its tansu.toml. Until the file loads, or
+ * when it cannot, the config holds what the contract alone gives.
+ */
+export function useProjectConfig(project: Project): {
+  config: ConfigData;
+  isLoading: boolean;
+};
+export function useProjectConfig(project: Project | null | undefined): {
+  config: ConfigData | null;
+  isLoading: boolean;
+};
+export function useProjectConfig(project: Project | null | undefined) {
+  const cid = project?.config.ipfs ?? "";
+  const toml = useQuery(
+    {
+      ...ipfsQuery(cid, "/tansu.toml"),
+      select: parseTansuToml,
+      enabled: !!project && isValidCid(cid),
+    },
+    queryClient,
+  );
+  const config = useMemo(
+    () =>
+      project
+        ? (extractConfigData(toml.data ?? {}, project) as ConfigData)
+        : null,
+    [project, toml.data],
+  );
+  return { config, isLoading: toml.isLoading };
+}

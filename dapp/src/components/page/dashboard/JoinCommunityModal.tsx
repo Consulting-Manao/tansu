@@ -48,9 +48,6 @@ const JoinCommunityModal: FC<{
   const isSafeObjectUrl = (url: string): boolean => url.startsWith("blob:");
 
   const handleClose = () => {
-    // Reload page if joining was successful to show fresh data
-    if (updateSuccessful) window.location.reload();
-
     // Reset all states when closing
     setUpdateSuccessful(false);
     setStep(0);

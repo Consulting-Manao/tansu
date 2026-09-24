@@ -1,10 +1,13 @@
-import { packFilesToCar, uploadToIpfsProxy } from "../utils/ipfsFunctions";
+import {
+  ipfsQuery,
+  packFilesToCar,
+  uploadToIpfsProxy,
+} from "../utils/ipfsFunctions";
 import type { OutcomeContract } from "../types/proposal";
 
 //
 import Tansu from "../contracts/soroban_tansu";
 import { connectedPublicKey } from "../utils/store";
-import { loadedProjectId } from "./StateService";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 //
@@ -17,8 +20,8 @@ import {
 } from "./TxService";
 import { txSourceFor } from "./walletService";
 import { checkSimulationError } from "../utils/contractErrors";
-import { Buffer } from "buffer";
-import { invalidateAfter } from "./queryClient";
+import type { Buffer } from "buffer";
+import { invalidateAfter, queryClient } from "./queryClient";
 
 interface CreateProposalFlowParams {
   projectName: string;
@@ -64,7 +67,21 @@ interface CreateProjectFlowParams {
   attestationThreshold?: number;
 }
 
-// Note: stellarSpecPatches removed - SDK v17 handles scSpecTypeVal correctly.
+/**
+ * Content under a CID never changes: the text files just packed show at once
+ * once a transaction points to them, without asking a gateway that may not
+ * serve them yet.
+ */
+async function rememberFiles(cid: string, files: File[]): Promise<void> {
+  for (const file of files) {
+    if (/\.(toml|md|json)$/.test(file.name)) {
+      queryClient.setQueryData(
+        ipfsQuery(cid, file.name).queryKey,
+        await file.text(),
+      );
+    }
+  }
+}
 
 /**
  * Create and sign a proposal transaction
@@ -343,6 +360,7 @@ export async function createProjectFlow({
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
   const { cid, carBlob } = await packFilesToCar(filesToUpload);
+  await rememberFiles(cid, filesToUpload);
 
   // Step 2 – Create & sign register transaction
   onProgress?.(7);
@@ -383,6 +401,7 @@ export async function createProjectFlow({
 
 /** Create and sign an update_config transaction */
 async function createSignedUpdateConfigTransaction(
+  projectName: string,
   maintainers: string[],
   configUrl: string,
   cid: string,
@@ -395,17 +414,9 @@ async function createSignedUpdateConfigTransaction(
 
   Tansu.options.publicKey = txSourceFor(publicKey);
 
-  const projectId = loadedProjectId();
-  if (!projectId) throw new Error("No project defined");
-
-  // Ensure projectId is a proper Buffer
-  const projectKey = Buffer.isBuffer(projectId)
-    ? projectId
-    : Buffer.from(projectId, "hex");
-
   const tx = await Tansu.update_config({
     maintainer: publicKey,
-    key: projectKey,
+    key: deriveProjectKey(projectName),
     maintainers: maintainers,
     url: configUrl,
     ipfs: cid,
@@ -421,6 +432,7 @@ async function createSignedUpdateConfigTransaction(
 }
 
 export async function updateConfigFlow({
+  projectName,
   tomlFile,
   githubRepoUrl,
   maintainers,
@@ -430,6 +442,7 @@ export async function updateConfigFlow({
   executeDelay,
   attestationThreshold,
 }: {
+  projectName: string;
   tomlFile: File;
   githubRepoUrl: string;
   maintainers: string[];
@@ -444,12 +457,14 @@ export async function updateConfigFlow({
   // Step 1 – Calculate CID and pack CAR once
   const filesToUpload = [tomlFile, ...(additionalFiles || [])];
   const { cid, carBlob } = await packFilesToCar(filesToUpload);
+  await rememberFiles(cid, filesToUpload);
 
   // Step 2 – sign tx
   onProgress?.(7);
   const normalizedRepositoryUrl =
     normalizeRepositoryUrl(githubRepoUrl) ?? githubRepoUrl;
   const signed = await createSignedUpdateConfigTransaction(
+    projectName,
     maintainers,
     normalizedRepositoryUrl,
     cid,
@@ -459,7 +474,7 @@ export async function updateConfigFlow({
   );
 
   // Step 3 – upload and send
-  const key = loadedProjectId()?.toString("hex") ?? "";
+  const key = projectKeyHex(projectName);
   await invalidateAfter(
     uploadAndSend(signed, { cid, carBlob }, onProgress),
     ["project", key],

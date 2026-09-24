@@ -1,24 +1,26 @@
 import { useEffect, useState } from "react";
 import type { ContributionMetrics as ContributionMetricsData } from "../../../types/contributionMetrics";
 import { ContributionMetricsService } from "../../../service/ContributionMetricsService";
-import { loadConfigData } from "../../../service/StateService";
 import PonyFactorCard from "./PonyFactorCard";
 import ContributorActivityChart from "./ContributorActivityChart";
 import MonthlyActivityChart from "./MonthlyActivityChart";
 
 interface ContributionMetricsProps {
-  projectName: string;
   repoUrl: string;
+  /** The maintainers' handles on the repository host. */
+  maintainerHandles: string[];
 }
 
 const ContributionMetrics = ({
-  projectName,
   repoUrl,
+  maintainerHandles,
 }: ContributionMetricsProps) => {
   const [metrics, setMetrics] = useState<ContributionMetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [maintainers, setMaintainers] = useState<string[]>([]);
+  const maintainers = maintainerHandles
+    .filter((name) => typeof name === "string")
+    .map((name) => name.toLowerCase());
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -28,19 +30,6 @@ const ContributionMetrics = ({
 
         const metrics = await ContributionMetricsService.fetchMetrics(repoUrl);
         setMetrics(metrics);
-
-        const configData = loadConfigData();
-        if (
-          configData?.authorGithubNames &&
-          Array.isArray(configData.authorGithubNames)
-        ) {
-          const maintainerNames = configData.authorGithubNames
-            .map((name) =>
-              name && typeof name === "string" ? name.toLowerCase() : "",
-            )
-            .filter(Boolean);
-          setMaintainers(maintainerNames);
-        }
       } catch (err) {
         console.error("Error fetching contribution metrics:", err);
         setError("Failed to load contribution metrics");
@@ -49,10 +38,10 @@ const ContributionMetrics = ({
       }
     };
 
-    if (projectName && repoUrl) {
+    if (repoUrl) {
       fetchMetrics();
     }
-  }, [projectName, repoUrl]);
+  }, [repoUrl]);
 
   if (loading) {
     return (

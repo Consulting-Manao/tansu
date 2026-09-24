@@ -56,6 +56,10 @@ test("register a project, update a config and give a badge", async ({
     .click();
   await expect.poll(() => chain.sent).toEqual(["register", "update_config"]);
   expect(chain.project("demo").project.config.ipfs).toBe(web.uploads[1]);
+  // The page shows the new configuration at once.
+  await page.getByRole("button", { name: "OK" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Demo Project", { exact: true })).toBeVisible();
 
   // Grace, a member, becomes part of the community.
   await page.goto("/project/?name=demo");
@@ -68,4 +72,5 @@ test("register a project, update a config and give a badge", async ({
     .poll(() => chain.sent)
     .toEqual(["register", "update_config", "set_badges"]);
   expect(chain.project("demo").badges.community).toEqual([GRACE]);
+  await expect(page.getByText(`${GRACE.slice(0, 20)}...`)).toBeVisible();
 });

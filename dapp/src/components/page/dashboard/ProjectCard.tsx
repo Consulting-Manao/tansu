@@ -1,26 +1,12 @@
-import { fetchTomlFromIpfs } from "../../../utils/ipfsFunctions";
-import {
-  getProjectFromName,
-  getProjectHash,
-} from "../../../service/ReadContractService";
-import {
-  refreshLocalStorage,
-  setConfigData,
-  setProject,
-  setProjectId,
-  setProjectLatestSha,
-  setProjectRepoUrl,
-} from "../../../service/StateService";
+import { useState } from "react";
 import {
   convertGitHubLink,
   getRepositoryIconInfo,
 } from "../../../utils/editLinkFunctions";
-import { projectCardModalOpen } from "../../../utils/store";
-import { extractConfigData, toast } from "../../../utils/utils";
+import ProjectInfoModal from "./ProjectInfoModal";
 
 interface ProjectConfig {
   projectName: string;
-  onChainProjectName?: string;
   projectFullName?: string;
   description?: string;
   logoImageLink?: string | null;
@@ -44,56 +30,7 @@ const ProjectCard = ({
 }) => {
   const repositoryIcon = getRepositoryIconInfo(config.officials.githubLink);
 
-  const handleCardClick = async () => {
-    refreshLocalStorage();
-    try {
-      setProjectId(config.projectName);
-      const project = await getProjectFromName(config.projectName);
-      if (project && project.name && project.config && project.maintainers) {
-        setProject(project);
-        if (project.config.url) {
-          setProjectRepoUrl(project.config.url);
-        }
-        setConfigData(extractConfigData({}, project));
-        projectCardModalOpen.set(true);
-
-        (async () => {
-          try {
-            const tomlData = await fetchTomlFromIpfs(project.config.ipfs);
-            if (tomlData) {
-              setConfigData(extractConfigData(tomlData, project));
-            }
-          } catch (_) {
-            // TOML load failed; modal already shows minimal config
-          }
-          try {
-            const latestSha = await getProjectHash();
-            if (
-              latestSha &&
-              typeof latestSha === "string" &&
-              latestSha.match(/^[a-f0-9]{40}$/)
-            ) {
-              setProjectLatestSha(latestSha);
-            } else {
-              setProjectLatestSha("");
-            }
-          } catch (error: any) {
-            toast.error("Something Went Wrong!", error.message);
-          }
-        })();
-      } else {
-        toast.error(
-          "Something Went Wrong!",
-          `There is no such project: ${config.projectName}`,
-        );
-      }
-    } catch (e: any) {
-      if (import.meta.env.DEV) {
-        console.error(e);
-      }
-      toast.error("Something Went Wrong!", e.message);
-    }
-  };
+  const [showInfo, setShowInfo] = useState(false);
 
   return (
     <div
@@ -102,7 +39,7 @@ const ProjectCard = ({
     >
       <div
         className="h-[200px] sm:h-[240px] md:h-[290px] bg-white/25 backdrop-blur-[9px] overflow-hidden cursor-pointer group flex justify-center items-center flex-shrink-0"
-        onClick={handleCardClick}
+        onClick={() => setShowInfo(true)}
       >
         {!config.logoImageLink && isMetadataLoading ? (
           <div
@@ -212,6 +149,12 @@ const ProjectCard = ({
           )}
         </div>
       </div>
+      {showInfo && (
+        <ProjectInfoModal
+          name={config.projectName}
+          onClose={() => setShowInfo(false)}
+        />
+      )}
     </div>
   );
 };

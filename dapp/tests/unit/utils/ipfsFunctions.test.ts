@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { packFilesToCar } from "../../../src/utils/ipfsFunctions";
 
@@ -89,8 +90,16 @@ describe("remembered IPFS misses", () => {
       fromCache: true,
     });
 
+    // The query fails without asking, and keeps no answer: a re-upload
+    // brings the CID back.
     const reloaded = await load();
-    expect(await reloaded.fetchTomlFromIpfs(CID)).toBeUndefined();
+    const client = new QueryClient();
+    const query = reloaded.ipfsQuery(CID, "/tansu.toml");
+    expect(await errorOf(client.query(query))).toMatchObject({
+      name: "IpfsMissError",
+      fromCache: true,
+    });
+    expect(client.getQueryData(query.queryKey)).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -103,7 +112,10 @@ describe("remembered IPFS misses", () => {
     const ipfs = await load();
 
     expect(await ipfs.fetchTextFromIpfs(CID, "/summary.md")).toBeNull();
-    expect(await ipfs.fetchTextFromIpfs(CID, "/summary.md")).toBeNull();
+    // As a query, a missing file is an answer: null.
+    await expect(
+      new QueryClient().query(ipfs.ipfsQuery(CID, "summary.md")),
+    ).resolves.toBeNull();
     expect(await ipfs.fetchTextFromIpfs(CID, "/proposal.md")).toBe(
       "# Proposal",
     );
