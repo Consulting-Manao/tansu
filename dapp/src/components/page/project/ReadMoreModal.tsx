@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { FC } from "react";
 import Modal from "components/utils/Modal";
 import { repoReadmeQuery } from "../../../service/RepositoryMetadataService";
 import { queryClient } from "../../../service/queryClient";
-import Markdown from "markdown-to-jsx";
-import { rewriteRelativePaths } from "../../utils/MarkdownEditorWithImages";
+import Markdown from "components/utils/Markdown";
 
 import CopyButton from "components/utils/CopyButton";
 import {
@@ -27,39 +26,6 @@ interface ReadMoreModalProps {
   };
 }
 
-const markdownOverrides = {
-  img: {
-    props: {
-      className: "max-w-full h-auto",
-    },
-  },
-  table: {
-    props: {
-      className: "table-auto border-collapse max-w-full",
-    },
-  },
-  th: {
-    props: {
-      className: "border border-gray-300 px-4 py-2",
-    },
-  },
-  td: {
-    props: {
-      className: "border border-gray-300 px-4 py-2",
-    },
-  },
-  pre: {
-    props: {
-      className: "max-w-full overflow-x-auto",
-    },
-  },
-  code: {
-    props: {
-      className: "max-w-full overflow-x-auto",
-    },
-  },
-};
-
 const ReadMoreModal: FC<ReadMoreModalProps> = ({
   isOpen,
   onClose,
@@ -74,17 +40,13 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
     },
     queryClient,
   );
-  const readmeContent = useMemo(
-    () =>
-      readme.isError
-        ? "Failed to load README content. Please check the repository directly."
-        : readme.data
-          ? rewriteRelativePaths(readme.data.content, readme.data.rawBaseUrl)
-          : readme.isSuccess || !projectData?.githubUrl
-            ? "No README available for this project."
-            : "",
-    [readme.data, readme.isError, readme.isSuccess, projectData?.githubUrl],
-  );
+  const readmeContent = readme.isError
+    ? "Failed to load README content. Please check the repository directly."
+    : readme.data
+      ? readme.data.content
+      : readme.isSuccess || !projectData?.githubUrl
+        ? "No README available for this project."
+        : "";
 
   const handleGoToReleases = useCallback(() => {
     if (releasesUrl) {
@@ -174,11 +136,12 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                   </button>
                 ) : null}
               </div>
-              <div className="markdown-body border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
-                <Markdown options={{ overrides: markdownOverrides }}>
-                  {readmeContent || projectData?.description || ""}
-                </Markdown>
-              </div>
+              <Markdown
+                className="border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4"
+                baseUrl={readme.data?.rawBaseUrl}
+              >
+                {readmeContent || projectData?.description || ""}
+              </Markdown>
             </div>
           </div>
         </div>

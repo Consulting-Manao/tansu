@@ -1,6 +1,5 @@
 import Button from "components/utils/Button";
-import DOMPurify from "dompurify";
-import Markdown from "markdown-to-jsx";
+import Markdown from "components/utils/Markdown";
 import React, { useState } from "react";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 
@@ -11,13 +10,6 @@ interface DiscussionSectionProps {
   ipfsCid: string | null;
 }
 
-const markdownOptions = {
-  overrides: {
-    a: { props: { target: "_blank", rel: "noopener noreferrer" } },
-    img: { props: { className: "max-w-full h-auto" } },
-  },
-};
-
 const DiscussionSection: React.FC<DiscussionSectionProps> = ({
   discussion,
   summary,
@@ -25,6 +17,7 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
   ipfsCid,
 }) => {
   const [showThread, setShowThread] = useState(false);
+  const baseUrl = ipfsCid ? getIpfsBasicLink(ipfsCid) : undefined;
 
   const hasThread = !!discussion?.trim();
   const hasSummary = !!summary?.trim();
@@ -55,11 +48,7 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
         <div className="flex flex-col gap-6">
           {hasSummary && (
             <div className="bg-white rounded-md border border-gray-200 p-[30px] flex flex-col gap-3">
-              <div className="markdown-body">
-                <Markdown options={markdownOptions}>
-                  {DOMPurify.sanitize(summary!)}
-                </Markdown>
-              </div>
+              <Markdown baseUrl={baseUrl}>{summary!}</Markdown>
             </div>
           )}
 
@@ -74,11 +63,12 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
               </button>
 
               {showThread && (
-                <div className="bg-white rounded-md border border-gray-200 p-[30px] markdown-body">
-                  <Markdown options={markdownOptions}>
-                    {DOMPurify.sanitize(discussion!)}
-                  </Markdown>
-                </div>
+                <Markdown
+                  className="bg-white rounded-md border border-gray-200 p-[30px]"
+                  baseUrl={baseUrl}
+                >
+                  {discussion!}
+                </Markdown>
               )}
             </div>
           )}

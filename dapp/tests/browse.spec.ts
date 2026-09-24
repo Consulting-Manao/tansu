@@ -70,6 +70,10 @@ test.describe("browsing without a wallet", () => {
     await expect(
       page.getByText("We adopt the Contributor Covenant."),
     ).toBeVisible();
+    await expect(page.getByText("if (a < b && c) {}")).toBeVisible();
+    await expect(page.locator('meta[http-equiv="refresh"], form')).toHaveCount(
+      0,
+    );
     await expect(page.getByText("Merge the code of conduct.")).toBeVisible();
   });
 });

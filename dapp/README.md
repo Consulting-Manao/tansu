@@ -138,3 +138,5 @@ TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newe
 - **Data**: TanStack Query for every read, kept in IndexedDB; nanostores for the wallet
 - **Wallet Integration**: Stellar Wallets Kit for secure wallet connections
 - **IPFS Services**: Decentralized content storage and retrieval
+- **Markdown**: one `Markdown` component renders what users wrote; raw HTML is limited to formatting tags
+- **Legal pages**: `/terms/`, `/privacy/` and the terms modal are built from the root `legal/` files

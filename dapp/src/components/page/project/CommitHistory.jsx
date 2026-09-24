@@ -1,7 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import Markdown from "markdown-to-jsx";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import Markdown from "components/utils/Markdown";
 import { commitHistoryQuery } from "../../../service/RepositoryMetadataService.ts";
 import { commitQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
@@ -25,15 +25,7 @@ const CommitHistory = ({ project, config, isSoftware }) => {
     },
     queryClient,
   );
-  // Relative images point into the project's IPFS directory.
-  const readme = useMemo(
-    () =>
-      readmeRead.data?.replace(
-        /!\[([^\]]*)\]\((?!https?:\/\/)\.?\/?([^)]+)\)/g,
-        (_, alt, src) => `![${alt}](${getIpfsUrl(project.config.ipfs)}/${src})`,
-      ),
-    [readmeRead.data, project.config.ipfs],
-  );
+  const readme = readmeRead.data;
   const authors = config.authorGithubNames
     .filter((name) => typeof name === "string")
     .map((name) => name.toLowerCase());
@@ -68,17 +60,12 @@ const CommitHistory = ({ project, config, isSoftware }) => {
 
         {!isSoftware ? (
           readme ? (
-            <div className="markdown-body border border-gray-200 rounded max-h-[60vh] overflow-y-auto overflow-x-hidden p-4">
-              <Markdown
-                options={{
-                  overrides: {
-                    img: { props: { className: "max-w-full h-auto" } },
-                  },
-                }}
-              >
-                {readme}
-              </Markdown>
-            </div>
+            <Markdown
+              className="border border-gray-200 rounded max-h-[60vh] overflow-y-auto overflow-x-hidden p-4"
+              baseUrl={getIpfsUrl(project.config.ipfs)}
+            >
+              {readme}
+            </Markdown>
           ) : (
             <p className="text-base text-secondary">No README available.</p>
           )

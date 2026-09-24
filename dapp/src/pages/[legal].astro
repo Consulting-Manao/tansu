@@ -1,10 +1,23 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Container from "../components/layout/Container.astro";
-import TermsContent from "../../../legal/terms-of-service.md";
+import { Content as Privacy } from "../../../legal/privacy-policy.md";
+import { Content as Terms } from "../../../legal/terms-of-service.md";
+
+/** The legal texts, from the repository's legal/ directory. */
+export function getStaticPaths() {
+  return [
+    { params: { legal: "terms" }, props: { title: "Terms of Service" } },
+    { params: { legal: "privacy" }, props: { title: "Privacy Policy" } },
+  ];
+}
+
+const { legal } = Astro.params;
+const { title } = Astro.props;
+const LegalText = legal === "terms" ? Terms : Privacy;
 ---
 
-<Layout title="Terms of Service - Tansu" page="terms">
+<Layout title={`${title} - Tansu`} page={legal}>
   <style>
     /* Hide background image on legal pages */
     .background-image {
@@ -150,7 +163,7 @@ import TermsContent from "../../../legal/terms-of-service.md";
       <div class="legal-card p-6 md:p-12">
         <div class="text-center mb-8">
           <h1 class="text-4xl md:text-5xl font-bold text-primary mb-4">
-            Terms of Service
+            {title}
           </h1>
           <p class="text-zinc-600 text-lg">Last Updated: October 21, 2025</p>
           <div class="mt-6 mb-8">
@@ -163,8 +176,8 @@ import TermsContent from "../../../legal/terms-of-service.md";
           </div>
         </div>
 
-        <div class="legal-content prose max-w-none">
-          <TermsContent />
+        <div class="legal-content">
+          <LegalText />
         </div>
 
         <div class="text-center mt-12 pt-8 border-t border-zinc-200">

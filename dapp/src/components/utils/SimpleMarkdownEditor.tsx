@@ -1,13 +1,13 @@
 import { useState } from "react";
-import Markdown from "markdown-to-jsx";
-import DOMPurify from "dompurify";
+import Markdown from "./Markdown";
 
 interface SimpleMarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
-  previewValue?: string;
+  /** Where the preview resolves relative paths from. */
+  baseUrl?: string | undefined;
 }
 
 const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
@@ -15,32 +15,9 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
   onChange,
   placeholder = "Type your markdown here...",
   className = "",
-  previewValue,
+  baseUrl,
 }) => {
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
-
-  const markdownOverrides = {
-    img: {
-      props: {
-        style: { maxWidth: "100%", height: "auto" },
-      },
-    },
-    table: {
-      props: {
-        className: "table-auto w-full border-collapse border border-gray-300",
-      },
-    },
-    th: {
-      props: {
-        className: "border border-gray-300 px-4 py-2 bg-gray-100 font-bold",
-      },
-    },
-    td: {
-      props: {
-        className: "border border-gray-300 px-4 py-2",
-      },
-    },
-  };
 
   return (
     <div
@@ -85,21 +62,14 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
                 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             }}
           />
+        ) : value.trim() ? (
+          <Markdown className="p-4 min-h-[200px]" baseUrl={baseUrl}>
+            {value}
+          </Markdown>
         ) : (
-          <div className="markdown-body p-4 min-h-[200px]">
-            {value.trim() ? (
-              <Markdown
-                options={{
-                  overrides: markdownOverrides,
-                  disableParsingRawHTML: true,
-                }}
-              >
-                {DOMPurify.sanitize(previewValue ?? value)}
-              </Markdown>
-            ) : (
-              <p className="text-gray-500 italic">Nothing to preview...</p>
-            )}
-          </div>
+          <p className="p-4 min-h-[200px] text-gray-500 italic">
+            Nothing to preview...
+          </p>
         )}
       </div>
 

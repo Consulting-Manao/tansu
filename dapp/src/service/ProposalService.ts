@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
+import { ipfsQuery } from "utils/ipfsFunctions";
 import type {
   OutcomeContract,
   Proposal,
@@ -113,62 +113,29 @@ const DISCUSSION_SUMMARY_PATH = "/summary.md";
 const readIpfsFile = (cid: string, path: string) =>
   queryClient.query(ipfsQuery(cid, path)).catch(() => null);
 
-function imagePaths(content: string, cid: string): string {
-  const basicUrl = getIpfsBasicLink(cid);
-  if (!basicUrl) return content;
-  return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
-    if (path.startsWith("http://") || path.startsWith("https://")) {
-      return match;
-    }
-    return `![${alt}](${basicUrl}/${path})`;
-  });
-}
-
-/**
- * Fetches proposal markdown content from IPFS
- *
- * @param cid - The IPFS CID
- * @returns The markdown content with image paths corrected, or null if not found
- */
-async function fetchProposalFromIPFS(cid: string) {
-  try {
-    const content = await readIpfsFile(cid, PROPOSAL_MD_PATH);
-    if (!content) return null;
-    return imagePaths(content, cid);
-  } catch {
-    return null;
-  }
-}
+/** The proposal's description, proposal.md; `null` when it cannot be read. */
+const fetchProposalFromIPFS = (cid: string) =>
+  readIpfsFile(cid, PROPOSAL_MD_PATH);
 
 /** Seam for where discussion docs live; defaults to the proposal's IPFS dir. */
 export function resolveDiscussionCid(proposal: Proposal): string | null {
   return proposal.discussionIpfs?.trim() || proposal.ipfs?.trim() || null;
 }
 
-/** Fetches the discussion thread (proposal_discussion.md) from IPFS. */
+/** The discussion thread, proposal_discussion.md; `null` when empty. */
 export async function fetchProposalDiscussionFromIPFS(
   cid: string,
 ): Promise<string | null> {
-  try {
-    const content = await readIpfsFile(cid, DISCUSSION_MD_PATH);
-    if (!content?.trim()) return null;
-    return imagePaths(content, cid);
-  } catch {
-    return null;
-  }
+  const content = await readIpfsFile(cid, DISCUSSION_MD_PATH);
+  return content?.trim() ? content : null;
 }
 
-/** Fetches the optional discussion summary (summary.md) from IPFS. */
+/** The discussion's optional summary, summary.md; `null` when empty. */
 export async function fetchProposalDiscussionSummaryFromIPFS(
   cid: string,
 ): Promise<string | null> {
-  try {
-    const content = await readIpfsFile(cid, DISCUSSION_SUMMARY_PATH);
-    if (!content?.trim()) return null;
-    return imagePaths(content, cid);
-  } catch {
-    return null;
-  }
+  const content = await readIpfsFile(cid, DISCUSSION_SUMMARY_PATH);
+  return content?.trim() ? content : null;
 }
 
 /**

@@ -22,7 +22,7 @@ function serviceWorker() {
             "**/*.html",
             "_astro/*.{js,css}",
             "*.{svg,png,jpg,json}",
-            "{icons,images,legal}/**",
+            "{icons,images}/**",
           ],
           globIgnores: ["social-card.png"],
           dontCacheBustURLsMatching: /^_astro\//,

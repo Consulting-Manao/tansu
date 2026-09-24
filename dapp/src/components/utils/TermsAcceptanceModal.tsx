@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import Markdown from "markdown-to-jsx";
-import DOMPurify from "dompurify";
+import Markdown from "./Markdown";
+import termsSummary from "../../constants/terms-summary.json";
+import privacy from "../../../../legal/privacy-policy.md?raw";
+import fullTerms from "../../../../legal/terms-of-service.md?raw";
 
 type LegalView = "summary" | "fullTerms" | "privacy";
 
@@ -36,41 +38,6 @@ interface TermsSummary {
   sections: TermsSections;
 }
 
-async function fetchText(path: string): Promise<string> {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
-  return res.text();
-}
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const text = await fetchText(path);
-  return JSON.parse(text) as T;
-}
-
-const markdownOverrides = {
-  img: { props: { className: "max-w-full h-auto" } },
-  table: { props: { className: "table-auto border-collapse max-w-full" } },
-  th: { props: { className: "border border-gray-300 px-4 py-2" } },
-  td: { props: { className: "border border-gray-300 px-4 py-2" } },
-  pre: { props: { className: "max-w-full overflow-x-auto" } },
-  code: { props: { className: "max-w-full overflow-x-auto" } },
-  h1: { props: { className: "text-2xl font-bold text-primary mt-6 mb-2" } },
-  h2: {
-    props: {
-      className:
-        "text-xl font-semibold text-primary mt-6 mb-2 border-b border-gray-200 pb-1",
-    },
-  },
-  h3: { props: { className: "text-lg font-semibold text-primary mt-4 mb-1" } },
-  h4: {
-    props: { className: "text-base font-semibold text-primary mt-3 mb-1" },
-  },
-  p: { props: { className: "text-secondary leading-relaxed mb-3" } },
-  ul: { props: { className: "list-disc ml-6 mb-3" } },
-  ol: { props: { className: "list-decimal ml-6 mb-3" } },
-  a: { props: { className: "text-primary underline font-medium" } },
-};
-
 const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
   onAccept,
   onDecline,
@@ -78,36 +45,11 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [view, setView] = useState<LegalView>("summary");
-  const [summary, setSummary] = useState<TermsSummary | null>(null);
-  const [fullTerms, setFullTerms] = useState<string | null>(null);
-  const [privacy, setPrivacy] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setIsVisible(true), 100);
     return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    fetchJson<TermsSummary>("/legal/terms-summary.json")
-      .then(setSummary)
-      .catch(() =>
-        setSummary({ introduction: "Terms of Service", sections: {} }),
-      );
-  }, []);
-
-  useEffect(() => {
-    if (view !== "fullTerms" || fullTerms !== null) return;
-    fetchText("/legal/terms-of-service.md")
-      .then(setFullTerms)
-      .catch(() => setFullTerms(""));
-  }, [view, fullTerms]);
-
-  useEffect(() => {
-    if (view !== "privacy" || privacy !== null) return;
-    fetchText("/legal/privacy-policy.md")
-      .then(setPrivacy)
-      .catch(() => setPrivacy(""));
-  }, [view, privacy]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.target as HTMLDivElement;
@@ -127,7 +69,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
     onAccept();
   };
 
-  const s = summary ?? { introduction: "Terms of Service", sections: {} };
+  const s: TermsSummary = termsSummary;
   const sections = s.sections;
 
   if (!isVisible) return null;
@@ -374,28 +316,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             </div>
           )}
 
-          {view === "fullTerms" && (
-            <div className="markdown-body legal-content prose max-w-none">
-              {fullTerms === null ? (
-                <p className="text-secondary">Loading…</p>
-              ) : (
-                <Markdown options={{ overrides: markdownOverrides }}>
-                  {DOMPurify.sanitize(fullTerms)}
-                </Markdown>
-              )}
-            </div>
-          )}
-
-          {view === "privacy" && (
-            <div className="markdown-body legal-content prose max-w-none">
-              {privacy === null ? (
-                <p className="text-secondary">Loading…</p>
-              ) : (
-                <Markdown options={{ overrides: markdownOverrides }}>
-                  {DOMPurify.sanitize(privacy)}
-                </Markdown>
-              )}
-            </div>
+          {view !== "summary" && (
+            <Markdown>{view === "fullTerms" ? fullTerms : privacy}</Markdown>
           )}
         </div>
 

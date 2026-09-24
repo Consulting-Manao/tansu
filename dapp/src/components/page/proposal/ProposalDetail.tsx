@@ -1,6 +1,6 @@
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
-import Markdown from "markdown-to-jsx";
+import Markdown from "components/utils/Markdown";
 import React, { useEffect, useState, useMemo } from "react";
 import JsonView from "react18-json-view";
 import type {
@@ -97,28 +97,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
             View IPFS
           </Button>
         </div>
-        <div className="markdown-body w-full px-4 sm:px-6 md:px-8 py-6">
-          {description ? (
-            <Markdown
-              options={{
-                overrides: {
-                  a: {
-                    props: {
-                      target: "_blank",
-                      rel: "noopener noreferrer",
-                    },
-                  },
-                },
-              }}
-            >
-              {description}
-            </Markdown>
-          ) : (
-            <p className="text-gray-500 italic">
-              No description available or IPFS content could not be loaded.
-            </p>
-          )}
-        </div>
+        {description ? (
+          <Markdown
+            className="w-full px-4 sm:px-6 md:px-8 py-6"
+            baseUrl={ipfsLink ? getIpfsBasicLink(ipfsLink) : undefined}
+          >
+            {description}
+          </Markdown>
+        ) : (
+          <p className="w-full px-4 sm:px-6 md:px-8 py-6 text-gray-500 italic">
+            No description available or IPFS content could not be loaded.
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-3">

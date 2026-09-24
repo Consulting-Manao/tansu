@@ -8,7 +8,7 @@ import type { ProfileData } from "./ProfileModal";
 import Modal from "components/utils/Modal";
 import Button from "components/utils/Button";
 import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
-import Markdown from "markdown-to-jsx";
+import Markdown from "components/utils/Markdown";
 import { connectedPublicKey } from "../../../utils/store";
 import { memberQuery } from "@service/MemberService";
 import { disconnect } from "@service/walletService";
@@ -361,48 +361,12 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
                   <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
                     About
                   </h4>
-                  <div className="prose prose-sm sm:prose-base max-w-none text-secondary bg-zinc-50 p-3 sm:p-4 rounded">
-                    <Markdown
-                      options={{
-                        overrides: {
-                          p: { props: { className: "text-secondary mb-2" } },
-                          a: {
-                            props: {
-                              className: "text-blue-500 hover:underline",
-                            },
-                          },
-                          h1: {
-                            props: {
-                              className: "text-xl font-bold text-primary mb-2",
-                            },
-                          },
-                          h2: {
-                            props: {
-                              className: "text-lg font-bold text-primary mb-2",
-                            },
-                          },
-                          h3: {
-                            props: {
-                              className:
-                                "text-base font-bold text-primary mb-2",
-                            },
-                          },
-                          ul: {
-                            props: {
-                              className: "list-disc ml-5 text-secondary",
-                            },
-                          },
-                          ol: {
-                            props: {
-                              className: "list-decimal ml-5 text-secondary",
-                            },
-                          },
-                        },
-                      }}
-                    >
-                      {profileData.description}
-                    </Markdown>
-                  </div>
+                  <Markdown
+                    className="bg-zinc-50 p-3 sm:p-4 rounded"
+                    baseUrl={getIpfsBasicLink(member.meta)}
+                  >
+                    {profileData.description}
+                  </Markdown>
                 </div>
               )}
 

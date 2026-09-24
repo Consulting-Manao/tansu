@@ -16,23 +16,6 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
-// Rewrite relative image/link paths to absolute URLs for the preview tab.
-// Blob URLs (newly uploaded) are already absolute and are left untouched.
-export function rewriteRelativePaths(
-  markdown: string,
-  baseUrl: string,
-): string {
-  return markdown
-    .replace(
-      /!\[([^\]]*)\]\((?!https?:\/\/|blob:)\.?\/?([^)]+)\)/g,
-      (_, alt, src) => `![${alt}](${baseUrl}/${src})`,
-    )
-    .replace(
-      /\[([^\]]*)\]\((?!https?:\/\/|blob:|#)\.?\/?([^)]+)\)/g,
-      (_, text, href) => `[${text}](${baseUrl}/${href})`,
-    );
-}
-
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -83,9 +66,7 @@ const MarkdownEditorWithImages = ({
         value={value}
         onChange={onChange}
         {...(placeholder !== undefined && { placeholder })}
-        {...(imageBaseUrl !== undefined && {
-          previewValue: rewriteRelativePaths(value, imageBaseUrl),
-        })}
+        baseUrl={imageBaseUrl}
       />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-md">
         <p className="text-sm text-secondary flex-1">
