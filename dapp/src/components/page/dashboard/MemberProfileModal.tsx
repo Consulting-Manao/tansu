@@ -11,6 +11,7 @@ import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
 import { memberQuery } from "@service/MemberService";
 import { disconnect } from "@service/walletService";
+import { openModal } from "utils/modals";
 import { projectByKeyQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import { navigate } from "astro:transitions/client";
@@ -168,16 +169,9 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
     window.location.href = "/";
   };
 
-  // Handle registration button click
   const handleRegister = () => {
-    // Show registration modal or redirect to registration page
     onClose();
-    // Dispatch event to show join community modal with the address
-    window.dispatchEvent(
-      new CustomEvent("openJoinCommunity", {
-        detail: { address: memberAddress },
-      }),
-    );
+    openModal("join", { prefillAddress: memberAddress });
   };
 
   if (memberRead.isPending) {

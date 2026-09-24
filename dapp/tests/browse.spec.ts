@@ -10,7 +10,7 @@ test.describe("browsing without a wallet", () => {
     await page.goto("/");
 
     // The terms can be accepted once they have been scrolled through.
-    const terms = page.locator(".terms-modal-container");
+    const terms = page.getByRole("dialog", { name: "Terms of Service" });
     const accept = terms.getByRole("button", { name: "Accept Terms" });
     await terms.getByRole("button", { name: "Terms of Service" }).click();
     await expect(accept).toBeDisabled();

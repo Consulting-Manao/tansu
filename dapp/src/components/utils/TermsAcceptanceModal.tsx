@@ -7,7 +7,6 @@ type LegalView = "summary" | "fullTerms" | "privacy";
 interface TermsAcceptanceModalProps {
   onAccept: () => void;
   onDecline: () => void;
-  onClose: () => void;
 }
 
 interface ServiceModifications {
@@ -135,7 +134,12 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-white/35 backdrop-blur-md flex justify-center items-center z-[9999] p-2 sm:p-4">
-      <div className="modal relative bg-white shadow-modal rounded-lg max-w-[95vw] w-full sm:w-auto max-w-4xl flex flex-col max-h-[90vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Terms of Service"
+        className="modal relative bg-white shadow-modal rounded-lg max-w-[95vw] w-full sm:w-auto max-w-4xl flex flex-col max-h-[90vh]"
+      >
         <div className="flex-shrink-0 p-3 sm:p-4 md:p-6 lg:p-8 pb-2">
           <div className="flex flex-col gap-3">
             <div className="leading-6 text-2xl font-medium text-primary">

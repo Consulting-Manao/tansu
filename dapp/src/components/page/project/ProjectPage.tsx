@@ -9,6 +9,7 @@ import {
 } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
+import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import Loading from "components/utils/Loading";
 import {
   convertGitHubLink,
@@ -420,4 +421,4 @@ const ProjectPage = () => {
   );
 };
 
-export default ProjectPage;
+export default withErrorBoundary(ProjectPage);

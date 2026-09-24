@@ -3,6 +3,7 @@
  * is heavy, so it loads when a wallet is needed.
  */
 import { StrKey } from "@stellar/stellar-sdk";
+import { openModal } from "utils/modals";
 import {
   connectedPublicKey,
   WALLET_STORAGE_KEY,
@@ -71,11 +72,7 @@ async function checkAndNotifyFunding(address: string): Promise<void> {
       )
         ? "testnet"
         : "mainnet";
-      window.dispatchEvent(
-        new CustomEvent("openFundingModal", {
-          detail: { exists, balance, network },
-        }),
-      );
+      openModal("funding", { exists, balance, network });
     }
   } catch {
     // Best effort.

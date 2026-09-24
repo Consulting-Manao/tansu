@@ -2,7 +2,6 @@
 import ConnectButton from "../ConnectButton.tsx";
 import JoinCommunityButton from "../JoinCommunityButton.tsx";
 import NavbarSearch from "../NavbarSearch.tsx";
-import WalletFundingWrapper from "../wallet/WalletFundingWrapper.tsx";
 ---
 
 <header role="banner">
@@ -50,27 +49,3 @@ import WalletFundingWrapper from "../wallet/WalletFundingWrapper.tsx";
     </div>
   </nav>
 </header>
-
-<!-- The offer to fund a new or empty account -->
-<WalletFundingWrapper client:load />
-
-<script>
-  const GLOBAL_KEY = Symbol.for("globalListenersInited");
-
-  const initGlobalListeners = () => {
-    if ((window as any)[GLOBAL_KEY]) return;
-    (window as any)[GLOBAL_KEY] = true;
-
-    document.addEventListener("show-create-project-modal", () => {
-      if (window.location.pathname !== "/") {
-        sessionStorage.setItem("openCreateProjectModal", "true");
-        window.location.href = "/";
-      } else {
-        // Dispatch fresh event each time — avoids stale references
-        document.dispatchEvent(new CustomEvent("create-project-global"));
-      }
-    });
-  };
-
-  initGlobalListeners();
-</script>

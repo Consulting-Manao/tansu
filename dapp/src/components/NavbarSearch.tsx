@@ -1,7 +1,9 @@
+import { navigate } from "astro:transitions/client";
 import { useState, useEffect } from "react";
 import { useStore } from "@nanostores/react";
 import Button from "./utils/Button";
 
+import { openModal } from "../utils/modals";
 import { connectedPublicKey } from "../utils/store";
 import { toast } from "../utils/utils";
 
@@ -88,14 +90,14 @@ const NavbarSearch = () => {
     const safeOriginalUrl = toSafeInternalPath(originalUrl);
 
     if (safeFromUrl) {
-      window.location.href = safeFromUrl;
+      navigate(safeFromUrl);
     } else if (safeOriginalUrl) {
-      window.location.href = safeOriginalUrl;
+      navigate(safeOriginalUrl);
     } else if (
       window.location.pathname === HOME_PATH &&
       window.location.search
     ) {
-      window.history.replaceState({}, "", HOME_PATH);
+      navigate(HOME_PATH, { history: "replace" });
     }
   };
 
@@ -113,38 +115,21 @@ const NavbarSearch = () => {
     const isStellarAddress =
       /^[GC]/.test(searchTerm) && searchTerm.length >= 56;
 
+    // The home page lists the results; from elsewhere, it remembers where
+    // to go back to.
+    const url = new URL(HOME_PATH, window.location.origin);
+    url.searchParams.set("search", searchTerm);
+    if (isStellarAddress) url.searchParams.set("member", "true");
     const isOnHomePage = window.location.pathname === HOME_PATH;
-    const currentFullUrl = window.location.pathname + window.location.search;
-
-    if (isStellarAddress) {
-      if (isOnHomePage) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("search", searchTerm);
-        url.searchParams.set("member", "true");
-        window.history.replaceState({}, "", url.toString());
-        window.dispatchEvent(
-          new CustomEvent("search-member", { detail: searchTerm }),
-        );
-      } else {
-        window.location.href = `/?search=${encodeURIComponent(
-          searchTerm,
-        )}&member=true&from=${encodeURIComponent(currentFullUrl)}`;
-      }
-    } else {
-      if (isOnHomePage) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("search", searchTerm);
-        url.searchParams.delete("member");
-        window.history.replaceState({}, "", url.toString());
-        window.dispatchEvent(
-          new CustomEvent("search-projects", { detail: searchTerm }),
-        );
-      } else {
-        window.location.href = `/?search=${encodeURIComponent(
-          searchTerm,
-        )}&from=${encodeURIComponent(currentFullUrl)}`;
-      }
+    if (!isOnHomePage) {
+      url.searchParams.set(
+        "from",
+        window.location.pathname + window.location.search,
+      );
     }
+    navigate(url.pathname + url.search, {
+      history: isOnHomePage ? "replace" : "push",
+    });
   };
 
   const handleAddProject = () => {
@@ -156,7 +141,7 @@ const NavbarSearch = () => {
       return;
     }
 
-    document.dispatchEvent(new CustomEvent("show-create-project-modal"));
+    openModal("createProject", {});
   };
 
   const handleClearSearch = () => {

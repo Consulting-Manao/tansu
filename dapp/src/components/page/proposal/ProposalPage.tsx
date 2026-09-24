@@ -12,6 +12,7 @@ import { projectQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import { projectNameFromUrl } from "utils/urls";
 import Button from "components/utils/Button";
+import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import Loading from "components/utils/Loading";
 import React, { useEffect, useState } from "react";
 import type { ProposalOutcome, ProposalView } from "types/proposal";
@@ -208,4 +209,4 @@ const ProposalPage: React.FC = () => {
   );
 };
 
-export default ProposalPage;
+export default withErrorBoundary(ProposalPage);

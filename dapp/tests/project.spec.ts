@@ -11,7 +11,7 @@ test("register a project, update a config and give a badge", async ({
 
   // Register "orbit", hosted on Radicle. "demo" is already taken.
   await page.getByRole("button", { name: "+ Add Project" }).click();
-  const wizard = page.locator(".project-modal-container");
+  const wizard = page.getByRole("dialog");
   const name = page.getByPlaceholder(
     "Write the project name (e.g., myproject)",
   );

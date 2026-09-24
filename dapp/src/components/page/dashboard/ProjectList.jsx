@@ -1,17 +1,14 @@
-import { useStore } from "@nanostores/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { getFeaturedProjectsConfigData } from "../../../constants/featuredProjectsConfigData.js";
 import { memberQuery } from "../../../service/MemberService";
 import { projectQuery, projectsQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
-import { connectedPublicKey, walletInitialized } from "../../../utils/store.ts";
-import { toast } from "../../../utils/utils";
+import { openModal } from "../../../utils/modals";
 import Button from "components/utils/Button";
-import CreateProjectModal from "./CreateProjectModal.tsx";
+import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
-import MemberProfileModal from "./MemberProfileModal.tsx";
 import Spinner from "components/utils/Spinner.tsx";
 
 const featuredProjects = getFeaturedProjectsConfigData();
@@ -23,13 +20,9 @@ const scrollToAllProjects = () =>
   });
 
 const ProjectList = () => {
-  const isWalletReady = useStore(walletInitialized);
-
   const [searchTerm, setSearchTerm] = useState("");
   // Set when the search is for a member: their address.
   const [memberAddress, setMemberAddress] = useState("");
-  const [showMemberProfileModal, setShowMemberProfileModal] = useState(false);
-  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [page, setPage] = useState(0);
 
   // Featured projects matching the search; when none match, the project of
@@ -62,77 +55,18 @@ const ProjectList = () => {
     !!memberAddress && (member.isError || member.data === null);
   const isInOnChain = !!searched.data;
 
+  // The search is in the address (`/?search=`, `&member=true` for a member).
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    const urlSearchTerm = searchParams.get("search");
-    if (urlSearchTerm) {
-      setSearchTerm(urlSearchTerm);
-      if (searchParams.get("member") === "true") {
-        setMemberAddress(urlSearchTerm);
-        setShowMemberProfileModal(true);
-      }
-    }
-
-    if (sessionStorage.getItem("openCreateProjectModal") === "true") {
-      sessionStorage.removeItem("openCreateProjectModal");
-
-      const tryOpenModal = () => {
-        if (connectedPublicKey.get()) {
-          setShowCreateProjectModal(true);
-        } else {
-          toast.error(
-            "Connect Wallet",
-            "Please connect your wallet first to add a project",
-          );
-        }
-      };
-
-      if (walletInitialized.get()) {
-        tryOpenModal();
-      } else {
-        const unsub = walletInitialized.subscribe((initialized) => {
-          if (!initialized) return;
-          unsub();
-          tryOpenModal();
-        });
-      }
-    }
-
-    const handleSearchProjectEvent = (event) => {
-      setSearchTerm(event.detail);
-      setMemberAddress("");
-    };
-    const handleSearchMemberEvent = (event) => {
-      setSearchTerm(event.detail);
-      setMemberAddress(event.detail);
-      setShowMemberProfileModal(true);
-    };
-    const handleCreateProjectModal = () => setShowCreateProjectModal(true);
-
-    window.addEventListener("search-projects", handleSearchProjectEvent);
-    window.addEventListener("search-member", handleSearchMemberEvent);
-    document.addEventListener(
-      "show-create-project-modal",
-      handleCreateProjectModal,
-    );
-    document.addEventListener(
-      "create-project-global",
-      handleCreateProjectModal,
-    );
-
-    return () => {
-      window.removeEventListener("search-projects", handleSearchProjectEvent);
-      window.removeEventListener("search-member", handleSearchMemberEvent);
-      document.removeEventListener(
-        "show-create-project-modal",
-        handleCreateProjectModal,
-      );
-      document.removeEventListener(
-        "create-project-global",
-        handleCreateProjectModal,
-      );
-    };
+    const term = searchParams.get("search");
+    if (!term) return;
+    setSearchTerm(term);
+    if (searchParams.get("member") === "true") setMemberAddress(term);
   }, []);
+
+  useEffect(() => {
+    if (member.data) openModal("profile", { address: memberAddress });
+  }, [member.data, memberAddress]);
 
   const showPage = (next) => {
     setPage(next);
@@ -270,23 +204,8 @@ const ProjectList = () => {
           )}
         </div>
       )}
-
-      {showCreateProjectModal && (isWalletReady || window.__TEST_MODE__) && (
-        <div className="project-modal-container">
-          <CreateProjectModal
-            onClose={() => setShowCreateProjectModal(false)}
-          />
-        </div>
-      )}
-
-      {showMemberProfileModal && member.data && (
-        <MemberProfileModal
-          address={memberAddress}
-          onClose={() => setShowMemberProfileModal(false)}
-        />
-      )}
     </div>
   );
 };
 
-export default ProjectList;
+export default withErrorBoundary(ProjectList);

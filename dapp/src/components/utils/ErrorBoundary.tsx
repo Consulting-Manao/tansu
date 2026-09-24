@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Component } from "react";
 
 interface Props {
@@ -54,4 +54,15 @@ export class ErrorBoundary extends Component<Props, State> {
     }
     return this.props.children;
   }
+}
+
+/** A page island that shows its errors instead of going blank. */
+export function withErrorBoundary<P extends object>(
+  Island: ComponentType<P>,
+): ComponentType<P> {
+  return (props: P) => (
+    <ErrorBoundary>
+      <Island {...props} />
+    </ErrorBoundary>
+  );
 }

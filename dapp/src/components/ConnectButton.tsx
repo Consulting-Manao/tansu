@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { useEffect } from "react";
 import { connect, followWallet } from "@service/walletService";
+import { openModal } from "utils/modals";
 import { connectedPublicKey, walletInitialized } from "utils/store";
 
 /** Connect a wallet, or open the connected member's profile. */
@@ -18,7 +19,7 @@ const ConnectButton = () => {
       connect().catch(() => {});
       return;
     }
-    window.dispatchEvent(new CustomEvent("openProfileModal"));
+    openModal("profile", { address });
     void followWallet();
   };
 

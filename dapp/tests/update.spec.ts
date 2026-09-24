@@ -7,12 +7,20 @@ test.use({ serviceWorkers: "allow" });
 // Runs after every other test (playwright.config.ts): it rebuilds dist/.
 test("a new deploy is offered, and taken on Reload", async ({ page }) => {
   test.setTimeout(180_000);
-  const scripts = () =>
-    page.evaluate(() => [...document.scripts].map((s) => s.src).join());
+  // The page's scripts and islands: a deploy changes their hashed names.
+  const bundle = () =>
+    page.evaluate(() =>
+      [
+        ...[...document.scripts].map((s) => s.src),
+        ...[...document.querySelectorAll("astro-island")].map((island) =>
+          island.getAttribute("component-url"),
+        ),
+      ].join(),
+    );
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  const deployed = await scripts();
+  const deployed = await bundle();
 
   // A deploy that changes the bundle, while the tab stays open.
   execSync("bun run build", {
@@ -31,12 +39,12 @@ test("a new deploy is offered, and taken on Reload", async ({ page }) => {
   await expect(page.getByText("A new version is ready")).toBeVisible();
   await page.goto("/governance/?name=demo");
   await page.goto("/");
-  expect(await scripts()).toBe(deployed);
+  expect(await bundle()).toBe(deployed);
 
   await Promise.all([
     page.waitForEvent("load"),
     page.getByRole("button", { name: "Reload" }).click(),
   ]);
-  expect(await scripts()).not.toBe(deployed);
+  expect(await bundle()).not.toBe(deployed);
   await expect(page.getByText("A new version is ready")).toBeHidden();
 });

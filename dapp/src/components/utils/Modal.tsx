@@ -76,6 +76,8 @@ const Modal: FC<ModalProps> = ({
       data-modal-container
     >
       <div
+        role="dialog"
+        aria-modal="true"
         className={`modal relative bg-white shadow-modal rounded-lg max-w-[95vw] ${
           fullWidth ? "w-full max-w-6xl" : "w-full sm:w-auto"
         }`}

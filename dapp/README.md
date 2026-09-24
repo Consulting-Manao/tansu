@@ -83,6 +83,8 @@ There is no copy of the current project: a page reads its name from the address 
 
 **Writes** live next to the reads, in the same domain services (`registerProject`, `vote`, `setEvidence`, ...), and all land through `sendTransaction` in `src/service/TxService.ts`. It signs once with the connected wallet, uploads the call's IPFS content (the signed envelope authorizes the upload, or the transaction hash when the wallet submitted it itself, as Nido does), confirms the transaction, returns its result as the binding types it, and refetches the queries the call changed. A call is built from the signer's account with `tansuFor(address)`; a smart account's is built from an existing account, since its wallet relays it.
 
+App-wide modals open with `openModal(name, props)` from `src/utils/modals.ts` and show in `ModalHost`, one at a time, closing on page change. A search is an address: `/?search=`, with `&member=true` for a member.
+
 The wallet is one address: `connectedPublicKey` in `src/utils/store.ts`, restored from the last visit. `ConnectButton` follows the wallet when the user switches accounts in it, and the wallets kit only loads when a wallet is needed.
 
 One cache sits outside TanStack Query, on purpose: `src/utils/ipfsMissCache.ts` remembers for 24 hours the IPFS URLs a gateway answered for good (no provider, or no such file), below every IPFS read, so a dead CID is asked once. A new build clears it with the query cache; uploading a CID clears its entries.

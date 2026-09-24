@@ -2,6 +2,7 @@
 import Navbar from "../components/layout/Navbar.astro";
 import Footer from "../components/layout/Footer.astro";
 import UpdatePrompt from "../components/layout/UpdatePrompt.astro";
+import ModalHost from "../components/ModalHost";
 import { ClientRouter } from "astro:transitions";
 import { SEO } from "astro-seo";
 
@@ -17,141 +18,20 @@ const { title, page } = Astro.props;
 
 <script>
   import { Buffer } from "buffer";
-  import { mountModal } from "../utils/mountModal";
+  import { openModal } from "../utils/modals";
 
   global.Buffer = Buffer;
 
-  const MODAL_CLASS = "fixed inset-0 z-[9999]";
-  const GLOBAL_CREATE_PROJECT_MODAL_KEY = Symbol.for(
-    "tansu.createProjectModalListenerInited",
-  );
-  const GLOBAL_MODAL_LISTENERS_KEY = Symbol.for(
-    "tansu.globalModalListenersInited",
-  );
-
-  const openCreateProjectModal = async () => {
-    try {
-      await mountModal(
-        `project-modal-container ${MODAL_CLASS}`,
-        () => import("components/page/dashboard/CreateProjectModal.tsx"),
-        () => ({}),
-      );
-    } catch (e) {
-      console.error("Error opening modal:", e);
-    }
-  };
-
-  const initCreateProjectModalListener = () => {
-    const modalWindow = window as unknown as Window & Record<symbol, unknown>;
-
-    if (modalWindow[GLOBAL_CREATE_PROJECT_MODAL_KEY]) {
-      return;
-    }
-
-    modalWindow[GLOBAL_CREATE_PROJECT_MODAL_KEY] = true;
-
-    document.addEventListener("show-create-project-modal", async () => {
-      if (document.querySelector(".project-modal-container")) {
-        return;
-      }
-
-      if (document.querySelector(".project-list-container")) {
-        window.setTimeout(() => {
-          if (!document.querySelector(".project-modal-container")) {
-            void openCreateProjectModal();
-          }
-        }, 150);
-        return;
-      }
-
-      await openCreateProjectModal();
-    });
-  };
-
-  const initGlobalModalListeners = () => {
-    const modalWindow = window as unknown as Window & Record<symbol, unknown>;
-
-    if (modalWindow[GLOBAL_MODAL_LISTENERS_KEY]) {
-      return;
-    }
-
-    modalWindow[GLOBAL_MODAL_LISTENERS_KEY] = true;
-
-    window.addEventListener("openJoinCommunity", async (event: Event) => {
-      try {
-        const address =
-          event && typeof event === "object" && "detail" in event
-            ? ((event as CustomEvent<{ address?: string }>).detail?.address ??
-              "")
-            : "";
-        await mountModal(
-          `join-modal-container ${MODAL_CLASS}`,
-          () => import("components/page/dashboard/JoinCommunityModal.tsx"),
-          () => ({ prefillAddress: address }),
-        );
-      } catch (e) {
-        console.error("Error opening join community modal:", e);
-      }
-    });
-
-    window.addEventListener("openProfileModal", async () => {
-      try {
-        const { loadedPublicKey } = await import("service/walletService");
-        const currentAddress = loadedPublicKey();
-        if (!currentAddress) return;
-
-        await mountModal(
-          `profile-modal-container ${MODAL_CLASS}`,
-          () => import("components/page/dashboard/MemberProfileModal.tsx"),
-          () => ({ address: currentAddress }),
-        );
-      } catch (e) {
-        console.error("Error opening profile modal:", e);
-      }
-    });
-  };
-
-  initCreateProjectModalListener();
-  initGlobalModalListeners();
-
   document.addEventListener("astro:page-load", () => {
-    initCreateProjectModalListener();
-    initGlobalModalListeners();
-
-    if (
-      window.location.pathname === "/" &&
-      new URLSearchParams(window.location.search).get(
-        "openCreateProjectModal",
-      ) === "true"
-    ) {
-      sessionStorage.setItem("openCreateProjectModal", "true");
+    // The terms pages themselves, with or without the trailing slash.
+    if (/^\/(terms|privacy)\/?$/.test(window.location.pathname)) return;
+    let accepted = true;
+    try {
+      accepted = !!localStorage.getItem("tansu_tos_accepted");
+    } catch {
+      // No storage: the answer could not be kept either.
     }
-
-    const checkTermsAcceptance = async () => {
-      // The pages the terms link to, with or without the trailing slash.
-      if (/^\/(terms|privacy)\/?$/.test(window.location.pathname)) return;
-      try {
-        const accepted = localStorage.getItem("tansu_tos_accepted");
-        if (!accepted) {
-          await mountModal<{ onAccept: () => void; onDecline: () => void }>(
-            `terms-modal-container ${MODAL_CLASS}`,
-            () => import("components/utils/TermsAcceptanceModal.tsx"),
-            (onClose) => ({
-              onAccept: onClose,
-              onDecline: () => {
-                onClose();
-                window.location.href = "https://tansu.dev";
-              },
-            }),
-            { closeOnOverlayClick: false },
-          );
-        }
-      } catch (e) {
-        console.error("Error checking terms acceptance:", e);
-      }
-    };
-
-    checkTermsAcceptance();
+    if (!accepted) openModal("terms", {});
   });
 </script>
 
@@ -257,5 +137,6 @@ const { title, page } = Astro.props;
     <slot />
     <Footer />
     <UpdatePrompt />
+    <ModalHost client:only="react" />
   </body>
 </html>
