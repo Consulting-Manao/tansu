@@ -1,28 +1,4 @@
-export interface GitCommit {
-  sha: string;
-  message: string;
-  author: {
-    name: string;
-    email: string;
-    date: string;
-  };
-  committer: {
-    name: string;
-    email: string;
-    date: string;
-  };
-  metadata: CommitMetadata;
-}
-
-export interface CommitMetadata {
-  coAuthoredBy: Author[];
-  reviewedBy: Author[];
-  testedBy: Author[];
-  approvedBy: Author[];
-  [key: string]: Author[]; // Allow for custom metadata fields
-}
-
-export interface Author {
+interface Author {
   name: string;
   email?: string;
 }
@@ -69,9 +45,4 @@ export interface ContributionMetrics {
     lastCommit: string;
     totalDays: number;
   };
-}
-
-export interface GitLogParseResult {
-  commits: GitCommit[];
-  metrics: ContributionMetrics;
 }

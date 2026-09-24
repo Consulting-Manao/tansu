@@ -71,15 +71,17 @@ Icons: `bun run icons` renders `assets/icon.svg` and `assets/icon-maskable.svg` 
 
 ## Data and caching
 
-Every read of the Tansu contract is a [TanStack Query](https://tanstack.com/query) query, built by a factory next to its service: `projectQuery` in `src/service/ProjectService.ts`, `memberQuery` in `MemberService.ts`, `proposalQuery` in `ProposalService.ts`, and so on. So is a file under an IPFS CID (`ipfsQuery` in `src/utils/ipfsFunctions.ts`); `useProjectConfig` turns a project's `tansu.toml` into its display config. Islands are separate React roots, so there is no provider: components call `useQuery(options, queryClient)` with the one client in `src/service/queryClient.ts`, and other code calls `queryClient.query(options)`.
+Every read is a [TanStack Query](https://tanstack.com/query) query, built by a factory next to its service: the contract (`projectQuery` in `src/service/ProjectService.ts`, `memberQuery` in `MemberService.ts`, `proposalQuery` in `ProposalService.ts`, ...), IPFS files (`ipfsQuery` in `src/utils/ipfsFunctions.ts`), git hosts (`commitHistoryQuery` in `RepositoryMetadataService.ts`, `contributionMetricsQuery`) and Horizon (`activityQuery` in `OnChainActivityService.ts`). `useProjectConfig` turns a project's `tansu.toml` into its display config. Islands are separate React roots, so there is no provider: components call `useQuery(options, queryClient)` with the one client in `src/service/queryClient.ts`, and other code calls `queryClient.query(options)`.
 
 There is no copy of the current project: a page reads its name from the address (`projectNameFromUrl`) and asks the queries, which the project, governance and proposal pages share.
 
-- **Keys** start with the domain, then the project key in hex: `["project", key]`, `["proposal", key, id]`, `["member", address]`. A write refreshes what it changed by prefix: `invalidateAfter(write, ...keys)` refetches them once the write settles, even if it failed, since it may have landed. The text files a project flow uploads go straight into their `["ipfs", cid, path]` query: content under a CID never changes, and a gateway may not serve it yet.
-- **Freshness** follows how often the data changes: 10 minutes for projects, badges and members, 5 for commits and evidence, 1 for proposals and attestations, 60 for the anonymous voting setup. IPFS files never go stale; a missing file reads as `null`, while a dead CID or a failed request throws and is not kept.
-- **Persistence**: successful reads are kept in IndexedDB (`keyval-store`) for 7 days, so a page renders at once from the last visit and refreshes in the background. A new build (`PUBLIC_BUILD`) or contract drops them. Voting power stays in memory.
-- **Errors**: `readResult` in `src/utils/contractErrors.ts` turns the contract's not-found errors into `null` and throws any other failure, so a failed read shows as an error, not as missing data.
+- **Keys** start with the domain, then the project key in hex, an address or a URL: `["project", key]`, `["proposal", key, id]`, `["member", address]`, `["ipfs", cid, path]`, `["repo", url, ...]`, `["activity", address]`. A write refreshes what it changed by prefix: `invalidateAfter(write, ...keys)` refetches them once the write settles, even if it failed, since it may have landed. The text files a project flow uploads go straight into their `ipfs` query: content under a CID never changes, and a gateway may not serve it yet.
+- **Freshness** follows how often the data changes: 10 minutes for projects, badges and members, 5 for commits and evidence, 1 for proposals, attestations and on-chain activity, 60 for the anonymous voting setup and git hosts. IPFS files never go stale.
+- **Errors** are errors, not missing data. `readResult` in `src/utils/contractErrors.ts` turns the contract's not-found errors into `null` and throws any other failure; a missing IPFS file is `null`, while a dead CID or a failed request throws. Failures are retried (git hosts only on network errors, rate limits and 5xx), never kept.
+- **Persistence**: successful reads are kept in IndexedDB (`keyval-store`) for 7 days, so a page renders at once from the last visit, even offline, and refreshes in the background. A new build (`PUBLIC_BUILD`) or contract drops them. Voting power stays in memory.
 - **Reads use `tansuReads`**, a client without a source account: a write sets one on the default client, and with it every read would fetch the account first.
+
+One cache sits outside TanStack Query, on purpose: `src/utils/ipfsMissCache.ts` remembers for 24 hours the IPFS URLs a gateway answered for good (no provider, or no such file), below every IPFS read, so a dead CID is asked once. A new build clears it with the query cache; uploading a CID clears its entries.
 
 `queryClient.ts` waits for the restore at its top level, so islands render from it. A plain `<script>` must import query modules with `import()` inside its handler: a static import would delay the script past the first `astro:page-load`.
 
@@ -127,6 +129,6 @@ TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newe
 
 - **FlowProgressModal**: Standardized flow component for all user journeys
 - **Contract Services**: Type-safe contract interaction layer
-- **Data**: TanStack Query for contract reads, kept in IndexedDB; nanostores for the wallet
+- **Data**: TanStack Query for every read, kept in IndexedDB; nanostores for the wallet
 - **Wallet Integration**: Stellar Wallets Kit for secure wallet connections
 - **IPFS Services**: Decentralized content storage and retrieval

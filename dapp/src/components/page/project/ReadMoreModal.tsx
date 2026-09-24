@@ -1,10 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 import type { FC } from "react";
 import Modal from "components/utils/Modal";
-import {
-  fetchReadmeContentFromConfigUrl,
-  getReadmeRawBaseUrl,
-} from "../../../service/RepositoryMetadataService";
+import { repoReadmeQuery } from "../../../service/RepositoryMetadataService";
+import { queryClient } from "../../../service/queryClient";
 import Markdown from "markdown-to-jsx";
 import { rewriteRelativePaths } from "../../utils/MarkdownEditorWithImages";
 
@@ -66,46 +65,26 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   onClose,
   projectData,
 }) => {
-  const [readmeContent, setReadmeContent] = useState("");
   const repositoryIcon = getRepositoryIconInfo(projectData?.githubUrl);
   const releasesUrl = getRepositoryReleasesUrl(projectData?.githubUrl);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setReadmeContent("");
-      return;
-    }
-
-    const loadReadme = async () => {
-      if (!projectData?.githubUrl) {
-        setReadmeContent("No README available for this project.");
-        return;
-      }
-
-      try {
-        const content = await fetchReadmeContentFromConfigUrl(
-          projectData.githubUrl,
-        );
-        if (content !== undefined && content !== null) {
-          const rawBaseUrl = await getReadmeRawBaseUrl(projectData.githubUrl);
-          setReadmeContent(rewriteRelativePaths(content, rawBaseUrl));
-        } else {
-          setReadmeContent("No README available for this project.");
-        }
-      } catch (error) {
-        console.error("Failed to load README:", error);
-        setReadmeContent(
-          "Failed to load README content. Please check the repository directly.",
-        );
-      }
-    };
-
-    loadReadme();
-
-    return () => {
-      setReadmeContent("");
-    };
-  }, [isOpen, projectData?.githubUrl]);
+  const readme = useQuery(
+    {
+      ...repoReadmeQuery(projectData?.githubUrl ?? ""),
+      enabled: isOpen && !!projectData?.githubUrl,
+    },
+    queryClient,
+  );
+  const readmeContent = useMemo(
+    () =>
+      readme.isError
+        ? "Failed to load README content. Please check the repository directly."
+        : readme.data
+          ? rewriteRelativePaths(readme.data.content, readme.data.rawBaseUrl)
+          : readme.isSuccess || !projectData?.githubUrl
+            ? "No README available for this project."
+            : "",
+    [readme.data, readme.isError, readme.isSuccess, projectData?.githubUrl],
+  );
 
   const handleGoToReleases = useCallback(() => {
     if (releasesUrl) {

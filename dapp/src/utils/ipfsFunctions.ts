@@ -1,4 +1,7 @@
-/** IPFS gateway and fetch helpers. Single retrieval path: CID + path → cache → gateways. */
+/**
+ * IPFS gateway and fetch helpers. One read path: `ipfsQuery` (CID + path) →
+ * remembered misses → gateways.
+ */
 
 import { queryOptions } from "@tanstack/react-query";
 import toml from "toml";
@@ -13,23 +16,6 @@ import {
   type IpfsMissScope,
 } from "./ipfsMissCache";
 
-type IpfsCache = {
-  responses: Record<string, Response>;
-  toml: Record<string, any>;
-  json: Record<string, any>;
-};
-
-function getGlobalIpfsCache(): IpfsCache {
-  if (typeof window === "undefined") {
-    return { responses: {}, toml: {}, json: {} };
-  }
-  const w = window as Window & { __TANSU_IPFS_CACHE__?: IpfsCache };
-  if (!w.__TANSU_IPFS_CACHE__) {
-    w.__TANSU_IPFS_CACHE__ = { responses: {}, toml: {}, json: {} };
-  }
-  return w.__TANSU_IPFS_CACHE__;
-}
-
 const GATEWAYS: ReadonlyArray<{
   name: string;
   buildUrl: (cid: string, path: string) => string;
@@ -40,40 +26,15 @@ const GATEWAYS: ReadonlyArray<{
   },
 ];
 
-const CACHE_KEY_PREFIX = "ipfs:v4:"; // Updated version prefix
 const DEFAULT_IPFS_TIMEOUT_MS = 10000;
 const PER_ATTEMPT_MS = 3000;
-const MAX_CACHE_ENTRIES = 200;
 
-/**
- * Insert into a cache record, evicting the oldest entries (FIFO) once the
- * bucket exceeds `max` so long-lived sessions do not leak unbounded memory.
- */
-function setCapped(
-  record: Record<string, unknown>,
-  key: string,
-  value: unknown,
-  max: number = MAX_CACHE_ENTRIES,
-): void {
-  record[key] = value;
-  const keys = Object.keys(record);
-  if (keys.length > max) {
-    for (let i = 0; i < keys.length - max; i++) {
-      delete record[keys[i]!];
-    }
-  }
-}
-
-export type FetchFromIpfsOptions = {
+type FetchFromIpfsOptions = {
   timeoutMs?: number;
 };
 
 function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
-}
-
-function cacheKey(cid: string, path: string): string {
-  return `${CACHE_KEY_PREFIX}${cid}${normalizePath(path)}`;
 }
 
 async function fetchOne(
@@ -98,7 +59,8 @@ async function fetchOne(
 }
 
 /**
- * Core IPFS fetch: CID + path. Checks cache; on miss tries gateways in order.
+ * Core IPFS fetch: CID + path, tried on each gateway in order. Read through
+ * `ipfsQuery`, which keeps the answers; this only remembers final misses.
  */
 export async function fetchFromIpfs(
   cid: string,
@@ -110,11 +72,6 @@ export async function fetchFromIpfs(
   }
   const pathNorm = normalizePath(path);
   const timeoutMs = options.timeoutMs ?? DEFAULT_IPFS_TIMEOUT_MS;
-
-  const cache = getGlobalIpfsCache();
-  const key = cacheKey(cid, pathNorm);
-  const cached = cache.responses[key];
-  if (cached) return cached.clone();
 
   const miss = findIpfsMiss(cid, pathNorm);
   if (miss) throw new IpfsMissError(cid, pathNorm, miss, true);
@@ -155,7 +112,6 @@ export async function fetchFromIpfs(
         lastError = bodyErr;
         continue;
       }
-      setCapped(cache.responses, key, res.clone());
       return res;
     } catch (err) {
       lastError = err;
@@ -168,49 +124,6 @@ export async function fetchFromIpfs(
     throw new IpfsMissError(cid, pathNorm, final, false);
   }
   throw lastError ?? new Error("IPFS fetch failed from all gateways");
-}
-
-/**
- * Fetch IPFS content as text (e.g. markdown).
- */
-export async function fetchTextFromIpfs(
-  cid: string,
-  path: string,
-  options: FetchFromIpfsOptions = {},
-): Promise<string | null> {
-  try {
-    const res = await fetchFromIpfs(cid, path, options);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetch IPFS content as JSON.
- */
-export async function fetchJsonFromIpfs(
-  cid: string,
-  path: string,
-  options: FetchFromIpfsOptions = {},
-): Promise<any | null> {
-  if (!isValidCid(cid)) return null;
-  const pathNorm = normalizePath(path);
-  const cache = getGlobalIpfsCache();
-  const key = cacheKey(cid, pathNorm);
-  const cached = cache.json[key];
-  if (cached !== undefined) return cached;
-
-  try {
-    const res = await fetchFromIpfs(cid, pathNorm, options);
-    if (!res.ok) return null;
-    const data = await res.json();
-    setCapped(cache.json, key, data);
-    return data;
-  } catch {
-    return null;
-  }
 }
 
 /**

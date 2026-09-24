@@ -1,14 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
-import {
-  getIpfsBasicLink,
-  fetchTextFromIpfs,
-  fetchJsonFromIpfs,
-} from "utils/ipfsFunctions";
+import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
 import type { Proposal, ProposalOutcome } from "types/proposal";
 import type { Proposal as ContractProposal } from "../../packages/tansu";
 import { tansuReads } from "../contracts/soroban_tansu";
 import { readResult } from "../utils/contractErrors";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
+import { queryClient } from "./queryClient";
 
 const MINUTE = 60_000;
 /** The contract's MAX_PROPOSALS_PER_PAGE: proposal `id` is on page `id / 9`. */
@@ -92,6 +89,10 @@ const OUTCOMES_JSON_PATH = "/outcomes.json";
 const DISCUSSION_MD_PATH = "/proposal_discussion.md";
 const DISCUSSION_SUMMARY_PATH = "/summary.md";
 
+/** A file of a proposal's IPFS directory; `null` when it cannot be read. */
+const readIpfsFile = (cid: string, path: string) =>
+  queryClient.query(ipfsQuery(cid, path)).catch(() => null);
+
 function imagePaths(content: string, cid: string): string {
   const basicUrl = getIpfsBasicLink(cid);
   if (!basicUrl) return content;
@@ -111,7 +112,7 @@ function imagePaths(content: string, cid: string): string {
  */
 async function fetchProposalFromIPFS(cid: string) {
   try {
-    const content = await fetchTextFromIpfs(cid, PROPOSAL_MD_PATH);
+    const content = await readIpfsFile(cid, PROPOSAL_MD_PATH);
     if (!content) return null;
     return imagePaths(content, cid);
   } catch {
@@ -129,7 +130,7 @@ export async function fetchProposalDiscussionFromIPFS(
   cid: string,
 ): Promise<string | null> {
   try {
-    const content = await fetchTextFromIpfs(cid, DISCUSSION_MD_PATH);
+    const content = await readIpfsFile(cid, DISCUSSION_MD_PATH);
     if (!content?.trim()) return null;
     return imagePaths(content, cid);
   } catch {
@@ -142,7 +143,7 @@ export async function fetchProposalDiscussionSummaryFromIPFS(
   cid: string,
 ): Promise<string | null> {
   try {
-    const content = await fetchTextFromIpfs(cid, DISCUSSION_SUMMARY_PATH);
+    const content = await readIpfsFile(cid, DISCUSSION_SUMMARY_PATH);
     if (!content?.trim()) return null;
     return imagePaths(content, cid);
   } catch {
@@ -204,12 +205,9 @@ export async function fetchProposalOutcomeData(
   // Load IPFS data first (for descriptions and XDR)
   if (proposal.ipfs) {
     try {
-      const ipfsData = await fetchJsonFromIpfs(
-        proposal.ipfs,
-        OUTCOMES_JSON_PATH,
-      );
-      if (ipfsData) {
-        outcomeData = normalizeOutcomeData(ipfsData);
+      const text = await readIpfsFile(proposal.ipfs, OUTCOMES_JSON_PATH);
+      if (text) {
+        outcomeData = normalizeOutcomeData(JSON.parse(text));
       }
     } catch (error) {
       console.warn("Failed to load IPFS outcome data:", error);

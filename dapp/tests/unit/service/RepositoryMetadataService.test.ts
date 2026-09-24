@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, type FetchQueryOptions } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  commitHistoryQuery,
+  repoCommitQuery,
+  repoHeadQuery,
+  repoReadmeQuery,
+} from "../../../src/service/RepositoryMetadataService";
 
 const RADICLE_RID = "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5";
 
@@ -9,27 +16,12 @@ function createJsonResponse(body: unknown, status: number = 200): Response {
   });
 }
 
-function mockImmediateTimers() {
-  return vi.spyOn(globalThis, "setTimeout").mockImplementation(((
-    callback: TimerHandler,
-  ) => {
-    if (typeof callback === "function") {
-      callback();
-    }
-
-    return 0;
-  }) as unknown as typeof setTimeout);
-}
-
-async function loadRepositoryMetadataService() {
-  return import("../../../src/service/RepositoryMetadataService");
+/** A read as a page makes it, without waiting between retries. */
+function read<T>(options: FetchQueryOptions<T, Error, T, any>): Promise<T> {
+  return new QueryClient().query({ ...options, retryDelay: 0 });
 }
 
 describe("RepositoryMetadataService", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -51,10 +43,8 @@ describe("RepositoryMetadataService", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { getCommitHistory } = await loadRepositoryMetadataService();
-
-    const history = await getCommitHistory(
-      "https://github.com/my%20org/na%C3%AFve%20repo",
+    const history = await read(
+      commitHistoryQuery("https://github.com/my%20org/na%C3%AFve%20repo"),
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -97,57 +87,24 @@ describe("RepositoryMetadataService", () => {
           },
         ]),
       );
-    const timeoutSpy = mockImmediateTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    const { getLatestCommitHash } = await loadRepositoryMetadataService();
-
     await expect(
-      getLatestCommitHash("https://github.com/example/project"),
+      read(repoHeadQuery("https://github.com/example/project")),
     ).resolves.toBe("abc123");
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(timeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 250);
-    expect(timeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 500);
   });
 
   it("does not retry non-transient client errors", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(createJsonResponse({ error: "forbidden" }, 403));
-    const timeoutSpy = mockImmediateTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    const { getLatestCommitHash } = await loadRepositoryMetadataService();
-
+    // A failure is an error, not "no commits": it is not kept as an answer.
     await expect(
-      getLatestCommitHash("https://github.com/example/project"),
-    ).resolves.toBeUndefined();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(timeoutSpy).not.toHaveBeenCalled();
-  });
-
-  it("uses a short-lived cache for successful metadata responses", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      createJsonResponse([
-        {
-          sha: "cached123",
-          commit: {
-            author: { name: "Alice", date: "2026-04-24T00:00:00Z" },
-            message: "Cached commit",
-          },
-        },
-      ]),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { getLatestCommitHash } = await loadRepositoryMetadataService();
-
-    await expect(
-      getLatestCommitHash("https://github.com/example/project"),
-    ).resolves.toBe("cached123");
-    await expect(
-      getLatestCommitHash("https://github.com/example/project"),
-    ).resolves.toBe("cached123");
+      read(repoHeadQuery("https://github.com/example/project")),
+    ).rejects.toThrow("api.github.com API request failed with status 403");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -186,22 +143,16 @@ describe("RepositoryMetadataService", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchReadmeContentFromConfigUrl, getReadmeRawBaseUrl } =
-      await loadRepositoryMetadataService();
-
     await expect(
-      fetchReadmeContentFromConfigUrl(
-        `https://radicle.network/nodes/seed.example/${encodeURIComponent(RADICLE_RID)}`,
+      read(
+        repoReadmeQuery(
+          `https://radicle.network/nodes/seed.example/${encodeURIComponent(RADICLE_RID)}`,
+        ),
       ),
-    ).resolves.toBe("# Hello from Radicle\n![Logo](docs/logo.png)");
-
-    await expect(
-      getReadmeRawBaseUrl(
-        `https://radicle.network/nodes/seed.example/${encodeURIComponent(RADICLE_RID)}`,
-      ),
-    ).resolves.toBe(
-      `https://seed.example/raw/${encodeURIComponent(RADICLE_RID)}/abcdef1234567890`,
-    );
+    ).resolves.toEqual({
+      content: "# Hello from Radicle\n![Logo](docs/logo.png)",
+      rawBaseUrl: `https://seed.example/raw/${encodeURIComponent(RADICLE_RID)}/abcdef1234567890`,
+    });
   });
 
   it("fetches Radicle commit history and commit details from the public seed fallback", async () => {
@@ -254,27 +205,26 @@ describe("RepositoryMetadataService", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { getLatestCommitData, getLatestCommitHash } =
-      await loadRepositoryMetadataService();
+    await expect(read(repoHeadQuery(RADICLE_RID))).resolves.toBe("abc123");
 
-    await expect(getLatestCommitHash(RADICLE_RID)).resolves.toBe("abc123");
-
-    await expect(getLatestCommitData(RADICLE_RID, "abc123")).resolves.toEqual({
-      sha: "abc123",
-      html_url: `https://radicle.network/nodes/iris.radicle.network/${encodeURIComponent(RADICLE_RID)}`,
-      commit: {
-        message: "Initial commit\n\nAdds project scaffolding",
-        author: {
-          name: "Cloudhead",
-          email: "cloudhead@example.com",
-          date: "2024-03-09T16:00:00.000Z",
-        },
-        committer: {
-          name: "Cloudhead",
-          email: "cloudhead@example.com",
-          date: "2024-03-09T16:00:00.000Z",
+    await expect(read(repoCommitQuery(RADICLE_RID, "abc123"))).resolves.toEqual(
+      {
+        sha: "abc123",
+        html_url: `https://radicle.network/nodes/iris.radicle.network/${encodeURIComponent(RADICLE_RID)}`,
+        commit: {
+          message: "Initial commit\n\nAdds project scaffolding",
+          author: {
+            name: "Cloudhead",
+            email: "cloudhead@example.com",
+            date: "2024-03-09T16:00:00.000Z",
+          },
+          committer: {
+            name: "Cloudhead",
+            email: "cloudhead@example.com",
+            date: "2024-03-09T16:00:00.000Z",
+          },
         },
       },
-    });
+    );
   });
 });

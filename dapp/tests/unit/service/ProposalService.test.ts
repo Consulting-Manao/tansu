@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockFetchJsonFromIpfs = vi.fn();
-const mockFetchTextFromIpfs = vi.fn();
+// A file read: its text, `null` when missing, or a rejection.
+const mockReadIpfs = vi.fn();
 const mockGetIpfsBasicLink = vi.fn();
 
 vi.mock("../../../src/utils/ipfsFunctions", () => ({
-  fetchJsonFromIpfs: (...args: unknown[]) => mockFetchJsonFromIpfs(...args),
-  fetchTextFromIpfs: (...args: unknown[]) => mockFetchTextFromIpfs(...args),
+  ipfsQuery: (cid: string, path: string) => ({
+    queryKey: ["ipfs", cid, path],
+    queryFn: () => mockReadIpfs(cid, path),
+  }),
   getIpfsBasicLink: (...args: unknown[]) => mockGetIpfsBasicLink(...args),
 }));
+
+/** outcomes.json holding `data`. */
+const outcomesFile = (data: unknown) => JSON.stringify(data);
 
 import {
   fetchProposalOutcomeData,
@@ -19,6 +24,10 @@ import {
   resolveDiscussionCid,
 } from "../../../src/service/ProposalService";
 import type { Proposal, OutcomeContract } from "../../../src/types/proposal";
+import { queryClient } from "../../../src/service/queryClient";
+
+// Every test reads its own files.
+beforeEach(() => queryClient.clear());
 
 function makeContract(
   overrides: Partial<OutcomeContract> = {},
@@ -58,35 +67,36 @@ describe("fetchProposalOutcomeData", () => {
     const proposal = makeProposal();
     const result = await fetchProposalOutcomeData(proposal);
     expect(result).toEqual({});
-    expect(mockFetchJsonFromIpfs).not.toHaveBeenCalled();
+    expect(mockReadIpfs).not.toHaveBeenCalled();
   });
 
   it("loads IPFS outcome data as the base when IPFS CID is provided", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      approved: {
-        description: "Approved from IPFS",
-      },
-    });
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        approved: {
+          description: "Approved from IPFS",
+        },
+      }),
+    );
 
     const proposal = makeProposal({ ipfs: "bafyabc123" });
     const result = await fetchProposalOutcomeData(proposal);
 
     expect(result.approved?.description).toBe("Approved from IPFS");
-    expect(mockFetchJsonFromIpfs).toHaveBeenCalledWith(
-      "bafyabc123",
-      "/outcomes.json",
-    );
+    expect(mockReadIpfs).toHaveBeenCalledWith("bafyabc123", "/outcomes.json");
   });
 
   it("merges contract outcome data on top of IPFS data", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      approved: {
-        description: "IPFS description",
-      },
-      rejected: {
-        description: "IPFS rejected description",
-      },
-    });
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        approved: {
+          description: "IPFS description",
+        },
+        rejected: {
+          description: "IPFS rejected description",
+        },
+      }),
+    );
 
     const approvedContract = makeContract({ address: "CAAAAA...approved" });
     const rejectedContract = makeContract({ address: "CAAAAA...rejected" });
@@ -105,9 +115,11 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("falls back to contract-based default description when IPFS has none", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      rejected: { description: "Has IPFS" },
-    });
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        rejected: { description: "Has IPFS" },
+      }),
+    );
 
     const approvedContract = makeContract({
       address: "CAAAAA...approve",
@@ -133,7 +145,7 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("handles partial outcome_contracts (only approved)", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({});
+    mockReadIpfs.mockResolvedValue(outcomesFile({}));
     const approvedContract = makeContract({ address: "CAAAAA...only" });
 
     const proposal = makeProposal({
@@ -148,7 +160,7 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("handles outcome_contracts with all three outcomes including cancelled", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({});
+    mockReadIpfs.mockResolvedValue(outcomesFile({}));
     const approved = makeContract({
       address: "C...approved",
       execute_fn: "mint",
@@ -177,7 +189,7 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("skips outcome_contracts with null/empty address", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({});
+    mockReadIpfs.mockResolvedValue(outcomesFile({}));
     const proposal = makeProposal({
       ipfs: "",
       outcome_contracts: [
@@ -194,7 +206,7 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("IPFS fetch failure does not block contract data", async () => {
-    mockFetchJsonFromIpfs.mockRejectedValue(new Error("IPFS timeout"));
+    mockReadIpfs.mockRejectedValue(new Error("IPFS timeout"));
     const approvedContract = makeContract({ address: "C...still-works" });
 
     const proposal = makeProposal({
@@ -203,15 +215,17 @@ describe("fetchProposalOutcomeData", () => {
     });
 
     const result = await fetchProposalOutcomeData(proposal);
-    expect(mockFetchJsonFromIpfs).toHaveBeenCalled();
+    expect(mockReadIpfs).toHaveBeenCalled();
     expect(result.approved?.contract?.address).toBe("C...still-works");
     expect(result.approved?.description).toBe("Contract execution: transfer");
   });
 
   it("handles proposals with no outcome_contracts field", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      approved: { description: "IPFS only" },
-    });
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        approved: { description: "IPFS only" },
+      }),
+    );
     const proposal = makeProposal({ ipfs: "bafyabc123" });
     delete (proposal as any).outcome_contracts;
     const result = await fetchProposalOutcomeData(proposal);
@@ -220,12 +234,14 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("preserves IPFS XDR data when no contract overrides it", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      approved: {
-        description: "Has XDR",
-        xdr: "AAAAAH...",
-      },
-    });
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        approved: {
+          description: "Has XDR",
+          xdr: "AAAAAH...",
+        },
+      }),
+    );
     const proposal = makeProposal({ ipfs: "bafyabc123" });
     const result = await fetchProposalOutcomeData(proposal);
     expect(result.approved?.description).toBe("Has XDR");
@@ -233,31 +249,33 @@ describe("fetchProposalOutcomeData", () => {
   });
 
   it("reads the tree-shaped outcomes.json format", async () => {
-    mockFetchJsonFromIpfs.mockResolvedValue({
-      outcomes: {
-        approved: {
-          description: "Approved tree",
-          execution: {
-            type: "contract",
-            contract: {
-              address: "C...tree-approved",
-              execute_fn: "mint",
-              args: [100],
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        outcomes: {
+          approved: {
+            description: "Approved tree",
+            execution: {
+              type: "contract",
+              contract: {
+                address: "C...tree-approved",
+                execute_fn: "mint",
+                args: [100],
+              },
             },
           },
-        },
-        rejected: {
-          description: "Rejected tree",
-          execution: {
-            type: "xdr",
-            xdr: "AAAAAX...",
+          rejected: {
+            description: "Rejected tree",
+            execution: {
+              type: "xdr",
+              xdr: "AAAAAX...",
+            },
+          },
+          cancelled: {
+            description: "Cancelled tree",
           },
         },
-        cancelled: {
-          description: "Cancelled tree",
-        },
-      },
-    });
+      }),
+    );
     const proposal = makeProposal({ ipfs: "bafyabc123" });
     const result = await fetchProposalOutcomeData(proposal);
 
@@ -321,20 +339,17 @@ describe("fetchProposalFromIPFS", () => {
   });
 
   it("fetches proposal markdown from IPFS and returns content", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("# My Proposal\n\nThis is a test.");
+    mockReadIpfs.mockResolvedValue("# My Proposal\n\nThis is a test.");
     mockGetIpfsBasicLink.mockReturnValue(
       "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBe("# My Proposal\n\nThis is a test.");
-    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
-      "bafyabc123",
-      "/proposal.md",
-    );
+    expect(mockReadIpfs).toHaveBeenCalledWith("bafyabc123", "/proposal.md");
   });
 
   it("rewrites relative image paths to absolute IPFS paths", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue(
+    mockReadIpfs.mockResolvedValue(
       "![logo](images/logo.png) and ![screenshot](./screenshots/1.png)",
     );
     mockGetIpfsBasicLink.mockReturnValue(
@@ -347,7 +362,7 @@ describe("fetchProposalFromIPFS", () => {
   });
 
   it("does not rewrite absolute image paths", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue(
+    mockReadIpfs.mockResolvedValue(
       "![external](https://example.com/image.png)",
     );
     mockGetIpfsBasicLink.mockReturnValue(
@@ -358,7 +373,7 @@ describe("fetchProposalFromIPFS", () => {
   });
 
   it("returns null when IPFS fetch fails", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue(null);
+    mockReadIpfs.mockResolvedValue(null);
     mockGetIpfsBasicLink.mockReturnValue(
       "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
@@ -367,14 +382,14 @@ describe("fetchProposalFromIPFS", () => {
   });
 
   it("returns content unchanged when getIpfsBasicLink returns empty", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("![img](path.png)");
+    mockReadIpfs.mockResolvedValue("![img](path.png)");
     mockGetIpfsBasicLink.mockReturnValue("");
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBe("![img](path.png)");
   });
 
   it("returns null when IPFS fetch throws", async () => {
-    mockFetchTextFromIpfs.mockRejectedValue(new Error("network error"));
+    mockReadIpfs.mockRejectedValue(new Error("network error"));
     const result = await fetchProposalFromIPFS("bafyabc123");
     expect(result).toBeNull();
   });
@@ -406,12 +421,12 @@ describe("fetchProposalDiscussionFromIPFS", () => {
   });
 
   it("fetches proposal_discussion.md markdown and returns content", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("## Discussion\n\nAll good here.");
+    mockReadIpfs.mockResolvedValue("## Discussion\n\nAll good here.");
     mockGetIpfsBasicLink.mockReturnValue(
       "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
     const result = await fetchProposalDiscussionFromIPFS("bafyabc123");
-    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
+    expect(mockReadIpfs).toHaveBeenCalledWith(
       "bafyabc123",
       "/proposal_discussion.md",
     );
@@ -419,7 +434,7 @@ describe("fetchProposalDiscussionFromIPFS", () => {
   });
 
   it("rewrites relative image paths to absolute IPFS paths", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("![diagram](images/flow.png)");
+    mockReadIpfs.mockResolvedValue("![diagram](images/flow.png)");
     mockGetIpfsBasicLink.mockReturnValue(
       "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
@@ -430,17 +445,17 @@ describe("fetchProposalDiscussionFromIPFS", () => {
   });
 
   it("returns null for empty/whitespace content", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("   ");
+    mockReadIpfs.mockResolvedValue("   ");
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
   });
 
   it("returns null when the file is missing", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue(null);
+    mockReadIpfs.mockResolvedValue(null);
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
   });
 
   it("returns null when fetch throws", async () => {
-    mockFetchTextFromIpfs.mockRejectedValue(new Error("boom"));
+    mockReadIpfs.mockRejectedValue(new Error("boom"));
     expect(await fetchProposalDiscussionFromIPFS("bafyabc123")).toBeNull();
   });
 });
@@ -451,29 +466,26 @@ describe("fetchProposalDiscussionSummaryFromIPFS", () => {
   });
 
   it("returns summary text and rewrites relative images", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("## Summary\n![x](img.png)");
+    mockReadIpfs.mockResolvedValue("## Summary\n![x](img.png)");
     mockGetIpfsBasicLink.mockReturnValue(
       "https://ipfs.filebase.io/ipfs/bafyabc123",
     );
     const result = await fetchProposalDiscussionSummaryFromIPFS("bafyabc123");
-    expect(mockFetchTextFromIpfs).toHaveBeenCalledWith(
-      "bafyabc123",
-      "/summary.md",
-    );
+    expect(mockReadIpfs).toHaveBeenCalledWith("bafyabc123", "/summary.md");
     expect(result).toBe(
       "## Summary\n![x](https://ipfs.filebase.io/ipfs/bafyabc123/img.png)",
     );
   });
 
   it("returns null for empty/whitespace content", async () => {
-    mockFetchTextFromIpfs.mockResolvedValue("   ");
+    mockReadIpfs.mockResolvedValue("   ");
     expect(
       await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
     ).toBeNull();
   });
 
   it("returns null when fetch throws", async () => {
-    mockFetchTextFromIpfs.mockRejectedValue(new Error("net"));
+    mockReadIpfs.mockRejectedValue(new Error("net"));
     expect(
       await fetchProposalDiscussionSummaryFromIPFS("bafyabc123"),
     ).toBeNull();

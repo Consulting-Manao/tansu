@@ -122,7 +122,7 @@ Tansu uses IPFS for decentralized content storage:
 
 The dApp packs content into a CAR file and sends it, together with the user's signed transaction, to a small delegation worker. The worker verifies the transaction signature and recomputes the CAR's root CID to check it matches, then pins the content on Filebase (optionally mirrored on Pinata). It holds the pinning credentials so the browser never does.
 
-The dApp reads content through the Filebase gateway. A URL the gateway answers for good (no node provides the CID, or the file is missing) is remembered for 24 hours in the browser's `localStorage` (`tansu_ipfs_misses_v1`), so it is not requested on every visit; uploading a CID forgets its entries. Project lists render as soon as the contract answers, and each card fills in once its `tansu.toml` arrives.
+The dApp reads content through the Filebase gateway. Content under a CID never changes, so a file read once is kept in the browser's IndexedDB with the dApp's other reads, and later visits show it at once. A URL the gateway answers for good (no node provides the CID, or the file is missing) is remembered for 24 hours in `localStorage` (`tansu_ipfs_misses_v1`), so it is not requested on every visit; uploading a CID forgets its entries. Project lists render as soon as the contract answers, and each card fills in once its `tansu.toml` arrives.
 
 ## dApp
 

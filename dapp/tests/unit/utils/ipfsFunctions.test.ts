@@ -111,14 +111,12 @@ describe("remembered IPFS misses", () => {
     );
     const ipfs = await load();
 
-    expect(await ipfs.fetchTextFromIpfs(CID, "/summary.md")).toBeNull();
-    // As a query, a missing file is an answer: null.
-    await expect(
-      new QueryClient().query(ipfs.ipfsQuery(CID, "summary.md")),
-    ).resolves.toBeNull();
-    expect(await ipfs.fetchTextFromIpfs(CID, "/proposal.md")).toBe(
-      "# Proposal",
-    );
+    // A missing file is an answer: null, remembered across a reload.
+    const read = (path: string) =>
+      new QueryClient().query(ipfs.ipfsQuery(CID, path));
+    expect(await read("/summary.md")).toBeNull();
+    expect(await read("summary.md")).toBeNull();
+    expect(await read("/proposal.md")).toBe("# Proposal");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -134,9 +132,9 @@ describe("remembered IPFS misses", () => {
       const error = await errorOf(ipfs.fetchFromIpfs(CID, "/proposal.md"));
       expect(error.name).not.toBe("IpfsMissError");
     }
-    expect(await ipfs.fetchTextFromIpfs(CID, "/proposal.md")).toBe(
-      "# Proposal",
-    );
+    expect(
+      await new QueryClient().query(ipfs.ipfsQuery(CID, "/proposal.md")),
+    ).toBe("# Proposal");
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
@@ -165,8 +163,8 @@ describe("remembered IPFS misses", () => {
     fetchMock.mockResolvedValueOnce(
       new Response("VERSION = 1", { status: 200 }),
     );
-    expect(await ipfs.fetchTextFromIpfs(CID, "/tansu.toml")).toBe(
-      "VERSION = 1",
-    );
+    expect(
+      await new QueryClient().query(ipfs.ipfsQuery(CID, "/tansu.toml")),
+    ).toBe("VERSION = 1");
   });
 });

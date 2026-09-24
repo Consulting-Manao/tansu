@@ -1,66 +1,169 @@
-import { GitLogService } from "./GitLogService";
-import { getCommitHistory } from "./RepositoryMetadataService";
-import type { ContributionMetrics } from "../types/contributionMetrics";
-import type { FormattedCommit } from "../types/github";
-
 /**
- * Service for calculating contribution metrics from repository commit data
- * Reuses the same data that CommitHistory component fetches (client-side only)
+ * Contribution metrics of a repository, computed from its commit history. The
+ * pages are `commitHistoryQuery` pages, so the history list shares them.
  */
-export class ContributionMetricsService {
-  /**
-   * Fetch contribution metrics by analyzing repository commit data
-   * Uses the same getCommitHistory() function as CommitHistory component
-   */
-  static async fetchMetrics(repoUrl: string): Promise<ContributionMetrics> {
-    try {
-      if (!repoUrl) {
-        throw new Error("Repository URL is required");
-      }
+import { queryOptions } from "@tanstack/react-query";
+import type {
+  ContributionMetrics,
+  ContributorActivity,
+  PonyFactorResult,
+} from "../types/contributionMetrics";
+import type { FormattedCommit } from "../types/github";
+import { commitHistoryQuery } from "./RepositoryMetadataService";
+import { queryClient } from "./queryClient";
 
-      const allCommits: FormattedCommit[] = [];
-      const maxPages = 34;
+const PER_PAGE = 30;
+const MAX_PAGES = 34;
 
-      for (let page = 1; page <= maxPages; page++) {
-        const history = await getCommitHistory(repoUrl, page, 30);
-        if (!history || history.length === 0) break;
+const BOT_PATTERNS = [
+  /dependabot/i,
+  /renovate/i,
+  /bot$/i,
+  /\[bot\]/i,
+  /greenkeeper/i,
+  /snyk-bot/i,
+  /github-actions/i,
+  /codecov/i,
+];
 
-        for (const dayGroup of history) {
-          allCommits.push(...dayGroup.commits);
-        }
+/** Metrics over the repository's latest ~1000 commits. */
+export const contributionMetricsQuery = (repoUrl: string) =>
+  queryOptions({
+    queryKey: ["repo", repoUrl, "metrics"],
+    queryFn: async () => calculateMetrics(await readCommits(repoUrl)),
+    staleTime: 60 * 60_000,
+    // Its pages retry on their own.
+    retry: false,
+  });
 
-        const totalInPage = history.reduce(
-          (sum, day) => sum + day.commits.length,
-          0,
-        );
-        if (totalInPage < 30) break;
-      }
+async function readCommits(repoUrl: string): Promise<FormattedCommit[]> {
+  const commits: FormattedCommit[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const days = await queryClient.query(
+      commitHistoryQuery(repoUrl, page, PER_PAGE),
+    );
+    const pageCommits = (days ?? []).flatMap((day) => day.commits);
+    commits.push(...pageCommits);
+    if (pageCommits.length < PER_PAGE) break;
+  }
+  return commits;
+}
 
-      const gitLog = this.convertToGitLogFormat(allCommits);
+const isBot = (name: string) =>
+  BOT_PATTERNS.some((pattern) => pattern.test(name));
 
-      const result = GitLogService.parseAndAnalyze(gitLog);
+const monthOf = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-      return result.metrics;
-    } catch (error) {
-      console.error("Failed to fetch contribution metrics:", error);
-      throw new Error("Failed to load contribution metrics", { cause: error });
+export function calculateMetrics(
+  commits: FormattedCommit[],
+): ContributionMetrics {
+  const contributors = new Map<string, ContributorActivity>();
+  const monthlyStats: ContributionMetrics["monthlyStats"] = {};
+
+  for (const commit of commits) {
+    const { name } = commit.author;
+    if (isBot(name)) continue;
+
+    const date = commit.commit_date;
+    const month = monthOf(new Date(date));
+
+    let contributor = contributors.get(name);
+    if (!contributor) {
+      contributor = {
+        author: { name },
+        commitCount: 0,
+        linesAdded: 0,
+        linesRemoved: 0,
+        firstCommit: date,
+        lastCommit: date,
+        monthlyActivity: [],
+      };
+      contributors.set(name, contributor);
+    }
+    contributor.commitCount++;
+    if (new Date(date) > new Date(contributor.lastCommit)) {
+      contributor.lastCommit = date;
+    }
+    if (new Date(date) < new Date(contributor.firstCommit)) {
+      contributor.firstCommit = date;
+    }
+
+    monthlyStats[month] ??= { commits: 0, contributors: 0, linesChanged: 0 };
+    monthlyStats[month].commits++;
+
+    const activity = contributor.monthlyActivity.find((m) => m.month === month);
+    if (activity) {
+      activity.commitCount++;
+    } else {
+      contributor.monthlyActivity.push({
+        month,
+        commitCount: 1,
+        linesAdded: 0,
+        linesRemoved: 0,
+      });
     }
   }
 
-  private static convertToGitLogFormat(commits: FormattedCommit[]): string {
-    let gitLog = "";
-
-    for (const commit of commits) {
-      gitLog += `commit ${commit.sha}\n`;
-      gitLog += `Author: ${commit.author.name} <unknown@email>\n`;
-      gitLog += `AuthorDate: ${commit.commit_date}\n`;
-      gitLog += `Commit: ${commit.author.name} <unknown@email>\n`;
-      gitLog += `CommitDate: ${commit.commit_date}\n`;
-      gitLog += `\n`;
-      gitLog += `    ${commit.message}\n`;
-      gitLog += `\n`;
-    }
-
-    return gitLog;
+  const contributorActivity = [...contributors.values()].sort(
+    (a, b) => b.commitCount - a.commitCount,
+  );
+  for (const [month, stats] of Object.entries(monthlyStats)) {
+    stats.contributors = contributorActivity.filter((c) =>
+      c.monthlyActivity.some((m) => m.month === month),
+    ).length;
   }
+
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  const dates = commits
+    .map((commit) => new Date(commit.commit_date))
+    .sort((a, b) => a.getTime() - b.getTime());
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+
+  return {
+    ponyFactor: ponyFactor(contributorActivity),
+    totalCommits: commits.length,
+    totalContributors: contributorActivity.length,
+    activeContributors: contributorActivity.filter(
+      (c) => new Date(c.lastCommit) >= threeMonthsAgo,
+    ).length,
+    contributorActivity,
+    monthlyStats,
+    repositoryTimespan: {
+      firstCommit: first?.toISOString() ?? "",
+      lastCommit: last?.toISOString() ?? "",
+      totalDays:
+        first && last
+          ? Math.ceil((last.getTime() - first.getTime()) / 86_400_000)
+          : 0,
+    },
+  };
+}
+
+/** The fewest contributors behind half of the commits. */
+function ponyFactor(contributors: ContributorActivity[]): PonyFactorResult {
+  const totalCommits = contributors.reduce((sum, c) => sum + c.commitCount, 0);
+
+  let cumulativeCommits = 0;
+  const topContributors: ContributorActivity[] = [];
+  for (const contributor of contributors) {
+    cumulativeCommits += contributor.commitCount;
+    topContributors.push(contributor);
+    if (cumulativeCommits >= totalCommits * 0.5) break;
+  }
+
+  const factor = topContributors.length;
+  const percentage =
+    totalCommits > 0
+      ? ((cumulativeCommits / totalCommits) * 100).toFixed(1)
+      : "0";
+  return {
+    factor,
+    topContributors,
+    totalContributors: contributors.length,
+    explanation: `${factor} contributor${factor !== 1 ? "s" : ""} responsible for ${percentage}% of commits`,
+  };
 }

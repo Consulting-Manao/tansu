@@ -16,10 +16,8 @@ flowchart TD
   end
   subgraph Frontend
     C["Astro / React UI Components"]
-    D["StateService"]
-    E["ReadContractService"]
-    F["ContractService / TxService"]
-    G["FlowService"]
+    D["Queries (TanStack Query, kept in IndexedDB)"]
+    F["FlowService / ContractService / TxService"]
   end
   subgraph Blockchain
     J["Soroban Smart Contracts"]
@@ -32,15 +30,16 @@ flowchart TD
 
   A--"Connect Wallet"-->B
   A--"UI Interactions"-->C
-  B--"Signed Tx / Address"-->D
-  C-->D
-  C--"Reads"-->E
-  D--"Invoke"-->F
+  C--"Reads"-->D
+  D--"RPC reads, account activity"-->K
+  D--"README, commits"-->L
+  D--"tansu.toml, proposals, profiles"-->M
+  C--"Writes"-->F
+  B--"Signs"-->F
+  F--"Uploads"-->M
   F--"Transactions"-->K
-  E--"RPC Calls"-->K
+  F--"Refetches what changed"-->D
   K--"Calls"-->J
-  C--"Fetch README / TOML"-->L
-  C--"Fetch Assets"-->M
 ```
 
 ## 1. Project Registration Flow

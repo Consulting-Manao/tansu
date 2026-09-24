@@ -6,7 +6,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 const EditProfileModal = lazy(() => import("./EditProfileModal"));
 import Modal from "components/utils/Modal";
 import Button from "components/utils/Button";
-import { getIpfsBasicLink, fetchJsonFromIpfs } from "utils/ipfsFunctions";
+import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
 import Markdown from "markdown-to-jsx";
 import { connectedPublicKey } from "../../../utils/store";
 import { memberQuery } from "@service/MemberService";
@@ -86,10 +86,10 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
 
           // Fetch profile.json
           try {
-            const profileData = await fetchJsonFromIpfs(
-              member.meta,
-              "/profile.json",
+            const profileText = await queryClient.query(
+              ipfsQuery(member.meta, "/profile.json"),
             );
+            const profileData = profileText ? JSON.parse(profileText) : null;
 
             if (profileData) {
               setProfileData(profileData);
@@ -461,7 +461,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
                   </h4>
                   <OnChainActions
                     address={address}
-                    projectCache={Object.fromEntries(
+                    projectNames={Object.fromEntries(
                       projectsWithNames.map((p) => [
                         Buffer.from(p.projectId).toString("hex"),
                         p.name,

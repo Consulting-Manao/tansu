@@ -1,3 +1,8 @@
+/**
+ * Repository metadata, read without authentication from the public APIs of
+ * GitHub, GitLab, Bitbucket, Gitea/Codeberg and Radicle seeds, as queries.
+ */
+import { queryOptions } from "@tanstack/react-query";
 import type { FormattedCommit } from "../types/github";
 import {
   buildRadicleBrowseUrl,
@@ -71,16 +76,24 @@ const README_CANDIDATES = [
   "readme.md",
 ];
 
-const REQUEST_CACHE_TTL_MS = 30_000;
-const MAX_RETRY_ATTEMPTS = 2;
-const INITIAL_RETRY_DELAY_MS = 250;
+const MINUTE = 60_000;
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 const RADICLE_PUBLIC_SEED_HOSTS = ["iris.radicle.network"] as const;
-const responseCache = new Map<
-  string,
-  { expiresAt: number; response: Response }
->();
-const radicleSeedCache = new Map<string, string>();
+
+/** A provider answered with an error status. */
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    host: string,
+  ) {
+    super(`${host} API request failed with status ${status}`);
+  }
+}
+
+/** Queries retry network errors, timeouts, rate limits and 5xx, twice. */
+const retryTransient = (failures: number, error: Error) =>
+  failures < 2 &&
+  !(error instanceof HttpError && !RETRYABLE_STATUS_CODES.has(error.status));
 
 function getRepositoryInfo(repoUrl: string): ParsedRepositoryInfo | undefined {
   const parsed = parseRepositoryUrl(repoUrl);
@@ -89,12 +102,11 @@ function getRepositoryInfo(repoUrl: string): ParsedRepositoryInfo | undefined {
   }
 
   if (parsed.kind === "radicle") {
-    const seedHost = parsed.seedHost || radicleSeedCache.get(parsed.rid);
     return {
       provider: "radicle",
       normalizedUrl: parsed.normalizedUrl,
       rid: parsed.rid,
-      ...(seedHost ? { seedHost } : {}),
+      ...(parsed.seedHost ? { seedHost: parsed.seedHost } : {}),
     };
   }
 
@@ -137,20 +149,8 @@ function getProviderForHost(
 
 function getRadicleSeedHosts(repo: ParsedRadicleRepositoryInfo): string[] {
   return Array.from(
-    new Set([
-      repo.seedHost,
-      radicleSeedCache.get(repo.rid),
-      ...RADICLE_PUBLIC_SEED_HOSTS,
-    ]),
+    new Set([repo.seedHost, ...RADICLE_PUBLIC_SEED_HOSTS]),
   ).filter((host): host is string => Boolean(host));
-}
-
-function setRadicleSeedHost(
-  repo: ParsedRadicleRepositoryInfo,
-  seedHost: string,
-): void {
-  repo.seedHost = seedHost;
-  radicleSeedCache.set(repo.rid, seedHost);
 }
 
 function getRadicleRepoBrowseUrl(repo: ParsedRadicleRepositoryInfo): string {
@@ -201,104 +201,10 @@ function getEncodedRepositorySegments(repo: ParsedHostedRepositoryInfo) {
   };
 }
 
-function getRequestCacheKey(url: string, init?: RequestInit): string {
-  const method = (init?.method || "GET").toUpperCase();
-  const headers = new Headers(init?.headers);
-  const serializedHeaders = Array.from(headers.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}:${value}`)
-    .join("|");
-
-  return `${method}:${url}:${serializedHeaders}`;
-}
-
-function canCacheRequest(init?: RequestInit): boolean {
-  return !init?.method || init.method.toUpperCase() === "GET";
-}
-
-function getCachedResponse(key: string): Response | undefined {
-  const cached = responseCache.get(key);
-  if (!cached) {
-    return undefined;
-  }
-
-  if (cached.expiresAt <= Date.now()) {
-    responseCache.delete(key);
-    return undefined;
-  }
-
-  return cached.response.clone();
-}
-
-function shouldRetryResponse(response: Response, attempt: number): boolean {
-  return (
-    attempt < MAX_RETRY_ATTEMPTS && RETRYABLE_STATUS_CODES.has(response.status)
-  );
-}
-
-function getRetryDelayMs(attempt: number): number {
-  return INITIAL_RETRY_DELAY_MS * 2 ** attempt;
-}
-
-function sleep(delayMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, delayMs);
-  });
-}
-
-async function fetchWithResilience(
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
-  const cacheKey = getRequestCacheKey(url, init);
-  if (canCacheRequest(init)) {
-    const cached = getCachedResponse(cacheKey);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(url, init);
-      if (response.ok && canCacheRequest(init)) {
-        responseCache.set(cacheKey, {
-          expiresAt: Date.now() + REQUEST_CACHE_TTL_MS,
-          response: response.clone(),
-        });
-      }
-
-      if (!shouldRetryResponse(response, attempt)) {
-        return response;
-      }
-
-      lastError = new Error(
-        `${new URL(url).hostname} API request failed with status ${response.status}`,
-      );
-    } catch (error) {
-      lastError = error;
-      if (attempt >= MAX_RETRY_ATTEMPTS) {
-        break;
-      }
-    }
-
-    await sleep(getRetryDelayMs(attempt));
-  }
-
-  if (lastError instanceof Error) {
-    throw lastError;
-  }
-
-  throw new Error(`${new URL(url).hostname} API request failed`);
-}
-
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetchWithResilience(url, init);
+  const response = await fetch(url, init);
   if (!response.ok) {
-    throw new Error(
-      `${new URL(url).hostname} API request failed with status ${response.status}`,
-    );
+    throw new HttpError(response.status, new URL(url).hostname);
   }
 
   return (await response.json()) as T;
@@ -308,15 +214,13 @@ async function fetchMaybeJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T | undefined> {
-  const response = await fetchWithResilience(url, init);
+  const response = await fetch(url, init);
   if (response.status === 404) {
     return undefined;
   }
 
   if (!response.ok) {
-    throw new Error(
-      `${new URL(url).hostname} API request failed with status ${response.status}`,
-    );
+    throw new HttpError(response.status, new URL(url).hostname);
   }
 
   return (await response.json()) as T;
@@ -329,19 +233,18 @@ async function fetchRadicleJsonFromSeeds<T>(
   let lastError: Error | undefined;
 
   for (const seedHost of getRadicleSeedHosts(repo)) {
-    const response = await fetchWithResilience(buildUrl(seedHost));
+    const response = await fetch(buildUrl(seedHost));
     if (response.status === 404) {
       continue;
     }
 
     if (!response.ok) {
-      lastError = new Error(
-        `${new URL(buildUrl(seedHost)).hostname} API request failed with status ${response.status}`,
-      );
+      lastError = new HttpError(response.status, seedHost);
       continue;
     }
 
-    setRadicleSeedHost(repo, seedHost);
+    // The raw file URLs of this repository point at the seed that has it.
+    repo.seedHost = seedHost;
     return {
       payload: (await response.json()) as T,
       seedHost,
@@ -497,7 +400,7 @@ async function getGithubReadme(
   repo: ParsedHostedRepositoryInfo,
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
-  const response = await fetchWithResilience(
+  const response = await fetch(
     `https://api.github.com/repos/${owner}/${repoName}/readme`,
     {
       headers: { Accept: "application/vnd.github.raw+json" },
@@ -508,7 +411,7 @@ async function getGithubReadme(
   }
 
   if (!response.ok) {
-    throw new Error(`GitHub API request failed with status ${response.status}`);
+    throw new HttpError(response.status, "api.github.com");
   }
 
   return response.text();
@@ -574,7 +477,7 @@ async function getGitlabReadme(
   const project = encodeURIComponent(repo.projectPath);
 
   for (const candidate of README_CANDIDATES) {
-    const response = await fetchWithResilience(
+    const response = await fetch(
       `https://gitlab.com/api/v4/projects/${project}/repository/files/${encodeURIComponent(candidate)}/raw?ref=HEAD`,
     );
     if (response.status === 404) {
@@ -582,9 +485,7 @@ async function getGitlabReadme(
     }
 
     if (!response.ok) {
-      throw new Error(
-        `GitLab API request failed with status ${response.status}`,
-      );
+      throw new HttpError(response.status, "gitlab.com");
     }
 
     return response.text();
@@ -658,7 +559,7 @@ async function getBitbucketReadme(
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
-    const response = await fetchWithResilience(
+    const response = await fetch(
       `https://api.bitbucket.org/2.0/repositories/${owner}/${repoName}/src/HEAD/${encodeURIComponent(candidate)}`,
     );
     if (response.status === 404) {
@@ -666,9 +567,7 @@ async function getBitbucketReadme(
     }
 
     if (!response.ok) {
-      throw new Error(
-        `Bitbucket API request failed with status ${response.status}`,
-      );
+      throw new HttpError(response.status, "api.bitbucket.org");
     }
 
     return response.text();
@@ -846,105 +745,63 @@ async function getRadicleReadme(
   return undefined;
 }
 
-async function getCommitHistory(
-  repoUrl: string,
-  page: number = 1,
-  perPage: number = 30,
-): Promise<{ date: string; commits: FormattedCommit[] }[] | null> {
-  if (!repoUrl) {
-    return null;
-  }
+/** A page of a repository's commits, grouped by day; `null` for no host. */
+export const commitHistoryQuery = (repoUrl: string, page = 1, perPage = 30) =>
+  queryOptions({
+    queryKey: ["repo", repoUrl, "history", page, perPage],
+    queryFn: async () => {
+      const repo = getRepositoryInfo(repoUrl);
+      if (!repo) return null;
+      const commits = await getProviderCommitHistory(repo, page, perPage);
+      return groupCommitsByDate(formatCommits(commits));
+    },
+    staleTime: 60 * MINUTE,
+    retry: retryTransient,
+  });
 
-  try {
-    const repo = getRepositoryInfo(repoUrl);
-    if (!repo) {
-      return null;
-    }
+/** One commit; `null` when the repository does not have it. */
+export const repoCommitQuery = (repoUrl: string, sha: string) =>
+  queryOptions({
+    queryKey: ["repo", repoUrl, "commit", sha],
+    queryFn: async () => {
+      const repo = getRepositoryInfo(repoUrl);
+      return (repo && (await getProviderCommitData(repo, sha))) ?? null;
+    },
+    staleTime: 60 * MINUTE,
+    retry: retryTransient,
+  });
 
-    const commits = await getProviderCommitHistory(repo, page, perPage);
-    const formattedCommits = formatCommits(commits);
+/** The hash of the repository's newest commit. */
+export const repoHeadQuery = (repoUrl: string) =>
+  queryOptions({
+    queryKey: ["repo", repoUrl, "head"],
+    queryFn: async () => {
+      const repo = getRepositoryInfo(repoUrl);
+      if (!repo) return null;
+      const [latest] = await getProviderCommitHistory(repo, 1, 1);
+      return latest?.sha ?? null;
+    },
+    staleTime: MINUTE,
+    retry: retryTransient,
+  });
 
-    return groupCommitsByDate(formattedCommits);
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("Failed to load commit history", error);
-    }
-    return null;
-  }
-}
+/** The README, with the base URL its relative links resolve against. */
+export const repoReadmeQuery = (repoUrl: string) =>
+  queryOptions({
+    queryKey: ["repo", repoUrl, "readme"],
+    queryFn: async () => {
+      const repo = getRepositoryInfo(repoUrl);
+      const content = repo && (await getProviderReadme(repo));
+      if (!repo || !content) return null;
+      return { content, rawBaseUrl: await getReadmeRawBaseUrl(repo) };
+    },
+    staleTime: 60 * MINUTE,
+    retry: retryTransient,
+  });
 
-async function getLatestCommitData(
-  repoUrl: string,
-  sha: string,
-): Promise<GitCommitDetails | undefined> {
-  if (!repoUrl || !sha) {
-    return undefined;
-  }
-
-  try {
-    const repo = getRepositoryInfo(repoUrl);
-    if (!repo) {
-      return undefined;
-    }
-
-    return await getProviderCommitData(repo, sha);
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("Failed to load commit data", error);
-    }
-    return undefined;
-  }
-}
-
-async function getLatestCommitHash(
-  repoUrl: string,
-): Promise<string | undefined> {
-  if (!repoUrl) {
-    return undefined;
-  }
-
-  try {
-    const repo = getRepositoryInfo(repoUrl);
-    if (!repo) {
-      return undefined;
-    }
-
-    const commits = await getProviderCommitHistory(repo, 1, 1);
-    return commits[0]?.sha || undefined;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("Failed to load latest commit hash", error);
-    }
-    return undefined;
-  }
-}
-
-async function fetchReadmeContentFromConfigUrl(
-  repoUrl: string,
-): Promise<string | undefined> {
-  if (!repoUrl) {
-    return undefined;
-  }
-
-  try {
-    const repo = getRepositoryInfo(repoUrl);
-    if (!repo) {
-      return undefined;
-    }
-
-    return (await getProviderReadme(repo)) ?? undefined;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("Failed to load repository README", error);
-    }
-    return undefined;
-  }
-}
-
-async function getReadmeRawBaseUrl(repoUrl: string): Promise<string> {
-  const repo = getRepositoryInfo(repoUrl);
-  if (!repo) return "";
-
+async function getReadmeRawBaseUrl(
+  repo: ParsedRepositoryInfo,
+): Promise<string> {
   if (repo.provider === "radicle") {
     const head = await getRadicleHead(repo);
     if (!head || !repo.seedHost) {
@@ -966,11 +823,3 @@ async function getReadmeRawBaseUrl(repoUrl: string): Promise<string> {
       return `https://${repo.host}/${repo.projectPath}/raw/branch/HEAD`;
   }
 }
-
-export {
-  getCommitHistory,
-  fetchReadmeContentFromConfigUrl,
-  getLatestCommitData,
-  getLatestCommitHash,
-  getReadmeRawBaseUrl,
-};

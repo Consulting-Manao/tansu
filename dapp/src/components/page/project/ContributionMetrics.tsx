@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import type { ContributionMetrics as ContributionMetricsData } from "../../../types/contributionMetrics";
-import { ContributionMetricsService } from "../../../service/ContributionMetricsService";
+import { useQuery } from "@tanstack/react-query";
+import { contributionMetricsQuery } from "../../../service/ContributionMetricsService";
+import { queryClient } from "../../../service/queryClient";
 import PonyFactorCard from "./PonyFactorCard";
 import ContributorActivityChart from "./ContributorActivityChart";
 import MonthlyActivityChart from "./MonthlyActivityChart";
@@ -15,33 +15,15 @@ const ContributionMetrics = ({
   repoUrl,
   maintainerHandles,
 }: ContributionMetricsProps) => {
-  const [metrics, setMetrics] = useState<ContributionMetricsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const metricsRead = useQuery(contributionMetricsQuery(repoUrl), queryClient);
+  const metrics = metricsRead.data;
+  const loading = metricsRead.isPending;
+  const error = metricsRead.isError
+    ? "Failed to load contribution metrics"
+    : null;
   const maintainers = maintainerHandles
     .filter((name) => typeof name === "string")
     .map((name) => name.toLowerCase());
-
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const metrics = await ContributionMetricsService.fetchMetrics(repoUrl);
-        setMetrics(metrics);
-      } catch (err) {
-        console.error("Error fetching contribution metrics:", err);
-        setError("Failed to load contribution metrics");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (repoUrl) {
-      fetchMetrics();
-    }
-  }, [repoUrl]);
 
   if (loading) {
     return (

@@ -1,12 +1,12 @@
 import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
-import { getLatestCommitData } from "@service/RepositoryMetadataService";
+import { repoCommitQuery } from "@service/RepositoryMetadataService";
 import { commitQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import AttestationCard from "./AttestationCard";
 import Tooltip from "components/utils/Tooltip";
 import CopyButton from "components/utils/CopyButton";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { Project } from "../../../../packages/tansu";
 import type { ConfigData } from "types/projectConfig";
 import { formatDate } from "utils/formatTimeFunctions";
@@ -36,56 +36,21 @@ const LatestCommit = ({
   const onChainSha = onChain.data ?? null;
   const repositoryUrl = config.officials.githubLink || project.config.url;
 
-  const [commitData, setCommitData] = useState<{
-    sha: string;
-    commit: {
-      message: string;
-      author: { name: string };
-      committer: { date: string };
-    };
-    html_url?: string;
-  } | null>(null);
-  const [latestCommitStatus, setLatestCommitStatus] = useState<Status>(
-    Status.NotFound,
+  const commitRead = useQuery(
+    {
+      ...repoCommitQuery(repositoryUrl, onChainSha ?? ""),
+      enabled: !!repositoryUrl && !!onChainSha,
+    },
+    queryClient,
   );
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (onChain.isPending) return;
-    let active = true;
-    (async () => {
-      setLoadError(null);
-      setIsLoading(true);
-      if (repositoryUrl && onChainSha) {
-        try {
-          const latestCommit = await getLatestCommitData(
-            repositoryUrl,
-            onChainSha,
-          );
-          if (!active) return;
-          setCommitData(latestCommit ?? null);
-          setLatestCommitStatus(
-            !latestCommit
-              ? Status.NotFound
-              : latestCommit.sha === onChainSha
-                ? Status.Match
-                : Status.NotMatch,
-          );
-        } catch {
-          if (!active) return;
-          setLatestCommitStatus(Status.NotFound);
-          setLoadError("Could not load commit data.");
-        }
-      } else {
-        setLatestCommitStatus(Status.NotFound);
-      }
-      if (active) setIsLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [onChain.isPending, onChainSha, repositoryUrl]);
+  const commitData = commitRead.data ?? null;
+  const latestCommitStatus = !commitData
+    ? Status.NotFound
+    : commitData.sha === onChainSha
+      ? Status.Match
+      : Status.NotMatch;
+  const isLoading = onChain.isPending || commitRead.isLoading;
+  const loadError = commitRead.isError ? "Could not load commit data." : null;
 
   if (isOrganization) {
     return <div className="flex flex-col gap-3">{tomlLink}</div>;

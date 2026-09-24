@@ -1,10 +1,8 @@
 // src/service/OnChainActivityService.ts
-// New service that exposes a single public helper `fetchOnChainActions` to
-// retrieve, parse and return on-chain contract interactions for a given
-// Stellar account. The implementation deliberately keeps a *single* Horizon
-// request per `accountId` and uses an in-memory cache to map project keys to
-// their human-readable names provided by the calling component.
+// An account's member-facing contract calls, read from Horizon in one request
+// and parsed (`activityQuery`).
 
+import { queryOptions } from "@tanstack/react-query";
 import { Buffer } from "buffer";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import pkgSha3 from "js-sha3";
@@ -28,7 +26,7 @@ export interface OnChainAction {
   method: string;
   /** Hex-encoded project key if relevant; `null` for `register`. */
   projectKey: string | null;
-  /** Human-friendly project name – derived from the cache, may be `null`. */
+  /** The project's name, when a `register` in the list gives it. */
   projectName: string | null;
   /** Method-specific details extracted from the arguments (hash, badges, …). */
   details: Record<string, unknown>;
@@ -37,20 +35,8 @@ export interface OnChainAction {
 }
 
 // -----------------------------------------------------------------------------
-// Internal state & helpers
+// Helpers
 // -----------------------------------------------------------------------------
-
-/** In-memory cache mapping *hex-encoded* project key → project name. */
-const PROJECT_CACHE = new Map<string, string>();
-
-/**
- * Allow the UI to seed the cache ahead of the network request.
- */
-export function seedProjectNameCache(mapping: Record<string, string>): void {
-  Object.entries(mapping).forEach(([k, v]) => {
-    PROJECT_CACHE.set(normalizeHex(k)!, v);
-  });
-}
 
 /** Decode a base64 ScVal into the tagged values the activity panel shows. */
 function decodeScVal(b64: string): any {
@@ -88,241 +74,188 @@ function tagScVal(val: any): any {
   }
 }
 
-// Cache fetched actions per account for a short window so the panel does not
-// hammer Horizon on every render, while still picking up new activity on
-// subsequent visits. Failed fetches are evicted immediately so a transient
-// Horizon error can be retried instead of being cached forever.
-const ACTIONS_CACHE_TTL_MS = 60_000;
-const ACTIONS_CACHE = new Map<
-  string,
-  { expiresAt: number; promise: Promise<OnChainAction[]> }
->();
-
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
 
 /**
- * Fetch at most once per TTL window from Horizon, filter member-facing
- * contract calls and return a parsed list ordered by descending timestamp
- * (latest first).
+ * An account's member-facing contract calls, latest first. Names come from
+ * the `register` calls in the list; others are for the caller to resolve.
  */
-export async function fetchOnChainActions(
-  accountId: string,
-): Promise<OnChainAction[]> {
+export const activityQuery = (accountId: string) =>
+  queryOptions({
+    queryKey: ["activity", accountId],
+    queryFn: () => readActions(accountId),
+    staleTime: 60_000,
+  });
+
+async function readActions(accountId: string): Promise<OnChainAction[]> {
   // Horizon indexes operations by source account, and a smart account's
   // transactions are sourced by its wallet's relayer: there is nothing to list.
   if (StellarSdk.StrKey.isValidContract(accountId)) return [];
 
-  const cached = ACTIONS_CACHE.get(accountId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.promise;
+  const base = import.meta.env.PUBLIC_HORIZON_URL;
+  const url = `${base}/accounts/${accountId}/operations?limit=200&order=desc`;
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { Accept: "application/hal+json" },
+  });
+  if (!resp.ok) {
+    throw new Error(`Horizon error ${resp.status}: ${resp.statusText}`);
   }
-  ACTIONS_CACHE.delete(accountId);
+  const payload = await resp.json();
+  const records: any[] = payload?._embedded?.records ?? [];
 
-  const fetchPromise = (async (): Promise<OnChainAction[]> => {
-    const base = import.meta.env.PUBLIC_HORIZON_URL;
-    const url = `${base}/accounts/${accountId}/operations?limit=200&order=desc`;
+  /** Hex project key → name, from the `register` calls of the list. */
+  const names = new Map<string, string>();
+  const actions: OnChainAction[] = [];
+  const memberSet = new Set(MEMBER_METHODS);
 
-    // Add timeout and abort controller for better performance
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    try {
-      const resp = await fetch(url, {
-        signal: controller.signal,
-        headers: { Accept: "application/hal+json" }, // More specific accept header
-      });
-      clearTimeout(timeoutId);
-
-      if (!resp.ok) {
-        throw new Error(`Horizon error ${resp.status}: ${resp.statusText}`);
-      }
-      const payload = await resp.json();
-      const records: any[] = payload?._embedded?.records ?? [];
-
-      const actions: OnChainAction[] = [];
-      const memberSet = new Set(MEMBER_METHODS);
-
-      const decodeParam = (p: any): any => {
-        if (!p) return null;
-        const b64: string | undefined = p.xdr || p.value;
-        if (!b64 || typeof b64 !== "string") return null;
-        return decodeScVal(b64);
-      };
-
-      for (const rec of records) {
-        // We only care about Soroban contract calls.
-        if (
-          rec.type !== "invoke_host_function" ||
-          !Array.isArray(rec.parameters) ||
-          rec.parameters.length < 2
-        ) {
-          continue;
-        }
-
-        const decodedParams = rec.parameters.map(decodeParam);
-
-        const methodSym = decodedParams[1]?.sym ?? null;
-        if (!methodSym || !memberSet.has(methodSym)) continue;
-
-        // Arguments vector is usually param[2].vec
-        let argVals: any[] = [];
-        if (decodedParams.length >= 3 && Array.isArray(decodedParams[2]?.vec)) {
-          argVals = decodedParams[2].vec;
-        } else if (decodedParams.length > 2) {
-          argVals = decodedParams.slice(2);
-        }
-
-        let projectKey: string | null = null;
-        let projectName: string | null = null;
-        const details: Record<string, unknown> = {};
-
-        const args = argVals;
-
-        // Always keep a raw snapshot so the UI can list every parameter without
-        // custom mapping.
-        details.params = args;
-
-        // Capture tx-level XDR for eye icon if operation-level missing later
-        const txLevelXdr: string | null = rec.transaction_xdr ?? null;
-
-        switch (methodSym) {
-          case "register": {
-            projectName = paramToString(args[1]); // name is arg1 (maintainer is arg0)
-            if (projectName) {
-              // keccak key (derived) – used by some off-chain calls.
-              // Hash the raw name to match the on-chain contract (case-sensitive),
-              // consistent with deriveProjectKey().
-              const keyHex = normalizeHex(keccak_256(projectName));
-              PROJECT_CACHE.set(keyHex!, projectName);
-              details.name = projectName;
-
-              // Extract IPFS CID from the contract call
-              details.ipfs = paramToString(args[4]); // ipfs is arg4 (maintainer, name, maintainers, url, ipfs)
-
-              // The contract returns the canonical project_key (Bytes) in the
-              // transaction result – decode and cache it so on-chain calls that
-              // use the raw key (add_member, commit, …) can resolve the name.
-              if (rec.result_xdr) {
-                const res = decodeScVal(rec.result_xdr);
-                const binHex = paramBytesToHex(res);
-                if (binHex) {
-                  PROJECT_CACHE.set(binHex, projectName);
-                  projectKey = binHex;
-                }
-              }
-            }
-            break;
-          }
-          case "commit": {
-            projectKey = paramBytesToHex(args[1]); // arg0 maintainer, arg1 key
-            details.hash = paramToString(args[2]);
-            break;
-          }
-          case "update_config": {
-            projectKey = paramBytesToHex(args[1]);
-            details.url = paramToString(args[3]);
-            details.ipfs = paramToString(args[4]); // ipfs is arg4 (maintainer, key, maintainers, url, ipfs)
-            break;
-          }
-          case "add_member": {
-            // Membership registration – no project key; first arg is the member address
-            details.member = paramToString(args[0]);
-            // Meta hash for IPFS may be arg1; store it for UI
-            details.meta = paramToString(args[1]);
-            break;
-          }
-          case "set_badges": {
-            projectKey = paramBytesToHex(args[1]);
-            details.member = paramToString(args[2]);
-            const badgeVecObj = args[3];
-            details.badges = extractBadgeInts(badgeVecObj);
-            break;
-          }
-          case "create_proposal": {
-            projectKey = paramBytesToHex(args[1]);
-            details.title = paramToString(args[2]);
-            break;
-          }
-          case "vote":
-          case "execute": {
-            projectKey = paramBytesToHex(args[1]);
-            details.proposalId = Number(paramToString(args[2]));
-            break;
-          }
-        }
-
-        // Generic detection – if projectKey not yet set, find first bytes/hex
-        if (!projectKey) {
-          for (const av of args) {
-            const hex = paramBytesToHex(av);
-            if (hex && hex.length === 64) {
-              // 32 bytes
-              projectKey = hex;
-              break;
-            }
-          }
-        }
-
-        if (projectKey && projectName) {
-          PROJECT_CACHE.set(normalizeHex(projectKey)!, projectName);
-        }
-
-        actions.push({
-          txHash: rec.transaction_hash,
-          timestamp: Date.parse(rec.created_at),
-          method: methodSym,
-          projectKey,
-          projectName,
-          details,
-          raw: { ...rec, __tx_xdr: txLevelXdr },
-        });
-      }
-
-      // Second pass – fill in any missing project names (e.g. when a commit
-      // operation appears *before* the register call in the descending list).
-      for (const a of actions) {
-        if (a.projectKey && a.projectName) {
-          PROJECT_CACHE.set(normalizeHex(a.projectKey)!, a.projectName);
-        }
-      }
-
-      // Third pass - resolve any remaining missing names after cache is fully populated
-      for (const a of actions) {
-        if (!a.projectName && a.projectKey) {
-          const name = lookupProjectName(a.projectKey);
-          if (name) a.projectName = name;
-        }
-      }
-
-      return actions;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  })();
-
-  const entry = {
-    expiresAt: Date.now() + ACTIONS_CACHE_TTL_MS,
-    promise: fetchPromise,
+  const decodeParam = (p: any): any => {
+    if (!p) return null;
+    const b64: string | undefined = p.xdr || p.value;
+    if (!b64 || typeof b64 !== "string") return null;
+    return decodeScVal(b64);
   };
-  ACTIONS_CACHE.set(accountId, entry);
 
-  // Stamp the TTL from when the request settles (not when it started), and
-  // never cache a failed fetch: drop it so the next call can retry.
-  fetchPromise.then(
-    () => {
-      entry.expiresAt = Date.now() + ACTIONS_CACHE_TTL_MS;
-    },
-    () => {
-      if (ACTIONS_CACHE.get(accountId) === entry) {
-        ACTIONS_CACHE.delete(accountId);
+  for (const rec of records) {
+    // We only care about Soroban contract calls.
+    if (
+      rec.type !== "invoke_host_function" ||
+      !Array.isArray(rec.parameters) ||
+      rec.parameters.length < 2
+    ) {
+      continue;
+    }
+
+    const decodedParams = rec.parameters.map(decodeParam);
+
+    const methodSym = decodedParams[1]?.sym ?? null;
+    if (!methodSym || !memberSet.has(methodSym)) continue;
+
+    // Arguments vector is usually param[2].vec
+    let argVals: any[] = [];
+    if (decodedParams.length >= 3 && Array.isArray(decodedParams[2]?.vec)) {
+      argVals = decodedParams[2].vec;
+    } else if (decodedParams.length > 2) {
+      argVals = decodedParams.slice(2);
+    }
+
+    let projectKey: string | null = null;
+    let projectName: string | null = null;
+    const details: Record<string, unknown> = {};
+
+    const args = argVals;
+
+    // Always keep a raw snapshot so the UI can list every parameter without
+    // custom mapping.
+    details.params = args;
+
+    // Capture tx-level XDR for eye icon if operation-level missing later
+    const txLevelXdr: string | null = rec.transaction_xdr ?? null;
+
+    switch (methodSym) {
+      case "register": {
+        projectName = paramToString(args[1]); // name is arg1 (maintainer is arg0)
+        if (projectName) {
+          // keccak key (derived) – used by some off-chain calls.
+          // Hash the raw name to match the on-chain contract (case-sensitive),
+          // consistent with deriveProjectKey().
+          const keyHex = normalizeHex(keccak_256(projectName));
+          names.set(keyHex!, projectName);
+          details.name = projectName;
+
+          // Extract IPFS CID from the contract call
+          details.ipfs = paramToString(args[4]); // ipfs is arg4 (maintainer, name, maintainers, url, ipfs)
+
+          // The contract returns the canonical project_key (Bytes) in the
+          // transaction result: the calls that use the raw key (commit, …)
+          // get their name from it.
+          if (rec.result_xdr) {
+            const res = decodeScVal(rec.result_xdr);
+            const binHex = paramBytesToHex(res);
+            if (binHex) {
+              names.set(binHex, projectName);
+              projectKey = binHex;
+            }
+          }
+        }
+        break;
       }
-    },
-  );
+      case "commit": {
+        projectKey = paramBytesToHex(args[1]); // arg0 maintainer, arg1 key
+        details.hash = paramToString(args[2]);
+        break;
+      }
+      case "update_config": {
+        projectKey = paramBytesToHex(args[1]);
+        details.url = paramToString(args[3]);
+        details.ipfs = paramToString(args[4]); // ipfs is arg4 (maintainer, key, maintainers, url, ipfs)
+        break;
+      }
+      case "add_member": {
+        // Membership registration – no project key; first arg is the member address
+        details.member = paramToString(args[0]);
+        // Meta hash for IPFS may be arg1; store it for UI
+        details.meta = paramToString(args[1]);
+        break;
+      }
+      case "set_badges": {
+        projectKey = paramBytesToHex(args[1]);
+        details.member = paramToString(args[2]);
+        const badgeVecObj = args[3];
+        details.badges = extractBadgeInts(badgeVecObj);
+        break;
+      }
+      case "create_proposal": {
+        projectKey = paramBytesToHex(args[1]);
+        details.title = paramToString(args[2]);
+        break;
+      }
+      case "vote":
+      case "execute": {
+        projectKey = paramBytesToHex(args[1]);
+        details.proposalId = Number(paramToString(args[2]));
+        break;
+      }
+    }
 
-  return fetchPromise;
+    // Generic detection – if projectKey not yet set, find first bytes/hex
+    if (!projectKey) {
+      for (const av of args) {
+        const hex = paramBytesToHex(av);
+        if (hex && hex.length === 64) {
+          // 32 bytes
+          projectKey = hex;
+          break;
+        }
+      }
+    }
+
+    if (projectKey && projectName) {
+      names.set(normalizeHex(projectKey)!, projectName);
+    }
+
+    actions.push({
+      txHash: rec.transaction_hash,
+      timestamp: Date.parse(rec.created_at),
+      method: methodSym,
+      projectKey,
+      projectName,
+      details,
+      raw: { ...rec, __tx_xdr: txLevelXdr },
+    });
+  }
+
+  // Name the calls made before their project's register (the list is
+  // latest first).
+  for (const a of actions) {
+    if (!a.projectName && a.projectKey) {
+      a.projectName = names.get(normalizeHex(a.projectKey)!) ?? null;
+    }
+  }
+
+  return actions;
 }
 
 // helper to extract string from param
@@ -371,17 +304,4 @@ function extractBadgeInts(vecObj: any): number[] {
 function normalizeHex(hex: string | null): string | null {
   if (!hex) return null;
   return hex.toLowerCase().padStart(64, "0");
-}
-
-function lookupProjectName(hexKey: string | null): string | null {
-  if (!hexKey) return null;
-  const raw = hexKey.toLowerCase();
-  const norm = normalizeHex(raw);
-  const trimmed = raw.replace(/^0+/, "");
-  return (
-    PROJECT_CACHE.get(norm!) ??
-    PROJECT_CACHE.get(raw) ??
-    PROJECT_CACHE.get(trimmed) ??
-    null
-  );
 }

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Buffer } from "buffer";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { QueryClient } from "@tanstack/react-query";
+import { activityQuery } from "../../../src/service/OnChainActivityService";
 
 const { xdr, Address } = StellarSdk;
 
@@ -76,16 +78,17 @@ function makeHorizonResponse(records: unknown[]) {
   };
 }
 
-describe("OnChainActivityService", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-  let mod: typeof import("../../../src/service/OnChainActivityService");
+/** An account's actions, as a page reads them. */
+const actionsOf = (account: string) =>
+  new QueryClient().query(activityQuery(account));
 
-  beforeEach(async () => {
-    vi.resetModules();
+describe("activityQuery", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
     vi.stubEnv("PUBLIC_HORIZON_URL", "https://horizon-testnet.stellar.org");
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    mod = await import("../../../src/service/OnChainActivityService");
   });
 
   afterEach(() => {
@@ -94,7 +97,7 @@ describe("OnChainActivityService", () => {
   });
 
   it("returns no actions for a smart account without calling Horizon", async () => {
-    const actions = await mod.fetchOnChainActions(
+    const actions = await actionsOf(
       "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
     );
     expect(actions).toEqual([]);
@@ -110,7 +113,7 @@ describe("OnChainActivityService", () => {
       }),
     );
 
-    const actions = await mod.fetchOnChainActions("GTESTACCOUNT");
+    const actions = await actionsOf("GTESTACCOUNT");
     expect(actions).toHaveLength(1);
 
     const action = actions[0]!;
@@ -132,7 +135,7 @@ describe("OnChainActivityService", () => {
       }),
     );
 
-    const actions = await mod.fetchOnChainActions("GTESTACCOUNT");
+    const actions = await actionsOf("GTESTACCOUNT");
     expect(actions).toHaveLength(1);
 
     const action = actions[0]!;
@@ -163,7 +166,7 @@ describe("OnChainActivityService", () => {
       }),
     );
 
-    const actions = await mod.fetchOnChainActions("GTESTACCOUNT");
+    const actions = await actionsOf("GTESTACCOUNT");
     expect(actions).toHaveLength(0);
   });
 
@@ -191,43 +194,18 @@ describe("OnChainActivityService", () => {
       }),
     );
 
-    const actions = await mod.fetchOnChainActions("GTESTACCOUNT");
+    const actions = await actionsOf("GTESTACCOUNT");
     expect(actions).toHaveLength(0);
   });
 
-  it("resolves project names across operations via shared cache", async () => {
-    const registerOp = makeRegisterOp(
-      "shared-app",
-      "https://github.com/org/shared-app",
-    );
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(makeHorizonResponse([registerOp])), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    await mod.fetchOnChainActions("ACCT_A");
-
+  it("names a call from the register earlier in the list", async () => {
     const expectedKey =
       "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
-
-    const commitOp = makeCommitOp(expectedKey, "cached-hash");
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(makeHorizonResponse([commitOp])), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    const actions = await mod.fetchOnChainActions("ACCT_B");
-
-    expect(actions).toHaveLength(1);
-    expect(actions[0]!.method).toBe("commit");
-    expect(actions[0]!.projectName).toBe("shared-app");
-    expect(actions[0]!.details.hash).toBe("cached-hash");
-  });
-
-  it("deduplicates multiple calls for the same account (cached promise)", async () => {
-    const records = [makeRegisterOp("myapp", "https://github.com/org/myapp")];
+    // Latest first: the commit, then the register it belongs to.
+    const records = [
+      makeCommitOp(expectedKey, "later-hash"),
+      makeRegisterOp("shared-app", "https://github.com/org/shared-app"),
+    ];
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify(makeHorizonResponse(records)), {
         status: 200,
@@ -235,105 +213,17 @@ describe("OnChainActivityService", () => {
       }),
     );
 
-    const [result1, result2] = await Promise.all([
-      mod.fetchOnChainActions("SAMEACCOUNT"),
-      mod.fetchOnChainActions("SAMEACCOUNT"),
+    const actions = await actionsOf("GTESTACCOUNT");
+    expect(actions.map((a) => [a.method, a.projectName])).toEqual([
+      ["commit", "shared-app"],
+      ["register", "shared-app"],
     ]);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result1).toEqual(result2);
   });
 
   it("throws on non-ok Horizon response", async () => {
     fetchMock.mockResolvedValue(
       new Response("Not Found", { status: 404, statusText: "Not Found" }),
     );
-    await expect(mod.fetchOnChainActions("BADACCOUNT")).rejects.toThrow(
-      "Horizon error 404",
-    );
-  });
-
-  it("seedProjectNameCache populates the name cache before fetch", async () => {
-    const seededKey =
-      "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
-    mod.seedProjectNameCache({ [seededKey]: "pre-seeded-project" });
-
-    const commitOp = makeCommitOp(seededKey, "seedhash");
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(makeHorizonResponse([commitOp])), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const actions = await mod.fetchOnChainActions("SEEDED_ACCOUNT");
-    expect(actions).toHaveLength(1);
-    expect(actions[0]!.projectName).toBe("pre-seeded-project");
-  });
-});
-
-describe("fetchOnChainActions caching", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-  let mod: typeof import("../../../src/service/OnChainActivityService");
-
-  beforeEach(async () => {
-    vi.resetModules();
-    vi.stubEnv("PUBLIC_HORIZON_URL", "https://horizon-testnet.stellar.org");
-    fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    mod = await import("../../../src/service/OnChainActivityService");
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
-
-  it("does not cache a failed fetch so the next call can retry", async () => {
-    fetchMock
-      .mockRejectedValueOnce(new Error("Horizon unreachable"))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ _embedded: { records: [] } }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
-    await expect(mod.fetchOnChainActions("RETRY_ACCOUNT")).rejects.toThrow(
-      "Horizon unreachable",
-    );
-
-    // A failed promise must be evicted, otherwise this would return the same
-    // rejected promise and the UI could never retry within the session.
-    await expect(mod.fetchOnChainActions("RETRY_ACCOUNT")).resolves.toEqual([]);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("refetches after the TTL window elapses", async () => {
-    vi.useFakeTimers();
-    try {
-      // Fresh Response per call: a Response body can only be read once.
-      fetchMock.mockImplementation(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ _embedded: { records: [] } }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await mod.fetchOnChainActions("TTL_ACCOUNT");
-      await mod.fetchOnChainActions("TTL_ACCOUNT");
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // After the TTL elapses a new call goes back to the network so recent
-      // on-chain activity can appear without reloading the page.
-      vi.advanceTimersByTime(60_001);
-      await mod.fetchOnChainActions("TTL_ACCOUNT");
-
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
+    await expect(actionsOf("BADACCOUNT")).rejects.toThrow("Horizon error 404");
   });
 });

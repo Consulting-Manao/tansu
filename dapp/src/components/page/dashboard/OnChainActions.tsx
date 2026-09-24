@@ -2,13 +2,13 @@
 // Renders the list of on-chain actions grouped by day. Uses the shared
 // CommitRecord component for individual rows.
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Spinner from "../../utils/Spinner";
 import {
-  fetchOnChainActions,
-  seedProjectNameCache,
+  activityQuery,
   type OnChainAction,
 } from "../../../service/OnChainActivityService";
+import { queryClient } from "../../../service/queryClient";
 import { formatDate } from "../../../utils/formatTimeFunctions";
 import { getStellarExpertUrl } from "../../../utils/urls";
 import CommitRecord from "../../CommitRecord";
@@ -22,33 +22,23 @@ import { proposalUrl } from "utils/urls";
 interface Props {
   /** Stellar address of the member we are displaying. */
   address: string;
-  /** Cache of projectKey(hex) → projectName obtained from membership info. */
-  projectCache: Record<string, string>;
+  /** Project names by hex key, for the calls whose name the list lacks. */
+  projectNames: Record<string, string>;
 }
 
-const OnChainActions: React.FC<Props> = ({ address, projectCache }) => {
-  const [actions, setActions] = useState<OnChainAction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      setLoadError(null);
-      try {
-        seedProjectNameCache(projectCache);
-        const data = await fetchOnChainActions(address);
-        setActions(data);
-      } catch (err) {
-        if (import.meta.env.DEV) {
-          console.error("Failed to load on-chain actions", err);
-        }
-        setLoadError("Could not load on-chain activity.");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, [address, JSON.stringify(projectCache)]);
+const OnChainActions: React.FC<Props> = ({ address, projectNames }) => {
+  const activity = useQuery(activityQuery(address), queryClient);
+  const actions = (activity.data ?? []).map((action) => ({
+    ...action,
+    projectName:
+      action.projectName ??
+      (action.projectKey && projectNames[action.projectKey]) ??
+      null,
+  }));
+  const isLoading = activity.isPending;
+  const loadError = activity.isError
+    ? "Could not load on-chain activity."
+    : null;
 
   // Group by calendar day (ISO key YYYY-MM-DD) for stable sorting
   const grouped = actions.reduce<Record<string, OnChainAction[]>>(

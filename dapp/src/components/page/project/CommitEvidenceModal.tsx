@@ -12,8 +12,8 @@
 import { useStore } from "@nanostores/react";
 import { useQueries } from "@tanstack/react-query";
 import {
-  getLatestCommitData,
-  getLatestCommitHash,
+  repoCommitQuery,
+  repoHeadQuery,
 } from "@service/RepositoryMetadataService";
 import { commitQuery } from "@service/ProjectService";
 import { evidenceQuery } from "@service/EvidenceService";
@@ -119,7 +119,9 @@ const CommitEvidenceModal = ({
     // Try to enrich with GitHub metadata
     if (!repositoryUrl) return;
     try {
-      const latestCommit = await getLatestCommitData(repositoryUrl, latestSha);
+      const latestCommit = await queryClient.query(
+        repoCommitQuery(repositoryUrl, latestSha),
+      );
       if (latestCommit) {
         setCommitData({
           sha: latestCommit.sha,
@@ -251,7 +253,9 @@ const CommitEvidenceModal = ({
     setIsEditing(true);
     if (repositoryUrl) {
       try {
-        const latestHash = await getLatestCommitHash(repositoryUrl);
+        const latestHash = await queryClient.query(
+          repoHeadQuery(repositoryUrl),
+        );
         if (latestHash) {
           setCommitHashValue(latestHash);
           setHashManuallyChanged(true);

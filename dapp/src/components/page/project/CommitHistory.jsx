@@ -1,8 +1,8 @@
 import { useStore } from "@nanostores/react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Markdown from "markdown-to-jsx";
-import { useEffect, useMemo, useState } from "react";
-import { getCommitHistory } from "../../../service/RepositoryMetadataService.ts";
+import { useMemo, useState } from "react";
+import { commitHistoryQuery } from "../../../service/RepositoryMetadataService.ts";
 import { commitQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
 import { isValidCid } from "../../../utils/contentHashes";
@@ -39,33 +39,22 @@ const CommitHistory = ({ project, config, isSoftware }) => {
     .map((name) => name.toLowerCase());
   const repositoryUrl = config.officials.githubLink || project.config.url;
 
-  const [commitHistory, setCommitHistory] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-
-  useEffect(() => {
-    if (!isSoftware) return;
-    if (!repositoryUrl) {
-      setLoadError("Project repository URL not available.");
-      setIsLoading(false);
-      return;
-    }
-    let active = true;
-    setLoadError(null);
-    setIsLoading(true);
-    getCommitHistory(repositoryUrl, currentPage)
-      .then((history) => active && setCommitHistory(history ?? []))
-      .catch(() => {
-        if (!active) return;
-        setLoadError("Could not load commit history.");
-        setCommitHistory([]);
-      })
-      .finally(() => active && setIsLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [isSoftware, repositoryUrl, currentPage]);
+  const historyRead = useQuery(
+    {
+      ...commitHistoryQuery(repositoryUrl, currentPage),
+      enabled: isSoftware && !!repositoryUrl,
+      placeholderData: keepPreviousData,
+    },
+    queryClient,
+  );
+  const commitHistory = historyRead.data ?? [];
+  const isLoading = historyRead.isLoading;
+  const loadError = !repositoryUrl
+    ? "Project repository URL not available."
+    : historyRead.isError
+      ? "Could not load commit history."
+      : null;
 
   return (
     <>
