@@ -6,6 +6,7 @@ import {
   Networks,
   Operation,
   TransactionBuilder,
+  nativeToScVal,
 } from "@stellar/stellar-sdk";
 import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
 
@@ -74,16 +75,26 @@ async function packFilesToCar(files) {
   };
 }
 
-function buildSignedTestTransaction(signer) {
+// The Tansu contract the worker checks uploads against (testnet by default).
+const TANSU_CONTRACT_ID =
+  process.env.TANSU_CONTRACT_ID ||
+  "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA";
+
+/** A signed Tansu call recording `cid`, as the dapp sends; never submitted. */
+function buildSignedTestTransaction(signer, cid) {
   const account = new Account(signer.publicKey(), "0");
   const transaction = new TransactionBuilder(account, {
     fee: "100",
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase: process.env.NETWORK_PASSPHRASE || Networks.TESTNET,
   })
     .addOperation(
-      Operation.manageData({
-        name: "ipfs-test",
-        value: "ok",
+      Operation.invokeContractFunction({
+        contract: TANSU_CONTRACT_ID,
+        function: "add_member",
+        args: [
+          nativeToScVal(signer.publicKey(), { type: "address" }),
+          nativeToScVal(cid, { type: "string" }),
+        ],
       }),
     )
     .setTimeout(60)
@@ -106,7 +117,7 @@ async function test() {
   const signer = process.env.TEST_SIGNER_SECRET
     ? Keypair.fromSecret(process.env.TEST_SIGNER_SECRET)
     : Keypair.random();
-  const signedTxXdr = buildSignedTestTransaction(signer);
+  const signedTxXdr = buildSignedTestTransaction(signer, cid);
 
   try {
     const res = await fetch(WORKER_URL, {

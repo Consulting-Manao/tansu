@@ -26,11 +26,12 @@ A request carries one proof: `signedTxXdr`, or `txHash` in its place.
 
 The worker verifies the upload request by:
 
-- for `signedTxXdr`, it verifies the Stellar transaction signature of the
-  source account and checks the transaction has at least one operation
+- for `signedTxXdr`, it checks the envelope is for `NETWORK_PASSPHRASE`, is
+  signed by its source account, expires within the hour, and calls the
+  `TANSU_CONTRACT_ID` contract with `cid` as an argument
 - for `txHash`, it fetches the transaction from Soroban RPC, checks it
-  succeeded, and checks a contract call in it takes `cid` as an argument
-- it recalculates the root CID from the uploaded CAR and checks it matches
+  succeeded, and checks it calls `TANSU_CONTRACT_ID` with `cid` as an argument
+- it checks the CAR (at most 50 MB) has exactly one root, equal to `cid`
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
 
@@ -61,11 +62,14 @@ ENABLE_PINATA_PINNING=false
 PINATA_JWT=<optional_pinata_jwt>
 PINATA_GROUP_ID=<optional_pinata_group_id>
 SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+TANSU_CONTRACT_ID=CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
 ```
 
-`SOROBAN_RPC_URL` is a plain variable, not a secret: `wrangler.toml` sets it for
-the testnet environment. Production leaves it unset until Nido supports
-mainnet.
+`NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID` and `SOROBAN_RPC_URL` are plain
+variables, not secrets: `wrangler.toml` sets them per environment, the contract
+ids from `.stellar/tansu_id-*`. Production leaves `SOROBAN_RPC_URL` unset until
+Nido supports mainnet.
 
 ### Start the Worker
 
@@ -77,22 +81,24 @@ bun run dev
 
 ### Test the Worker
 
-In another terminal:
+The checks, with Vitest:
 
 ```bash
 cd dapp/workers/ipfs-delegation
 bun run test
 ```
 
-Or against deployed environments (see next section):
+An upload, in another terminal while the worker runs, or against deployed
+environments (see next section):
 
 ```bash
-ENV=DEV bun run test  # Use testnet environment
-ENV=PROD bun run test # Use production environment
+bun run test:upload
+ENV=DEV bun run test:upload  # Use testnet environment
+ENV=PROD bun run test:upload # Use production environment
 ```
 
-The test script generates a CAR, signs a local Stellar test transaction, and
-submits the same JSON payload the dapp sends. A successful local test confirms
+The upload script generates a CAR, signs a Tansu call recording its CID (never
+submitted), and sends the same JSON payload the dapp sends. A successful local test confirms
 the blocking Filebase upload path. When Pinata pinning is enabled, that step
 runs asynchronously after the response is returned.
 

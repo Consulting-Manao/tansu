@@ -8,14 +8,22 @@ compatibility_flags = ["nodejs_compat"]
 pattern = "ipfs-testnet.tansu.dev"
 custom_domain = true
 
-# Checks txHash proofs from smart-account wallets (Nido, testnet only).
 [env.testnet.vars]
+NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+# Uploads must record their CID with this contract (.stellar/tansu_id-testnet).
+TANSU_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
+# Checks txHash proofs from smart-account wallets (Nido, testnet only).
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 
 [env.production]
 [[env.production.routes]]
 pattern = "ipfs.tansu.dev"
 custom_domain = true
+
+[env.production.vars]
+NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
+# Uploads must record their CID with this contract (.stellar/tansu_id-mainnet).
+TANSU_CONTRACT_ID = "CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI"
 
 [observability]
 enabled = true

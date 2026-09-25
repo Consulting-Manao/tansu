@@ -5,18 +5,20 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev --port 8787",
-    "test": "bun test-upload.js",
+    "test": "vitest run",
     "deploy:testnet": "wrangler deploy --env testnet",
-    "deploy:production": "wrangler deploy --env production"
+    "deploy:production": "wrangler deploy --env production",
+    "test:upload": "bun test-upload.js"
   },
   "dependencies": {
     "@ipld/car": "^5.4.7",
-    "@stellar/stellar-sdk": "^16.2.0",
+    "@stellar/stellar-sdk": "^17.1.0",
     "ipfs-car": "^3.1.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260924.1",
     "typescript": "^7.0.2",
+    "vitest": "^5",
     "wrangler": "^4.138.0"
   },
   "type": "module"
