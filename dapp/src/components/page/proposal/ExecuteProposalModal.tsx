@@ -19,13 +19,16 @@ import {
   computeAnonymousVotingData,
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
-import type { DecodedVote } from "utils/anonymousVoting";
+import type { DecodedVote, InvalidBallot } from "utils/anonymousVoting";
 import { projectQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import { connectedPublicKey } from "utils/store";
 import classNames from "classnames";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
+import InvalidBallots from "./InvalidBallots";
 import { proposalUrl } from "utils/urls";
+import { isNoCall } from "@service/ContractIntrospectionService";
+import { OUTCOMES } from "utils/proposalOutcomes";
 
 interface ExecuteProposalModalProps extends ModalProps {
   projectName: string;
@@ -61,7 +64,10 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const [proofErrorMessage, setProofErrorMessage] = useState<string | null>(
     null,
   );
-  const [_privateKey, setPrivateKey] = useState<string>("");
+  const [privateKey, setPrivateKey] = useState<string>("");
+  const [invalid, setInvalid] = useState<InvalidBallot[]>([]);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // Local vote status that may be updated once we compute tallies for
   // anonymous proposals.
@@ -89,23 +95,12 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
 
   const executionXdr = useMemo(() => {
     if (!outcome || !computedResult) return null;
-
-    // Check if we have contract outcomes (takes precedence)
-    if (proposal?.outcome_contracts && proposal.outcome_contracts.length > 0) {
-      return null; // Contract execution handled by smart contract
-    }
-
-    // Fall back to XDR execution
-    switch (computedResult) {
-      case VoteResultType.APPROVE:
-        return outcome.approved?.xdr || null;
-      case VoteResultType.REJECT:
-        return outcome.rejected?.xdr || null;
-      case VoteResultType.CANCEL:
-        return outcome.cancelled?.xdr || null;
-      default:
-        return null;
-    }
+    // A call in the winning outcome's slot runs on-chain; otherwise its
+    // transaction is shown for the maintainer to submit.
+    const call =
+      proposal?.outcome_contracts?.[OUTCOMES.indexOf(computedResult)];
+    if (call && !isNoCall(call)) return null;
+    return outcome[computedResult]?.xdr || null;
   }, [outcome, computedResult, proposal?.outcome_contracts]);
 
   useEffect(() => {
@@ -151,6 +146,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       setSeeds(data.seeds);
       setDisplayVoteStatus(data.voteStatus);
       setDecodedVotes(data.decodedVotes);
+      setInvalid(data.invalid);
       setProofOk(data.proofOk ?? null);
       setProofErrorMessage(data.proofErrorMessage ?? null);
       setProcessingError(null);
@@ -176,6 +172,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       return;
     }
 
+    setIsExecuting(true);
     try {
       const { executeProposal } = await import("@service/ProposalService");
       await executeProposal(
@@ -186,8 +183,24 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       );
       setStep(step + 1);
     } catch (error: any) {
+      // The decrypted tallies stay, for another try.
       toast.error("Execute Proposal", error.message);
-      onClose();
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  /** Remove a ballot that cannot count, then count again. */
+  const removeInvalid = async (address: string) => {
+    setRemoving(address);
+    try {
+      const { removeVote } = await import("@service/ProposalService");
+      await removeVote(projectName, proposalId!, address);
+      await computeTallies(privateKey);
+    } catch (error: any) {
+      toast.error("Remove Vote", error.message);
+    } finally {
+      setRemoving(null);
     }
   };
 
@@ -291,6 +304,12 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                   "-",
                 )}-proposal-${proposalId}-decoded-votes`}
               />
+
+              <InvalidBallots
+                invalid={invalid}
+                removing={removing}
+                onRemove={removeInvalid}
+              />
             </div>
           </div>
 
@@ -298,7 +317,12 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             <Button type="secondary" onClick={() => setStep(step - 1)}>
               Back
             </Button>
-            <Button onClick={() => setStep(3)}>Next</Button>
+            <Button
+              disabled={invalid.length > 0 || proofOk === false}
+              onClick={() => setStep(3)}
+            >
+              Next
+            </Button>
           </div>
         </div>
       ) : step === 1 ? (
@@ -374,6 +398,8 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               Back
             </Button>
             <Button
+              isLoading={isExecuting}
+              disabled={isExecuting}
               onClick={async () => {
                 if (!isMaintainer) {
                   toast.error(

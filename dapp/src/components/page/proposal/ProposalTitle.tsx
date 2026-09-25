@@ -107,7 +107,8 @@ const ProposalTitle: React.FC<Props> = ({
                     onClick={openVotingResultModal}
                   />
                 ) : isAnonymousProposal ? (
-                  isMaintainer ? (
+                  // Revealing the votes waits for the vote to end.
+                  isMaintainer && proposal?.status !== "active" ? (
                     <Button
                       type="secondary"
                       size="2xs"
@@ -163,8 +164,10 @@ const ProposalTitle: React.FC<Props> = ({
                       </Button>
                     )}
                 </div>
-                {proposal?.status == "active" && (
+                {(proposal?.status == "active" ||
+                  proposal?.status == "voted") && (
                   <div className="flex gap-3">
+                    {/* Votes can be removed until the proposal is executed. */}
                     {isMaintainer && (
                       <Button
                         size="sm"
@@ -175,13 +178,15 @@ const ProposalTitle: React.FC<Props> = ({
                         Remove Vote
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      type="secondary"
-                      onClick={() => setShowConflictModal(true)}
-                    >
-                      Conflict of Interest
-                    </Button>
+                    {proposal?.status == "active" && (
+                      <Button
+                        size="sm"
+                        type="secondary"
+                        onClick={() => setShowConflictModal(true)}
+                      >
+                        Conflict of Interest
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

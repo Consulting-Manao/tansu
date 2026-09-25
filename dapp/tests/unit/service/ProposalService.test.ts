@@ -23,6 +23,7 @@ import {
 } from "../../../src/service/ProposalService";
 import type { Proposal, OutcomeContract } from "../../../src/types/proposal";
 import { queryClient } from "../../../src/service/queryClient";
+import { NO_CALL } from "../../../src/service/ContractIntrospectionService";
 
 // Every test reads its own files.
 beforeEach(() => queryClient.clear());
@@ -186,21 +187,18 @@ describe("fetchProposalOutcomeData", () => {
     expect(result.cancelled?.description).toBe("Contract execution: pause");
   });
 
-  it("skips outcome_contracts with null/empty address", async () => {
+  it("hides the call that fills an empty slot", async () => {
     mockReadIpfs.mockResolvedValue(outcomesFile({}));
+    const cancelled = makeContract({ address: "C...cancelled" });
     const proposal = makeProposal({
-      ipfs: "",
-      outcome_contracts: [
-        null as any,
-        { address: "", execute_fn: "", args: [] },
-        undefined as any,
-      ] as any,
+      ipfs: "bafyabc123",
+      outcome_contracts: [NO_CALL, NO_CALL, cancelled],
     });
 
     const result = await fetchProposalOutcomeData(proposal);
     expect(result.approved).toBeUndefined();
     expect(result.rejected).toBeUndefined();
-    expect(result.cancelled).toBeUndefined();
+    expect(result.cancelled?.contract?.address).toBe("C...cancelled");
   });
 
   it("IPFS fetch failure does not block contract data", async () => {
@@ -274,7 +272,14 @@ describe("fetchProposalOutcomeData", () => {
         },
       }),
     );
-    const proposal = makeProposal({ ipfs: "bafyabc123" });
+    const approved = makeContract({
+      address: "C...tree-approved",
+      execute_fn: "mint",
+    });
+    const proposal = makeProposal({
+      ipfs: "bafyabc123",
+      outcome_contracts: [approved],
+    });
     const result = await fetchProposalOutcomeData(proposal);
 
     expect(result.approved?.description).toBe("Approved tree");
@@ -284,6 +289,23 @@ describe("fetchProposalOutcomeData", () => {
     expect(result.rejected?.xdr).toBe("AAAAAX...");
     expect(result.cancelled?.description).toBe("Cancelled tree");
     expect(result.cancelled?.xdr).toBeUndefined();
+  });
+
+  it("shows no call that only outcomes.json names: it never runs", async () => {
+    mockReadIpfs.mockResolvedValue(
+      outcomesFile({
+        outcomes: {
+          approved: {
+            description: "Off chain",
+            execution: { type: "contract", contract: makeContract() },
+          },
+        },
+      }),
+    );
+    const result = await fetchProposalOutcomeData(
+      makeProposal({ ipfs: "bafyabc123" }),
+    );
+    expect(result.approved).toEqual({ description: "Off chain" });
   });
 });
 

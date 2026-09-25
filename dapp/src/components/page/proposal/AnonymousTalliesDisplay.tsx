@@ -85,47 +85,29 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                     <th className="p-2">Address</th>
                     <th>Vote</th>
                     <th>Weight</th>
-                    <th>Weights (A/R/Abs)</th>
-                    <th>Max</th>
+                    <th>Votes (A/R/Abs)</th>
                     <th>Seeds (A/R/Abs)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {decodedVotes.map((v, i) => {
-                    const maxWeight = Number(v.maxWeight);
-                    const exceedsMaxWeight =
-                      Number.isFinite(maxWeight) && v.weight > maxWeight;
-
-                    // Check if multiple outcome weights are non-zero (problematic vote)
-                    const nonZeroWeightCount = v.outcomeWeights.filter(
-                      (w) => w > 0,
-                    ).length;
-                    const hasMultipleNonZeroWeights = nonZeroWeightCount > 1;
-
-                    return (
-                      <tr
-                        key={i}
-                        className={`odd:bg-white even:bg-zinc-50 ${
-                          exceedsMaxWeight || hasMultipleNonZeroWeights
-                            ? "!bg-yellow-100"
-                            : ""
-                        }`}
-                      >
-                        <td className="p-1">
-                          <AddressDisplay address={v.address} />
-                        </td>
-                        <td className="p-1">{v.vote}</td>
-                        <td className="p-1 font-mono">{v.weight}</td>
-                        <td className="p-1 font-mono">
-                          {v.outcomeWeights.join("/")}
-                        </td>
-                        <td className="p-1">{v.maxWeight}</td>
-                        <td className="p-1 font-mono">
-                          {v.outcomeSeeds.join("/")}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {decodedVotes.map((v) => (
+                    <tr
+                      key={v.address}
+                      className="odd:bg-white even:bg-zinc-50"
+                    >
+                      <td className="p-1">
+                        <AddressDisplay address={v.address} />
+                      </td>
+                      <td className="p-1">{v.vote}</td>
+                      <td className="p-1 font-mono">{v.weight}</td>
+                      <td className="p-1 font-mono">
+                        {v.outcomeWeights.join("/")}
+                      </td>
+                      <td className="p-1 font-mono">
+                        {v.outcomeSeeds.join("/")}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -15,7 +15,6 @@ interface VotersModalProps extends ModalProps {
   proposalId: number | undefined;
   proposalTitle: string | undefined;
   isVoted?: boolean;
-  onVoteSuccess?: () => void;
   onClose: () => void;
 }
 
@@ -24,7 +23,6 @@ const VotingModal: React.FC<VotersModalProps> = ({
   proposalId,
   proposalTitle,
   isVoted,
-  onVoteSuccess,
   onClose,
 }) => {
   const [selectedOption, setSelectedOption] = useState<VoteType | null>(null);
@@ -38,6 +36,10 @@ const VotingModal: React.FC<VotersModalProps> = ({
     import("types/proposal").VoteReceipt | null
   >(null);
   const isInsufficientVotingPower = maxWeight <= 0;
+  // Closing while the vote lands would lose its receipt.
+  const close = () => {
+    if (!isLoading) onClose();
+  };
 
   const insufficientPowerMessage = isTokenVoting
     ? "You don't have any balance of the voting token to cast a vote."
@@ -131,12 +133,10 @@ const VotingModal: React.FC<VotersModalProps> = ({
       );
 
       setVoteReceipt(receipt);
-      onVoteSuccess?.();
       toast.success(
         "Congratulations!",
         "Your vote was submitted successfully.",
       );
-      // We do not close the modal here, we show the receipt instead
     } catch (error: any) {
       setVoteError(
         `Failed to cast vote: ${
@@ -221,7 +221,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
 
                 <div className="mt-2">
                   <span className="font-semibold block mb-1">
-                    Encrypted Votes (Approve, Reject, Abstain):
+                    Votes (Approve, Reject, Abstain):
                   </span>
                   <div className="flex flex-col gap-1">
                     {voteReceipt.votes?.map((v, i) => (
@@ -237,7 +237,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
 
                 <div className="mt-2">
                   <span className="font-semibold block mb-1">
-                    Cryptographic Seeds:
+                    Seeds (Approve, Reject, Abstain):
                   </span>
                   <div className="flex flex-col gap-1">
                     {voteReceipt.seeds?.map((s, i) => (
@@ -280,7 +280,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={close}>
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-9">
         <img
           src="/images/box-with-coin-outside.svg"
@@ -368,7 +368,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
           </div>
           <div className="flex flex-col items-end gap-4">
             <div className="flex gap-3">
-              <Button type="secondary" onClick={onClose}>
+              <Button type="secondary" onClick={close} disabled={isLoading}>
                 Close
               </Button>
               <Button

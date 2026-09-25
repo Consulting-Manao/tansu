@@ -4,11 +4,17 @@
  * starts from and to check what the flow left on-chain. Uploads go through
  * the real IPFS worker, with the signed envelope as proof, as the dapp does.
  */
-import { Keypair, contract } from "@stellar/stellar-sdk";
+import {
+  Keypair,
+  contract,
+  scValToNative,
+  type xdr,
+} from "@stellar/stellar-sdk";
 import {
   Client,
   type Badge,
   type OutcomeContract,
+  type Vote,
 } from "../../packages/tansu/src/index.ts";
 import { packFilesToCar } from "../../src/utils/ipfsFunctions.ts";
 import { deriveProjectKey } from "../../src/utils/projectKey.ts";
@@ -177,13 +183,16 @@ export async function setBadges(
   await land(tx);
 }
 
-/** Open a public proposal ending in `endsIn` seconds; returns its id. */
+/** Open a proposal ending in `endsIn` seconds; returns its id. */
 export async function createProposal(
   proposer: Keypair,
   name: string,
   title: string,
   endsIn: number,
-  outcomeContracts?: OutcomeContract[],
+  {
+    outcomeContracts,
+    publicVoting = true,
+  }: { outcomeContracts?: OutcomeContract[]; publicVoting?: boolean } = {},
 ): Promise<number> {
   const pack = await packFilesToCar([
     new File([`# ${title}\n\nSet up by the e2e flows.`], "proposal.md"),
@@ -194,7 +203,7 @@ export async function createProposal(
     title,
     ipfs: pack.cid,
     voting_ends_at: BigInt(Math.floor(Date.now() / 1000) + endsIn),
-    public_voting: true,
+    public_voting: publicVoting,
     token_contract: undefined,
     outcome_contracts: outcomeContracts,
   });
@@ -209,6 +218,22 @@ export async function createProposal(
   }
   if (id < 0) throw new Error(`proposal "${title}" not found`);
   return id;
+}
+
+/** Cast `vote` straight to the contract, as no dapp would. */
+export async function castVote(
+  voter: Keypair,
+  name: string,
+  id: number,
+  vote: Vote,
+) {
+  const tx = await tansu(voter).vote({
+    voter: voter.publicKey(),
+    project_key: projectKey(name),
+    proposal_id: id,
+    vote,
+  });
+  await land(tx);
 }
 
 export const read = {
@@ -227,4 +252,39 @@ export const read = {
     (await tansu().get_badges({ key: projectKey(name) })).result,
   commit: async (name: string) =>
     (await tansu().get_commit({ project_key: projectKey(name) })).result,
+  anonymousConfig: async (name: string) =>
+    (
+      await tansu().get_anonymous_voting_config({
+        project_key: projectKey(name),
+      })
+    ).result,
+  /** The commitments to anonymous `votes` and `seeds`, as the dapp builds them. */
+  commitments: async (name: string, votes: bigint[], seeds: bigint[]) =>
+    (
+      await tansu().build_commitments_from_votes({
+        project_key: projectKey(name),
+        votes,
+        seeds,
+      })
+    ).result,
+  /**
+   * A proposal's outcome calls with their arguments as stored: the bindings
+   * decode `Val` arguments to plain values, which hides their ScVal types.
+   */
+  outcomeCalls: async (name: string, id: number) => {
+    const tx = await tansu().get_proposal({
+      project_key: projectKey(name),
+      proposal_id: id,
+    });
+    const field = (value: xdr.ScVal, key: string) =>
+      (value as any).map.find(
+        (entry: { key: xdr.ScVal }) => scValToNative(entry.key) === key,
+      )?.val as xdr.ScVal;
+    const calls = field(tx.simulationData.result.retval, "outcome_contracts");
+    return ((calls as any).vec ?? []).map((call: xdr.ScVal) => ({
+      address: scValToNative(field(call, "address")) as string,
+      execute_fn: scValToNative(field(call, "execute_fn")) as string,
+      args: (field(call, "args") as any).vec as xdr.ScVal[],
+    }));
+  },
 };

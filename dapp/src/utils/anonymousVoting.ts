@@ -1,82 +1,148 @@
-// Utility helpers to handle Soroban Tansu anonymous voting flows
-// Centralizes and deduplicates logic that was previously embedded in several UI components.
-//
-// All heavy lifting (fetching proposal, decrypting votes, computing tallies/seeds and optional proof)
-// is done in this single module so UI components can remain lean.
-
-import { deriveProjectKey } from "./projectKey";
+/**
+ * Anonymous votes, as a maintainer reveals them with the project's key: each
+ * ballot decrypted and checked, and the valid ones summed into the tallies
+ * and seeds `execute` proves against the commitments on chain.
+ */
+import { Buffer } from "buffer";
+import type { AnonymousVote } from "../../packages/tansu";
+import { tansuReads } from "../contracts/soroban_tansu";
 import type { VoteStatus } from "types/proposal";
 import { VoteType } from "types/proposal";
-import { decryptWithPrivateKey } from "utils/crypto";
-import { errorMessage } from "utils/contractErrors";
-import { Badge } from "../../packages/tansu/dist";
-// Lazy-loaded imports to avoid circular dependency issues in Astro/SSR
-async function getTansu() {
-  const mod = await import("../contracts/soroban_tansu");
-  return mod.tansuReads;
+import { readResult } from "./contractErrors";
+import { decryptWithPrivateKey } from "./crypto";
+import { deriveProjectKey } from "./projectKey";
+
+/**
+ * The widest seeds the contract's u128 sums allow: 40 votes, each seed
+ * multiplied by a u32 weight, stay below 2^128.
+ */
+const SEED_BITS = 90;
+
+/** A random seed of `SEED_BITS` bits, to blind one value of a ballot. */
+export function randomSeed(): bigint {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return bytes.reduce((n, byte) => (n << 8n) | BigInt(byte), 0n) >> 6n;
 }
 
-// Helper to derive the project_key (32-byte buffer)
-// re-export local helper for consistency
 /**
- * Validate that an uploaded key-file (optionally containing a publicKey)
- * matches the project's anonymous voting configuration. Throws a helpful
- * error if the project's config is missing or the key mismatches.
+ * Check that a key file is this project's: throws when the project has no
+ * anonymous voting or another key.
  */
 export async function validateAnonymousKeyForProject(
   projectName: string,
   uploadedPublicKey?: string,
 ): Promise<void> {
-  const Tansu = await getTansu();
-  const project_key = deriveProjectKey(projectName);
-  try {
-    const { result: cfg } = await Tansu.get_anonymous_voting_config({
-      project_key,
-    });
-    if (uploadedPublicKey && uploadedPublicKey !== cfg.public_key) {
-      throw new Error(
-        "Key file does not match this project's anonymous voting key",
-      );
-    }
-  } catch (e: any) {
-    if (e?.message?.includes("NoAnonymousVotingConfig")) {
-      throw new Error("Anonymous voting is not configured for this project", {
-        cause: e,
-      });
-    }
-    // Swallow transient/network errors here so callers can proceed to decryption
+  const config = readResult(
+    await tansuReads.get_anonymous_voting_config({
+      project_key: deriveProjectKey(projectName),
+    }),
+    303,
+  );
+  if (!config) {
+    throw new Error("Anonymous voting is not configured for this project");
+  }
+  if (uploadedPublicKey && uploadedPublicKey !== config.public_key) {
+    throw new Error(
+      "Key file does not match this project's anonymous voting key",
+    );
   }
 }
 
 export interface DecodedVote {
   address: string;
   vote: "approve" | "reject" | "abstain";
-  seed: number;
   weight: number;
-  maxWeight: number | string;
-  // All outcome weights and seeds (for detecting problematic votes)
-  outcomeWeights: [number, number, number]; // [approve, reject, abstain]
-  outcomeSeeds: [number, number, number]; // [approve, reject, abstain]
+  /** The ballot's values and seeds, per choice (approve, reject, abstain). */
+  outcomeWeights: bigint[];
+  outcomeSeeds: bigint[];
+}
+
+/** A ballot that cannot count, and why: it must be removed to execute. */
+export interface InvalidBallot {
+  address: string;
+  reason: string;
 }
 
 export interface AnonymousVotingData {
-  tallies: bigint[]; // length 3: approve/reject/abstain – weighted
-  seeds: bigint[]; // length 3 – sum of seeds per choice
-  voteCounts: number[]; // length 3 – un-weighted counts (needed for proof)
+  /** Weighted sums per choice (approve, reject, abstain), valid ballots only. */
+  tallies: bigint[];
+  seeds: bigint[];
   voteStatus: VoteStatus;
   decodedVotes: DecodedVote[];
-  proofOk?: boolean | null; // undefined if verifyProof == false
-  proofErrorMessage?: string | null; // contract error when proof fails
+  invalid: InvalidBallot[];
+  proofOk?: boolean | null;
+  proofErrorMessage?: string | null;
 }
 
-// Regex helper reused across components
-const isPlainNumber = (s: string | undefined) => !!s && /^\d+$/.test(s);
+/** A value as stored: in the clear (the proposer's own ballot) or encrypted. */
+async function reveal(
+  stored: string,
+  prefix: string,
+  privateKey: string,
+): Promise<bigint> {
+  if (/^\d+$/.test(stored)) return BigInt(stored);
+  const text = await decryptWithPrivateKey(stored, privateKey);
+  // Each value is bound to its voter, project and proposal.
+  if (!text.startsWith(`${prefix}:`)) {
+    throw new Error("it was encrypted for another voter or proposal");
+  }
+  const value = text.slice(prefix.length + 1);
+  if (!/^\d+$/.test(value)) throw new Error("it holds no number");
+  return BigInt(value);
+}
+
+/** A ballot's values and seeds, or why it cannot count. */
+async function checkBallot(
+  ballot: AnonymousVote,
+  prefix: string,
+  privateKey: string,
+  projectKey: Buffer,
+): Promise<{ votes: bigint[]; seeds: bigint[] } | { reason: string }> {
+  let votes: bigint[];
+  let seeds: bigint[];
+  try {
+    votes = await Promise.all(
+      ballot.encrypted_votes.map((v) => reveal(v, prefix, privateKey)),
+    );
+    seeds = await Promise.all(
+      ballot.encrypted_seeds.map((s) => reveal(s, prefix, privateKey)),
+    );
+  } catch (error: any) {
+    return {
+      reason: `It cannot be read with this key: ${error?.message ?? error}`,
+    };
+  }
+  if (
+    votes.length !== 3 ||
+    seeds.length !== 3 ||
+    votes.some((v) => v !== 0n && v !== 1n) ||
+    votes.reduce((sum, v) => sum + v, 0n) !== 1n
+  ) {
+    return { reason: "It does not choose exactly one option." };
+  }
+  if (seeds.some((s) => s >= 1n << BigInt(SEED_BITS))) {
+    return { reason: "Its seeds are out of range." };
+  }
+  // The ballot must be what the voter committed to on chain.
+  const commitments = readResult(
+    await tansuReads.build_commitments_from_votes({
+      project_key: projectKey,
+      votes,
+      seeds,
+    }),
+  );
+  const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
+  if (commitments.map(hex).join() !== ballot.commitments.map(hex).join()) {
+    return { reason: "It does not match its commitments on chain." };
+  }
+  return { votes, seeds };
+}
+
+const CHOICES = ["approve", "reject", "abstain"] as const;
 
 /**
- * Compute anonymous voting tallies (and optionally verify the commitment proof).
- *
- * The heuristic reproduced here was duplicated across several UI components.
- * Consolidating it provides a single source of truth and eases maintenance.
+ * Reveal a proposal's anonymous votes with the project's private key, and
+ * optionally check the contract's proof over the tallies.
  */
 export async function computeAnonymousVotingData(
   projectName: string,
@@ -84,202 +150,89 @@ export async function computeAnonymousVotingData(
   privateKey: string,
   verifyProof = false,
 ): Promise<AnonymousVotingData> {
-  const Tansu = await getTansu();
-  const project_key = deriveProjectKey(projectName);
+  const projectKey = deriveProjectKey(projectName);
+  const proposal = readResult(
+    await tansuReads.get_proposal({
+      project_key: projectKey,
+      proposal_id: proposalId,
+    }),
+  );
 
-  // Fetch proposal with votes
-  const { result: rawProposal } = await Tansu.get_proposal({
-    project_key,
-    proposal_id: Number(proposalId),
-  });
-  const votes: any[] = rawProposal?.vote_data?.votes ?? [];
+  const tallies = [0n, 0n, 0n];
+  const seedSums = [0n, 0n, 0n];
+  const decodedVotes: DecodedVote[] = [];
+  const invalid: InvalidBallot[] = [];
 
-  // Extract proposer address (normalize to string for comparison)
-  const proposerRaw = rawProposal?.proposer as unknown;
-  const proposerAddr: string = (() => {
-    if (typeof proposerRaw === "string") return proposerRaw;
-    if (proposerRaw && typeof proposerRaw === "object") {
-      const proposerObj = proposerRaw as { address?: string; value?: string };
-      return proposerObj.address ?? proposerObj.value ?? "";
+  for (const vote of proposal.vote_data.votes) {
+    if (vote.tag !== "AnonymousVote") continue;
+    const [ballot] = vote.values;
+    const prefix = `${ballot.address}:${projectName}:${proposalId}`;
+    const checked = await checkBallot(ballot, prefix, privateKey, projectKey);
+    if ("reason" in checked) {
+      invalid.push({ address: ballot.address, reason: checked.reason });
+      continue;
     }
-    return "";
-  })();
-
-  // Normalize vote to { tag, data } (SDK may return [tag, data] or { tag, values: [data] })
-  function getVoteTagAndData(vote: any): { tag: string; data: any } {
-    if (!vote) return { tag: "", data: null };
-    if (Array.isArray(vote) && vote.length >= 2)
-      return { tag: String(vote[0]), data: vote[1] ?? null };
-    return {
-      tag: vote.tag ?? "",
-      data: vote.values?.[0] ?? vote.data ?? null,
-    };
-  }
-
-  // Init accumulators (BigInt to avoid precision loss for u128 values)
-  const talliesArr: bigint[] = [0n, 0n, 0n];
-  const seedsArr: bigint[] = [0n, 0n, 0n];
-  const voteCounts = [0, 0, 0];
-  const decodedPerVoter: DecodedVote[] = [];
-
-  for (const vote of votes) {
-    const { tag, data } = getVoteTagAndData(vote);
-    if (tag !== "AnonymousVote" || !data) continue;
-
-    const encryptedVotes: string[] =
-      (data as { encrypted_votes?: string[] }).encrypted_votes ?? [];
-    const encryptedSeeds: string[] =
-      (data as { encrypted_seeds?: string[] }).encrypted_seeds ?? [];
-
-    let voteChoiceIdx = -1;
-    let selectedSeedRaw = 0;
-    // Retrieve member address (may be Address object)
-    const addrRaw = (data as { address?: string | { address?: string } })
-      .address;
-    const memberAddr: string =
-      typeof addrRaw === "string"
-        ? addrRaw
-        : ((addrRaw && typeof addrRaw === "object" && "address" in addrRaw
-            ? (addrRaw as { address?: string }).address
-            : "") ?? "");
-
-    let weight: number;
-    let maxWeight: number | string;
-
-    if (memberAddr === proposerAddr) {
-      weight = Number((data as { weight?: number }).weight ?? Badge.Verified);
-      maxWeight = "N/A";
-    } else {
-      // Normal voter – use weight from contract
-      weight = Number((data as { weight?: number }).weight ?? Badge.Default);
-      maxWeight = Badge.Default;
-      try {
-        const maxRes = await Tansu.get_max_weight({
-          project_key,
-          member_address: memberAddr,
-        });
-        if (maxRes && typeof maxRes === "object" && "result" in maxRes) {
-          maxWeight = Number(maxRes.result) || Badge.Default;
-        }
-      } catch (_) {
-        /* ignore – default Badge.Default */
-      }
-    }
-
-    // Capture all outcome weights and seeds for this voter
-    const outcomeWeights: [number, number, number] = [0, 0, 0];
-    const outcomeSeeds: [number, number, number] = [0, 0, 0];
-
-    // Process each choice
-    for (let i = 0; i < 3; i++) {
-      if (i >= encryptedVotes.length || i >= encryptedSeeds.length) continue;
-      const vCipher = encryptedVotes[i];
-      const sCipher = encryptedSeeds[i];
-      if (!vCipher || !sCipher) continue;
-
-      // Decrypt (or parse plain numbers for default votes)
-      const vDec = isPlainNumber(vCipher)
-        ? parseInt(vCipher)
-        : parseInt(
-            (await decryptWithPrivateKey(vCipher, privateKey))
-              .split(":")
-              .pop()!,
-          );
-      const sDec = isPlainNumber(sCipher)
-        ? parseInt(sCipher)
-        : parseInt(
-            (await decryptWithPrivateKey(sCipher, privateKey))
-              .split(":")
-              .pop()!,
-          );
-
-      // Store all outcome weights and seeds
-      outcomeWeights[i] = vDec;
-      outcomeSeeds[i] = sDec;
-
-      if (vDec > 0) voteChoiceIdx = i;
-      if (vDec > 0) selectedSeedRaw = sDec; // capture per-voter unweighted seed for display
-
-      // Apply voting weight to both vote value and seed (BigInt for exact u128)
-      talliesArr[i]! += BigInt(vDec) * BigInt(weight);
-      seedsArr[i]! += BigInt(sDec) * BigInt(weight);
-      if (vDec > 0) voteCounts[i]! += 1;
-    }
-
-    decodedPerVoter.push({
-      address: memberAddr,
-      vote:
-        voteChoiceIdx === 0
-          ? "approve"
-          : voteChoiceIdx === 1
-            ? "reject"
-            : "abstain",
-      // Show the voter's own seed (unweighted) to avoid confusion with
-      // aggregated, weighted seed tallies used for on-chain proof
-      seed: selectedSeedRaw,
-      weight,
-      maxWeight,
-      outcomeWeights,
-      outcomeSeeds,
+    const weight = BigInt(ballot.weight);
+    checked.votes.forEach((v, i) => {
+      tallies[i]! += v * weight;
+      seedSums[i]! += checked.seeds[i]! * weight;
+    });
+    decodedVotes.push({
+      address: ballot.address,
+      vote: CHOICES[checked.votes.indexOf(1n)]!,
+      weight: ballot.weight,
+      outcomeWeights: checked.votes,
+      outcomeSeeds: checked.seeds,
     });
   }
 
-  if (decodedPerVoter.length === 0) {
-    throw new Error("Key file does not match any encrypted votes");
+  if (!decodedVotes.length && !invalid.length) {
+    throw new Error("This proposal has no anonymous votes");
   }
 
-  // Build VoteStatus object used by UI components (Number for display only)
   const voteStatus: VoteStatus = {
     approve: {
       voteType: VoteType.APPROVE,
-      score: Number(talliesArr[0]),
+      score: Number(tallies[0]),
       voters: [],
     },
     reject: {
       voteType: VoteType.REJECT,
-      score: Number(talliesArr[1]),
+      score: Number(tallies[1]),
       voters: [],
     },
     abstain: {
       voteType: VoteType.CANCEL,
-      score: Number(talliesArr[2]),
+      score: Number(tallies[2]),
       voters: [],
     },
   };
-
-  let proofOk: boolean | null = null;
-  let proofErrorMessage: string | null = null;
-  if (verifyProof) {
-    try {
-      const proofRes = await Tansu.proof({
-        project_key,
-        proposal: rawProposal,
-        tallies: talliesArr,
-        seeds: seedsArr,
-      });
-      proofOk = !!proofRes.result;
-      if (!proofOk) {
-        proofErrorMessage =
-          "Proof verification failed (commitments do not match tallies/seeds).";
-      }
-    } catch (e: any) {
-      proofOk = false;
-      proofErrorMessage = errorMessage(e);
-    }
-  }
-
-  const result: AnonymousVotingData = {
-    tallies: talliesArr,
-    seeds: seedsArr,
-    voteCounts,
+  const data: AnonymousVotingData = {
+    tallies,
+    seeds: seedSums,
     voteStatus,
-    decodedVotes: decodedPerVoter,
+    decodedVotes,
+    invalid,
   };
 
   if (verifyProof) {
-    result.proofOk = proofOk;
-    result.proofErrorMessage = proofErrorMessage;
+    try {
+      data.proofOk =
+        readResult(
+          await tansuReads.proof({
+            project_key: projectKey,
+            proposal,
+            tallies,
+            seeds: seedSums,
+          }),
+        ) === true;
+      data.proofErrorMessage = data.proofOk
+        ? null
+        : "The commitments on chain do not match these tallies.";
+    } catch (error: any) {
+      data.proofOk = false;
+      data.proofErrorMessage = error?.message ?? String(error);
+    }
   }
-
-  return result;
+  return data;
 }

@@ -10,17 +10,23 @@ import FlowProgressModal from "components/utils/FlowProgressModal";
 import Step from "components/utils/Step";
 import Title from "components/utils/Title";
 import { useEffect, useRef, useState } from "react";
-import type {
-  OutcomeContract,
-  StoredOutcomeNode,
-  StoredProposalOutcome,
-} from "types/proposal";
 import { formatDate } from "utils/formatTimeFunctions";
 import { connectedPublicKey } from "utils/store";
 import { capitalizeFirstLetter, toast } from "utils/utils";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { validateProposalName, validateTextContent } from "utils/validations";
 import OutcomeInput from "./OutcomeInput";
+import {
+  NO_CALL,
+  prepareOutcomeCall,
+} from "@service/ContractIntrospectionService";
+import {
+  OUTCOMES,
+  emptyOutcome,
+  outcomeSlots,
+  storedOutcomes,
+  type OutcomeDrafts,
+} from "utils/proposalOutcomes";
 import TemplateSelector from "./TemplateSelector";
 import { PROPOSAL_TEMPLATES } from "constants/proposalTemplates";
 import { generateRSAKeyPair } from "utils/crypto";
@@ -70,41 +76,8 @@ const CreateProposalModal = ({
     };
   }, []);
 
-  const [approveDescription, setApproveDescription] = useState("");
-  const [rejectDescription, setRejectDescription] = useState("");
-  const [cancelledDescription, setCancelledDescription] = useState("");
-
-  // XDR mode state (existing)
-  const [approveXdr, setApproveXdr] = useState<string | null>("");
-  const [rejectXdr, setRejectXdr] = useState<string | null>(null);
-  const [cancelledXdr, setCancelledXdr] = useState<string | null>(null);
-
-  // Contract mode state (new)
-  // Outcome visibility state - default to hidden
-  const [showApproveOutcome, setShowApproveOutcome] = useState(false);
-  const [showRejectOutcome, setShowRejectOutcome] = useState(false);
-  const [showCancelledOutcome, setShowCancelledOutcome] = useState(false);
-
-  const [approveContract, setApproveContract] =
-    useState<OutcomeContract | null>({ address: "", execute_fn: "", args: [] });
-  const [rejectContract, setRejectContract] = useState<OutcomeContract | null>({
-    address: "",
-    execute_fn: "",
-    args: [],
-  });
-  const [cancelledContract, setCancelledContract] =
-    useState<OutcomeContract | null>({ address: "", execute_fn: "", args: [] });
-
-  // Mode selection state (new)
-  const [approveMode, setApproveMode] = useState<"xdr" | "contract" | "none">(
-    "contract",
-  ); // Default to contract
-  const [rejectMode, setRejectMode] = useState<"xdr" | "contract" | "none">(
-    "contract",
-  );
-  const [cancelledMode, setCancelledMode] = useState<
-    "xdr" | "contract" | "none"
-  >("contract");
+  // The outcomes the author added, by kind; a removed one is absent.
+  const [outcomes, setOutcomes] = useState<OutcomeDrafts>({});
   // Default to 2 days in the future to comfortably exceed the 24h minimum
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date();
@@ -123,38 +96,14 @@ const CreateProposalModal = ({
   } | null>(null);
   const [existingAnonConfig, setExistingAnonConfig] = useState<boolean>(false);
   const [resetAnonKeys, setResetAnonKeys] = useState<boolean>(false);
-  const [keysDownloaded, setKeysDownloaded] = useState<boolean>(false);
+  // The author selected the saved key file and it matches.
+  const [keysConfirmed, setKeysConfirmed] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const toggleRun = useRef(0);
   const [proposalNameError, setProposalNameError] = useState<string | null>(
     null,
   );
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
-  const [approveDescriptionError, setApproveDescriptionError] = useState<
-    string | null
-  >(null);
-  const [approveXdrError, setApproveXdrError] = useState<string | null>(null);
-  const [approveContractError, setApproveContractError] = useState<
-    string | null
-  >(null);
-
-  // Initialize contract objects when switching to contract mode
-  useEffect(() => {
-    if (approveMode === "contract" && !approveContract) {
-      setApproveContract({ address: "", execute_fn: "", args: [] });
-    }
-  }, [approveMode, approveContract]);
-
-  useEffect(() => {
-    if (rejectMode === "contract" && !rejectContract) {
-      setRejectContract({ address: "", execute_fn: "", args: [] });
-    }
-  }, [rejectMode, rejectContract]);
-
-  useEffect(() => {
-    if (cancelledMode === "contract" && !cancelledContract) {
-      setCancelledContract({ address: "", execute_fn: "", args: [] });
-    }
-  }, [cancelledMode, cancelledContract]);
-
   // Flow state management
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -184,55 +133,7 @@ const CreateProposalModal = ({
   };
 
   const prepareProposalFiles = (): File[] => {
-    // Helper to build an outcome node with an optional execution subtree
-    // (XDR or contract call), matching the tree-shaped outcomes.json format.
-    const buildOutcome = (
-      description: string,
-      mode: "xdr" | "contract" | "none",
-      xdrValue: string | null | undefined,
-      contract: OutcomeContract | null,
-    ): StoredOutcomeNode | undefined => {
-      if (!description.trim() && mode === "none") return undefined;
-
-      const node: StoredOutcomeNode = {
-        description: description.trim(),
-      };
-
-      if (mode === "xdr" && xdrValue) {
-        node.execution = { type: "xdr", xdr: xdrValue };
-      } else if (mode === "contract" && contract?.address?.trim()) {
-        node.execution = { type: "contract", contract };
-      }
-
-      return node;
-    };
-
-    // Always prepare outcomes.json with descriptions for all outcome types.
-    // All outcomes live under a single `outcomes` root (tree structure).
-    const proposalOutcome: StoredProposalOutcome = { outcomes: {} };
-
-    const approvedOutcome = buildOutcome(
-      approveDescription,
-      approveMode,
-      approveXdr,
-      approveContract,
-    );
-    const rejectedOutcome = buildOutcome(
-      rejectDescription,
-      rejectMode,
-      rejectXdr,
-      rejectContract,
-    );
-    const cancelledOutcome = buildOutcome(
-      cancelledDescription,
-      cancelledMode,
-      cancelledXdr,
-      cancelledContract,
-    );
-
-    if (approvedOutcome) proposalOutcome.outcomes.approved = approvedOutcome;
-    if (rejectedOutcome) proposalOutcome.outcomes.rejected = rejectedOutcome;
-    if (cancelledOutcome) proposalOutcome.outcomes.cancelled = cancelledOutcome;
+    const proposalOutcome = storedOutcomes(outcomes);
 
     const outcomeBlob = new Blob([JSON.stringify(proposalOutcome)], {
       type: "application/json",
@@ -260,54 +161,6 @@ const CreateProposalModal = ({
     return files;
   };
 
-  // Best-effort display labels for outcome contract args. Not from introspection;
-  // Tansu outcome contracts may use different function signatures.
-  const getParamName = (functionName: string, paramIndex: number): string => {
-    const paramMappings: Record<string, string[]> = {
-      mint: ["message", "signature", "recovery_id", "public_key", "nonce"],
-      transfer: [
-        "from",
-        "to",
-        "token_id",
-        "message",
-        "signature",
-        "recovery_id",
-        "public_key",
-        "nonce",
-      ],
-      balance: ["owner"],
-      owner_of: ["token_id"],
-      get_nonce: ["public_key"],
-      name: [],
-      symbol: [],
-      token_uri: ["token_id"],
-      token_id: ["public_key"],
-      public_key: ["token_id"],
-    };
-
-    const params = paramMappings[functionName] || [];
-    return params[paramIndex] || `arg${paramIndex}`;
-  };
-
-  // Helper function to format contract values for display
-  const formatContractValue = (arg: any): string => {
-    if (arg === null || arg === undefined) return "null";
-
-    // Handle different JavaScript value types
-    switch (typeof arg) {
-      case "string":
-        return `"${arg}"`;
-      case "number":
-        return arg.toString();
-      case "boolean":
-        return arg ? "true" : "false";
-      case "object":
-        return JSON.stringify(arg);
-      default:
-        return String(arg);
-    }
-  };
-
   const startProposalCreation = async (files: File[]) => {
     try {
       validateTokenContractForVoting();
@@ -324,22 +177,16 @@ const CreateProposalModal = ({
       targetTs = Math.max(min25hMs, Math.min(max30dMs, targetTs));
       const votingEndsAt = Math.floor(targetTs / 1000);
 
-      // Collect valid outcome contracts (address + function both required)
-      const collectOutcome = (
-        mode: "xdr" | "contract" | "none",
-        contract: OutcomeContract | null,
-      ): OutcomeContract | null => {
-        if (mode !== "contract") return null;
-        if (!contract?.address?.trim() || !contract?.execute_fn?.trim())
-          return null;
-        return contract;
-      };
-
-      const contractOutcomes = [
-        collectOutcome(approveMode, approveContract),
-        collectOutcome(rejectMode, rejectContract),
-        collectOutcome(cancelledMode, cancelledContract),
-      ].filter((oc): oc is OutcomeContract => oc !== null);
+      // Each call in its outcome's slot, typed and dry-run; a gap gets a
+      // call that changes nothing.
+      const slots = outcomeSlots(outcomes);
+      const outcomeContracts =
+        slots &&
+        (await Promise.all(
+          slots.map((call) =>
+            call ? prepareOutcomeCall(call, connectedAddress!) : NO_CALL,
+          ),
+        ));
 
       const { id, cid } = await createProposal({
         projectName: projectName!,
@@ -347,7 +194,7 @@ const CreateProposalModal = ({
         proposalFiles: files,
         votingEndsAt,
         publicVoting: !isAnonymousVoting,
-        outcomeContracts: contractOutcomes,
+        outcomeContracts,
         ...(votingType === "token"
           ? { tokenContract: tokenContract.trim() }
           : {}),
@@ -398,60 +245,63 @@ const CreateProposalModal = ({
     return error === null;
   };
 
-  // Automatically donwload keys on first checking of anonymous voting check
   const handleToggleAnonymous = async (checked: boolean) => {
+    const run = ++toggleRun.current;
     setIsAnonymousVoting(checked);
-
-    if (!checked) {
-      setExistingAnonConfig(false);
-      setGeneratedKeys(null);
-      setKeysDownloaded(false);
-      return;
-    }
-
-    if (!projectName) return;
-
+    setExistingAnonConfig(false);
+    setResetAnonKeys(false);
+    setConfirmReset(false);
+    setGeneratedKeys(null);
+    setKeysConfirmed(false);
+    if (!checked || !projectName) return;
     try {
-      const exists = !!(await queryClient
-        .query(anonymousConfigQuery(projectName))
-        .catch(() => null));
-
-      if (exists) {
-        setExistingAnonConfig(true);
-        setResetAnonKeys(false);
-        return;
-      }
-
-      if (!generatedKeys) {
-        const keys = await generateRSAKeyPair();
-        setGeneratedKeys(keys);
-        setExistingAnonConfig(false);
-        setResetAnonKeys(false);
-        downloadKeys(keys);
-      }
-    } catch (error) {
-      console.error("Error checking anonymous config:", error);
-
-      if (!generatedKeys) {
-        const keys = await generateRSAKeyPair();
-        setGeneratedKeys(keys);
-        setExistingAnonConfig(false);
-        setResetAnonKeys(false);
-        downloadKeys(keys);
-      }
+      // Read fresh: a key another maintainer set up must not be replaced.
+      const config = await queryClient.query({
+        ...anonymousConfigQuery(projectName),
+        staleTime: 0,
+      });
+      if (run !== toggleRun.current) return;
+      if (config) setExistingAnonConfig(true);
+      else setGeneratedKeys(await generateRSAKeyPair());
+    } catch (error: any) {
+      if (run !== toggleRun.current) return;
+      setIsAnonymousVoting(false);
+      toast.error(
+        "Anonymous voting",
+        `Could not read this project's anonymous voting setup: ${error.message}`,
+      );
     }
   };
 
-  const downloadKeys = (keys: any) => {
-    if (!keys) return;
-    const blob = new Blob([JSON.stringify(keys)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "tansu-anonymous-keys.json";
-    a.click();
-    URL.revokeObjectURL(url);
-    setKeysDownloaded(true);
+  const keyFileName = `tansu-${projectName}-anonymous-key.json`;
+
+  const downloadKeys = () => {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(generatedKeys)], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = keyFileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // The browser may still be reading the file after click() returns.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  /** The saved key file, read back: it must hold the key set up. */
+  const confirmKeyFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const saved = JSON.parse(await file.text());
+      if (saved.publicKey !== generatedKeys?.publicKey) {
+        throw new Error("This is not the key file just generated.");
+      }
+      setKeysConfirmed(true);
+    } catch (error: any) {
+      setKeysConfirmed(false);
+      toast.error("Anonymous voting", error.message);
+    }
   };
 
   const handleCloseModal = () => {
@@ -526,40 +376,79 @@ const CreateProposalModal = ({
                 </div>
 
                 <div className="space-y-2">
-                  {isAnonymousVoting &&
-                    keysDownloaded &&
-                    !existingAnonConfig && (
-                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                        <span className="text-sm text-green-800">
-                          Your anonymous key file has been downloaded. Keep it
-                          safe — it will be required to finalize voting when
-                          executing the proposal.
-                        </span>
-                      </div>
-                    )}
-
-                  {isAnonymousVoting && existingAnonConfig && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-green-800">
-                          Already configured.
-                        </span>
-                        <button
-                          type="button"
-                          className="text-blue-500 hover:text-blue-700 underline text-sm"
-                          onClick={async () => {
-                            const keys = await generateRSAKeyPair();
-                            setGeneratedKeys(keys);
-                            setResetAnonKeys(true);
-                            setKeysDownloaded(false);
-                            downloadKeys(keys);
-                          }}
+                  {isAnonymousVoting && generatedKeys && (
+                    <div className="flex flex-col gap-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-sm text-green-800">
+                        Only this key file can reveal the anonymous votes when
+                        the proposal is executed. Download it, keep it safe,
+                        then select it to confirm you saved it.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="secondary"
+                          size="sm"
+                          onClick={downloadKeys}
                         >
-                          Reset Keys
-                        </button>
+                          Download key file
+                        </Button>
+                        <label className="text-sm text-green-800">
+                          Select the saved key file
+                          <input
+                            type="file"
+                            accept="application/json,.json"
+                            className="ml-2"
+                            onChange={(e) =>
+                              confirmKeyFile(e.target.files?.[0])
+                            }
+                          />
+                        </label>
                       </div>
+                      {keysConfirmed && (
+                        <p className="text-sm font-medium text-green-800">
+                          Key file saved.
+                        </p>
+                      )}
                     </div>
                   )}
+
+                  {isAnonymousVoting &&
+                    existingAnonConfig &&
+                    !resetAnonKeys && (
+                      <div className="flex flex-col gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-green-800">
+                            Already configured.
+                          </span>
+                          <button
+                            type="button"
+                            className="text-blue-500 hover:text-blue-700 underline text-sm"
+                            onClick={() => setConfirmReset(true)}
+                          >
+                            Reset Keys
+                          </button>
+                        </div>
+                        {confirmReset && (
+                          <div className="flex flex-col gap-2 text-sm text-red-800">
+                            <p>
+                              Votes already cast on open anonymous proposals can
+                              only be revealed with the current key file: keep
+                              it until they are executed.
+                            </p>
+                            <Button
+                              type="secondary"
+                              size="sm"
+                              onClick={async () => {
+                                setGeneratedKeys(await generateRSAKeyPair());
+                                setKeysConfirmed(false);
+                                setResetAnonKeys(true);
+                              }}
+                            >
+                              Replace the key
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -658,14 +547,14 @@ const CreateProposalModal = ({
                   )
                     throw new Error("Invalid proposal name or description");
 
-                  if (isAnonymousVoting) {
-                    if (!existingAnonConfig || resetAnonKeys) {
-                      if (!generatedKeys) {
-                        throw new Error(
-                          "Anonymous voting keys have not been generated yet.",
-                        );
-                      }
-                    }
+                  if (
+                    isAnonymousVoting &&
+                    (!existingAnonConfig || resetAnonKeys) &&
+                    !keysConfirmed
+                  ) {
+                    throw new Error(
+                      "Download the anonymous key file and select it to confirm you saved it.",
+                    );
                   }
 
                   validateTokenContractForVoting();
@@ -702,86 +591,36 @@ const CreateProposalModal = ({
 
             {/* Outcome Inputs */}
             <div className="space-y-8">
-              {/* Approved Outcome */}
-              {showApproveOutcome ? (
-                <OutcomeInput
-                  type="approved"
-                  description={approveDescription}
-                  setDescription={setApproveDescription}
-                  xdr={approveXdr}
-                  setXdr={setApproveXdr}
-                  contractOutcome={approveContract}
-                  setContractOutcome={setApproveContract}
-                  mode={approveMode}
-                  setMode={setApproveMode}
-                  descriptionError={approveDescriptionError}
-                  xdrError={approveXdrError}
-                  contractError={approveContractError}
-                  onDescriptionChange={() => setApproveDescriptionError(null)}
-                  onXdrChange={() => setApproveXdrError(null)}
-                  onModeChange={() => setApproveContractError(null)}
-                  onRemove={() => setShowApproveOutcome(false)}
-                />
-              ) : (
-                <div className="flex justify-center">
-                  <Button
-                    type="secondary"
-                    onClick={() => setShowApproveOutcome(true)}
-                  >
-                    + Add Approved Outcome
-                  </Button>
-                </div>
-              )}
-
-              {/* Rejected Outcome */}
-              {showRejectOutcome ? (
-                <OutcomeInput
-                  type="rejected"
-                  description={rejectDescription}
-                  setDescription={setRejectDescription}
-                  xdr={rejectXdr}
-                  setXdr={setRejectXdr}
-                  contractOutcome={rejectContract}
-                  setContractOutcome={setRejectContract}
-                  mode={rejectMode}
-                  setMode={setRejectMode}
-                  onRemove={() => setShowRejectOutcome(false)}
-                />
-              ) : (
-                <div className="flex justify-center">
-                  <Button
-                    type="secondary"
-                    onClick={() => setShowRejectOutcome(true)}
-                  >
-                    + Add Rejected Outcome
-                  </Button>
-                </div>
-              )}
-
-              {/* Cancelled Outcome */}
-              {showCancelledOutcome ? (
-                <OutcomeInput
-                  type="cancelled"
-                  description={cancelledDescription}
-                  setDescription={setCancelledDescription}
-                  xdr={cancelledXdr}
-                  setXdr={setCancelledXdr}
-                  contractOutcome={cancelledContract}
-                  setContractOutcome={setCancelledContract}
-                  mode={cancelledMode}
-                  setMode={setCancelledMode}
-                  onRemove={() => setShowCancelledOutcome(false)}
-                />
-              ) : (
-                <div className="flex justify-center">
-                  <Button
-                    type="secondary"
-                    onClick={() => setShowCancelledOutcome(true)}
-                  >
-                    + Add Cancelled Outcome
-                  </Button>
-                </div>
-              )}
+              {OUTCOMES.map((kind) => {
+                const draft = outcomes[kind];
+                return draft ? (
+                  <OutcomeInput
+                    key={kind}
+                    type={kind}
+                    draft={draft}
+                    onChange={(next) =>
+                      setOutcomes((all) => ({ ...all, [kind]: next }))
+                    }
+                    onRemove={() =>
+                      setOutcomes(({ [kind]: _removed, ...rest }) => rest)
+                    }
+                  />
+                ) : (
+                  <div key={kind} className="flex justify-center">
+                    <Button
+                      type="secondary"
+                      onClick={() =>
+                        setOutcomes((all) => ({
+                          ...all,
+                          [kind]: emptyOutcome(),
+                        }))
+                      }
+                    >
+                      + Add {capitalizeFirstLetter(kind)} Outcome
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -805,14 +644,14 @@ const CreateProposalModal = ({
                   )
                     throw new Error("Invalid proposal name or description");
 
-                  if (isAnonymousVoting) {
-                    if (!existingAnonConfig || resetAnonKeys) {
-                      if (!generatedKeys) {
-                        throw new Error(
-                          "Anonymous voting keys have not been generated yet.",
-                        );
-                      }
-                    }
+                  if (
+                    isAnonymousVoting &&
+                    (!existingAnonConfig || resetAnonKeys) &&
+                    !keysConfirmed
+                  ) {
+                    throw new Error(
+                      "Download the anonymous key file and select it to confirm you saved it.",
+                    );
                   }
 
                   validateTokenContractForVoting();
@@ -1001,44 +840,10 @@ const CreateProposalModal = ({
               </div>
 
               {(() => {
-                const outcomes = [
-                  {
-                    type: "approved",
-                    desc: approveDescription,
-                    xdr: approveXdr,
-                    contract: approveContract,
-                    mode: approveMode,
-                    show: showApproveOutcome,
-                  },
-                  {
-                    type: "rejected",
-                    desc: rejectDescription,
-                    xdr: rejectXdr,
-                    contract: rejectContract,
-                    mode: rejectMode,
-                    show: showRejectOutcome,
-                  },
-                  {
-                    type: "cancelled",
-                    desc: cancelledDescription,
-                    xdr: cancelledXdr,
-                    contract: cancelledContract,
-                    mode: cancelledMode,
-                    show: showCancelledOutcome,
-                  },
-                ];
-
-                // Check if all outcomes are empty/unconfigured
-                const allEmpty = outcomes.every(
-                  (outcome) =>
-                    !outcome.show ||
-                    (outcome.mode === "none" && !outcome.desc?.trim()) ||
-                    (outcome.mode === "contract" &&
-                      !outcome.contract?.address?.trim()) ||
-                    (outcome.mode === "xdr" && !outcome.xdr?.trim()),
+                const stored = Object.entries(
+                  storedOutcomes(outcomes).outcomes,
                 );
-
-                if (allEmpty) {
+                if (!stored.length) {
                   return (
                     <Label label="Contract Calls">
                       <p className="text-base sm:text-lg text-secondary">
@@ -1047,100 +852,43 @@ const CreateProposalModal = ({
                     </Label>
                   );
                 }
-
-                // Show configured outcomes
-                return outcomes
-                  .filter((outcome) => outcome.show)
-                  .map(({ type, desc, xdr, contract, mode }, index) => (
-                    <div key={index} className="flex flex-col gap-4">
-                      <p
-                        className={`text-lg sm:text-xl font-medium text-${type}`}
-                      >
-                        {capitalizeFirstLetter(type)} Outcome
-                      </p>
-                      <Label label="Description">
-                        <ExpandableText>{desc}</ExpandableText>
+                return stored.map(([kind, node]) => (
+                  <div key={kind} className="flex flex-col gap-4">
+                    <p
+                      className={`text-lg sm:text-xl font-medium text-${kind}`}
+                    >
+                      {capitalizeFirstLetter(kind)} Outcome
+                    </p>
+                    <Label label="Description">
+                      <ExpandableText>{node.description}</ExpandableText>
+                    </Label>
+                    {node.execution?.type === "xdr" && (
+                      <Label label="XDR Transaction">
+                        <p className="text-base sm:text-lg text-primary break-all font-mono">
+                          {node.execution.xdr}
+                        </p>
                       </Label>
-
-                      {/* Show XDR for XDR mode */}
-                      {mode === "xdr" && xdr?.trim() && (
-                        <Label label="XDR Transaction">
-                          <p className="text-base sm:text-lg text-primary break-all font-mono">
-                            {xdr}
-                          </p>
-                        </Label>
-                      )}
-
-                      {/* Show message for none mode */}
-                      {mode === "none" && (
-                        <Label label="Action">
-                          <p className="text-base sm:text-lg text-secondary">
-                            No automated action - description only
-                          </p>
-                        </Label>
-                      )}
-
-                      {/* Show Contract details for contract mode */}
-                      {mode === "contract" &&
-                        contract?.address?.trim() &&
-                        contract?.execute_fn?.trim() && (
-                          <>
-                            <Label label="Contract Address">
-                              <p className="text-base sm:text-lg text-primary break-all font-mono">
-                                {contract.address}
-                              </p>
-                            </Label>
-                            <Label label="Function Call">
-                              <div className="space-y-2">
-                                <p className="text-base sm:text-lg text-primary font-medium">
-                                  {contract.execute_fn}()
-                                </p>
-                                {contract.args && contract.args.length > 0 && (
-                                  <div>
-                                    <p className="text-sm text-secondary mb-1">
-                                      Parameters:
-                                    </p>
-                                    <div className="text-sm bg-gray-50 p-2 rounded border space-y-1">
-                                      {contract.args.map((arg, i) => (
-                                        <div
-                                          key={i}
-                                          className="flex justify-between items-center"
-                                        >
-                                          <span className="font-medium text-primary">
-                                            {getParamName(
-                                              contract.execute_fn,
-                                              i,
-                                            )}
-                                            :
-                                          </span>
-                                          <span className="font-mono text-secondary ml-2 break-all text-right">
-                                            {formatContractValue(arg)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </Label>
-                          </>
-                        )}
-
-                      {/* Show contract address only when entered but no function selected */}
-                      {mode === "contract" &&
-                        contract?.address?.trim() &&
-                        !contract?.execute_fn?.trim() && (
-                          <Label label="Contract Address">
-                            <p className="text-base sm:text-lg text-primary break-all font-mono">
-                              {contract.address}
-                            </p>
-                            <p className="text-sm text-secondary mt-1">
-                              (Function not selected)
-                            </p>
-                          </Label>
-                        )}
-                    </div>
-                  ));
+                    )}
+                    {node.execution?.contract && (
+                      <Label label="Contract Call">
+                        <p className="text-base sm:text-lg text-primary break-all font-mono">
+                          {node.execution.contract.address}
+                        </p>
+                        <p className="text-base sm:text-lg text-primary font-mono break-all">
+                          {node.execution.contract.execute_fn}(
+                          {node.execution.contract.args.join(", ")})
+                        </p>
+                      </Label>
+                    )}
+                    {!node.execution && (
+                      <Label label="Action">
+                        <p className="text-base sm:text-lg text-secondary">
+                          No automated action - description only
+                        </p>
+                      </Label>
+                    )}
+                  </div>
+                ));
               })()}
             </div>
 
@@ -1205,18 +953,13 @@ const CreateProposalModal = ({
               <Step step={1} totalSteps={5} />
               <Title
                 title="Configure anonymous voting"
-                description="Generate keys and sign the setup transaction. This enables anonymous voting for this project."
+                description="Sign the setup transaction. This enables anonymous voting for this project."
               />
 
-              {generatedKeys ? (
-                <p className="text-sm sm:text-base text-secondary">
-                  Keys are generated. Proceed to sign the setup transaction.
-                </p>
-              ) : (
-                <p className="text-sm sm:text-base text-secondary">
-                  Generating keys…
-                </p>
-              )}
+              <p className="text-sm sm:text-base text-secondary">
+                Your key file is saved. Sign the setup transaction to use its
+                key for this project's anonymous votes.
+              </p>
 
               <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-4">
                 <Button
@@ -1227,13 +970,13 @@ const CreateProposalModal = ({
                       setIsLoading(true);
 
                       if (!projectName) throw new Error("Project name missing");
-                      if (!generatedKeys)
-                        throw new Error("Anonymous keys missing");
+                      if (!generatedKeys || !keysConfirmed)
+                        throw new Error("The key file is not saved yet");
 
                       await setupAnonymousVoting(
                         projectName,
                         generatedKeys.publicKey,
-                        true,
+                        resetAnonKeys,
                       );
 
                       setExistingAnonConfig(true);

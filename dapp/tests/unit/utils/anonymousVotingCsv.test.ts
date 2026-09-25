@@ -34,86 +34,34 @@ describe("escapeCsvValue", () => {
 });
 
 describe("buildDecodedVotesCsv", () => {
-  it("produces CSV with header and rows for decoded votes", () => {
+  const HEADER = "Address,Vote,Weight,Votes (A/R/Abs),Seeds (A/R/Abs)";
+
+  it("writes a row per ballot, with its values and 90-bit seeds", () => {
+    const seed = (1n << 89n) + 7n;
     const votes: DecodedVote[] = [
       {
-        address: "GAAA...",
+        address: "GAAA",
         vote: "approve",
-        seed: 42,
         weight: 5,
-        maxWeight: 10,
-        outcomeWeights: [5, 0, 0],
-        outcomeSeeds: [42, 0, 0],
+        outcomeWeights: [1n, 0n, 0n],
+        outcomeSeeds: [seed, 1n, 2n],
       },
       {
-        address: "GBBB...",
+        address: "GBBB",
         vote: "reject",
-        seed: 99,
         weight: 3,
-        maxWeight: 10,
-        outcomeWeights: [0, 3, 0],
-        outcomeSeeds: [0, 99, 0],
+        outcomeWeights: [0n, 1n, 0n],
+        outcomeSeeds: [0n, 99n, 0n],
       },
     ];
-
-    const csv = buildDecodedVotesCsv(votes);
-    const lines = csv.split("\n");
-    expect(lines).toHaveLength(3);
-
-    // Header
-    expect(lines[0]).toBe(
-      "Address,Vote,Weight,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)",
-    );
-
-    // Row 1
-    expect(lines[1]).toBe("GAAA...,approve,5,5/0/0,10,42/0/0");
-
-    // Row 2
-    expect(lines[2]).toBe("GBBB...,reject,3,0/3/0,10,0/99/0");
+    expect(buildDecodedVotesCsv(votes).split("\n")).toEqual([
+      HEADER,
+      `GAAA,approve,5,1/0/0,${seed}/1/2`,
+      "GBBB,reject,3,0/1/0,0/99/0",
+    ]);
   });
 
-  it("handles string maxWeight (N/A for proposer)", () => {
-    const votes: DecodedVote[] = [
-      {
-        address: "GAAA...",
-        vote: "approve",
-        seed: 1,
-        weight: 10,
-        maxWeight: "N/A",
-        outcomeWeights: [10, 0, 0],
-        outcomeSeeds: [1, 0, 0],
-      },
-    ];
-
-    const csv = buildDecodedVotesCsv(votes);
-    // N/A has no special chars so escapeCsvValue returns it unquoted
-    expect(csv).toContain("10/0/0,N/A,1/0/0");
-  });
-
-  it("escapes values with commas from seed/weight display", () => {
-    const votes: DecodedVote[] = [
-      {
-        address: "GAAA...",
-        vote: "abstain",
-        seed: 0,
-        weight: 0,
-        maxWeight: 5,
-        outcomeWeights: [0, 0, 0],
-        outcomeSeeds: [0, 0, 0],
-      },
-    ];
-
-    const csv = buildDecodedVotesCsv(votes);
-    const lastLine = csv.split("\n").pop()!;
-    // No commas in the values themselves, so no quoting needed
-    expect(lastLine).toContain("abstain");
-    expect(lastLine).toContain("0/0/0");
-  });
-
-  it("returns header only for empty votes array", () => {
-    const csv = buildDecodedVotesCsv([]);
-    expect(csv).toBe(
-      "Address,Vote,Weight,Weight (A/R/Abs),Max Weight,Seed (A/R/Abs)",
-    );
+  it("is the header alone without ballots", () => {
+    expect(buildDecodedVotesCsv([])).toBe(HEADER);
   });
 });

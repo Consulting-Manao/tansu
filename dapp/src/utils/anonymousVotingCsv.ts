@@ -4,9 +4,8 @@ const CSV_HEADERS = [
   "Address",
   "Vote",
   "Weight",
-  "Weight (A/R/Abs)",
-  "Max Weight",
-  "Seed (A/R/Abs)",
+  "Votes (A/R/Abs)",
+  "Seeds (A/R/Abs)",
 ];
 
 export function escapeCsvValue(value: unknown): string {
@@ -25,7 +24,6 @@ export function buildDecodedVotesCsv(decodedVotes: DecodedVote[]): string {
       vote.vote,
       vote.weight,
       vote.outcomeWeights.join("/"),
-      vote.maxWeight,
       vote.outcomeSeeds.join("/"),
     ]
       .map(escapeCsvValue)

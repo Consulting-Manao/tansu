@@ -3,12 +3,13 @@ import Title from "components/utils/Title";
 import Step from "components/utils/Step";
 import Button from "components/utils/Button";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
+import InvalidBallots from "./InvalidBallots";
 import { useState } from "react";
 import {
   computeAnonymousVotingData,
   validateAnonymousKeyForProject,
 } from "utils/anonymousVoting";
-import type { DecodedVote } from "utils/anonymousVoting";
+import type { DecodedVote, InvalidBallot } from "utils/anonymousVoting";
 import type { VoteStatus } from "types/proposal";
 import classNames from "classnames";
 
@@ -31,28 +32,8 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   );
   const [decodedVotes, setDecodedVotes] = useState<DecodedVote[]>([]);
   const [tallies, setTallies] = useState<bigint[]>([]);
+  const [invalid, setInvalid] = useState<InvalidBallot[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const computeTalliesAndProof = async (privKey: string) => {
-    try {
-      const data = await computeAnonymousVotingData(
-        projectName!,
-        proposalId,
-        privKey,
-        true,
-      );
-      setVoteStatus(data.voteStatus);
-      setProofOk(data.proofOk ?? null);
-      setProofErrorMessage(data.proofErrorMessage ?? null);
-      setDecodedVotes(data.decodedVotes);
-      setTallies(data.tallies ?? []);
-      return data.decodedVotes.length;
-    } catch (err: any) {
-      setProcessingError(err.message || "Failed to process key file");
-      setStep(1);
-      return 0;
-    }
-  };
 
   const handleKeyUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsProcessing(true);
@@ -65,10 +46,21 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
       const parsed = JSON.parse(txt);
       if (!parsed.privateKey) throw new Error("Invalid key file");
       // Validate uploaded key against on-chain config (centralized helper)
-      await validateAnonymousKeyForProject(projectName!, parsed.publicKey);
+      await validateAnonymousKeyForProject(projectName, parsed.publicKey);
+      const data = await computeAnonymousVotingData(
+        projectName,
+        proposalId,
+        parsed.privateKey,
+        true,
+      );
+      setVoteStatus(data.voteStatus);
+      setProofOk(data.proofOk ?? null);
+      setProofErrorMessage(data.proofErrorMessage ?? null);
+      setDecodedVotes(data.decodedVotes);
+      setInvalid(data.invalid);
+      setTallies(data.tallies);
       setProcessingError(null);
-      const count = await computeTalliesAndProof(parsed.privateKey);
-      if (count > 0) setStep(2);
+      setStep(2);
     } catch (err: any) {
       setProcessingError(err.message);
     } finally {
@@ -137,6 +129,8 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
               "-",
             )}-proposal-${proposalId}-decoded-votes`}
           />
+
+          <InvalidBallots invalid={invalid} />
 
           <div className="flex justify-center sm:justify-end">
             <Button type="secondary" onClick={onClose}>

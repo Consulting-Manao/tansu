@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { Buffer } from "buffer";
 import { ipfsQuery } from "utils/ipfsFunctions";
 import type {
   OutcomeContract,
@@ -14,12 +15,15 @@ import type {
 } from "../../packages/tansu";
 import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { errorMessage, readResult } from "../utils/contractErrors";
+import { randomSeed } from "../utils/anonymousVoting";
 import { encryptWithPublicKey } from "../utils/crypto";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { parseContractOptionString } from "../utils/utils";
 import { votingPowerQuery } from "./MemberService";
 import { anonymousConfigQuery } from "./ProjectService";
 import { queryClient } from "./queryClient";
+import { isNoCall } from "./ContractIntrospectionService";
+import { OUTCOMES } from "../utils/proposalOutcomes";
 import {
   getTokenBalance,
   tokenVoteWeightToContract,
@@ -201,38 +205,23 @@ export async function fetchProposalOutcomeData(
     }
   }
 
-  // Merge with onchain contract data
-  if (proposal.outcome_contracts && proposal.outcome_contracts.length > 0) {
-    const [approved, rejected, cancelled] = proposal.outcome_contracts;
-
-    if (approved && approved.address) {
-      outcomeData.approved = {
+  // What executes is on chain: each slot's call, except the filler of a gap.
+  // A call only outcomes.json names never runs, so it is not shown.
+  OUTCOMES.forEach((kind, slot) => {
+    const call = proposal.outcome_contracts?.[slot];
+    const node = outcomeData[kind];
+    if (call && !isNoCall(call)) {
+      outcomeData[kind] = {
         description:
-          outcomeData.approved?.description ??
-          `Contract execution: ${approved.execute_fn}`,
-        ...outcomeData.approved,
-        contract: approved,
+          node?.description ?? `Contract execution: ${call.execute_fn}`,
+        ...node,
+        contract: call,
       };
+    } else if (node?.contract) {
+      const { contract: _offChain, ...rest } = node;
+      outcomeData[kind] = rest;
     }
-    if (rejected && rejected.address) {
-      outcomeData.rejected = {
-        description:
-          outcomeData.rejected?.description ??
-          `Contract execution: ${rejected.execute_fn}`,
-        ...outcomeData.rejected,
-        contract: rejected,
-      };
-    }
-    if (cancelled && cancelled.address) {
-      outcomeData.cancelled = {
-        description:
-          outcomeData.cancelled?.description ??
-          `Contract execution: ${cancelled.execute_fn}`,
-        ...outcomeData.cancelled,
-        contract: cancelled,
-      };
-    }
-  }
+  });
 
   // Always return the outcome object so the UI can show all three sections (approved, rejected, cancelled)
   return outcomeData;
@@ -400,9 +389,13 @@ export async function vote(
     // others 0, which keeps later tallies within u32.
     const votes = [0, 0, 0];
     votes[["approve", "reject", "abstain"].indexOf(voteType)] = 1;
-    const seeds = [...crypto.getRandomValues(new Uint32Array(3))].map(Number);
+    const seeds = [randomSeed(), randomSeed(), randomSeed()];
 
-    const config = await queryClient.query(anonymousConfigQuery(projectName));
+    // The key in use now: a cached one may have been replaced.
+    const config = await queryClient.query({
+      ...anonymousConfigQuery(projectName),
+      staleTime: 0,
+    });
     const publicKey = config?.public_key;
     if (!publicKey) {
       throw new Error("Anonymous voting config missing public key");
@@ -425,7 +418,7 @@ export async function vote(
           tansuReads.build_commitments_from_votes({
             project_key,
             votes: votes.map(BigInt),
-            seeds: seeds.map(BigInt),
+            seeds,
           }),
         ],
       );
@@ -433,7 +426,7 @@ export async function vote(
       receipt = {
         seeds: seeds.map(String),
         votes: votes.map(String),
-        commitments: commitments.map((c) => c.toString()),
+        commitments: commitments.map((c) => Buffer.from(c).toString("hex")),
         publicKey,
       };
       payload = {
@@ -554,20 +547,22 @@ export async function changeConflictOfInterest(
 }
 
 /**
- * Give the project the key anonymous votes are encrypted to, unless it has
- * one already (`force` replaces it).
+ * Give the project the key anonymous votes are encrypted to. An existing key
+ * is only replaced when asked: open anonymous proposals stay with it.
  */
 export async function setupAnonymousVoting(
   projectName: string,
   publicKey: string,
-  force = false,
+  replace = false,
 ): Promise<void> {
-  // Set it up on a failed read too.
-  if (!force) {
-    const config = await queryClient
-      .query(anonymousConfigQuery(projectName))
-      .catch(() => null);
-    if (config) return;
+  if (!replace) {
+    const config = await queryClient.query({
+      ...anonymousConfigQuery(projectName),
+      staleTime: 0,
+    });
+    if (config) {
+      throw new Error("This project already has an anonymous voting key.");
+    }
   }
   const maintainer = connectedAddress();
   const tx = await tansuFor(maintainer).anonymous_voting_setup({

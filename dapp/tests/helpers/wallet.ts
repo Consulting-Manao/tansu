@@ -4,7 +4,7 @@ import { E2E_ENV } from "./env";
 
 /**
  * GHOSTSIG, the one wallet the kit drives entirely over a documented popup
- * protocol (src/components/ghostsig.ts): the page at ghostsig.dev says
+ * protocol (the kit's GhostsigModule): the page at ghostsig.dev says
  * "ready", then answers each request. This copy of the page hands requests
  * to the test, which signs with its own key.
  */

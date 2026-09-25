@@ -113,7 +113,6 @@ const ProposalList: React.FC = () => {
           projectName={projectName}
           proposalId={proposalId}
           proposalTitle={proposalTitle}
-          onVoteSuccess={() => setShowVotingModal(false)}
           onClose={() => setShowVotingModal(false)}
         />
       )}
