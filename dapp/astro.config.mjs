@@ -7,7 +7,9 @@ import { generateSW } from "workbox-build";
 /**
  * Writes dist/sw.js once the pages exist. It precaches the app, so a tab keeps
  * one consistent version, and waits for the user's Reload
- * (src/components/layout/UpdatePrompt.astro) before taking over.
+ * (src/components/layout/UpdatePrompt.astro) before taking over. Every file
+ * is kept by its content: Netlify stamps the deploy's ID into the imports
+ * (?dpl=) without renaming the files, so a name does not tell a version.
  */
 function serviceWorker() {
   return {
@@ -27,7 +29,6 @@ function serviceWorker() {
           ],
           globIgnores: ["social-card.png"],
           maximumFileSizeToCacheInBytes: 8 * 2 ** 20,
-          dontCacheBustURLsMatching: /^_astro\//,
           // Pages read their query string in the browser, and Netlify adds
           // ?dpl= to assets.
           ignoreURLParametersMatching: [/.*/],

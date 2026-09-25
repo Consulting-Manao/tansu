@@ -49,6 +49,8 @@ export default defineConfig({
         Object.entries(process.env).filter(([, value]) => value !== undefined),
       ) as Record<string, string>),
       ...E2E_ENV,
+      // As on Netlify, whose adapter stamps the deploy's ID into the imports.
+      DEPLOY_ID: "e2e-1",
       E2E_PORT: String(E2E_PORT),
     },
     url: `http://localhost:${E2E_PORT}`,
