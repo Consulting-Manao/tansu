@@ -6,10 +6,26 @@
 import type {
   StoredOutcomeNode,
   StoredProposalOutcome,
+  VoteStatus,
 } from "../types/proposal";
 
 export const OUTCOMES = ["approved", "rejected", "cancelled"] as const;
-type Outcome = (typeof OUTCOMES)[number];
+export type Outcome = (typeof OUTCOMES)[number];
+
+/**
+ * The outcome of a vote, as `execute` rules it: approved when approve
+ * outweighs reject and abstain together, rejected when reject outweighs the
+ * other two, cancelled otherwise.
+ */
+export function winningOutcome({
+  approve,
+  reject,
+  abstain,
+}: VoteStatus): Outcome {
+  if (approve.score > reject.score + abstain.score) return "approved";
+  if (reject.score > approve.score + abstain.score) return "rejected";
+  return "cancelled";
+}
 
 /** A contract call as the author enters it: arguments as typed. */
 export interface OutcomeCall {

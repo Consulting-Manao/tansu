@@ -5,7 +5,8 @@ import {
 } from "../../../utils/editLinkFunctions";
 import ProjectInfoModal from "./ProjectInfoModal";
 
-interface ProjectConfig {
+/** What a project card shows. */
+export interface CardConfig {
   projectName: string;
   projectFullName?: string;
   description?: string;
@@ -24,7 +25,7 @@ const ProjectCard = ({
   config,
   isMetadataLoading = false,
 }: {
-  config: ProjectConfig;
+  config: CardConfig;
   /** tansu.toml is still loading: show placeholders for the empty fields. */
   isMetadataLoading?: boolean;
 }) => {

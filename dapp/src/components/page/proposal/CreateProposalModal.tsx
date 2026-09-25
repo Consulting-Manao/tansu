@@ -566,7 +566,6 @@ const CreateProposalModal = ({
               Cancel
             </Button>
             <Button
-              data-testid="proposal-next"
               onClick={() => {
                 try {
                   if (
@@ -663,7 +662,6 @@ const CreateProposalModal = ({
             </Button>
 
             <Button
-              data-testid="proposal-next"
               onClick={() => {
                 try {
                   if (
@@ -748,7 +746,6 @@ const CreateProposalModal = ({
             </Button>
 
             <Button
-              data-testid="proposal-next"
               onClick={() => {
                 try {
                   // Compute hour difference between now and the picked calendar date
@@ -812,7 +809,6 @@ const CreateProposalModal = ({
                 </Button>
                 <Button
                   onClick={handleRegisterProposal}
-                  data-testid="proposal-register"
                   className="w-full sm:w-auto"
                 >
                   Register Proposal
@@ -956,7 +952,6 @@ const CreateProposalModal = ({
             </Button>
             <Button
               onClick={handleRegisterProposal}
-              data-testid="proposal-register"
               className="w-full sm:w-auto"
             >
               Register Proposal
@@ -966,10 +961,7 @@ const CreateProposalModal = ({
       ) : step === 5 &&
         isAnonymousVoting &&
         (!existingAnonConfig || resetAnonKeys) ? (
-        <div
-          className="flex flex-col gap-10 md:gap-12"
-          data-testid="anon-setup-step"
-        >
+        <div className="flex flex-col gap-10 md:gap-12">
           <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-8">
             <img
               src="/images/scan.svg"
@@ -991,7 +983,6 @@ const CreateProposalModal = ({
 
               <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-4">
                 <Button
-                  data-testid="sign-setup"
                   disabled={isLoading}
                   onClick={async () => {
                     try {

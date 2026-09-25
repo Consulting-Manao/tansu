@@ -3,8 +3,10 @@ import {
   emptyOutcome,
   outcomeSlots,
   storedOutcomes,
+  winningOutcome,
   type OutcomeDraft,
 } from "../../../src/utils/proposalOutcomes";
+import { VoteType, type VoteStatus } from "../../../src/types/proposal";
 
 const SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const call = (fn: string, ...args: string[]): OutcomeDraft => ({
@@ -71,5 +73,22 @@ describe("outcomes.json", () => {
         },
       },
     });
+  });
+});
+
+describe("winningOutcome", () => {
+  const votes = (approve: number, reject: number, abstain: number) =>
+    ({
+      approve: { voteType: VoteType.APPROVE, score: approve, voters: [] },
+      reject: { voteType: VoteType.REJECT, score: reject, voters: [] },
+      abstain: { voteType: VoteType.CANCEL, score: abstain, voters: [] },
+    }) as VoteStatus;
+
+  it("needs more than the other two choices together, as execute does", () => {
+    expect(winningOutcome(votes(5, 2, 2))).toBe("approved");
+    expect(winningOutcome(votes(2, 5, 2))).toBe("rejected");
+    // Abstentions count against both.
+    expect(winningOutcome(votes(4, 2, 2))).toBe("cancelled");
+    expect(winningOutcome(votes(0, 0, 0))).toBe("cancelled");
   });
 });

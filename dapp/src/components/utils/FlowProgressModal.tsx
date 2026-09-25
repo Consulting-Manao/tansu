@@ -63,10 +63,7 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
   return (
     <Modal onClose={handleClose} closable={!busy}>
       {error ? (
-        <div
-          className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6"
-          data-testid="flow-error"
-        >
+        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6">
           <img
             src="/images/wrong.svg"
             alt="Error"
@@ -83,10 +80,7 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
           </div>
         </div>
       ) : isSuccessful ? (
-        <div
-          className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6"
-          data-testid="flow-success"
-        >
+        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6">
           <img
             src="/images/flower.svg"
             alt="Success"

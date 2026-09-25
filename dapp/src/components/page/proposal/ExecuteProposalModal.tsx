@@ -7,12 +7,7 @@ import Step from "components/utils/Step";
 import Title from "components/utils/Title";
 import CopyButton from "components/utils/CopyButton";
 import { useMemo, useState, useEffect } from "react";
-import {
-  VoteResultType,
-  type Proposal,
-  type ProposalOutcome,
-  type VoteStatus,
-} from "types/proposal";
+import type { Proposal, ProposalOutcome, VoteStatus } from "types/proposal";
 import { toast } from "utils/utils";
 import VotingResult from "./VotingResult";
 import {
@@ -28,7 +23,7 @@ import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
 import InvalidBallots from "./InvalidBallots";
 import { proposalUrl } from "utils/urls";
 import { isNoCall } from "@service/ContractIntrospectionService";
-import { OUTCOMES } from "utils/proposalOutcomes";
+import { OUTCOMES, winningOutcome } from "utils/proposalOutcomes";
 
 interface ExecuteProposalModalProps extends ModalProps {
   projectName: string;
@@ -75,23 +70,9 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
     VoteStatus | undefined
   >(voteStatus);
 
-  const computedResult = useMemo(() => {
-    if (
-      !displayVoteStatus ||
-      !displayVoteStatus.approve ||
-      !displayVoteStatus.abstain ||
-      !displayVoteStatus.reject
-    ) {
-      return null;
-    }
-    const { approve, abstain, reject } = displayVoteStatus;
-    if (approve.score > abstain.score + reject.score) {
-      return VoteResultType.APPROVE;
-    } else if (reject.score > approve.score + abstain.score) {
-      return VoteResultType.REJECT;
-    }
-    return VoteResultType.CANCEL;
-  }, [displayVoteStatus]);
+  const computedResult = displayVoteStatus
+    ? winningOutcome(displayVoteStatus)
+    : null;
 
   const executionXdr = useMemo(() => {
     if (!outcome || !computedResult) return null;

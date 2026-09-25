@@ -29,9 +29,9 @@ const ProgressStep: FC<Props> = ({ step, signLabel = "proposal" }) => {
       <Loading className="w-16" />
       <Step step={step} totalSteps={5} />
       <Title title={captions[step - 1] || ""} description="" />
-      {step === 3 && <div data-testid="ipfs-uploading" />}
-      {step === 4 && <div data-testid="tx-sending" />}
-      {step === 5 && <div data-testid="finishing" />}
+      {step === 3 && <div />}
+      {step === 4 && <div />}
+      {step === 5 && <div />}
     </div>
   );
 };

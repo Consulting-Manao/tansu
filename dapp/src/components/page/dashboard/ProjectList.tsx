@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getFeaturedProjectsConfigData } from "../../../constants/featuredProjectsConfigData.js";
+import { FEATURED_PROJECTS } from "../../../constants/featuredProjects";
 import { memberQuery } from "../../../service/MemberService";
 import { projectQuery, projectsQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
@@ -13,8 +13,6 @@ import {
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
 import Loading from "components/utils/Loading";
-
-const featuredProjects = getFeaturedProjectsConfigData();
 
 const scrollToAllProjects = () =>
   document.querySelector(".all-projects-section")?.scrollIntoView({
@@ -30,7 +28,7 @@ const ProjectList = () => {
 
   // Featured projects matching the search; when none match, the project of
   // that name on chain.
-  const filteredProjects = featuredProjects.filter((project) =>
+  const filteredProjects = FEATURED_PROJECTS.filter((project) =>
     project.projectName.toLowerCase().includes(searchTerm.toLowerCase()),
   );
   const searched = useQuery(
@@ -71,7 +69,7 @@ const ProjectList = () => {
     if (member.data) openModal("profile", { address: memberAddress });
   }, [member.data, memberAddress]);
 
-  const showPage = (next) => {
+  const showPage = (next: number) => {
     setPage(next);
     scrollToAllProjects();
   };
@@ -130,7 +128,7 @@ const ProjectList = () => {
             </div>
           ))}
         </div>
-      ) : isInOnChain ? (
+      ) : searched.data ? (
         <div className="w-full sm:w-1/2 mx-auto pb-[120px]">
           <OnChainProjectCard
             key={`${searched.data.name}:${searched.data.config.ipfs}`}

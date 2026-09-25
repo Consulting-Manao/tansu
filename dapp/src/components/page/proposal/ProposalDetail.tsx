@@ -13,6 +13,7 @@ import * as StellarXdr from "utils/stellarXdr";
 import { capitalizeFirstLetter } from "utils/utils";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { getStellarExpertUrl } from "utils/urls";
+import { winningOutcome } from "utils/proposalOutcomes";
 import {
   getContractFunctions,
   isValidContractAddress,
@@ -60,14 +61,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
       return status;
     }
 
-    if (!voteStatus) return null;
-
-    const { approve, abstain, reject } = voteStatus;
-
-    if (approve.score > abstain.score + reject.score) return "approved";
-    if (reject.score > approve.score + abstain.score) return "rejected";
-
-    return "cancelled";
+    return voteStatus ? winningOutcome(voteStatus) : null;
   }, [voteStatus, status]);
 
   useEffect(() => {

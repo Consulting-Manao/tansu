@@ -9,15 +9,21 @@ import { isValidCid } from "../../../utils/contentHashes";
 import { formatDate } from "../../../utils/formatTimeFunctions.ts";
 import { getIpfsUrl, ipfsQuery } from "../../../utils/ipfsFunctions";
 import { connectedPublicKey } from "../../../utils/store.ts";
-import CommitPeriod from "./CommitPeriod.jsx";
+import CommitPeriod from "./CommitPeriod";
 import CommitRecord from "../../CommitRecord";
 import AttestationCard from "./AttestationCard.tsx";
+import type { ComponentProps } from "react";
+import type { Project } from "../../../../packages/tansu";
+import type { ConfigData } from "types/projectConfig";
 
 /**
  * A commit's attestations. Those of the commit on chain show at once; the
  * others are read when asked for: each costs RPC calls, and a page lists 30.
  */
-const Attestation = ({ onChain, ...card }) => {
+const Attestation = ({
+  onChain,
+  ...card
+}: { onChain: boolean } & ComponentProps<typeof AttestationCard>) => {
   const [shown, setShown] = useState(onChain);
   return shown ? (
     <AttestationCard {...card} />
@@ -33,7 +39,15 @@ const Attestation = ({ onChain, ...card }) => {
 };
 
 /** The repository's commits, or the README of a project without code. */
-const CommitHistory = ({ project, config, isSoftware }) => {
+const CommitHistory = ({
+  project,
+  config,
+  isSoftware,
+}: {
+  project: Project;
+  config: ConfigData;
+  isSoftware: boolean;
+}) => {
   const publicKey = useStore(connectedPublicKey);
   const isMaintainer = !!publicKey && project.maintainers.includes(publicKey);
   const { data: onChainSha } = useQuery(commitQuery(project.name), queryClient);
@@ -115,9 +129,8 @@ const CommitHistory = ({ project, config, isSoftware }) => {
                         <div className="absolute -left-[31px] lg:-left-[41px] w-[2px] h-full bg-[#2D0F510D]" />
                         <CommitRecord
                           message={commit.message}
-                          date={commit.commit_date}
                           authorName={commit.author.name}
-                          authorGithubLink={commit.author.html_url}
+                          authorLink={commit.author.html_url}
                           sha={commit.sha}
                           commitLink={commit.html_url}
                           isMaintainer={authors.includes(

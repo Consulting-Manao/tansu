@@ -2,6 +2,14 @@ import { votedTypeLabelMap } from "constants/constants";
 import { useMemo, type FC } from "react";
 import { VoteType, type VoteStatus } from "types/proposal";
 import VoteTypeCheckbox from "./VoteTypeCheckbox";
+import { winningOutcome, type Outcome } from "utils/proposalOutcomes";
+
+/** The choice that gives each outcome. */
+const VOTE_OF: Record<Outcome, VoteType> = {
+  approved: VoteType.APPROVE,
+  rejected: VoteType.REJECT,
+  cancelled: VoteType.CANCEL,
+};
 
 interface Props {
   voteStatus: VoteStatus | undefined;
@@ -21,18 +29,11 @@ const VotingResult: FC<Props> = ({
   countsOverride,
 }) => {
   const voteResult = useMemo(() => {
-    if (status === "approved") return VoteType.APPROVE;
-    if (status === "rejected") return VoteType.REJECT;
-    if (status === "cancelled") return VoteType.CANCEL;
-
-    if (!voteStatus) return undefined;
-
-    const { approve, abstain, reject } = voteStatus;
-
-    if (approve.score > abstain.score + reject.score) return VoteType.APPROVE;
-    if (reject.score > approve.score + abstain.score) return VoteType.REJECT;
-
-    return VoteType.CANCEL;
+    const outcome =
+      status === "approved" || status === "rejected" || status === "cancelled"
+        ? status
+        : voteStatus && winningOutcome(voteStatus);
+    return outcome && VOTE_OF[outcome];
   }, [voteStatus, status]);
 
   const isWinner = (type: VoteType) => voteResult === type;

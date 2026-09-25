@@ -1,4 +1,15 @@
-const CommitPeriod = ({ startDate, endDate, currentPage, onPageChange }) => {
+/** The period a page of the commit history covers, and the way to others. */
+const CommitPeriod = ({
+  startDate,
+  endDate,
+  currentPage,
+  onPageChange,
+}: {
+  startDate: string | undefined;
+  endDate: string | undefined;
+  currentPage: number;
+  onPageChange: (page: number) => void;
+}) => {
   return (
     <>
       <div className="flex justify-between">
