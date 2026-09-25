@@ -37,7 +37,9 @@ const ProjectCard = ({
       className="project-card w-full h-full flex flex-col shadow-card rounded-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
       aria-busy={isMetadataLoading || undefined}
     >
-      <div
+      {/* Named by its logo: the project's name. */}
+      <button
+        type="button"
         className="h-[200px] sm:h-[240px] md:h-[290px] bg-white/25 backdrop-blur-[9px] overflow-hidden cursor-pointer group flex justify-center items-center flex-shrink-0"
         onClick={() => setShowInfo(true)}
       >
@@ -57,7 +59,7 @@ const ProjectCard = ({
             className="thumbnail w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg object-contain transition-transform duration-300 ease-in-out group-hover:scale-110"
           />
         )}
-      </div>
+      </button>
       <div className="flex-grow bg-white p-4 sm:p-6 flex flex-col gap-4 sm:gap-[30px] justify-between">
         <div className="flex flex-col gap-2 sm:gap-3">
           <h3 className="project-name text-xl sm:text-2xl leading-6 font-medium font-firamono text-pink">
@@ -93,6 +95,7 @@ const ProjectCard = ({
                   src="/icons/logos/web.svg"
                   width={24}
                   height={24}
+                  alt="Website"
                   className="icon-website"
                 />
               </a>
@@ -127,6 +130,7 @@ const ProjectCard = ({
                       src={`/icons/logos/${platform}.svg`}
                       width={16}
                       height={16}
+                      alt={platform}
                       className={`icon-${platform}`}
                     />
                   </a>

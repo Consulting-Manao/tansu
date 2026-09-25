@@ -198,7 +198,7 @@ const ProjectPage = () => {
                         >
                           <img
                             src="/icons/logos/web.svg"
-                            alt="web"
+                            alt="Website"
                             className="w-4 h-4"
                           />
                         </a>

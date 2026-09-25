@@ -117,7 +117,7 @@ const ProjectList = () => {
         </div>
       ) : memberNotFound ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <img className="mx-auto mb-8" src="/images/no-result.svg" />
+          <img alt="" className="mx-auto mb-8" src="/images/no-result.svg" />
           <p className="text-xl text-center font-medium text-zinc-700">
             Member not found. Try searching for something else.
           </p>
@@ -139,7 +139,7 @@ const ProjectList = () => {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-12">
-          <img className="mx-auto mb-8" src="/images/no-result.svg" />
+          <img alt="" className="mx-auto mb-8" src="/images/no-result.svg" />
           <p className="text-xl text-center font-medium text-zinc-700">
             {searched.isError
               ? `Could not search: ${searched.error.message}`

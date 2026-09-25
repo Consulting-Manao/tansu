@@ -337,6 +337,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
           className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
         >
           <img
+            alt=""
             className="flex-none w-[140px] md:w-[260px]"
             src="/images/megaphone.svg"
           />
@@ -535,6 +536,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
           className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
         >
           <img
+            alt=""
             className="flex-none w-[140px] md:w-[260px]"
             src="/images/team.svg"
           />
@@ -601,6 +603,8 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
                         />
                         {i > 0 && (
                           <button
+                            type="button"
+                            aria-label="Remove this maintainer"
                             onClick={() => {
                               setMaintainerAddresses(
                                 maintainerAddresses.filter((_, j) => j !== i),
@@ -616,7 +620,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
                               );
                             }}
                           >
-                            <img src="/icons/remove.svg" />
+                            <img alt="" src="/icons/remove.svg" />
                           </button>
                         )}
                       </div>
@@ -667,6 +671,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
           className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
         >
           <img
+            alt=""
             className="flex-none w-[140px] md:w-[260px]"
             src="/images/arrow.svg"
           />
@@ -809,7 +814,11 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
       ) : step == 4 ? (
         <div key={step} className="flex flex-col gap-[30px]">
           <div className="flex items-center gap-[18px]">
-            <img className="flex-none w-[360px]" src="/images/note.svg" />
+            <img
+              alt=""
+              className="flex-none w-[360px]"
+              src="/images/note.svg"
+            />
             <div className="flex-grow flex flex-col gap-[30px]">
               <div className="flex flex-col gap-5">
                 <Step step={step} totalSteps={5} />

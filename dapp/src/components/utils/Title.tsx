@@ -8,7 +8,7 @@ interface Props {
 const Title: FC<Props> = ({ title, description }) => {
   return (
     <div className="flex flex-col gap-3">
-      <div className="leading-6 text-2xl font-medium text-primary">{title}</div>
+      <h2 className="leading-6 text-2xl font-medium text-primary">{title}</h2>
       <div className="text-base text-secondary">{description}</div>
     </div>
   );

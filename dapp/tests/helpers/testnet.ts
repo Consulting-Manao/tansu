@@ -30,8 +30,11 @@ const {
   PUBLIC_HORIZON_URL: horizonUrl,
 } = E2E_ENV;
 
-/** The Tansu repository, on the public Radicle seed: no rate limit. */
+/** The Tansu repository on Radicle: no rate limit. */
 export const RADICLE_REPO = "rad:zssaAF91kxuquZmZCV2SiK2FNX6s";
+
+/** Its own seed, which tansu.toml names, as the Tansu project's does. */
+const RADICLE_SEED_URL = `https://radicle.network/nodes/radicle.consulting-manao.com/${RADICLE_REPO}`;
 
 /** A project name no earlier run used (alphanumeric, as names must be). */
 export function uniqueName(suffix: string): string {
@@ -141,7 +144,7 @@ function projectFiles(
       orgUrl: "https://tansu.dev",
       orgLogo: "",
       orgDescription: `The ${name} project, set up by the e2e flows.`,
-      repositoryUrl: RADICLE_REPO,
+      repositoryUrl: RADICLE_SEED_URL,
       repositoryProvider: "radicle",
     },
     toml,

@@ -47,19 +47,11 @@ const { title, page } = Astro.props;
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="generator" content={Astro.generator} />
 
-    <!-- Critical resource hints -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-
-    <!-- Preload critical resources -->
     <link rel="preload" as="image" href="/logo.svg" />
-
-    <!-- Load fonts with font-display swap for performance -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Installed on iOS: a standalone app with Tansu's colors. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tansu" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <ClientRouter />
 
@@ -139,7 +131,9 @@ const { title, page } = Astro.props;
   </head>
   <body class="font-firacode min-h-screen flex flex-col">
     <Navbar page={page} />
-    <slot />
+    <main class="flex-grow flex flex-col">
+      <slot />
+    </main>
     <Footer />
     <UpdatePrompt />
     <ModalHost client:only="react" />

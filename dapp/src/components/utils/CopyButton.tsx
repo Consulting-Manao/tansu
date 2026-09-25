@@ -48,11 +48,12 @@ const CopyButton = ({
   }, [textToCopy]);
 
   const baseClasses =
-    "hover:bg-zinc-100 transition-colors duration-200 p-1 rounded flex items-center gap-2";
+    "hover:bg-zinc-100 transition-colors duration-200 p-1 rounded flex shrink-0 items-center justify-center gap-2 min-w-6 min-h-6";
   const combinedClasses = `${baseClasses} ${className}`;
 
   return (
     <button
+      type="button"
       className={combinedClasses}
       onClick={handleCopy}
       aria-label={isCopied ? "Copied" : "Copy to clipboard"}

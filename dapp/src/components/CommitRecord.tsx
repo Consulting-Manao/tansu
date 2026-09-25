@@ -125,10 +125,14 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
           </a>
           {hasMoreLines && (
             <button
+              type="button"
+              aria-label={isExpanded ? "Show less" : "Show the full message"}
+              aria-expanded={isExpanded}
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-0.5"
+              className="mt-0.5 min-w-6 min-h-6 flex shrink-0 items-center justify-center"
             >
               <img
+                alt=""
                 src={
                   isExpanded
                     ? "/icons/chevron-up.svg"
@@ -177,14 +181,20 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       {/* Author (no date – grouping done by parent) */}
       {authorName && (
         <div className="mt-1 text-sm text-gray-600 flex items-center gap-2">
-          <a
-            href={authorLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2 py-0.5 bg-zinc-100 text-primary font-bold"
-          >
-            @{authorName}
-          </a>
+          {authorLink ? (
+            <a
+              href={authorLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-0.5 bg-zinc-100 text-primary font-bold"
+            >
+              @{authorName}
+            </a>
+          ) : (
+            <span className="px-2 py-0.5 bg-zinc-100 text-primary font-bold">
+              @{authorName}
+            </span>
+          )}
           {isMaintainer && (
             <span className="text-xs font-medium bg-lime px-1 rounded-sm">
               maintainer

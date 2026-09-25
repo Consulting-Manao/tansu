@@ -5,17 +5,23 @@ const HOUR = 60 * 60 * 1000;
 /**
  * Registers the service worker and offers each new version through `prompt`.
  * The callback it receives activates the waiting worker; the page reloads
- * once that worker controls it. ClientRouter page changes never make the
- * browser look for a new sw.js, so this looks every hour and whenever the
- * tab comes back.
+ * once that worker controls it. When another tab activated it, the callback
+ * only reloads. ClientRouter page changes never make the browser look for a
+ * new sw.js, so this looks every hour and whenever the tab comes back.
  */
 export function registerServiceWorker(
   wb: Workbox,
   prompt: (update: () => void) => void,
 ): void {
+  let requested = false;
+  wb.addEventListener("controlling", (event) => {
+    if (!event.isUpdate) return;
+    if (requested) window.location.reload();
+    else prompt(() => window.location.reload());
+  });
   wb.addEventListener("waiting", () =>
     prompt(() => {
-      wb.addEventListener("controlling", () => window.location.reload());
+      requested = true;
       wb.messageSkipWaiting();
     }),
   );

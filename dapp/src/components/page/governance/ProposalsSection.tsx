@@ -7,6 +7,7 @@ const ProposalsSection: React.FC = () => {
       <div className="py-6 sm:py-8 md:py-12 px-4 sm:px-6 md:px-[72px] flex flex-col gap-6 sm:gap-8 md:gap-12">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-[18px]">
           <img
+            alt=""
             src="/images/box-with-coin-outside.svg"
             className="w-12 sm:w-auto"
           />

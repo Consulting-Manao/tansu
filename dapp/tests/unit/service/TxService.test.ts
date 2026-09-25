@@ -210,6 +210,13 @@ describe("sendTransaction", () => {
     );
   });
 
+  it("says the app is offline before asking the wallet", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    await expect(sendTransaction(call())).rejects.toThrow("You are offline");
+    expect(kitSignMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("shows a contract error before asking the wallet", async () => {
     await expect(
       sendTransaction(call({ error: "HostError: Error(Contract, #201)" })),

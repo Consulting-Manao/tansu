@@ -117,6 +117,13 @@ async function confirm<T>(
   return { result: tx.options.parseResultXdr(value), hash };
 }
 
+/** Writes need the network: offline, the app only shows what it read. */
+function checkOnline(): void {
+  if (globalThis.navigator?.onLine === false) {
+    throw new Error("You are offline: reconnect, then try again.");
+  }
+}
+
 /**
  * What the wallet is asked to authorize: the Tansu call and, as collateral,
  * XLM transfers to Tansu. A contract a proposal names, or any other, gets
@@ -234,6 +241,7 @@ export async function sendTransaction<T>(
   tx: StellarSdk.contract.AssembledTransaction<T>,
   { upload, invalidate = [], onProgress }: SendOptions = {},
 ): Promise<Landed<T>> {
+  checkOnline();
   // A contract error shows before the wallet is asked to sign.
   checkSimulationError(tx);
   checkAuthorization(tx);
@@ -284,6 +292,7 @@ export const MEMO_BYTES = 28;
  * tell the user.
  */
 export async function sendXLM(amount: string, message: string): Promise<void> {
+  checkOnline();
   const sender = connectedAddress();
   if (StellarSdk.StrKey.isValidContract(sender)) {
     throw new Error(

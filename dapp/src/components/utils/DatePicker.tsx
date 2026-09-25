@@ -126,9 +126,9 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
             >
               {months[currentDate.getMonth()]}
               {isMonthSelectOpen ? (
-                <img src="/icons/chevron-up.svg" />
+                <img alt="" src="/icons/chevron-up.svg" />
               ) : (
-                <img src="/icons/chevron-down.svg" />
+                <img alt="" src="/icons/chevron-down.svg" />
               )}
             </button>
             {isMonthSelectOpen && (
@@ -152,9 +152,9 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
             >
               {currentDate.getFullYear()}
               {isYearSelectOpen ? (
-                <img src="/icons/chevron-up.svg" />
+                <img alt="" src="/icons/chevron-up.svg" />
               ) : (
-                <img src="/icons/chevron-down.svg" />
+                <img alt="" src="/icons/chevron-down.svg" />
               )}
             </button>
             {isYearSelectOpen && (

@@ -434,6 +434,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
               {step === 1 && (
                 <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
                   <img
+                    alt=""
                     className="flex-none md:w-1/3 w-[180px]"
                     src="/images/team.svg"
                   />
@@ -566,6 +567,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
               {step === 2 && (
                 <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
                   <img
+                    alt=""
                     className="flex-none md:w-1/3 w-[180px]"
                     src="/images/arrow.svg"
                   />

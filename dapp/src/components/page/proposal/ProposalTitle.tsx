@@ -85,6 +85,7 @@ const ProposalTitle: React.FC<Props> = ({
       <div className="flex flex-col md:flex-row gap-4 md:gap-[30px]">
         {proposal?.status == "active" ? (
           <img
+            alt=""
             src="/images/box-with-coin-outside.svg"
             className="w-12 sm:w-16 md:w-auto"
           />
@@ -92,11 +93,16 @@ const ProposalTitle: React.FC<Props> = ({
           proposal?.status == "cancelled" ||
           proposal?.status == "voted" ? (
           <img
+            alt=""
             src="/images/box-with-coin-inside.svg"
             className="w-12 sm:w-16 md:w-auto"
           />
         ) : (
-          <img src="/images/box.svg" className="w-12 sm:w-16 md:w-auto" />
+          <img
+            alt=""
+            src="/images/box.svg"
+            className="w-12 sm:w-16 md:w-auto"
+          />
         )}
         <div className="flex-grow flex flex-col gap-4 md:gap-[30px]">
           <div className="flex flex-col gap-3 md:gap-[18px]">
@@ -128,6 +134,7 @@ const ProposalTitle: React.FC<Props> = ({
                     type="secondary"
                     size="2xs"
                     icon="/icons/eye.svg"
+                    aria-label="Show the voters"
                     onClick={openVotingResultModal}
                   />
                 ) : isAnonymousProposal ? (
@@ -137,6 +144,7 @@ const ProposalTitle: React.FC<Props> = ({
                       type="secondary"
                       size="2xs"
                       icon="/icons/eye.svg"
+                      aria-label="Reveal the anonymous votes"
                       onClick={() => setShowVerifyModal(true)}
                     />
                   ) : (

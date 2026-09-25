@@ -183,6 +183,7 @@ const ProfileModal: FC<{
     >
       <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
         <img
+          alt=""
           className="flex-none w-[200px] md:w-[360px]"
           src="/images/team.svg"
         />

@@ -24,6 +24,8 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className="p-[6px_18px] flex items-center gap-[24px] bg-white">
       <button
+        type="button"
+        aria-label="Previous page"
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
         className="disabled:opacity-50"
@@ -45,6 +47,8 @@ const Pagination: React.FC<PaginationProps> = ({
         {pages.map((page) => (
           <button
             key={page}
+            type="button"
+            aria-current={page === currentPage ? "page" : undefined}
             className={`p-[6px_10px] w-8 h-8 ${page === currentPage ? "border border-primary" : ""}`}
             onClick={() => onPageChange(page)}
           >
@@ -53,6 +57,8 @@ const Pagination: React.FC<PaginationProps> = ({
         ))}
       </div>
       <button
+        type="button"
+        aria-label="Next page"
         onClick={() => onPageChange(Math.min(totalPage, currentPage + 1))}
         disabled={currentPage === totalPage}
         className="disabled:opacity-50"

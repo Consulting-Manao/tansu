@@ -102,6 +102,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
         <Modal onClose={handleClose}>
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
             <img
+              alt=""
               src="/images/scan.svg"
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
             />

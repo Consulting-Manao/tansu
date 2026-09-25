@@ -10,7 +10,7 @@
  */
 
 import type { FC, ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 export interface ModalProps {
   id?: string;
@@ -25,6 +25,9 @@ export interface ModalProps {
 // one on top, and the page scrolls again when the last one closes.
 const openDialogs: symbol[] = [];
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const Modal: FC<ModalProps> = ({
   id: _id,
   children,
@@ -33,6 +36,8 @@ const Modal: FC<ModalProps> = ({
   closable = true,
 }) => {
   const self = useRef(Symbol("dialog")).current;
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const isOnTop = () => openDialogs[openDialogs.length - 1] === self;
   const close = useRef(() => {});
   close.current = () => {
@@ -42,16 +47,44 @@ const Modal: FC<ModalProps> = ({
   useEffect(() => {
     openDialogs.push(self);
     document.body.style.overflow = "hidden";
+    // Focus moves into the dialog, and back where it was once it closes.
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOnTop()) close.current();
+      if (!isOnTop()) return;
+      if (event.key === "Escape") close.current();
+      if (event.key !== "Tab" || !dialog.current) return;
+      // Tab goes round the dialog's controls.
+      const controls = [
+        ...dialog.current.querySelectorAll<HTMLElement>(FOCUSABLE),
+      ].filter((control) => control.offsetParent !== null);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      const at = document.activeElement;
+      if (event.shiftKey && (at === first || at === dialog.current)) {
+        last?.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && at === last) {
+        first?.focus();
+        event.preventDefault();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       openDialogs.splice(openDialogs.indexOf(self), 1);
       if (!openDialogs.length) document.body.style.overflow = "";
+      if (opener?.isConnected) opener.focus();
     };
   }, []);
+
+  // The dialog is named by its first heading, whichever step shows.
+  useEffect(() => {
+    const heading = dialog.current?.querySelector("h1, h2, h3, h4, h5, h6");
+    if (!heading) return;
+    heading.id ||= titleId;
+    dialog.current!.setAttribute("aria-labelledby", heading.id);
+  });
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && isOnTop()) close.current();
@@ -67,9 +100,11 @@ const Modal: FC<ModalProps> = ({
       data-modal-container
     >
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
-        className={`modal relative bg-white shadow-modal rounded-lg max-w-[95vw] ${
+        tabIndex={-1}
+        className={`modal relative bg-white shadow-modal rounded-lg max-w-[95vw] focus:outline-none ${
           fullWidth ? "w-full max-w-6xl" : "w-full sm:w-auto"
         }`}
         onClick={handleModalClick}

@@ -5,11 +5,13 @@ import { E2E_ENV } from "./helpers/env";
 test.use({ serviceWorkers: "allow" });
 
 // Runs after every other test (playwright.config.ts): it rebuilds dist/.
-test("a new deploy is offered, and taken on Reload", async ({ page }) => {
+test("a new deploy is offered, and taken on Reload in every tab", async ({
+  page,
+}) => {
   test.setTimeout(180_000);
   // The page's scripts and islands: a deploy changes their hashed names.
-  const bundle = () =>
-    page.evaluate(() =>
+  const bundle = (tab = page) =>
+    tab.evaluate(() =>
       [
         ...[...document.scripts].map((s) => s.src),
         ...[...document.querySelectorAll("astro-island")].map((island) =>
@@ -21,6 +23,9 @@ test("a new deploy is offered, and taken on Reload", async ({ page }) => {
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   const deployed = await bundle();
+  // A second tab of the same app.
+  const other = await page.context().newPage();
+  await other.goto("/");
 
   // A deploy that changes the bundle, while the tab stays open.
   execSync("bun run build", {
@@ -33,10 +38,12 @@ test("a new deploy is offered, and taken on Reload", async ({ page }) => {
   });
 
   // Coming back to the tab looks for a new sw.js; the page keeps its version.
-  await page.evaluate(() =>
-    document.dispatchEvent(new Event("visibilitychange")),
-  );
-  await expect(page.getByText("A new version is ready")).toBeVisible();
+  for (const tab of [page, other]) {
+    await tab.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    await expect(tab.getByText("A new version is ready")).toBeVisible();
+  }
   await page.goto("/governance/?name=demo");
   await page.goto("/");
   expect(await bundle()).toBe(deployed);
@@ -47,4 +54,13 @@ test("a new deploy is offered, and taken on Reload", async ({ page }) => {
   ]);
   expect(await bundle()).not.toBe(deployed);
   await expect(page.getByText("A new version is ready")).toBeHidden();
+
+  // The other tab, still on the old version, takes the new one on Reload.
+  await expect(other.getByText("A new version is ready")).toBeVisible();
+  await Promise.all([
+    other.waitForEvent("load"),
+    other.getByRole("button", { name: "Reload" }).click(),
+  ]);
+  expect(await bundle(other)).toBe(await bundle());
+  await expect(other.getByText("A new version is ready")).toBeHidden();
 });

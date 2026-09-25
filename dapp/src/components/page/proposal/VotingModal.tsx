@@ -297,33 +297,42 @@ const VotingModal: React.FC<VotersModalProps> = ({
               </div>
             }
           />
-          {[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
-            (voteType, index) => (
-              <div
-                key={index}
-                className="flex gap-3 cursor-pointer"
-                onClick={() => {
-                  setSelectedOption(voteType);
-                  setVoteError(null);
-                }}
-              >
-                <VoteTypeCheckbox
-                  voteType={voteType}
-                  currentVoteType={selectedOption}
-                />
-                <div className="flex flex-col justify-center gap-2">
-                  <p
-                    className={`leading-5 text-lg sm:text-xl font-medium text-${voteType}`}
-                  >
-                    {voteTypeLabelMap[voteType]}
-                  </p>
-                  <p className="leading-4 text-sm sm:text-base font-semibold text-primary">
-                    {voteTypeDescriptionMap[voteType]}
-                  </p>
-                </div>
-              </div>
-            ),
-          )}
+          <div
+            role="radiogroup"
+            aria-label="Your vote"
+            className="flex flex-col gap-6 sm:gap-9"
+          >
+            {[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
+              (voteType) => (
+                <button
+                  key={voteType}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedOption === voteType}
+                  className="flex gap-3 cursor-pointer text-left"
+                  onClick={() => {
+                    setSelectedOption(voteType);
+                    setVoteError(null);
+                  }}
+                >
+                  <VoteTypeCheckbox
+                    voteType={voteType}
+                    currentVoteType={selectedOption}
+                  />
+                  <span className="flex flex-col justify-center gap-2">
+                    <span
+                      className={`leading-5 text-lg sm:text-xl font-medium text-${voteType}`}
+                    >
+                      {voteTypeLabelMap[voteType]}
+                    </span>
+                    <span className="leading-4 text-sm sm:text-base font-semibold text-primary">
+                      {voteTypeDescriptionMap[voteType]}
+                    </span>
+                  </span>
+                </button>
+              ),
+            )}
+          </div>
           {voteError && (
             <div className="bg-red-50 border border-red-200 text-red-500 px-4 py-2 rounded">
               {voteError}

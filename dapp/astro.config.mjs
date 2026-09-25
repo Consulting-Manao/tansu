@@ -20,11 +20,13 @@ function serviceWorker() {
           swDest: `${root}sw.js`,
           globPatterns: [
             "**/*.html",
-            "_astro/*.{js,css}",
+            // The XDR decoder of the proposal page is WebAssembly.
+            "_astro/*.{js,css,wasm}",
             "*.{svg,png,jpg,json}",
             "{icons,images}/**",
           ],
           globIgnores: ["social-card.png"],
+          maximumFileSizeToCacheInBytes: 8 * 2 ** 20,
           dontCacheBustURLsMatching: /^_astro\//,
           // Pages read their query string in the browser, and Netlify adds
           // ?dpl= to assets.

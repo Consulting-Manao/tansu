@@ -119,6 +119,7 @@ export default function Markdown({
         img: {
           component: ({ src, ...props }: ComponentProps<"img">) => (
             <img
+              alt=""
               {...props}
               src={resolvePath(src as string | undefined, baseUrl)}
               className="max-w-full h-auto"

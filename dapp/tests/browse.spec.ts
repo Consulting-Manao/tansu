@@ -49,7 +49,7 @@ test.describe("browsing without a wallet", () => {
     });
     await search.fill(project);
     await search.press("Enter");
-    await page.getByRole("img", { name: project, exact: true }).click();
+    await page.getByRole("button", { name: project, exact: true }).click();
     await page.getByRole("button", { name: "View Details" }).click();
     await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${project}`));
     await expect(page.getByText("E2E Labs").first()).toBeVisible();
