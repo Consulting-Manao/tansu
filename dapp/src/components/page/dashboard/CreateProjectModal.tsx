@@ -14,81 +14,84 @@ import { toast } from "utils/utils";
 import {
   validateProjectName as validateProjectNameUtil,
   validateGithubUrl,
-  validateMaintainerAddress,
 } from "utils/validations.ts";
 import {
   DEFAULT_FINALITY_THRESHOLD_PERCENT,
-  MAX_FINALITY_THRESHOLD_PERCENT,
-  MIN_FINALITY_THRESHOLD_PERCENT,
   validateFinalityThresholdPercent,
 } from "constants/attestation";
-import Textarea from "components/utils/Textarea.tsx";
 import { ProjectType } from "types/projectConfig";
 import {
-  getRepositoryHandleLabel,
-  getRepositoryHandlePlaceholder,
-  getRepositoryProvider,
   getRepositoryProviderLabel,
-  getRepositoryUrlPlaceholder,
-  SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
 } from "utils/editLinkFunctions";
 import MarkdownEditorWithImages, {
+  embedImages,
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
 import { projectUrl } from "utils/urls";
 import {
   validateFullName,
-  validateHandle,
   validateOrganization,
   writeTansuToml,
 } from "utils/tansuToml";
+import {
+  activeProvider,
+  checkMaintainers,
+  emptyOrganization,
+  handleLabel,
+  MaintainerRows,
+  OrganizationFields,
+  RepositoryFields,
+  ThresholdField,
+  type MaintainerRow,
+} from "components/page/project/ProjectFields";
 
-// Define ModalProps type for the modal component
-type ModalProps = {
-  onClose: () => void;
-};
-
-const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
+/** Register a project: its name, repository, team and organization. */
+const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState("");
+  const [projectNameError, setProjectNameError] = useState<string | null>(null);
   const [projectFullName, setProjectFullName] = useState("");
-  const [projectType, setProjectType] = useState<ProjectType>(
-    ProjectType.SOFTWARE,
-  );
-  const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
-    "",
-  ]);
-
-  const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
-  const [githubRepoUrl, setGithubRepoUrl] = useState("");
-  const [selectedRepositoryProvider, setSelectedRepositoryProvider] =
+  const [projectFullNameError, setProjectFullNameError] = useState<
+    string | null
+  >(null);
+  const [projectType, setProjectType] = useState(ProjectType.SOFTWARE);
+  const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [chosenProvider, setChosenProvider] =
     useState<RepositoryProvider>("github");
+  const [repositoryUrlError, setRepositoryUrlError] = useState<string | null>(
+    null,
+  );
+  const [maintainers, setMaintainers] = useState<MaintainerRow[]>([
+    { address: "", handle: "" },
+  ]);
+  const [org, setOrg] = useState(emptyOrganization);
+  const [orgErrors, setOrgErrors] = useState<
+    ReturnType<typeof validateOrganization>
+  >({});
+  const [finalityThreshold, setFinalityThreshold] = useState(
+    String(DEFAULT_FINALITY_THRESHOLD_PERCENT),
+  );
+  const [finalityThresholdError, setFinalityThresholdError] = useState<
+    string | null
+  >(null);
   const [readmeContent, setReadmeContent] = useState("");
   const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
   const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
+
+  // Flow state management
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSuccessful, setIsSuccessful] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const walletKey = useStore(connectedPublicKey);
   const isWalletReady = useStore(walletInitialized);
-  const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
-  const activeRepositoryProvider =
-    projectType === ProjectType.SOFTWARE
-      ? parsedRepositoryProvider || selectedRepositoryProvider
-      : undefined;
-  const repositoryProviderLabel = getRepositoryProviderLabel(
-    activeRepositoryProvider,
-  );
-  const repositoryHandleLabel =
-    projectType === ProjectType.SOFTWARE
-      ? getRepositoryHandleLabel(activeRepositoryProvider)
-      : "Maintainer Handle";
-  const repositoryHandlePlaceholder = getRepositoryHandlePlaceholder(
-    activeRepositoryProvider,
-  );
-  const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
-    activeRepositoryProvider,
-  );
+  const isSoftware = projectType === ProjectType.SOFTWARE;
+  const provider = isSoftware
+    ? activeProvider(repositoryUrl, chosenProvider)
+    : undefined;
+  const providerLabel = getRepositoryProviderLabel(provider);
 
   // Revoke blob URLs on modal unmount (not on step navigation)
   const readmeImageFilesRef = useRef<AttachedImage[]>([]);
@@ -103,178 +106,112 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     };
   }, []);
 
-  // Seed the first maintainer address once when the wallet resolves
+  // The connected wallet is the first maintainer.
   useEffect(() => {
     if (!walletKey) return;
-    setMaintainerAddresses((prev) => {
-      if (prev[0] !== "") return prev;
-      return [walletKey, ...prev.slice(1)];
-    });
+    setMaintainers(([first, ...others]) =>
+      first!.address
+        ? [first!, ...others]
+        : [{ ...first!, address: walletKey }, ...others],
+    );
   }, [walletKey]);
 
-  // Form validation errors
-  const [projectNameError, setProjectNameError] = useState<string | null>(null);
-  const [projectFullNameError, setProjectFullNameError] = useState<
-    string | null
-  >(null);
-  const [maintainersErrors, setMaintainersErrors] = useState<
-    Array<string | null>
-  >([null]);
-  const [githubRepoUrlError, setGithubRepoUrlError] = useState<string | null>(
-    null,
-  );
+  /** Free only when the contract has no project by that name, read fresh. */
+  const checkProjectName = async (): Promise<boolean> => {
+    const nameError = validateProjectNameUtil(projectName);
+    if (nameError) {
+      setProjectNameError(nameError);
+      return false;
+    }
+    const taken = await queryClient.query({
+      ...projectQuery(projectName),
+      staleTime: 0,
+    });
+    setProjectNameError(taken ? "Project name already registered" : null);
+    return !taken;
+  };
 
-  // Project documentation data (will be written to tansu.toml and uploaded to IPFS)
-  const [orgName, setOrgName] = useState("");
-  const [orgUrl, setOrgUrl] = useState("");
-  const [orgLogo, setOrgLogo] = useState("");
-  const [orgDescription, setOrgDescription] = useState("");
-  const [finalityThreshold, setFinalityThreshold] = useState(
-    String(DEFAULT_FINALITY_THRESHOLD_PERCENT),
-  );
-
-  // Org field validation errors
-  const [orgNameError, setOrgNameError] = useState<string | null>(null);
-  const [orgUrlError, setOrgUrlError] = useState<string | null>(null);
-  const [orgLogoError, setOrgLogoError] = useState<string | null>(null);
-  const [orgDescriptionError, setOrgDescriptionError] = useState<string | null>(
-    null,
-  );
-  const [finalityThresholdError, setFinalityThresholdError] = useState<
-    string | null
-  >(null);
-
-  // Flow state management
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSuccessful, setIsSuccessful] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Free only when the contract has no project by that name: a failed read
-  // throws, and its message shows instead of a guess.
-  const checkProjectNameAvailable = async (name: string): Promise<boolean> =>
-    (await queryClient.query({ ...projectQuery(name), staleTime: 0 })) === null;
-
-  // Update maintainersErrors array when maintainers change
-  useEffect(() => {
-    setMaintainersErrors(maintainerAddresses.map(() => null));
-    setGithubHandleErrors(maintainerGithubs.map(() => null));
-  }, [maintainerAddresses.length]);
-
-  const validateMaintainers = () => {
-    let isValid = true;
-
-    const addrErrors = maintainerAddresses.map((addr) => {
-      const error = validateMaintainerAddress(addr);
-      if (error) {
-        isValid = false;
-        return error;
+  const nextFromNaming = async () => {
+    if (!isWalletReady || !walletKey) {
+      toast.error(
+        "Connect Wallet",
+        "Please connect your wallet first to create a project",
+      );
+      return;
+    }
+    const fullNameError = validateFullName(projectFullName);
+    setProjectFullNameError(fullNameError);
+    if (fullNameError) return;
+    setIsLoading(true);
+    try {
+      if (!(await checkProjectName())) return;
+      if (isSoftware) {
+        const urlError = validateGithubUrl(repositoryUrl);
+        setRepositoryUrlError(urlError);
+        if (urlError) return;
       }
-      return null;
-    });
-
-    const ghErrors = maintainerGithubs.map((gh) => {
-      const error = validateHandle(gh, repositoryHandleLabel);
-      if (error) isValid = false;
-      return error;
-    });
-
-    setMaintainersErrors(addrErrors);
-    setGithubHandleErrors(ghErrors);
-    return isValid;
+      setStep(2);
+    } catch (err: any) {
+      setProjectNameError(err.message || "Project name validation failed");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const validateRepositoryUrl = () => {
-    const error = validateGithubUrl(githubRepoUrl);
-    setGithubRepoUrlError(error);
-    return error === null;
+  const nextFromTeam = () => {
+    const checked = checkMaintainers(maintainers, handleLabel(provider));
+    setMaintainers(checked.rows);
+    if (checked.valid) setStep(3);
   };
 
-  const validateOrgFields = (): boolean => {
-    const errors = validateOrganization({
-      orgName,
-      orgUrl,
-      orgLogo,
-      orgDescription,
-    });
-    setOrgNameError(errors.orgName ?? null);
-    setOrgUrlError(errors.orgUrl ?? null);
-    setOrgLogoError(errors.orgLogo ?? null);
-    setOrgDescriptionError(errors.orgDescription ?? null);
+  const nextFromDetails = () => {
+    const errors = validateOrganization(org);
+    setOrgErrors(errors);
     const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
     setFinalityThresholdError(thresholdError);
-    return Object.keys(errors).length === 0 && !thresholdError;
+    if (!Object.keys(errors).length && !thresholdError) setStep(4);
   };
 
   const handleRegisterProject = async () => {
     setIsLoading(true);
-
     try {
-      const publicKey = connectedPublicKey.get();
-      if (!publicKey) {
+      if (!connectedPublicKey.get()) {
         throw new Error("Please connect your wallet first");
       }
-
-      const tomlContent = writeTansuToml({
-        projectType,
-        maintainers: maintainerAddresses,
-        handles: maintainerGithubs,
-        fullName: projectFullName,
-        orgName,
-        orgUrl,
-        orgLogo,
-        orgDescription,
-        repositoryUrl: githubRepoUrl,
-        repositoryProvider: activeRepositoryProvider,
-      });
-
-      const tomlFile = new File([tomlContent], "tansu.toml", {
-        type: "text/plain",
-      });
-
-      // Create README file for non-software projects (always, even if empty)
-      let additionalFiles: File[] | undefined = undefined;
-      if (projectType === ProjectType.GENERIC) {
-        let finalReadme = readmeContent || "";
-        const imageFilesToInclude: File[] = [];
-        readmeImageFiles.forEach((img) => {
-          if (finalReadme.includes(img.localUrl)) {
-            finalReadme = finalReadme.replace(
-              new RegExp(
-                img.localUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-                "g",
-              ),
-              img.publicUrl,
-            );
-            imageFilesToInclude.push(
-              new File([img.source], img.publicUrl, { type: img.source.type }),
-            );
-          }
-        });
-        additionalFiles = [
-          new File([finalReadme], "README.md", { type: "text/plain" }),
-          ...imageFilesToInclude,
-        ];
-      }
-
-      // show progress
+      const tomlFile = new File(
+        [
+          writeTansuToml({
+            projectType,
+            maintainers: maintainers.map((row) => row.address),
+            handles: maintainers.map((row) => row.handle),
+            fullName: projectFullName,
+            ...org,
+            repositoryUrl,
+            repositoryProvider: provider,
+          }),
+        ],
+        "tansu.toml",
+        { type: "text/plain" },
+      );
+      // A project without code has a README, possibly empty.
+      const readme = embedImages(readmeContent, readmeImageFiles);
       setStep(6);
-
       await registerProject(projectName, {
         tomlFile,
-        repositoryUrl:
-          projectType === ProjectType.SOFTWARE ? githubRepoUrl : "",
-        maintainers: maintainerAddresses,
+        repositoryUrl: isSoftware ? repositoryUrl : "",
+        maintainers: maintainers.map((row) => row.address),
         onProgress: setStep,
         attestationThreshold: Number(finalityThreshold),
-        ...(additionalFiles && { additionalFiles }),
+        ...(!isSoftware && {
+          additionalFiles: [
+            new File([readme.text], "README.md", { type: "text/plain" }),
+            ...readme.files,
+          ],
+        }),
       });
-
       setStep(10);
-
       toast.success("Success", "Project has been registered successfully!");
-
       onClose();
-
       navigate(projectUrl(projectName));
     } catch (err: any) {
       setError(err.message);
@@ -283,31 +220,26 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
     }
   };
 
-  const validateAndSetProjectNameError = async () => {
-    try {
-      const nameError = validateProjectNameUtil(projectName);
-      if (nameError) {
-        setProjectNameError(nameError);
-        return false;
-      }
+  const footer = (next: () => void) => (
+    <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
+      <Button type="secondary" onClick={onClose} className="w-full sm:w-auto">
+        Cancel
+      </Button>
+      <Button isLoading={isLoading} onClick={next} className="w-full sm:w-auto">
+        Next
+      </Button>
+    </div>
+  );
 
-      const isAvailable = await checkProjectNameAvailable(projectName);
-      if (!isAvailable) {
-        setProjectNameError("Project name already registered");
-        return false;
-      }
-
-      setProjectNameError(null);
-      return true;
-    } catch (error: any) {
-      setProjectNameError(error.message || "Invalid project name");
-      return false;
-    }
-  };
-
-  const [githubHandleErrors, setGithubHandleErrors] = useState<
-    Array<string | null>
-  >([null]);
+  const stepLayout = (image: string, body: React.ReactNode) => (
+    <div
+      key={step}
+      className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
+    >
+      <img alt="" className="flex-none w-[140px] md:w-[260px]" src={image} />
+      <div className="flex flex-col gap-6 md:gap-[42px] w-full">{body}</div>
+    </div>
+  );
 
   return (
     <FlowProgressModal
@@ -331,25 +263,17 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
       successTitle="Your Project Is Live!"
       successMessage="Congratulations! You've successfully created your project. Let's get the ball rolling!"
     >
-      {step == 1 ? (
-        <div
-          key={step}
-          className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
-        >
-          <img
-            alt=""
-            className="flex-none w-[140px] md:w-[260px]"
-            src="/images/megaphone.svg"
-          />
-          <div className="flex flex-col gap-6 md:gap-[42px] w-full">
-            <div className="flex flex-col gap-4 md:gap-[30px]">
-              <div className="flex-grow flex flex-col gap-4 md:gap-[30px]">
+      {step == 1
+        ? stepLayout(
+            "/images/megaphone.svg",
+            <>
+              <div className="flex flex-col gap-4 md:gap-[30px]">
                 <div className="flex flex-col gap-3 md:gap-5">
                   <Step step={step} totalSteps={5} />
                   <Title
                     title="Welcome to Your New Project!"
                     description={
-                      projectType === ProjectType.SOFTWARE
+                      isSoftware
                         ? "Add your project name, choose a repository provider, and paste the repo URL early so the rest of the form adapts automatically."
                         : "Add your project name and display name to get started."
                     }
@@ -360,11 +284,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
                   placeholder="Write the project name (e.g., myproject)"
                   value={projectName}
                   onChange={(e) => {
-                    const validInput = e.target.value.replace(
-                      /[^a-zA-Z0-9]/g,
-                      "",
-                    );
-                    setProjectName(validInput);
+                    setProjectName(e.target.value.replace(/[^a-zA-Z0-9]/g, ""));
                     setProjectNameError(null);
                   }}
                   description="Project name must be 4-30 alphanumeric characters (a-z, A-Z, 0-9). This will be your unique on-chain identifier."
@@ -375,575 +295,257 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
                   placeholder="My Awesome Project"
                   value={projectFullName}
                   onChange={(e) => {
-                    // Printable ASCII-only sanitization for DBA field
-                    const sanitized = e.target.value.replace(
-                      /[^\x20-\x7E]/g,
-                      "",
+                    // Printable ASCII, at most 100 characters.
+                    setProjectFullName(
+                      e.target.value.replace(/[^\x20-\x7E]/g, "").slice(0, 100),
                     );
-
-                    // Max 100 characters
-                    setProjectFullName(sanitized.slice(0, 100));
                     setProjectFullNameError(null);
                   }}
                   description="Human-readable name shown in the UI (up to 100 ASCII characters)."
                   error={projectFullNameError}
                 />
-                <div className="flex flex-col gap-3">
-                  <Label label="Project Type" />
+                <fieldset className="flex flex-col gap-3">
+                  <legend className="leading-4 text-base text-secondary mb-3">
+                    Project Type
+                  </legend>
                   <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="projectType"
-                        value={ProjectType.SOFTWARE}
-                        checked={projectType === ProjectType.SOFTWARE}
-                        onChange={() => setProjectType(ProjectType.SOFTWARE)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-primary">
-                        Software Project (uses a supported git provider)
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="projectType"
-                        value={ProjectType.GENERIC}
-                        checked={projectType === ProjectType.GENERIC}
-                        onChange={() => setProjectType(ProjectType.GENERIC)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-primary">Non-Software Project</span>
-                    </label>
+                    {(
+                      [
+                        [
+                          ProjectType.SOFTWARE,
+                          "Software Project (uses a supported git provider)",
+                        ],
+                        [ProjectType.GENERIC, "Non-Software Project"],
+                      ] as const
+                    ).map(([type, label]) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          name="projectType"
+                          checked={projectType === type}
+                          onChange={() => setProjectType(type)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-primary">{label}</span>
+                      </label>
+                    ))}
                   </div>
                   <p className="text-sm text-secondary">
-                    {projectType === ProjectType.SOFTWARE
+                    {isSoftware
                       ? "For software projects hosted on GitHub, GitLab, Bitbucket, Codeberg, Gitea, or public Radicle repositories"
                       : "For non-software projects like creative work, documentation, or community initiatives"}
                   </p>
-                </div>
-                {projectType === ProjectType.SOFTWARE && (
-                  <div className="flex flex-col gap-[30px]">
-                    <div className="flex flex-col gap-3">
-                      <Label label="Repository Provider" />
-                      <select
-                        value={
-                          activeRepositoryProvider || selectedRepositoryProvider
-                        }
-                        onChange={(e) =>
-                          setSelectedRepositoryProvider(
-                            e.target.value as RepositoryProvider,
-                          )
-                        }
-                        className="p-[18px] border border-[#978AA1] outline-none bg-white"
-                      >
-                        {SUPPORTED_REPOSITORY_PROVIDERS.map((provider) => (
-                          <option key={provider} value={provider}>
-                            {getRepositoryProviderLabel(provider)}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="leading-[16px] text-base text-tertiary">
-                        You can choose the provider first or paste the
-                        repository URL below and let the form detect it.
-                      </p>
-                    </div>
-
-                    <Input
-                      label={`${repositoryProviderLabel} Repository URL`}
-                      placeholder={repositoryUrlPlaceholder}
-                      value={githubRepoUrl}
-                      onChange={(e) => {
-                        const nextValue = e.target.value;
-                        setGithubRepoUrl(nextValue);
-                        setGithubRepoUrlError(null);
-
-                        const parsedProvider = getRepositoryProvider(nextValue);
-                        if (parsedProvider) {
-                          setSelectedRepositoryProvider(parsedProvider);
-                        }
-                      }}
-                      description={
-                        activeRepositoryProvider === "radicle"
-                          ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
-                          : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
-                      }
-                      error={githubRepoUrlError}
-                    />
-                  </div>
+                </fieldset>
+                {isSoftware && (
+                  <RepositoryFields
+                    url={repositoryUrl}
+                    provider={chosenProvider}
+                    error={repositoryUrlError}
+                    onChange={(url, host) => {
+                      setRepositoryUrl(url);
+                      setChosenProvider(host);
+                      setRepositoryUrlError(null);
+                    }}
+                  />
                 )}
               </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
-              <Button
-                type="secondary"
-                onClick={onClose}
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-              <Button
-                isLoading={isLoading}
-                className="w-full sm:w-auto"
-                onClick={async () => {
-                  if (!isWalletReady || !walletKey) {
-                    toast.error(
-                      "Connect Wallet",
-                      "Please connect your wallet first to create a project",
-                    );
-                    return;
-                  }
-                  setIsLoading(true);
-                  try {
-                    // Validate DBA field first
-                    const dbaError = validateFullName(projectFullName);
-                    if (dbaError) {
-                      setProjectFullNameError(dbaError);
-                      setIsLoading(false);
-                      return;
-                    }
-
-                    const isValid = await validateAndSetProjectNameError();
-
-                    if (
-                      isValid &&
-                      projectType === ProjectType.SOFTWARE &&
-                      !validateRepositoryUrl()
-                    ) {
-                      return;
-                    }
-
-                    if (isValid) {
-                      setStep(step + 1);
-                    }
-                  } catch (err: any) {
-                    setProjectNameError(
-                      err.message || "Project name validation failed",
-                    );
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : step == 2 ? (
-        <div
-          key={step}
-          className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
-        >
-          <img
-            alt=""
-            className="flex-none w-[140px] md:w-[260px]"
-            src="/images/team.svg"
-          />
-          <div className="flex flex-col gap-6 md:gap-[42px] w-full">
-            <div className="flex flex-col gap-4 md:gap-[30px]">
-              <div className="flex-grow md:flex-1 flex flex-col gap-4 md:gap-[30px]">
-                <div className="flex flex-col gap-3 md:gap-5">
-                  <Step step={step} totalSteps={5} />
-                  <Title
-                    title="Build Your Team"
-                    description={
-                      projectType === ProjectType.SOFTWARE
-                        ? `Add maintainer wallet addresses and ${repositoryProviderLabel} handles for the contributors associated with this repository.`
-                        : "Add yourself as the maintainer and optionally include team members to collaborate on your project."
-                    }
+              {footer(nextFromNaming)}
+            </>,
+          )
+        : step == 2
+          ? stepLayout(
+              "/images/team.svg",
+              <>
+                <div className="flex flex-col gap-4 md:gap-[30px]">
+                  <div className="flex flex-col gap-3 md:gap-5">
+                    <Step step={step} totalSteps={5} />
+                    <Title
+                      title="Build Your Team"
+                      description={
+                        isSoftware
+                          ? `Add maintainer wallet addresses and ${providerLabel} handles for the contributors associated with this repository.`
+                          : "Add yourself as the maintainer and optionally include team members to collaborate on your project."
+                      }
+                    />
+                  </div>
+                  <MaintainerRows
+                    rows={maintainers}
+                    onChange={setMaintainers}
+                    provider={provider}
                   />
                 </div>
-                <div className="flex flex-col gap-[18px]">
-                  {maintainerAddresses.map((address, i) => (
-                    <div key={i} className="flex flex-col gap-2 w-full">
-                      <div className="flex flex-col md:flex-row gap-[18px]">
-                        <Input
-                          className="flex-1"
-                          value={address}
-                          {...(i == 0 && {
-                            label: "Maintainer Address",
-                          })}
-                          placeholder="G... or C..."
-                          onChange={(e) => {
-                            setMaintainerAddresses(
-                              maintainerAddresses.map((addr, j) =>
-                                i == j ? e.target.value : addr,
-                              ),
-                            );
-                            setMaintainersErrors(
-                              maintainersErrors.map((err, j) =>
-                                i === j ? null : err,
-                              ),
-                            );
-                          }}
-                          error={maintainersErrors[i]}
+                {footer(nextFromTeam)}
+              </>,
+            )
+          : step == 3
+            ? stepLayout(
+                "/images/arrow.svg",
+                <>
+                  <div className="flex flex-col gap-4 md:gap-[30px]">
+                    <div className="flex flex-col gap-3 md:gap-5">
+                      <Step step={step} totalSteps={5} />
+                      <Title
+                        title={
+                          isSoftware
+                            ? "Add Organization Details"
+                            : "Add Supporting Materials"
+                        }
+                        description={
+                          isSoftware
+                            ? "Add organization links, branding, and project context."
+                            : "Attach links and README content to provide more context and strengthen your project proposal."
+                        }
+                      />
+                    </div>
+                    <OrganizationFields
+                      org={org}
+                      errors={orgErrors}
+                      onChange={(next, field) => {
+                        setOrg(next);
+                        setOrgErrors(({ [field]: _fixed, ...rest }) => rest);
+                      }}
+                    />
+                    <ThresholdField
+                      value={finalityThreshold}
+                      error={finalityThresholdError}
+                      onChange={(value) => {
+                        setFinalityThreshold(value);
+                        setFinalityThresholdError(null);
+                      }}
+                    />
+                    {!isSoftware && (
+                      <MarkdownEditorWithImages
+                        value={readmeContent}
+                        onChange={setReadmeContent}
+                        imageFiles={readmeImageFiles}
+                        onImageFilesChange={setReadmeImageFiles}
+                        imageError={readmeImageError}
+                        onImageErrorChange={setReadmeImageError}
+                        placeholder="Write your project README in markdown format..."
+                      />
+                    )}
+                  </div>
+                  {footer(nextFromDetails)}
+                </>,
+              )
+            : step == 4 && (
+                <div key={step} className="flex flex-col gap-[30px]">
+                  <div className="flex items-center gap-[18px]">
+                    <img
+                      alt=""
+                      className="flex-none w-[360px]"
+                      src="/images/note.svg"
+                    />
+                    <div className="flex-grow flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-5">
+                        <Step step={step} totalSteps={5} />
+                        <Title
+                          title="Review and Submit Your Project"
+                          description="Take a moment to review your project details before submitting. You can go back and make changes if needed."
                         />
-                        <Input
-                          className="flex-1"
-                          value={maintainerGithubs[i] ?? ""}
-                          {...(i == 0 && {
-                            label: repositoryHandleLabel,
-                          })}
-                          placeholder={repositoryHandlePlaceholder}
-                          onChange={(e) => {
-                            setMaintainerGithubs(
-                              maintainerGithubs.map((gh, j) =>
-                                i == j ? e.target.value : gh,
-                              ),
-                            );
-                            setGithubHandleErrors(
-                              githubHandleErrors.map(
-                                (err: string | null, j: number) =>
-                                  i === j ? null : err,
-                              ),
-                            );
-                          }}
-                          error={githubHandleErrors[i]}
-                        />
-                        {i > 0 && (
-                          <button
-                            type="button"
-                            aria-label="Remove this maintainer"
-                            onClick={() => {
-                              setMaintainerAddresses(
-                                maintainerAddresses.filter((_, j) => j !== i),
-                              );
-                              setMaintainerGithubs(
-                                maintainerGithubs.filter((_, j) => j !== i),
-                              );
-                              setMaintainersErrors(
-                                maintainersErrors.filter((_, j) => j !== i),
-                              );
-                              setGithubHandleErrors(
-                                githubHandleErrors.filter((_, j) => j !== i),
-                              );
-                            }}
-                          >
-                            <img alt="" src="/icons/remove.svg" />
-                          </button>
-                        )}
+                        <p className="text-sm text-secondary">
+                          <span className="font-semibold">Note:</span> Project
+                          registration requires a 5 XLM collateral deposit.
+                        </p>
+                      </div>
+                      <div className="flex gap-[18px]">
+                        <Button
+                          isLoading={isLoading}
+                          onClick={handleRegisterProject}
+                        >
+                          Register Project
+                        </Button>
+                        <Button type="secondary" onClick={onClose}>
+                          Cancel
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                  <div className="flex justify-end">
-                    <Button
-                      type="tertiary"
-                      icon="/icons/plus.svg"
-                      onClick={() => {
-                        setMaintainerAddresses([...maintainerAddresses, ""]);
-                        setMaintainerGithubs([...maintainerGithubs, ""]);
-                        setMaintainersErrors([...maintainersErrors, null]);
-                        setGithubHandleErrors([...githubHandleErrors, null]);
-                      }}
-                    >
-                      Add Maintainer
-                    </Button>
                   </div>
+                  <ReviewSection title="First Step" onBack={() => setStep(1)}>
+                    <Label label="Project Name (On-chain)">
+                      <p className="leading-6 text-xl text-primary">
+                        {projectName}
+                      </p>
+                    </Label>
+                    {projectFullName && (
+                      <Label label="Project Full Name">
+                        <p className="leading-6 text-xl text-primary">
+                          {projectFullName}
+                        </p>
+                      </Label>
+                    )}
+                    <Label label="Project type">
+                      <p className="leading-6 text-xl text-primary">
+                        {isSoftware
+                          ? "Software Project"
+                          : "Non-Software Project"}
+                      </p>
+                    </Label>
+                    {isSoftware && (
+                      <Label label={`${providerLabel} Repository URL`}>
+                        <p className="leading-6 text-xl text-primary break-all">
+                          {repositoryUrl}
+                        </p>
+                      </Label>
+                    )}
+                  </ReviewSection>
+                  <ReviewSection title="Second Step" onBack={() => setStep(2)}>
+                    <Label label="Maintainers">
+                      <div className="grid grid-cols-3 gap-x-9 gap-y-[18px]">
+                        {maintainers.map((row, index) => (
+                          <p
+                            key={index}
+                            className="leading-[14px] text-sm text-secondary"
+                          >
+                            {`(${row.address.slice(0, 24)}...)`}
+                          </p>
+                        ))}
+                      </div>
+                    </Label>
+                  </ReviewSection>
+                  <ReviewSection title="Third Step" onBack={() => setStep(3)}>
+                    <Label label="Finality threshold">
+                      <p className="leading-6 text-xl text-primary">
+                        {finalityThreshold}%
+                      </p>
+                    </Label>
+                  </ReviewSection>
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
-              <Button
-                type="secondary"
-                onClick={onClose}
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  const isValid = validateMaintainers();
-                  if (isValid) {
-                    setStep(step + 1);
-                  }
-                }}
-                className="w-full sm:w-auto"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : step == 3 ? (
-        <div
-          key={step}
-          className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
-        >
-          <img
-            alt=""
-            className="flex-none w-[140px] md:w-[260px]"
-            src="/images/arrow.svg"
-          />
-          <div className="flex flex-col gap-6 md:gap-[42px] w-full">
-            <div className="flex flex-col gap-4 md:gap-[30px]">
-              <div className="flex-grow md:flex-1 flex flex-col gap-4 md:gap-[30px]">
-                <div className="flex flex-col gap-3 md:gap-5">
-                  <Step step={step} totalSteps={5} />
-                  <Title
-                    title={
-                      projectType === ProjectType.SOFTWARE
-                        ? "Add Organization Details"
-                        : "Add Supporting Materials"
-                    }
-                    description={
-                      projectType === ProjectType.SOFTWARE
-                        ? "Add organization links, branding, and project context. Repository details were already collected so labels stay provider-aware throughout the flow."
-                        : "Attach links and README content to provide more context and strengthen your project proposal."
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-[30px]">
-                  <Input
-                    label="Organization Name"
-                    placeholder="Your organisation / project owner name"
-                    value={orgName}
-                    onChange={(e) => {
-                      setOrgName(e.target.value);
-                      setOrgNameError(null);
-                    }}
-                    error={orgNameError}
-                  />
-
-                  <Input
-                    label="Organization Website URL"
-                    placeholder="https://example.com"
-                    value={orgUrl}
-                    onChange={(e) => {
-                      setOrgUrl(e.target.value);
-                      setOrgUrlError(null);
-                    }}
-                    error={orgUrlError}
-                  />
-
-                  <Input
-                    label="Organization Logo URL"
-                    placeholder="https://.../logo.png"
-                    value={orgLogo}
-                    onChange={(e) => {
-                      setOrgLogo(e.target.value);
-                      setOrgLogoError(null);
-                    }}
-                    error={orgLogoError}
-                  />
-
-                  <Textarea
-                    label="Project Description"
-                    placeholder="Describe your project (min 3 words)"
-                    value={orgDescription}
-                    onChange={(e) => {
-                      setOrgDescription(e.target.value);
-                      setOrgDescriptionError(null);
-                    }}
-                    error={orgDescriptionError}
-                  />
-
-                  <Input
-                    label="Finality threshold (%)"
-                    type="number"
-                    min={MIN_FINALITY_THRESHOLD_PERCENT}
-                    max={MAX_FINALITY_THRESHOLD_PERCENT}
-                    value={finalityThreshold}
-                    onChange={(e) => {
-                      setFinalityThreshold(e.target.value);
-                      setFinalityThresholdError(null);
-                    }}
-                    description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}; can be changed later in the project config.`}
-                    error={finalityThresholdError}
-                  />
-
-                  {projectType === ProjectType.SOFTWARE ? (
-                    <Input
-                      label={`${repositoryProviderLabel} Repository URL`}
-                      placeholder={repositoryUrlPlaceholder}
-                      value={githubRepoUrl}
-                      onChange={(e) => {
-                        const nextValue = e.target.value;
-                        setGithubRepoUrl(nextValue);
-                        setGithubRepoUrlError(null);
-
-                        const parsedProvider = getRepositoryProvider(nextValue);
-                        if (parsedProvider) {
-                          setSelectedRepositoryProvider(parsedProvider);
-                        }
-                      }}
-                      description={
-                        activeRepositoryProvider === "radicle"
-                          ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
-                          : `Supported formats are HTTPS or SSH URLs for ${repositoryProviderLabel}.`
-                      }
-                      error={githubRepoUrlError}
-                    />
-                  ) : (
-                    <MarkdownEditorWithImages
-                      value={readmeContent}
-                      onChange={setReadmeContent}
-                      imageFiles={readmeImageFiles}
-                      onImageFilesChange={setReadmeImageFiles}
-                      imageError={readmeImageError}
-                      onImageErrorChange={setReadmeImageError}
-                      placeholder="Write your project README in markdown format..."
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
-              <Button
-                type="secondary"
-                onClick={onClose}
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  const areOrgFieldsValid = validateOrgFields();
-
-                  if (areOrgFieldsValid) {
-                    setStep(step + 1);
-                  }
-                }}
-                className="w-full sm:w-auto"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : step == 4 ? (
-        <div key={step} className="flex flex-col gap-[30px]">
-          <div className="flex items-center gap-[18px]">
-            <img
-              alt=""
-              className="flex-none w-[360px]"
-              src="/images/note.svg"
-            />
-            <div className="flex-grow flex flex-col gap-[30px]">
-              <div className="flex flex-col gap-5">
-                <Step step={step} totalSteps={5} />
-                <Title
-                  title="Review and Submit Your Project"
-                  description="Take a moment to review your project details before submitting. You can go back and make changes if needed."
-                />
-                <p className="text-sm text-secondary">
-                  <span className="font-semibold">Note:</span> Project
-                  registration requires a 5 XLM collateral deposit.
-                </p>
-              </div>
-              <div className="flex gap-[18px]">
-                <Button
-                  id="register-project-button"
-                  isLoading={isLoading}
-                  onClick={handleRegisterProject}
-                >
-                  Register Project
-                </Button>
-                <Button type="secondary" onClick={onClose}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-6">
-            <div className="flex gap-6">
-              <p className="leading-6 text-xl font-medium text-primary">
-                First Step
-              </p>
-              <Button
-                type="secondary"
-                size="sm"
-                className="p-[2px_10px]"
-                onClick={() => setStep(1)}
-              >
-                Back to the First Step
-              </Button>
-            </div>
-            <Label label="Project Name (On-chain)">
-              <p className="leading-6 text-xl text-primary">{projectName}</p>
-            </Label>
-            {projectFullName && (
-              <Label label="Project Full Name">
-                <p className="leading-6 text-xl text-primary">
-                  {projectFullName}
-                </p>
-              </Label>
-            )}
-            <Label label="Project type">
-              <p className="leading-6 text-xl text-primary">
-                {projectType === ProjectType.SOFTWARE
-                  ? "Software Project"
-                  : "Non-Software Project"}
-              </p>
-            </Label>
-          </div>
-          <div className="h-[1px] bg-[#ECE3F4]" />
-          <div className="flex flex-col gap-6">
-            <div className="flex gap-6">
-              <p className="leading-6 text-xl font-medium text-primary">
-                Second Step
-              </p>
-              <Button
-                type="secondary"
-                size="sm"
-                className="p-[2px_10px]"
-                onClick={() => setStep(2)}
-              >
-                Back to the Second Step
-              </Button>
-            </div>
-            <Label label="Maintainers">
-              <div className="grid grid-cols-3 gap-x-9 gap-y-[18px]">
-                {maintainerAddresses.map((address, index) => (
-                  <p
-                    key={index}
-                    className="leading-[14px] text-sm text-secondary"
-                  >
-                    {`(${address.slice(0, 24) + "..."})`}
-                  </p>
-                ))}
-              </div>
-            </Label>
-          </div>
-          <div className="h-[1px] bg-[#ECE3F4]" />
-          <div className="flex flex-col gap-6">
-            <div className="flex gap-6">
-              <p className="leading-6 text-xl font-medium text-primary">
-                Third Step
-              </p>
-              <Button
-                type="secondary"
-                size="sm"
-                className="p-[2px_10px]"
-                onClick={() => setStep(3)}
-              >
-                Back to the Third Step
-              </Button>
-            </div>
-            {projectType === ProjectType.SOFTWARE && (
-              <>
-                <Label label="Repository Provider">
-                  <p className="leading-6 text-xl text-primary">
-                    {repositoryProviderLabel}
-                  </p>
-                </Label>
-                <Label label={`${repositoryProviderLabel} Repository URL`}>
-                  <p className="leading-6 text-xl text-primary">
-                    {githubRepoUrl}
-                  </p>
-                </Label>
-              </>
-            )}
-            <Label label="Finality threshold">
-              <p className="leading-6 text-xl text-primary">
-                {finalityThreshold}%
-              </p>
-            </Label>
-          </div>
-        </div>
-      ) : null}
+              )}
     </FlowProgressModal>
   );
 };
+
+/** A step's answers in the review, with the way back to it. */
+const ReviewSection = ({
+  title,
+  onBack,
+  children,
+}: {
+  title: string;
+  onBack: () => void;
+  children: React.ReactNode;
+}) => (
+  <>
+    <div className="h-[1px] bg-[#ECE3F4]" />
+    <div className="flex flex-col gap-6">
+      <div className="flex gap-6">
+        <p className="leading-6 text-xl font-medium text-primary">{title}</p>
+        <Button
+          type="secondary"
+          size="sm"
+          className="p-[2px_10px]"
+          onClick={onBack}
+        >
+          Back to the {title}
+        </Button>
+      </div>
+      {children}
+    </div>
+  </>
+);
 
 export default CreateProjectModal;

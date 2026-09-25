@@ -1,3 +1,4 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
 import Markdown from "components/utils/Markdown";
@@ -14,10 +15,7 @@ import { capitalizeFirstLetter } from "utils/utils";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { getStellarExpertUrl } from "utils/urls";
 import { winningOutcome } from "utils/proposalOutcomes";
-import {
-  getContractFunctions,
-  isValidContractAddress,
-} from "@service/ContractIntrospectionService";
+import { getContractFunctions } from "@service/ContractIntrospectionService";
 import "react18-json-view/src/style.css";
 
 const OUTCOME_TYPES = ["approved", "rejected", "cancelled"] as const;
@@ -211,7 +209,7 @@ const OutcomeDetail: React.FC<{
       if (
         !detail.contract?.address ||
         !detail.contract.execute_fn ||
-        !isValidContractAddress(detail.contract.address)
+        !StrKey.isValidContract(detail.contract.address)
       ) {
         setParamNames(null);
         return;

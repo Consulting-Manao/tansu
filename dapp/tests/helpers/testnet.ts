@@ -41,18 +41,47 @@ export function uniqueName(suffix: string): string {
   return `e2e${Date.now().toString(36)}${suffix}`.slice(0, 30);
 }
 
-/** A new account holding friendbot's 10 000 XLM. */
+/** Try `attempt` up to three times while `retry` accepts its error. */
+async function withRetries<T>(
+  attempt: () => Promise<T>,
+  retry: (error: Error) => boolean,
+): Promise<T> {
+  for (let tries = 1; ; tries++) {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (tries === 3 || !retry(error as Error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 3_000 * tries));
+    }
+  }
+}
+
+/** A new account holding friendbot's 10 000 XLM; friendbot has bad moments. */
 export async function fundedKeypair(): Promise<Keypair> {
   const keypair = Keypair.random();
-  const response = await fetch(
-    `https://friendbot.stellar.org?addr=${keypair.publicKey()}`,
-    { signal: AbortSignal.timeout(60_000) },
+  await withRetries(
+    async () => {
+      const response = await fetch(
+        `https://friendbot.stellar.org?addr=${keypair.publicKey()}`,
+        { signal: AbortSignal.timeout(60_000) },
+      );
+      if (!response.ok) {
+        throw new Error(
+          `friendbot ${response.status}: ${await response.text()}`,
+        );
+      }
+    },
+    (error) => /friendbot 5\d\d|timed out|fetch failed/i.test(error.message),
   );
-  if (!response.ok) {
-    throw new Error(`friendbot ${response.status}: ${await response.text()}`);
-  }
   return keypair;
 }
+
+/**
+ * Build and land a call again when a concurrent run changed what it writes
+ * between its simulation and its inclusion (the shared project list grows).
+ */
+const landAgain = (error: Error) =>
+  /exceeds amount specified/.test(error.message);
 
 /** The Tansu contract, read-only or as `keypair`. */
 function tansu(keypair?: Keypair): Client {
@@ -165,23 +194,25 @@ export async function registerProject(
 ): Promise<void> {
   const [first] = maintainers;
   const pack = await packFiles(projectFiles(name, maintainers, { toml }));
-  const tx = await tansu(first).register({
-    maintainer: first!.publicKey(),
-    name,
-    maintainers: maintainers.map((m) => m.publicKey()),
-    url: RADICLE_REPO,
-    ipfs: pack.cid,
-    min_voting_period:
-      periods.minVotingPeriod === undefined
-        ? undefined
-        : BigInt(periods.minVotingPeriod),
-    execute_delay:
-      periods.executeDelay === undefined
-        ? undefined
-        : BigInt(periods.executeDelay),
-    attestation_threshold: undefined,
-  });
-  await land(tx, pack);
+  await withRetries(async () => {
+    const tx = await tansu(first).register({
+      maintainer: first!.publicKey(),
+      name,
+      maintainers: maintainers.map((m) => m.publicKey()),
+      url: RADICLE_REPO,
+      ipfs: pack.cid,
+      min_voting_period:
+        periods.minVotingPeriod === undefined
+          ? undefined
+          : BigInt(periods.minVotingPeriod),
+      execute_delay:
+        periods.executeDelay === undefined
+          ? undefined
+          : BigInt(periods.executeDelay),
+      attestation_threshold: undefined,
+    });
+    await land(tx, pack);
+  }, landAgain);
 }
 
 /** A new tansu.toml for `name`, as another maintainer would write it. */

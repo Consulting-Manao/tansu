@@ -7,6 +7,26 @@ export type AttachedImage = {
   source: File;
 };
 
+/**
+ * `markdown` with its images' local URLs replaced by their paths in the
+ * directory it is published in, and the images it shows, as files for it.
+ */
+export function embedImages(
+  markdown: string,
+  images: AttachedImage[],
+): { text: string; files: File[] } {
+  let text = markdown;
+  const files: File[] = [];
+  for (const image of images) {
+    if (!text.includes(image.localUrl)) continue;
+    text = text.replaceAll(image.localUrl, image.publicUrl);
+    files.push(
+      new File([image.source], image.publicUrl, { type: image.source.type }),
+    );
+  }
+  return { text, files };
+}
+
 const ALLOWED_IMAGE_TYPES = [
   "image/png",
   "image/jpeg",

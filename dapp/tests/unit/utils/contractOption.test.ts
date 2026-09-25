@@ -8,7 +8,6 @@ import {
   tokenUnitsToStroops,
   toMaxVoteWeightInTokens,
   tokenVoteWeightToContract,
-  SOROBAN_CONTRACT_ID_REGEX,
 } from "../../../src/service/TokenBalanceService";
 
 describe("parseContractOptionString", () => {
@@ -48,15 +47,5 @@ describe("token units via SAC decimals", () => {
 
   it("returns 0 for zero balance", () => {
     expect(toMaxVoteWeightInTokens(0n, 7)).toBe(0);
-  });
-});
-
-describe("SOROBAN_CONTRACT_ID_REGEX", () => {
-  it("accepts C addresses only", () => {
-    expect(
-      SOROBAN_CONTRACT_ID_REGEX.test(
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-      ),
-    ).toBe(true);
   });
 });

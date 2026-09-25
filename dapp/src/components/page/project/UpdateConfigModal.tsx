@@ -4,23 +4,18 @@ import { parse } from "smol-toml";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
-import Textarea from "components/utils/Textarea";
 import Step from "components/utils/Step";
 import Title from "components/utils/Title";
 import MarkdownEditorWithImages, {
+  embedImages,
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
-import {
-  validateMaintainerAddress,
-  validateGithubUrl,
-} from "utils/validations";
+import { validateGithubUrl } from "utils/validations";
 import { updateConfig } from "@service/ProjectService";
 import { thresholdQuery } from "@service/AttestationService";
 import { queryClient } from "@service/queryClient";
 import {
   DEFAULT_FINALITY_THRESHOLD_PERCENT,
-  MAX_FINALITY_THRESHOLD_PERCENT,
-  MIN_FINALITY_THRESHOLD_PERCENT,
   validateFinalityThresholdPercent,
 } from "constants/attestation";
 import { extractConfigData } from "utils/utils";
@@ -34,20 +29,57 @@ import { IpfsMissError } from "utils/ipfsMissCache";
 import type { Project } from "../../../../packages/tansu";
 import type { ConfigData } from "types/projectConfig";
 import {
-  getRepositoryHandleLabel,
-  getRepositoryHandlePlaceholder,
   getRepositoryProvider,
   getRepositoryProviderLabel,
-  getRepositoryUrlPlaceholder,
-  SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
 } from "utils/editLinkFunctions";
 import {
   validateFullName,
-  validateHandle,
   validateOrganization,
   writeTansuToml,
 } from "utils/tansuToml";
+import {
+  activeProvider,
+  checkMaintainers,
+  emptyOrganization,
+  handleLabel,
+  MaintainerRows,
+  OrganizationFields,
+  RepositoryFields,
+  ThresholdField,
+  type MaintainerRow,
+} from "./ProjectFields";
+
+/**
+ * The images a README shows from its directory, as files for the new one; a
+ * file already missing is left out. One that cannot be read stops the update
+ * rather than go missing.
+ */
+async function carriedImages(
+  cid: string,
+  readme: string,
+  already: Set<string>,
+): Promise<File[]> {
+  const paths = [
+    ...readme.matchAll(/!\[[^\]]*\]\((?!https?:\/\/)([^)]+)\)/g),
+  ].flatMap(([, path]) => (path && !already.has(path) ? [path] : []));
+  const files = await Promise.all(
+    [...new Set(paths)].map(async (path) => {
+      const response = await fetchFromIpfs(cid, path).catch((error) => {
+        if (error instanceof IpfsMissError && error.scope === "path") {
+          return null;
+        }
+        throw new Error(
+          `Could not copy the README image ${path}: ${error.message}`,
+        );
+      });
+      if (!response) return null;
+      const blob = await response.blob();
+      return new File([blob], path, { type: blob.type });
+    }),
+  );
+  return files.filter((file) => file !== null);
+}
 
 /**
  * For maintainers: change the project's maintainers and tansu.toml. The form
@@ -59,49 +91,40 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
   const [open, setOpen] = useState(false);
   // The project directory the form was filled from; `null` until it is.
   const [basedOn, setBasedOn] = useState<string | null>(null);
-  const [ipfsBaseUrl, setIpfsBaseUrl] = useState<string | undefined>(undefined);
   const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Flow state management
+  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // fields
-  const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
-    "",
-  ]);
-  const [maintainerGithubs, setMaintainerGithubs] = useState<string[]>([""]);
-  const [githubRepoUrl, setGithubRepoUrl] = useState("");
-  const [selectedRepositoryProvider, setSelectedRepositoryProvider] =
+  const [maintainers, setMaintainers] = useState<MaintainerRow[]>([]);
+  const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [chosenProvider, setChosenProvider] =
     useState<RepositoryProvider>("github");
+  const [repositoryUrlError, setRepositoryUrlError] = useState<string | null>(
+    null,
+  );
   const [projectFullName, setProjectFullName] = useState("");
-  const [projectName, setProjectName] = useState("");
-  const [orgName, setOrgName] = useState("");
-  const [orgUrl, setOrgUrl] = useState("");
-  const [orgLogo, setOrgLogo] = useState("");
-  const [orgDescription, setOrgDescription] = useState("");
-  const [finalityThreshold, setFinalityThreshold] = useState("");
-  const originalThresholdRef = useRef("");
-  const [readmeContent, setReadmeContent] = useState("");
-  const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
-  const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
-  const originalRepositoryUrlRef = useRef("");
-
-  // errors
-  const [addrErrors, setAddrErrors] = useState<(string | null)[]>([null]);
-  const [ghErrors, setGhErrors] = useState<(string | null)[]>([null]);
-  const [repoError, setRepoError] = useState<string | null>(null);
   const [projectFullNameError, setProjectFullNameError] = useState<
     string | null
   >(null);
-  const [finalityThresholdError, setFinalityThresholdError] = useState<
-    string | null
-  >(null);
+  const [org, setOrg] = useState(emptyOrganization);
   const [orgErrors, setOrgErrors] = useState<
     ReturnType<typeof validateOrganization>
   >({});
+  const [finalityThreshold, setFinalityThreshold] = useState("");
+  const [finalityThresholdError, setFinalityThresholdError] = useState<
+    string | null
+  >(null);
+  const originalThresholdRef = useRef("");
+  const originalRepositoryUrlRef = useRef("");
+  const [readmeContent, setReadmeContent] = useState("");
+  const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
+  const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
+
   const cid = project.config.ipfs;
   const hasFiles = isValidCid(cid);
   const tomlRead = useQuery(
@@ -121,11 +144,11 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     [previousToml, project],
   );
   const tomlKnown = !hasFiles || tomlRead.isSuccess;
-  const isSoftwareProject = current.projectType === "SOFTWARE";
+  const isSoftware = current.projectType === "SOFTWARE";
   const readmeRead = useQuery(
     {
       ...ipfsQuery(cid, "/README.md"),
-      enabled: open && hasFiles && tomlKnown && !isSoftwareProject,
+      enabled: open && hasFiles && tomlKnown && !isSoftware,
     },
     queryClient,
   );
@@ -139,24 +162,11 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
   const ready =
     tomlKnown &&
     thresholdRead.isSuccess &&
-    (isSoftwareProject || !hasFiles || readmeRead.isSuccess);
+    (isSoftware || !hasFiles || readmeRead.isSuccess);
 
-  const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
-  const activeRepositoryProvider = isSoftwareProject
-    ? parsedRepositoryProvider || selectedRepositoryProvider
+  const provider = isSoftware
+    ? activeProvider(repositoryUrl, chosenProvider)
     : undefined;
-  const repositoryProviderLabel = getRepositoryProviderLabel(
-    activeRepositoryProvider,
-  );
-  const repositoryHandleLabel = isSoftwareProject
-    ? getRepositoryHandleLabel(activeRepositoryProvider)
-    : "Maintainer Handle";
-  const repositoryHandlePlaceholder = getRepositoryHandlePlaceholder(
-    activeRepositoryProvider,
-  );
-  const repositoryUrlPlaceholder = getRepositoryUrlPlaceholder(
-    activeRepositoryProvider,
-  );
 
   useEffect(() => {
     if (!open) {
@@ -165,31 +175,29 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     }
     if (basedOn !== null || !ready) return;
     setBasedOn(cid);
-    setIpfsBaseUrl(hasFiles ? getIpfsBasicLink(cid) : undefined);
-    setMaintainerAddresses(project.maintainers);
-    setMaintainerGithubs(
-      project.maintainers.map((address) => current.handles[address] ?? ""),
+    setMaintainers(
+      project.maintainers.map((address) => ({
+        address,
+        handle: current.handles[address] ?? "",
+      })),
     );
-    const repositoryUrl = current.officials.githubLink || project.config.url;
-    originalRepositoryUrlRef.current = repositoryUrl;
-    setGithubRepoUrl(repositoryUrl);
-    setSelectedRepositoryProvider(
-      getRepositoryProvider(repositoryUrl) || "github",
-    );
-    setProjectName(project.name);
+    const url = current.officials.githubLink || project.config.url;
+    originalRepositoryUrlRef.current = url;
+    setRepositoryUrl(url);
+    setChosenProvider(getRepositoryProvider(url) || "github");
     setProjectFullName(current.projectFullName || project.name);
-    setOrgName(current.organizationName);
-    setOrgUrl(current.officials.websiteLink);
-    setOrgLogo(current.logoImageLink);
-    setOrgDescription(current.description);
+    setOrg({
+      orgName: current.organizationName,
+      orgUrl: current.officials.websiteLink,
+      orgLogo: current.logoImageLink,
+      orgDescription: current.description,
+    });
     const threshold = String(
       thresholdRead.data || DEFAULT_FINALITY_THRESHOLD_PERCENT,
     );
     originalThresholdRef.current = threshold;
     setFinalityThreshold(threshold);
     setReadmeContent(readmeRead.data ?? "");
-    setAddrErrors(project.maintainers.map(() => null));
-    setGhErrors(project.maintainers.map(() => null));
   }, [open, ready]);
 
   // On open: no images attached yet.
@@ -208,54 +216,25 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     setIsSuccessful(false);
   };
 
-  // validation helpers
-  const validateMaintainers = () => {
-    let ok = true;
-    const newAddrErr = maintainerAddresses.map((a) => {
-      const e = validateMaintainerAddress(a);
-      if (e) ok = false;
-      return e;
-    });
-    const newGhErr = maintainerGithubs.map((h) => {
-      const e = validateHandle(h, repositoryHandleLabel);
-      if (e) ok = false;
-      return e;
-    });
-    setAddrErrors(newAddrErr);
-    setGhErrors(newGhErr);
-    return ok;
+  const nextFromTeam = () => {
+    const checked = checkMaintainers(maintainers, handleLabel(provider));
+    setMaintainers(checked.rows);
+    const urlError = isSoftware ? validateGithubUrl(repositoryUrl) : null;
+    setRepositoryUrlError(urlError);
+    if (checked.valid && !urlError) setStep(2);
   };
 
-  const validateRepo = () => {
-    const e = validateGithubUrl(githubRepoUrl);
-    setRepoError(e);
-    return e === null;
+  const nextFromDetails = () => {
+    const fullNameError = validateFullName(projectFullName);
+    setProjectFullNameError(fullNameError);
+    const errors = validateOrganization(org);
+    setOrgErrors(errors);
+    const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
+    setFinalityThresholdError(thresholdError);
+    if (!fullNameError && !Object.keys(errors).length && !thresholdError) {
+      setStep(3);
+    }
   };
-
-  const validateProjectFullName = (): boolean => {
-    const dbaError = validateFullName(projectFullName);
-    setProjectFullNameError(dbaError);
-    return dbaError === null;
-  };
-
-  /** The new tansu.toml, over the current one so its other fields stay. */
-  const buildToml = (): string =>
-    writeTansuToml(
-      {
-        projectType: current.projectType,
-        maintainers: maintainerAddresses,
-        handles: maintainerGithubs,
-        fullName: projectFullName,
-        orgName,
-        orgUrl,
-        orgLogo,
-        orgDescription,
-        repositoryUrl: githubRepoUrl,
-        repositoryProvider: activeRepositoryProvider,
-      },
-      previousToml ?? {},
-      originalRepositoryUrlRef.current,
-    );
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -263,70 +242,49 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
       if (basedOn === null) {
         throw new Error("The project's files are not loaded");
       }
-      const tomlContent = buildToml();
-      const tomlFile = new File([tomlContent], "tansu.toml", {
-        type: "text/plain",
-      });
+      // The new tansu.toml, over the current one so its other fields stay.
+      const tomlFile = new File(
+        [
+          writeTansuToml(
+            {
+              projectType: current.projectType,
+              maintainers: maintainers.map((row) => row.address),
+              handles: maintainers.map((row) => row.handle),
+              fullName: projectFullName,
+              ...org,
+              repositoryUrl,
+              repositoryProvider: provider,
+            },
+            previousToml ?? {},
+            originalRepositoryUrlRef.current,
+          ),
+        ],
+        "tansu.toml",
+        { type: "text/plain" },
+      );
 
       const additionalFiles: File[] = [];
-      if (!isSoftwareProject) {
-        let readmeToSave = readmeContent;
-        const imageFilesToInclude: File[] = [];
-        readmeImageFiles.forEach((img) => {
-          if (readmeToSave.includes(img.localUrl)) {
-            readmeToSave = readmeToSave.replace(
-              new RegExp(
-                img.localUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-                "g",
-              ),
-              img.publicUrl,
-            );
-            imageFilesToInclude.push(
-              new File([img.source], img.publicUrl, { type: img.source.type }),
-            );
-          }
-        });
-        // The images the README already had move to the new directory; one
-        // that cannot be read stops the update rather than go missing.
-        if (hasFiles) {
-          const handledPaths = new Set(imageFilesToInclude.map((f) => f.name));
-          const relativeImgRegex = /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g;
-          const matches = [...readmeToSave.matchAll(relativeImgRegex)];
-          await Promise.all(
-            matches.map(async (match) => {
-              const relativePath = match[2];
-              if (!relativePath || handledPaths.has(relativePath)) return;
-              handledPaths.add(relativePath);
-              const response = await fetchFromIpfs(cid, relativePath).catch(
-                (error) => {
-                  // Missing already: there is nothing to lose.
-                  if (error instanceof IpfsMissError && error.scope === "path")
-                    return null;
-                  throw new Error(
-                    `Could not copy the README image ${relativePath}: ${error.message}`,
-                  );
-                },
-              );
-              if (!response) return;
-              const blob = await response.blob();
-              imageFilesToInclude.push(
-                new File([blob], relativePath, { type: blob.type }),
-              );
-            }),
-          );
-        }
-
+      if (!isSoftware) {
+        const readme = embedImages(readmeContent, readmeImageFiles);
+        const carried = hasFiles
+          ? await carriedImages(
+              cid,
+              readme.text,
+              new Set(readme.files.map((file) => file.name)),
+            )
+          : [];
         additionalFiles.push(
-          new File([readmeToSave], "README.md", { type: "text/markdown" }),
+          new File([readme.text], "README.md", { type: "text/markdown" }),
+          ...readme.files,
+          ...carried,
         );
-        additionalFiles.push(...imageFilesToInclude);
       }
 
       await updateConfig(project.name, {
         basedOn,
         tomlFile,
-        repositoryUrl: githubRepoUrl,
-        maintainers: maintainerAddresses,
+        repositoryUrl,
+        maintainers: maintainers.map((row) => row.address),
         onProgress: setStep,
         additionalFiles,
         // Omitted when unchanged: the contract treats `None` as "leave as is".
@@ -343,32 +301,12 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     }
   };
 
-  const handleNextFromStep2 = () => {
-    const isDbaValid = validateProjectFullName();
-    const errors = validateOrganization({
-      orgName,
-      orgUrl,
-      orgLogo,
-      orgDescription,
-    });
-    setOrgErrors(errors);
-
-    const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
-    setFinalityThresholdError(thresholdError);
-
-    if (isDbaValid && Object.keys(errors).length === 0 && !thresholdError) {
-      setStep(3);
-    }
-  };
-
-  const handleNextFromStep1 = () => {
-    const maintainersAreValid = validateMaintainers();
-    const repoIsValid = isSoftwareProject ? validateRepo() : true;
-
-    if (maintainersAreValid && repoIsValid) {
-      setStep(2);
-    }
-  };
+  const stepLayout = (image: string, body: React.ReactNode) => (
+    <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
+      <img alt="" className="flex-none md:w-1/3 w-[180px]" src={image} />
+      <div className="flex flex-col gap-4 w-full md:w-2/3">{body}</div>
+    </div>
+  );
 
   return (
     <>
@@ -402,7 +340,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
           successTitle="Config Updated!"
           successMessage="Project configuration updated successfully."
         >
-          {step <= 3 && basedOn === null && (
+          {step <= 3 && basedOn === null ? (
             <div className="flex flex-col gap-4">
               {readError ? (
                 <div role="alert" className="flex flex-col gap-2 text-red-600">
@@ -428,279 +366,139 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                 </p>
               )}
             </div>
-          )}
-          {step <= 3 && basedOn !== null && (
-            <div className="flex flex-col gap-8">
-              {step === 1 && (
-                <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
-                  <img
-                    alt=""
-                    className="flex-none md:w-1/3 w-[180px]"
-                    src="/images/team.svg"
+          ) : step === 1 ? (
+            stepLayout(
+              "/images/team.svg",
+              <>
+                <Step step={1} totalSteps={3} />
+                <Title
+                  title={
+                    isSoftware ? "Repository and Maintainers" : "Maintainers"
+                  }
+                  description={
+                    isSoftware
+                      ? `Confirm the repository, then update maintainer wallet addresses and ${getRepositoryProviderLabel(provider)} handles.`
+                      : "Edit maintainer addresses and public handles"
+                  }
+                />
+                {isSoftware && (
+                  <RepositoryFields
+                    url={repositoryUrl}
+                    provider={chosenProvider}
+                    error={repositoryUrlError}
+                    onChange={(url, host) => {
+                      setRepositoryUrl(url);
+                      setChosenProvider(host);
+                      setRepositoryUrlError(null);
+                    }}
                   />
-                  <div className="flex flex-col gap-4 w-full md:w-2/3">
-                    <Step step={1} totalSteps={3} />
-                    <Title
-                      title={
-                        isSoftwareProject
-                          ? "Repository and Maintainers"
-                          : "Maintainers"
-                      }
-                      description={
-                        isSoftwareProject
-                          ? `Confirm the repository provider or URL first, then update maintainer wallet addresses and ${activeRepositoryProvider === "radicle" ? "Radicle aliases" : `${repositoryProviderLabel} handles`}.`
-                          : "Edit maintainer addresses and public handles"
-                      }
-                    />
-                    {isSoftwareProject && (
-                      <div className="flex flex-col gap-4 mb-4">
-                        <div className="flex flex-col gap-3">
-                          <div className="leading-4 text-base text-secondary">
-                            Repository Provider
-                          </div>
-                          <select
-                            value={
-                              activeRepositoryProvider ||
-                              selectedRepositoryProvider
-                            }
-                            onChange={(e) =>
-                              setSelectedRepositoryProvider(
-                                e.target.value as RepositoryProvider,
-                              )
-                            }
-                            className="p-[18px] border border-[#978AA1] outline-none bg-white"
-                          >
-                            {SUPPORTED_REPOSITORY_PROVIDERS.map((provider) => (
-                              <option key={provider} value={provider}>
-                                {getRepositoryProviderLabel(provider)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <Input
-                          label={`${repositoryProviderLabel} Repository URL`}
-                          placeholder={repositoryUrlPlaceholder}
-                          value={githubRepoUrl}
-                          onChange={(e) => {
-                            const nextValue = e.target.value;
-                            setGithubRepoUrl(nextValue);
-                            setRepoError(null);
-
-                            const parsedProvider =
-                              getRepositoryProvider(nextValue);
-                            if (parsedProvider) {
-                              setSelectedRepositoryProvider(parsedProvider);
-                            }
-                          }}
-                          description={
-                            activeRepositoryProvider === "radicle"
-                              ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
-                              : `Paste an HTTPS or SSH URL for ${repositoryProviderLabel}. The provider selector updates automatically when the URL is recognized.`
-                          }
-                          error={repoError || undefined}
-                        />
-                      </div>
-                    )}
-                    {maintainerAddresses.map((addr, i) => (
-                      <div key={i} className="flex items-end gap-3 mb-3">
-                        <Input
-                          label={
-                            i === 0 ? "Maintainer Wallet Address" : undefined
-                          }
-                          value={addr ?? ""}
-                          error={addrErrors[i] || undefined}
-                          onChange={(e) => {
-                            const v = [...maintainerAddresses];
-                            v[i] = e.target.value;
-                            setMaintainerAddresses(v);
-                          }}
-                        />
-                        <Input
-                          label={i === 0 ? repositoryHandleLabel : undefined}
-                          placeholder={repositoryHandlePlaceholder}
-                          value={maintainerGithubs[i] ?? ""}
-                          error={ghErrors[i] || undefined}
-                          onChange={(e) => {
-                            const v = [...maintainerGithubs];
-                            v[i] = e.target.value;
-                            setMaintainerGithubs(v);
-                          }}
-                        />
-                        {maintainerAddresses.length > 1 && (
-                          <Button
-                            type="tertiary"
-                            size="sm"
-                            aria-label={`Remove maintainer ${i + 1}`}
-                            onClick={() => {
-                              const without = <T,>(list: T[]) =>
-                                list.filter((_, j) => j !== i);
-                              setMaintainerAddresses(without);
-                              setMaintainerGithubs(without);
-                              setAddrErrors(without);
-                              setGhErrors(without);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                    <Button
-                      type="tertiary"
-                      onClick={() => {
-                        setMaintainerAddresses([...maintainerAddresses, ""]);
-                        setMaintainerGithubs([...maintainerGithubs, ""]);
-                        setAddrErrors([...addrErrors, null]);
-                        setGhErrors([...ghErrors, null]);
-                      }}
-                    >
-                      Add Maintainer
-                    </Button>
-                    <div className="flex justify-end mt-4">
-                      <Button onClick={handleNextFromStep1}>Next</Button>
-                    </div>
-                  </div>
+                )}
+                <MaintainerRows
+                  rows={maintainers}
+                  onChange={setMaintainers}
+                  provider={provider}
+                />
+                <div className="flex justify-end mt-4">
+                  <Button onClick={nextFromTeam}>Next</Button>
                 </div>
-              )}
-
-              {step === 2 && (
-                <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
-                  <img
-                    alt=""
-                    className="flex-none md:w-1/3 w-[180px]"
-                    src="/images/arrow.svg"
-                  />
-                  <div className="flex flex-col gap-4 w-full md:w-2/3">
-                    <Step step={2} totalSteps={3} />
-                    <Title
-                      title="Project details"
-                      description={
-                        isSoftwareProject
-                          ? "Review project naming, organization details, and supporting metadata. Repository details were handled in the previous step."
-                          : "Project name, organisation, and README details"
-                      }
+              </>,
+            )
+          ) : step === 2 ? (
+            stepLayout(
+              "/images/arrow.svg",
+              <>
+                <Step step={2} totalSteps={3} />
+                <Title
+                  title="Project details"
+                  description={
+                    isSoftware
+                      ? "Review project naming, organization details, and supporting metadata."
+                      : "Project name, organisation, and README details"
+                  }
+                />
+                <Input
+                  label="Project Name (read-only)"
+                  value={project.name}
+                  description="Project name used for the project (cannot be modified)"
+                  disabled
+                />
+                <Input
+                  label="Project Full Name"
+                  placeholder="My Awesome Project"
+                  value={projectFullName}
+                  onChange={(e) => {
+                    // Printable ASCII, at most 100 characters.
+                    setProjectFullName(
+                      e.target.value.replace(/[^\x20-\x7E]/g, "").slice(0, 100),
+                    );
+                    setProjectFullNameError(null);
+                  }}
+                  description="Human-readable name shown in the UI (up to 100 ASCII characters)."
+                  error={projectFullNameError}
+                />
+                <OrganizationFields
+                  org={org}
+                  errors={orgErrors}
+                  onChange={(next, field) => {
+                    setOrg(next);
+                    setOrgErrors(({ [field]: _fixed, ...rest }) => rest);
+                  }}
+                />
+                <ThresholdField
+                  value={finalityThreshold}
+                  error={finalityThresholdError}
+                  onChange={(value) => {
+                    setFinalityThreshold(value);
+                    setFinalityThresholdError(null);
+                  }}
+                />
+                {!isSoftware && (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium text-primary">README</p>
+                    <MarkdownEditorWithImages
+                      value={readmeContent}
+                      onChange={setReadmeContent}
+                      imageFiles={readmeImageFiles}
+                      onImageFilesChange={setReadmeImageFiles}
+                      imageError={readmeImageError}
+                      onImageErrorChange={setReadmeImageError}
+                      placeholder="Write your project README in markdown format..."
+                      {...(hasFiles && { imageBaseUrl: getIpfsBasicLink(cid) })}
                     />
-
-                    <Input
-                      label="Project Name (read-only)"
-                      value={projectName}
-                      description="Project name used for the project (cannot be modified)"
-                      disabled
-                    />
-
-                    <Input
-                      label="Project Full Name"
-                      placeholder="My Awesome Project"
-                      value={projectFullName}
-                      onChange={(e) => {
-                        const sanitized = e.target.value.replace(
-                          /[^\x20-\x7E]/g,
-                          "",
-                        );
-                        setProjectFullName(sanitized.slice(0, 100));
-                        setProjectFullNameError(null);
-                      }}
-                      description="Human-readable name shown in the UI (up to 100 ASCII characters)."
-                      error={projectFullNameError || undefined}
-                    />
-
-                    <Input
-                      label="Organisation name"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      error={orgErrors.orgName}
-                    />
-                    <Input
-                      label="Organisation URL"
-                      value={orgUrl}
-                      onChange={(e) => setOrgUrl(e.target.value)}
-                      error={orgErrors.orgUrl}
-                    />
-                    <Input
-                      label="Logo URL"
-                      value={orgLogo}
-                      onChange={(e) => setOrgLogo(e.target.value)}
-                      error={orgErrors.orgLogo}
-                    />
-                    <Textarea
-                      label="Description"
-                      value={orgDescription}
-                      onChange={(e) => setOrgDescription(e.target.value)}
-                      error={orgErrors.orgDescription}
-                    />
-                    <Input
-                      label="Finality threshold (%)"
-                      type="number"
-                      min={MIN_FINALITY_THRESHOLD_PERCENT}
-                      max={MAX_FINALITY_THRESHOLD_PERCENT}
-                      value={finalityThreshold}
-                      onChange={(e) => {
-                        setFinalityThreshold(e.target.value);
-                        setFinalityThresholdError(null);
-                      }}
-                      description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}.`}
-                      error={finalityThresholdError || undefined}
-                    />
-
-                    {!isSoftwareProject && (
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-primary">
-                          README
-                        </label>
-                        <MarkdownEditorWithImages
-                          value={readmeContent}
-                          onChange={setReadmeContent}
-                          imageFiles={readmeImageFiles}
-                          onImageFilesChange={setReadmeImageFiles}
-                          imageError={readmeImageError}
-                          onImageErrorChange={setReadmeImageError}
-                          placeholder="Write your project README in markdown format..."
-                          {...(ipfsBaseUrl !== undefined && {
-                            imageBaseUrl: ipfsBaseUrl,
-                          })}
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex justify-between mt-4">
-                      <Button type="secondary" onClick={() => setStep(1)}>
-                        Back
-                      </Button>
-                      <Button onClick={handleNextFromStep2}>Next</Button>
-                    </div>
                   </div>
+                )}
+                <div className="flex justify-between mt-4">
+                  <Button type="secondary" onClick={() => setStep(1)}>
+                    Back
+                  </Button>
+                  <Button onClick={nextFromDetails}>Next</Button>
                 </div>
-              )}
-
-              {step === 3 && (
-                <div>
-                  <Step step={3} totalSteps={3} />
-                  <Title title="Review" description="Confirm and update" />
-                  <p className="mb-4">
-                    A new tansu.toml will be generated and stored on IPFS.
+              </>,
+            )
+          ) : (
+            step === 3 && (
+              <div>
+                <Step step={3} totalSteps={3} />
+                <Title title="Review" description="Confirm and update" />
+                <p className="mb-4">
+                  A new tansu.toml will be generated and stored on IPFS.
+                </p>
+                {previousToml === null && (
+                  <p role="alert" className="mb-4 text-red-600">
+                    The current tansu.toml is not valid TOML: only the values of
+                    this form will be kept.
                   </p>
-                  {previousToml === null && (
-                    <p role="alert" className="mb-4 text-red-600">
-                      The current tansu.toml is not valid TOML: only the values
-                      of this form will be kept.
-                    </p>
-                  )}
-                  <div className="flex justify-between">
-                    <Button type="secondary" onClick={() => setStep(2)}>
-                      Back
-                    </Button>
-                    <Button
-                      isLoading={isLoading}
-                      disabled={basedOn === null || isLoading}
-                      onClick={handleSubmit}
-                    >
-                      Update Config
-                    </Button>
-                  </div>
+                )}
+                <div className="flex justify-between">
+                  <Button type="secondary" onClick={() => setStep(2)}>
+                    Back
+                  </Button>
+                  <Button isLoading={isLoading} onClick={handleSubmit}>
+                    Update Config
+                  </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )
           )}
         </FlowProgressModal>
       )}

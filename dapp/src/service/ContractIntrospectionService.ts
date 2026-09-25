@@ -10,7 +10,6 @@ import {
   contract,
   rpc,
   xdr,
-  StrKey,
 } from "@stellar/stellar-sdk";
 import { queryOptions } from "@tanstack/react-query";
 import type { OutcomeContract } from "../../packages/tansu";
@@ -68,10 +67,6 @@ export async function getContractFunctions(
 /** "scSpecTypeU64" → "u64", the names the argument inputs switch on. */
 function specTypeName(type: xdr.ScSpecTypeDef): string {
   return type.type.replace(/^scSpecType/, "").toLowerCase();
-}
-
-export function isValidContractAddress(address: string): boolean {
-  return StrKey.isValidContract(address);
 }
 
 /**

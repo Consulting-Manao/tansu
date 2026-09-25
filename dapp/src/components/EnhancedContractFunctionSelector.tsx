@@ -1,9 +1,9 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import { useQuery } from "@tanstack/react-query";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
 import {
   getContractFunctions,
-  isValidContractAddress,
   type ContractFunctionInput,
 } from "@service/ContractIntrospectionService";
 import { queryClient } from "@service/queryClient";
@@ -34,7 +34,7 @@ const EnhancedContractFunctionSelector = ({
   call: OutcomeCall;
   onChange: (call: OutcomeCall) => void;
 }) => {
-  const valid = isValidContractAddress(call.address);
+  const valid = StrKey.isValidContract(call.address);
   const functions = useQuery(
     {
       queryKey: ["contractFunctions", call.address],

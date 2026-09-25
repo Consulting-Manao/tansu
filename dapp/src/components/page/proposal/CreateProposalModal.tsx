@@ -1,6 +1,4 @@
 import { useStore } from "@nanostores/react";
-import { anonymousConfigQuery } from "@service/ProjectService";
-import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
 import { DatePicker } from "components/utils/DatePicker";
 import { ExpandableText } from "components/utils/ExpandableText";
@@ -28,10 +26,11 @@ import {
   type OutcomeDrafts,
 } from "utils/proposalOutcomes";
 import TemplateSelector from "./TemplateSelector";
+import { AnonymousKeySetup, useAnonymousKeySetup } from "./AnonymousKeySetup";
 import { PROPOSAL_TEMPLATES } from "constants/proposalTemplates";
-import { generateRSAKeyPair } from "utils/crypto";
 import { createProposal, setupAnonymousVoting } from "@service/ProposalService";
 import MarkdownEditorWithImages, {
+  embedImages,
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
 import { navigate } from "astro:transitions/client";
@@ -96,20 +95,10 @@ const CreateProposalModal = ({
   const [selectedDate, setSelectedDate] = useState(defaultEndDay);
   const [proposalId, setProposalId] = useState<number | null>(null);
   const [_ipfsLink, setIpfsLink] = useState("");
-  const [isAnonymousVoting, setIsAnonymousVoting] = useState(false);
+  const anonymous = useAnonymousKeySetup(projectName);
   const [votingType, setVotingType] = useState<"badge" | "token">("badge");
   const [tokenContract, setTokenContract] = useState<string>("");
   const [preparedFiles, setPreparedFiles] = useState<File[] | null>(null);
-  const [generatedKeys, setGeneratedKeys] = useState<{
-    publicKey: string;
-    privateKey: string;
-  } | null>(null);
-  const [existingAnonConfig, setExistingAnonConfig] = useState<boolean>(false);
-  const [resetAnonKeys, setResetAnonKeys] = useState<boolean>(false);
-  // The author selected the saved key file and it matches.
-  const [keysConfirmed, setKeysConfirmed] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const toggleRun = useRef(0);
   const [proposalNameError, setProposalNameError] = useState<string | null>(
     null,
   );
@@ -149,26 +138,12 @@ const CreateProposalModal = ({
       type: "application/json",
     });
 
-    let files: File[] = [new File([outcomeBlob], "outcomes.json")];
-    let description = mdText;
-
-    // Handle images for the description
-    imageFiles.forEach((image) => {
-      if (description.includes(image.localUrl)) {
-        description = description.replace(
-          new RegExp(image.localUrl, "g"),
-          image.publicUrl,
-        );
-        files.push(
-          new File([image.source], image.publicUrl, {
-            type: image.source.type,
-          }),
-        );
-      }
-    });
-
-    files.push(new File([description], "proposal.md"));
-    return files;
+    const description = embedImages(mdText, imageFiles);
+    return [
+      new File([outcomeBlob], "outcomes.json"),
+      ...description.files,
+      new File([description.text], "proposal.md"),
+    ];
   };
 
   const startProposalCreation = async (files: File[]) => {
@@ -203,7 +178,7 @@ const CreateProposalModal = ({
         proposalName,
         proposalFiles: files,
         votingEndsAt,
-        publicVoting: !isAnonymousVoting,
+        publicVoting: !anonymous.enabled,
         outcomeContracts,
         ...(votingType === "token"
           ? { tokenContract: tokenContract.trim() }
@@ -231,7 +206,7 @@ const CreateProposalModal = ({
       const files = prepareProposalFiles();
       setPreparedFiles(files);
 
-      if (isAnonymousVoting && (!existingAnonConfig || resetAnonKeys)) {
+      if (anonymous.needsSetup) {
         setStep(5);
         return;
       }
@@ -255,65 +230,6 @@ const CreateProposalModal = ({
     return error === null;
   };
 
-  const handleToggleAnonymous = async (checked: boolean) => {
-    const run = ++toggleRun.current;
-    setIsAnonymousVoting(checked);
-    setExistingAnonConfig(false);
-    setResetAnonKeys(false);
-    setConfirmReset(false);
-    setGeneratedKeys(null);
-    setKeysConfirmed(false);
-    if (!checked || !projectName) return;
-    try {
-      // Read fresh: a key another maintainer set up must not be replaced.
-      const config = await queryClient.query({
-        ...anonymousConfigQuery(projectName),
-        staleTime: 0,
-      });
-      if (run !== toggleRun.current) return;
-      if (config) setExistingAnonConfig(true);
-      else setGeneratedKeys(await generateRSAKeyPair());
-    } catch (error: any) {
-      if (run !== toggleRun.current) return;
-      setIsAnonymousVoting(false);
-      toast.error(
-        "Anonymous voting",
-        `Could not read this project's anonymous voting setup: ${error.message}`,
-      );
-    }
-  };
-
-  const keyFileName = `tansu-${projectName}-anonymous-key.json`;
-
-  const downloadKeys = () => {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(generatedKeys)], { type: "application/json" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = keyFileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // The browser may still be reading the file after click() returns.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  };
-
-  /** The saved key file, read back: it must hold the key set up. */
-  const confirmKeyFile = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      const saved = JSON.parse(await file.text());
-      if (saved.publicKey !== generatedKeys?.publicKey) {
-        throw new Error("This is not the key file just generated.");
-      }
-      setKeysConfirmed(true);
-    } catch (error: any) {
-      setKeysConfirmed(false);
-      toast.error("Anonymous voting", error.message);
-    }
-  };
-
   /** A submitted proposal leaves no draft to submit twice. */
   const resetDraft = () => {
     imageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
@@ -322,14 +238,10 @@ const CreateProposalModal = ({
     setMdText("");
     setOutcomes({});
     setSelectedDate(defaultEndDay());
-    setIsAnonymousVoting(false);
+    anonymous.reset();
     setVotingType("badge");
     setTokenContract("");
     setPreparedFiles(null);
-    setGeneratedKeys(null);
-    setKeysConfirmed(false);
-    setConfirmReset(false);
-    setResetAnonKeys(false);
   };
 
   const handleCloseModal = () => {
@@ -385,100 +297,7 @@ const CreateProposalModal = ({
                 />
               </div>
 
-              {/* Anonymous voting section */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="anonymousCheckbox"
-                    checked={isAnonymousVoting}
-                    onChange={(e) => handleToggleAnonymous(e.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  <label
-                    htmlFor="anonymousCheckbox"
-                    className="text-sm font-medium text-secondary"
-                  >
-                    Enable anonymous voting
-                  </label>
-                </div>
-
-                <div className="space-y-2">
-                  {isAnonymousVoting && generatedKeys && (
-                    <div className="flex flex-col gap-3 p-3 bg-green-50 border border-green-200 rounded-md">
-                      <p className="text-sm text-green-800">
-                        Only this key file can reveal the anonymous votes when
-                        the proposal is executed. Download it, keep it safe,
-                        then select it to confirm you saved it.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button
-                          type="secondary"
-                          size="sm"
-                          onClick={downloadKeys}
-                        >
-                          Download key file
-                        </Button>
-                        <label className="text-sm text-green-800">
-                          Select the saved key file
-                          <input
-                            type="file"
-                            accept="application/json,.json"
-                            className="ml-2"
-                            onChange={(e) =>
-                              confirmKeyFile(e.target.files?.[0])
-                            }
-                          />
-                        </label>
-                      </div>
-                      {keysConfirmed && (
-                        <p className="text-sm font-medium text-green-800">
-                          Key file saved.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {isAnonymousVoting &&
-                    existingAnonConfig &&
-                    !resetAnonKeys && (
-                      <div className="flex flex-col gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-green-800">
-                            Already configured.
-                          </span>
-                          <button
-                            type="button"
-                            className="text-blue-500 hover:text-blue-700 underline text-sm"
-                            onClick={() => setConfirmReset(true)}
-                          >
-                            Reset Keys
-                          </button>
-                        </div>
-                        {confirmReset && (
-                          <div className="flex flex-col gap-2 text-sm text-red-800">
-                            <p>
-                              Votes already cast on open anonymous proposals can
-                              only be revealed with the current key file: keep
-                              it until they are executed.
-                            </p>
-                            <Button
-                              type="secondary"
-                              size="sm"
-                              onClick={async () => {
-                                setGeneratedKeys(await generateRSAKeyPair());
-                                setKeysConfirmed(false);
-                                setResetAnonKeys(true);
-                              }}
-                            >
-                              Replace the key
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                </div>
-              </div>
+              <AnonymousKeySetup setup={anonymous} />
 
               {/* Voting type: Badge based (default) or Token based */}
               <div className="flex flex-col gap-2 sm:gap-3 max-w-2xl">
@@ -574,11 +393,7 @@ const CreateProposalModal = ({
                   )
                     throw new Error("Invalid proposal name or description");
 
-                  if (
-                    isAnonymousVoting &&
-                    (!existingAnonConfig || resetAnonKeys) &&
-                    !keysConfirmed
-                  ) {
+                  if (anonymous.needsSetup && !anonymous.saved) {
                     throw new Error(
                       "Download the anonymous key file and select it to confirm you saved it.",
                     );
@@ -670,11 +485,7 @@ const CreateProposalModal = ({
                   )
                     throw new Error("Invalid proposal name or description");
 
-                  if (
-                    isAnonymousVoting &&
-                    (!existingAnonConfig || resetAnonKeys) &&
-                    !keysConfirmed
-                  ) {
+                  if (anonymous.needsSetup && !anonymous.saved) {
                     throw new Error(
                       "Download the anonymous key file and select it to confirm you saved it.",
                     );
@@ -958,9 +769,7 @@ const CreateProposalModal = ({
             </Button>
           </div>
         </div>
-      ) : step === 5 &&
-        isAnonymousVoting &&
-        (!existingAnonConfig || resetAnonKeys) ? (
+      ) : step === 5 && anonymous.needsSetup ? (
         <div className="flex flex-col gap-10 md:gap-12">
           <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-8">
             <img
@@ -989,17 +798,16 @@ const CreateProposalModal = ({
                       setIsLoading(true);
 
                       if (!projectName) throw new Error("Project name missing");
-                      if (!generatedKeys || !keysConfirmed)
+                      if (!anonymous.keys || !anonymous.saved)
                         throw new Error("The key file is not saved yet");
 
                       await setupAnonymousVoting(
                         projectName,
-                        generatedKeys.publicKey,
-                        resetAnonKeys,
+                        anonymous.keys.publicKey,
+                        anonymous.replacing,
                       );
 
-                      setExistingAnonConfig(true);
-                      setResetAnonKeys(false);
+                      anonymous.setUp();
 
                       const files = preparedFiles || prepareProposalFiles();
                       await startProposalCreation(files);

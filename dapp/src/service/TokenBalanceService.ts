@@ -4,7 +4,6 @@ import { checkSimulationError, errorMessage } from "../utils/contractErrors";
 import { MAX_VOTE_WEIGHT_U32 } from "../utils/utils";
 
 /** Soroban contract IDs used for SAC / SEP-41 tokens. */
-export const SOROBAN_CONTRACT_ID_REGEX = /^C[A-Z0-9]{55}$/;
 
 const U32_MAX = BigInt(MAX_VOTE_WEIGHT_U32);
 const NULL_ACCOUNT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -79,6 +78,7 @@ function getRpcClientOptions(
     rpcUrl: import.meta.env.PUBLIC_SOROBAN_RPC_URL,
     networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
     allowHttp: import.meta.env.DEV,
+    server: rpcServer,
   };
 }
 
@@ -228,7 +228,7 @@ export async function getTokenBalance(
   ownerAddress: string,
 ): Promise<TokenBalanceInfo> {
   const contractId = tokenContract.trim();
-  if (!SOROBAN_CONTRACT_ID_REGEX.test(contractId)) {
+  if (!StellarSdk.StrKey.isValidContract(contractId)) {
     throw new Error(
       "Invalid token contract address. Provide the Soroban contract ID (starts with C).",
     );
