@@ -57,9 +57,8 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   await page.getByRole("button", { name: "Download key file" }).click();
   const keyFile = await (await download).path();
   await next.click();
-  await expect(
-    page.getByText(/select it to confirm you saved it/),
-  ).toBeVisible();
+  // The refusal, not the panel's own advice.
+  await expect(page.getByText("Download the anonymous key file")).toBeVisible();
   await ok.click();
   await page.getByLabel("Select the saved key file").setInputFiles(keyFile);
   await expect(page.getByText("Key file saved.")).toBeVisible();

@@ -1,4 +1,4 @@
-import type { BrowserContext, Page } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { E2E_ENV } from "./env";
 
@@ -58,4 +58,8 @@ export async function mockWallet(
 export async function connectWallet(page: Page): Promise<void> {
   await page.locator("[data-connect]").first().click();
   await page.getByText("GHOSTSIG", { exact: true }).click();
+  // Connected: a page change right away would cut the handshake short.
+  await expect(
+    page.getByRole("button", { name: "Open user profile" }),
+  ).toBeVisible();
 }
