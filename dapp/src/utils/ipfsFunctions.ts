@@ -4,9 +4,10 @@
  */
 
 import { queryOptions } from "@tanstack/react-query";
-import toml from "toml";
+import { parse } from "smol-toml";
 
 import { isValidCid } from "./contentHashes";
+import { fetchWithin } from "./deadline";
 import {
   classifyIpfsFailure,
   clearIpfsMisses,
@@ -39,19 +40,6 @@ function normalizePath(path: string): string {
 }
 
 /**
- * One gateway request, body included, within `timeoutMs`: a gateway can
- * answer with headers and then stall.
- */
-async function fetchOne(url: string, timeoutMs: number): Promise<Response> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  return new Response(await response.arrayBuffer(), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-}
-
-/**
  * Core IPFS fetch: CID + path, tried on each gateway in order. Read through
  * `ipfsQuery`, which keeps the answers; this only remembers final misses.
  */
@@ -77,7 +65,11 @@ export async function fetchFromIpfs(
   for (let i = 0; i < GATEWAYS.length; i++) {
     const gateway = GATEWAYS[i]!;
     try {
-      const res = await fetchOne(gateway.buildUrl(cid, pathNorm), attemptMs);
+      const res = await fetchWithin(
+        gateway.buildUrl(cid, pathNorm),
+        {},
+        attemptMs,
+      );
       if (!res.ok) {
         lastError = new Error(`HTTP ${res.status} from ${gateway.name}`);
         // Only a 504 body tells a dead CID from a slow one.
@@ -129,7 +121,7 @@ export const ipfsQuery = (cid: string, path: string) =>
 export function parseTansuToml(text: string | null): any | undefined {
   if (!text?.trim()) return undefined;
   try {
-    const data = toml.parse(text);
+    const data = parse(text);
     return data?.DOCUMENTATION || data?.ACCOUNTS ? data : undefined;
   } catch {
     return undefined;
@@ -249,14 +241,17 @@ export async function uploadToIpfsProxy(
   const car = btoa(binary);
 
   async function uploadOnce(): Promise<string> {
-    const response = await fetch(import.meta.env.PUBLIC_DELEGATION_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        signedTxXdr ? { cid, signedTxXdr, car } : { cid, txHash, car },
-      ),
-      signal: AbortSignal.timeout(120_000),
-    });
+    const response = await fetchWithin(
+      import.meta.env.PUBLIC_DELEGATION_API_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          signedTxXdr ? { cid, signedTxXdr, car } : { cid, txHash, car },
+        ),
+      },
+      120_000,
+    );
 
     if (!response.ok) {
       let errorMessage = "IPFS upload failed";

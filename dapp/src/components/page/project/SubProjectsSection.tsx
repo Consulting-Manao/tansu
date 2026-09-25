@@ -26,12 +26,16 @@ const SubProjectsSection = ({ project }: { project: Project }) => {
           <div className="border-t border-[#EEEEEE]" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subProjects.map(({ data }, index) =>
+          {subProjects.map(({ data, isSuccess, isError }, index) =>
             data ? (
               <OnChainProjectCard key={data.name} project={data} />
             ) : (
               <p key={index} className="text-secondary">
-                Loading sub-project...
+                {isSuccess
+                  ? "Unknown project"
+                  : isError
+                    ? "This sub-project could not be read."
+                    : "Loading sub-project..."}
               </p>
             ),
           )}

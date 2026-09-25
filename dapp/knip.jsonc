@@ -22,7 +22,7 @@
       // buffer is the browser polyfill, not Node's module; the other two are
       // imported from global.css.
       "ignoreDependencies": ["buffer", "github-markdown-css", "tailwindcss"],
-      "ignoreBinaries": ["jq", "pkill", "rsvg-convert"],
+      "ignoreBinaries": ["jq", "pkill", "rsvg-convert", "ssh-keygen"],
     },
   },
   // Generated contract bindings.

@@ -12,6 +12,7 @@ import { parseToLosslessJson } from "utils/passToLosslessJson";
 import * as StellarXdr from "utils/stellarXdr";
 import { capitalizeFirstLetter } from "utils/utils";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
+import { getStellarExpertUrl } from "utils/urls";
 import {
   getContractFunctions,
   isValidContractAddress,
@@ -91,7 +92,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
             type="secondary"
             icon="/icons/ipfs.svg"
             onClick={() =>
-              ipfsLink && window.open(getIpfsBasicLink(ipfsLink), "_blank")
+              ipfsLink &&
+              window.open(getIpfsBasicLink(ipfsLink), "_blank", "noopener")
             }
           >
             View IPFS
@@ -252,8 +254,9 @@ const OutcomeDetail: React.FC<{
           icon="/icons/code.svg"
           onClick={() =>
             window.open(
-              `https://stellar.expert/explorer/testnet/contract/${detail.contract?.address}`,
+              getStellarExpertUrl(detail.contract!.address, "contract"),
               "_blank",
+              "noopener",
             )
           }
         >

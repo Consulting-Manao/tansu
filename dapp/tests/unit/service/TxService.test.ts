@@ -26,6 +26,7 @@ vi.mock("../../../src/service/walletService", async (importOriginal) => ({
 
 import { queryClient } from "../../../src/service/queryClient";
 import {
+  checkAuthorization,
   packUpload,
   sendTransaction,
   sendXLM,
@@ -36,8 +37,8 @@ const { rpc, xdr } = StellarSdk;
 const SMART_ACCOUNT =
   "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 
-/** A signed envelope, as a wallet returns it. */
-function signedEnvelope(): string {
+/** A signed envelope, as a wallet returns it, that can land until `maxTime`. */
+function signedEnvelope(maxTime = Math.floor(Date.now() / 1000) + 30): string {
   const account = new StellarSdk.Account(
     StellarSdk.Keypair.random().publicKey(),
     "1",
@@ -45,17 +46,41 @@ function signedEnvelope(): string {
   return new StellarSdk.TransactionBuilder(account, {
     fee: "100",
     networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+    timebounds: { minTime: 0, maxTime },
   })
     .addOperation(StellarSdk.Operation.bumpSequence({ bumpTo: "2" }))
-    .setTimeout(30)
     .build()
     .toXDR();
 }
 
+const TANSU = import.meta.env.PUBLIC_TANSU_CONTRACT_ID;
+const XLM = StellarSdk.Asset.native().contractId(
+  import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
+);
+
+/** A contract call in an authorization tree. */
+const invoke = (
+  contract: string,
+  functionName: string,
+  args: StellarSdk.xdr.ScVal[] = [],
+  subInvocations: object[] = [],
+) => ({
+  function: {
+    type: "sorobanAuthorizedFunctionTypeContractFn",
+    contractFn: {
+      contractAddress: StellarSdk.Address.fromString(contract).toScAddress(),
+      functionName,
+      args,
+    },
+  },
+  subInvocations,
+});
+
 /** A contract call, simulated, whose result is a u32. */
-function call(simulation: object = {}) {
+function call(simulation: object = {}, auth: object[] = []) {
   return {
     simulation,
+    simulationData: { result: { auth } },
     toXDR: () => "unsigned-xdr",
     options: {
       parseResultXdr: (value: StellarSdk.xdr.ScVal) =>
@@ -83,7 +108,7 @@ describe("sendTransaction", () => {
         return { status: "PENDING", hash: "a".repeat(64) } as any;
       });
     poll = vi
-      .spyOn(rpc.Server.prototype, "pollTransaction")
+      .spyOn(rpc.Server.prototype, "getTransaction")
       .mockImplementation(async () => {
         order.push("confirm");
         return { status: "SUCCESS", returnValue: xdr.ScVal.scvU32(7) } as any;
@@ -129,7 +154,7 @@ describe("sendTransaction", () => {
       hash,
     });
     expect(send).not.toHaveBeenCalled();
-    expect(poll).toHaveBeenCalledWith(hash, expect.anything());
+    expect(poll).toHaveBeenCalledWith(hash);
     expect(uploadMock).toHaveBeenCalledWith({ ...upload, txHash: hash });
     expect(order).toEqual(["confirm", "upload"]);
   });
@@ -155,6 +180,36 @@ describe("sendTransaction", () => {
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["commit", "ab"] });
   });
 
+  it("keeps waiting through network errors", async () => {
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope() });
+    poll.mockRejectedValueOnce(new Error("socket hang up"));
+
+    await expect(sendTransaction(call())).resolves.toMatchObject({
+      result: 7,
+    });
+    expect(poll).toHaveBeenCalledTimes(2);
+  }, 10_000);
+
+  it("says a transaction past its time bound expired", async () => {
+    const past = Math.floor(Date.now() / 1000) - 60;
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope(past) });
+    poll.mockResolvedValue({ status: "NOT_FOUND" } as any);
+
+    await expect(sendTransaction(call())).rejects.toThrow(
+      "expired without landing",
+    );
+  });
+
+  it("says when the network cannot tell whether it landed", async () => {
+    const past = Math.floor(Date.now() / 1000) - 60;
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope(past) });
+    poll.mockRejectedValue(new Error("socket hang up"));
+
+    await expect(sendTransaction(call())).rejects.toThrow(
+      "could not be read: check it",
+    );
+  });
+
   it("shows a contract error before asking the wallet", async () => {
     await expect(
       sendTransaction(call({ error: "HostError: Error(Contract, #201)" })),
@@ -171,6 +226,42 @@ describe("sendTransaction", () => {
       "Connect again, pick the account you want, then retry.",
     );
     expect(disconnectMock).toHaveBeenCalled();
+  });
+});
+
+describe("checkAuthorization", () => {
+  const member = StellarSdk.Keypair.random().publicKey();
+  const address = (a: string) => StellarSdk.Address.fromString(a).toScVal();
+  const collateral = invoke(XLM, "transfer", [
+    address(member),
+    address(TANSU),
+    StellarSdk.nativeToScVal(50_000_000n, { type: "i128" }),
+  ]);
+
+  it("signs the Tansu call and its collateral", () => {
+    expect(() =>
+      checkAuthorization(
+        call({}, [
+          { rootInvocation: invoke(TANSU, "register", [], [collateral]) },
+        ]),
+      ),
+    ).not.toThrow();
+  });
+
+  it("signs nothing else on the member's behalf", () => {
+    const drain = invoke(XLM, "transfer", [
+      address(member),
+      address(StellarSdk.Keypair.random().publicKey()),
+      StellarSdk.nativeToScVal(1n, { type: "i128" }),
+    ]);
+    for (const auth of [
+      { rootInvocation: invoke(TANSU, "execute", [], [drain]) },
+      { rootInvocation: invoke(XLM, "transfer") },
+    ]) {
+      expect(() => checkAuthorization(call({}, [auth]))).toThrow(
+        "so it is not signed",
+      );
+    }
   });
 });
 
@@ -191,9 +282,6 @@ describe("packUpload", () => {
 });
 
 describe("sendXLM", () => {
-  const PROJECT = StellarSdk.Keypair.random().publicKey();
-  const HORIZON = import.meta.env.PUBLIC_HORIZON_URL;
-
   beforeEach(() => {
     vi.clearAllMocks();
     connected = StellarSdk.Keypair.random().publicKey();
@@ -201,46 +289,44 @@ describe("sendXLM", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("signs the donation and the tip, and sends them through Horizon", async () => {
-    const horizon = vi.fn(async (url: string) =>
-      url.endsWith("/transactions")
-        ? Response.json({ successful: true })
-        : Response.json({
-            sequence: "41",
-            balances: [{ asset_type: "native", balance: "20.0000000" }],
-          }),
+  it("signs a donation to Tansu, and lands it like a contract call", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          sequence: "41",
+          balances: [{ asset_type: "native", balance: "20.0000000" }],
+        }),
+      ),
     );
-    vi.stubGlobal("fetch", horizon);
     kitSignMock.mockImplementation(async (xdr: string) => ({
       signedTxXdr: xdr,
     }));
+    const send = vi
+      .spyOn(rpc.Server.prototype, "sendTransaction")
+      .mockResolvedValue({ status: "PENDING", hash: "d".repeat(64) } as any);
+    const landed = vi
+      .spyOn(rpc.Server.prototype, "getTransaction")
+      .mockResolvedValue({ status: "SUCCESS" } as any);
 
-    await sendXLM("10", PROJECT, "2", "thanks");
+    await sendXLM("10.5", "thanks");
 
-    expect(horizon.mock.calls[0]![0]).toBe(`${HORIZON}/accounts/${connected}`);
-    const [url, init] = horizon.mock.calls[1] as unknown as [
-      string,
-      RequestInit,
-    ];
-    expect(url).toBe(`${HORIZON}/transactions`);
-    const sent = new StellarSdk.Transaction(
-      decodeURIComponent(String(init.body).slice("tx=".length)),
-      import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
-    );
+    const sent = send.mock.calls[0]![0] as StellarSdk.Transaction;
     expect(sent.source).toBe(connected);
     expect(sent.sequence).toBe("42");
     expect(Buffer.from(sent.memo.value as Uint8Array).toString()).toBe(
       "thanks",
     );
+    // A payment that cannot land later than three minutes from now.
+    expect(Number(sent.timeBounds!.maxTime)).toBeGreaterThan(0);
     expect(
       sent.operations.map((op) => {
         const { destination, amount } = op as StellarSdk.Operation.Payment;
         return [destination, amount];
       }),
-    ).toEqual([
-      [PROJECT, "10.0000000"],
-      [import.meta.env.PUBLIC_TANSU_OWNER_ID, "2.0000000"],
-    ]);
+    ).toEqual([[import.meta.env.PUBLIC_TANSU_OWNER_ID, "10.5000000"]]);
+    expect(landed).toHaveBeenCalledWith("d".repeat(64));
+    vi.restoreAllMocks();
   });
 
   it("asks an account the network does not know to be funded first", async () => {
@@ -249,7 +335,7 @@ describe("sendXLM", () => {
       vi.fn(async () => new Response("", { status: 404 })),
     );
 
-    await expect(sendXLM("10", PROJECT, "0", "thanks")).rejects.toThrow(
+    await expect(sendXLM("10", "thanks")).rejects.toThrow(
       "fund it, then donate",
     );
     expect(kitSignMock).not.toHaveBeenCalled();
@@ -258,7 +344,7 @@ describe("sendXLM", () => {
   it("refuses to donate from a smart account", async () => {
     connected = SMART_ACCOUNT;
 
-    await expect(sendXLM("10", PROJECT, "0", "thanks")).rejects.toThrow(
+    await expect(sendXLM("10", "thanks")).rejects.toThrow(
       "smart-account wallets",
     );
     expect(kitSignMock).not.toHaveBeenCalled();

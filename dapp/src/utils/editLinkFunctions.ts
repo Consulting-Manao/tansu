@@ -445,21 +445,6 @@ export function getRepositoryProjectPath(
   return parsed?.kind === "hosted" ? parsed.projectPath : "";
 }
 
-export function buildRepositoryUrlFromProjectPath(
-  repoUrl: string | null | undefined,
-  projectPathOverride?: string | null,
-): string | undefined {
-  const parsed = parseRepositoryUrl(repoUrl);
-  if (!parsed || parsed.kind !== "hosted") {
-    return undefined;
-  }
-
-  const normalizedOverride =
-    normalizeRepositoryProjectPath(parsed.host, projectPathOverride) ||
-    parsed.projectPath;
-  return buildNormalizedRepositoryUrl(parsed.host, normalizedOverride);
-}
-
 export function getRepositoryReleasesUrl(
   repoUrl: string | null | undefined,
 ): string | undefined {

@@ -1,0 +1,9 @@
+# Netlify response headers for every page and file.
+/*
+  # No site may frame the app: its buttons sign transactions.
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+  # Wallet popups keep their opener, which they answer through.
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

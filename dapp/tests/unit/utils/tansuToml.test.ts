@@ -1,4 +1,4 @@
-import toml from "toml";
+import { parse as parseToml } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import { ProjectType } from "../../../src/types/projectConfig";
 import {
@@ -10,6 +10,9 @@ import {
 } from "../../../src/utils/tansuToml";
 
 const RID = "rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5";
+
+/** The written file, as data to assert on. */
+const parse = (text: string): any => parseToml(text);
 
 const form: TansuTomlForm = {
   projectType: ProjectType.SOFTWARE,
@@ -26,7 +29,7 @@ const form: TansuTomlForm = {
 
 describe("writeTansuToml", () => {
   it("writes a new file that reads back as the form", () => {
-    const data = toml.parse(writeTansuToml(form));
+    const data = parse(writeTansuToml(form));
     expect(data).toEqual({
       VERSION: "2.0.0",
       PROJECT_TYPE: "SOFTWARE",
@@ -47,15 +50,45 @@ describe("writeTansuToml", () => {
     const previous = {
       VERSION: "1.0.0",
       NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
-      DOCUMENTATION: { ORG_TWITTER: "demo", README: "# Old", ORG_NAME: "Old" },
+      CURRENCIES: [{ code: "DEMO", issuer: "GC" }],
+      DOCUMENTATION: {
+        ORG_TWITTER: "demo",
+        ORG_KEYWORDS: ["git", "dao"],
+        README: "# Old",
+        ORG_NAME: "Old",
+      },
     };
-    const data = toml.parse(writeTansuToml(form, previous));
+    const data = parse(writeTansuToml(form, previous));
     expect(data.VERSION).toBe("2.0.0");
     expect(data.NETWORK_PASSPHRASE).toBe("Test SDF Network ; September 2015");
+    expect(data.CURRENCIES).toEqual([{ code: "DEMO", issuer: "GC" }]);
     expect(data.DOCUMENTATION.ORG_TWITTER).toBe("demo");
+    expect(data.DOCUMENTATION.ORG_KEYWORDS).toEqual(["git", "dao"]);
     expect(data.DOCUMENTATION.ORG_NAME).toBe("Demo Foundation");
     // The README is a file of its own.
     expect(data.DOCUMENTATION.README).toBeUndefined();
+  });
+
+  it("keeps each maintainer's principal entry, by address", () => {
+    const previous = {
+      ACCOUNTS: ["GB", "GA"],
+      PRINCIPALS: [
+        { github: "grace", email: "grace@demo.example" },
+        { github: "old-ada", keybase: "ada" },
+      ],
+    };
+    const radicle = {
+      ...form,
+      maintainers: ["GA", "GB", "GC"],
+      handles: ["ada", "grace", "linus"],
+      repositoryUrl: RID,
+      repositoryProvider: "radicle" as const,
+    };
+    expect(parse(writeTansuToml(radicle, previous)).PRINCIPALS).toEqual([
+      { keybase: "ada", radicle: "ada" },
+      { email: "grace@demo.example", radicle: "grace" },
+      { radicle: "linus" },
+    ]);
   });
 
   it("names a Radicle repository's seed, and keeps it for the same one", () => {
@@ -64,7 +97,7 @@ describe("writeTansuToml", () => {
       repositoryUrl: `https://radicle.network/nodes/seed.example/${RID}`,
       repositoryProvider: "radicle" as const,
     };
-    const created = toml.parse(writeTansuToml(radicle));
+    const created = parse(writeTansuToml(radicle));
     expect(created.DOCUMENTATION).toMatchObject({
       ORG_REPOSITORY_PROVIDER: "radicle",
       ORG_REPOSITORY_SEED: "seed.example",
@@ -78,11 +111,11 @@ describe("writeTansuToml", () => {
     // The bare RID of the same repository keeps its seed; another drops it.
     const bare = { ...radicle, repositoryUrl: RID };
     expect(
-      toml.parse(writeTansuToml(bare, created, radicle.repositoryUrl))
-        .DOCUMENTATION.ORG_REPOSITORY_SEED,
+      parse(writeTansuToml(bare, created, radicle.repositoryUrl)).DOCUMENTATION
+        .ORG_REPOSITORY_SEED,
     ).toBe("seed.example");
     expect(
-      toml.parse(
+      parse(
         writeTansuToml(
           { ...bare, repositoryUrl: "rad:z4V1sjrXqjvFdnCUbxPFqd5p4DtH5" },
           created,
@@ -93,7 +126,7 @@ describe("writeTansuToml", () => {
   });
 
   it("writes no repository for a project without code", () => {
-    const data = toml.parse(
+    const data = parse(
       writeTansuToml({ ...form, projectType: ProjectType.GENERIC }),
     );
     expect(data.PROJECT_TYPE).toBe("GENERIC");

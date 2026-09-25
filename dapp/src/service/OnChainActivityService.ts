@@ -7,6 +7,7 @@ import { Buffer } from "buffer";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import pkgSha3 from "js-sha3";
 import { MEMBER_METHODS } from "../constants/onchain";
+import { fetchWithin } from "../utils/deadline";
 
 const { keccak_256 } = pkgSha3;
 
@@ -96,8 +97,7 @@ async function readActions(accountId: string): Promise<OnChainAction[]> {
 
   const base = import.meta.env.PUBLIC_HORIZON_URL;
   const url = `${base}/accounts/${accountId}/operations?limit=200&order=desc`;
-  const resp = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
+  const resp = await fetchWithin(url, {
     headers: { Accept: "application/hal+json" },
   });
   if (!resp.ok) {

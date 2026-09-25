@@ -154,7 +154,7 @@ const ProposalPage: React.FC = () => {
         <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <Loading />
         </div>
-      ) : proposalRead.isError ? (
+      ) : proposalRead.isError && !proposalRead.data ? (
         <div className="flex flex-col items-start gap-3">
           <p>Could not load the proposal: {proposalRead.error.message}</p>
           <Button size="sm" onClick={() => proposalRead.refetch()}>

@@ -1,21 +1,19 @@
 import { useStore } from "@nanostores/react";
 import { useRef, useState, type FC } from "react";
-import { joinCommunity, updateMember } from "@service/MemberService";
+import {
+  joinCommunity,
+  updateMember,
+  type ProfileData,
+} from "@service/MemberService";
 import { connect } from "@service/walletService";
 import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Input from "components/utils/Input";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import { connectedPublicKey } from "utils/store";
+import { fetchFromIpfs, getIpfsUrl } from "utils/ipfsFunctions";
 import { validateUrl } from "utils/validations";
 import GitVerification, { type GitIdentityData } from "./GitVerification";
-
-export interface ProfileData {
-  name: string;
-  description: string;
-  social: string;
-  image?: string;
-}
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -30,7 +28,9 @@ const ProfileModal: FC<{
   onClose: () => void;
   /** Where an edit starts from. */
   initialProfile?: ProfileData | null;
-}> = ({ mode, onClose, initialProfile }) => {
+  /** The picture an edit keeps unless it is removed or replaced. */
+  currentPicture?: { cid: string; file: string } | null;
+}> = ({ mode, onClose, initialProfile, currentPicture }) => {
   const isJoining = mode === "join";
   const publicKey = useStore(connectedPublicKey);
 
@@ -40,6 +40,11 @@ const ProfileModal: FC<{
     initialProfile?.description ?? "",
   );
   const [image, setImage] = useState<{ url: string; file: File } | null>(null);
+  const [keepPicture, setKeepPicture] = useState(!!currentPicture);
+  const keptPictureUrl =
+    keepPicture && currentPicture
+      ? getIpfsUrl(currentPicture.cid, currentPicture.file)
+      : null;
   const [isDragging, setIsDragging] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -68,28 +73,45 @@ const ProfileModal: FC<{
   const removeImage = () => {
     if (image) URL.revokeObjectURL(image.url);
     setImage(null);
+    setKeepPicture(false);
   };
 
-  /** profile.json and the picture; none when joining with an empty form. */
-  const profileFiles = (): File[] => {
-    const profile = {
+  /**
+   * profile.json and the picture, a new one or the one kept; none when
+   * joining with an empty form.
+   */
+  const profileFiles = async (): Promise<File[]> => {
+    let picture: File | undefined;
+    if (image) {
+      picture = new File(
+        [image.file],
+        `profile-image.${image.file.type.split("/")[1]}`,
+      );
+    } else if (keepPicture && currentPicture) {
+      // The new directory holds the files: the picture moves along.
+      const response = await fetchFromIpfs(
+        currentPicture.cid,
+        currentPicture.file,
+      ).catch((error) => {
+        throw new Error(
+          `Could not copy your current picture: ${error.message}`,
+        );
+      });
+      picture = new File([await response.blob()], currentPicture.file);
+    }
+    const profile: ProfileData = {
       name: name.trim(),
       description: description.trim(),
       social: social.trim(),
+      ...(picture && { image: picture.name }),
     };
     const isEmpty =
-      !profile.name && !profile.description && !profile.social && !image;
+      !profile.name && !profile.description && !profile.social && !picture;
     if (isJoining && isEmpty) return [];
-    const files = [new File([JSON.stringify(profile)], "profile.json")];
-    if (image) {
-      files.push(
-        new File(
-          [image.file],
-          `profile-image.${image.file.type.split("/")[1]}`,
-        ),
-      );
-    }
-    return files;
+    return [
+      new File([JSON.stringify(profile)], "profile.json"),
+      ...(picture ? [picture] : []),
+    ];
   };
 
   const handleSubmit = async () => {
@@ -106,9 +128,9 @@ const ProfileModal: FC<{
       }
     }
 
-    const files = profileFiles();
     try {
       setIsLoading(true);
+      const files = await profileFiles();
       setIsUploading(files.length > 0);
       setStep(6);
       if (isJoining) {
@@ -222,10 +244,10 @@ const ProfileModal: FC<{
                 <p className="text-base font-[600] text-primary">
                   Profile Picture
                 </p>
-                {image ? (
+                {image || keptPictureUrl ? (
                   <div className="flex items-center gap-4">
                     <img
-                      src={image.url}
+                      src={image?.url ?? keptPictureUrl!}
                       alt="Profile preview"
                       className="w-24 h-24 object-cover rounded-full border-2 border-primary"
                     />
@@ -318,7 +340,17 @@ const ProfileModal: FC<{
               <div className="pt-2">
                 <Button
                   type="secondary"
-                  onClick={() => setShowGitSection(true)}
+                  onClick={async () => {
+                    // The signature binds the member's address.
+                    if (!publicKey) {
+                      try {
+                        await connect();
+                      } catch {
+                        return; // The wallet picker was dismissed.
+                      }
+                    }
+                    setShowGitSection(true);
+                  }}
                 >
                   + Link Git Handle (optional)
                 </Button>

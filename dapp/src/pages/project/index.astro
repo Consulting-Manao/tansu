@@ -4,10 +4,6 @@ import Container from "../../components/layout/Container.astro";
 import ProjectPage from "../../components/page/project/ProjectPage";
 ---
 
-<script is:inline>
-  var global = global || window;
-</script>
-
 <Layout title="Tansu" page="project">
   <Container>
     <ProjectPage client:only="react" />

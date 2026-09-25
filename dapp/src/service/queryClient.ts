@@ -88,8 +88,10 @@ if (typeof window !== "undefined" && "indexedDB" in window) {
     maxAge: MAX_AGE,
     buster: `${import.meta.env.PUBLIC_TANSU_CONTRACT_ID}:${import.meta.env.PUBLIC_BUILD}`,
     dehydrateOptions: {
+      // Not what was absent: once created elsewhere, it would stay absent here.
       shouldDehydrateQuery: (query) =>
         query.state.status === "success" &&
+        query.state.data != null &&
         PERSISTED.has(String(query.queryKey[0])),
     },
   });

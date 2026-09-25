@@ -31,7 +31,9 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
           <Button
             type="secondary"
             icon="/icons/ipfs.svg"
-            onClick={() => window.open(getIpfsBasicLink(ipfsCid), "_blank")}
+            onClick={() =>
+              window.open(getIpfsBasicLink(ipfsCid), "_blank", "noopener")
+            }
           >
             View IPFS
           </Button>

@@ -28,6 +28,7 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
   onSuccess,
   step,
   setStep,
+  isLoading,
   setIsLoading,
   setIsUploading,
   isSuccessful,
@@ -56,8 +57,11 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
 
   if (!isOpen) return null;
 
+  // A flow being signed and sent stays open: its outcome shows here.
+  const busy = isLoading && !error && !isSuccessful;
+
   return (
-    <Modal onClose={handleClose}>
+    <Modal onClose={handleClose} closable={!busy}>
       {error ? (
         <div
           className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6"

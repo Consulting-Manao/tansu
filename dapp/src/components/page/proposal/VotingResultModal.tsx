@@ -99,18 +99,10 @@ const Voters: FC<VotersProps> = ({
         (voter) =>
           projectMaintainers.includes(voter.address) == onlyMaintainers,
       )
-      .map((voter) => {
-        const index = configData?.maintainersAddresses.findIndex(
-          (maintainer) => maintainer == voter.address,
-        );
-        if (index != undefined && index >= 0) {
-          return {
-            ...voter,
-            name: voter?.name || configData?.authorGithubNames[index],
-          };
-        }
-        return voter;
-      });
+      .map((voter) => ({
+        ...voter,
+        name: voter.name || configData?.handles[voter.address] || "",
+      }));
   }, [
     currentType,
     configData,

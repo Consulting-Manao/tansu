@@ -1,6 +1,9 @@
 import { useStore } from "@nanostores/react";
+import { useQuery } from "@tanstack/react-query";
+import { executeDelayQuery } from "@service/ProposalService";
+import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { hasUserVoted, toast, truncateMiddle } from "utils/utils";
@@ -55,6 +58,27 @@ const ProposalTitle: React.FC<Props> = ({
       (proposal?.voteStatus?.abstain?.voters?.length || 0)
     : 0;
   const userHasVoted = hasUserVoted(proposal?.voteStatus, connectedAddress);
+
+  // A vote can be finalized once its execute delay has passed too.
+  const executeDelay = useQuery(
+    {
+      ...executeDelayQuery(proposal?.projectName ?? "", proposal?.id ?? 0),
+      enabled: proposal?.status === "voted" && isMaintainer,
+    },
+    queryClient,
+  );
+  const executableAt =
+    proposal && executeDelay.data !== undefined
+      ? (proposal.endDate + executeDelay.data) * 1000
+      : undefined;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (executableAt === undefined || executableAt <= now) return;
+    // Timers hold at most 2^31 - 1 ms (about 24 days).
+    const wait = Math.min(executableAt - now, 2 ** 31 - 1);
+    const timer = setTimeout(() => setNow(Date.now()), wait);
+    return () => clearTimeout(timer);
+  }, [executableAt, now]);
 
   return (
     <>
@@ -142,15 +166,23 @@ const ProposalTitle: React.FC<Props> = ({
                       {userHasVoted ? "Already Voted" : "Vote"}
                     </Button>
                   )}
-                  {proposal?.status == "voted" && isMaintainer && (
-                    <Button
-                      size="sm"
-                      icon="/icons/finalize-vote.svg"
-                      onClick={() => executeProposal()}
-                    >
-                      Finalize Vote
-                    </Button>
-                  )}
+                  {proposal?.status == "voted" &&
+                    isMaintainer &&
+                    executableAt !== undefined &&
+                    (executableAt <= now ? (
+                      <Button
+                        size="sm"
+                        icon="/icons/finalize-vote.svg"
+                        onClick={() => executeProposal()}
+                      >
+                        Finalize Vote
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-secondary">
+                        Can be finalized from{" "}
+                        {new Date(executableAt).toLocaleString()}
+                      </p>
+                    ))}
                   {(proposal?.status == "active" ||
                     proposal?.status == "voted") &&
                     isMaintainer && (

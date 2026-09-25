@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { Address, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { Buffer } from "buffer";
 import { ipfsQuery } from "utils/ipfsFunctions";
 import type {
@@ -13,7 +14,7 @@ import type {
   Vote,
   VoteChoice,
 } from "../../packages/tansu";
-import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
+import { rpcServer, tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { errorMessage, readResult } from "../utils/contractErrors";
 import { randomSeed } from "../utils/anonymousVoting";
 import { encryptWithPublicKey } from "../utils/crypto";
@@ -72,6 +73,41 @@ export const proposalCountQuery = (name: string) =>
   });
 
 /** A proposal with its votes; `null` when the project has no such id. */
+/** The contract's execute delay for proposals made before it kept theirs. */
+const DEFAULT_EXECUTE_DELAY = 24 * 3600;
+
+/**
+ * The execute delay a proposal was made with, in seconds: it can be executed
+ * that long after its vote ends. The contract keeps it without a getter, so
+ * it is read from its ledger entry.
+ */
+export const executeDelayQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["executeDelay", projectKeyHex(name), id],
+    queryFn: async () => {
+      const key = xdr.LedgerKey.contractData(
+        new xdr.LedgerKeyContractData({
+          contract: new Address(
+            import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
+          ).toScAddress(),
+          key: xdr.ScVal.scvVec([
+            xdr.ScVal.scvSymbol("ProposalExecuteDelay"),
+            xdr.ScVal.scvBytes(deriveProjectKey(name)),
+            xdr.ScVal.scvU32(id),
+          ]),
+          durability: xdr.ContractDataDurability.persistent,
+        }),
+      );
+      const { entries } = await rpcServer.getLedgerEntries(key);
+      const data = entries[0]?.val;
+      return data?.type === "contractData"
+        ? Number(scValToNative(data.contractData.val))
+        : DEFAULT_EXECUTE_DELAY;
+    },
+    // The delay is fixed when the proposal is made.
+    staleTime: Infinity,
+  });
+
 export const proposalQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["proposal", projectKeyHex(name), id],

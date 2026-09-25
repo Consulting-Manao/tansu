@@ -1,22 +1,61 @@
-import { setBadges } from "@service/ProjectService";
+import { StrKey } from "@stellar/stellar-sdk";
+import { badgesQuery, setBadges } from "@service/ProjectService";
+import { queryClient } from "@service/queryClient";
 import Button from "components/utils/Button";
 import Modal from "components/utils/Modal";
-import type { Badge } from "../../../../packages/tansu";
-import { useState } from "react";
+import { Badge, type Badges } from "../../../../packages/tansu";
+import { useRef, useState } from "react";
 import { toast } from "utils/utils";
 
 const badgeOptions: { label: string; value: Badge }[] = [
-  { label: "Developer", value: 10000000 },
-  { label: "Triage", value: 5000000 },
-  { label: "Community", value: 1000000 },
+  { label: "Developer", value: Badge.Developer },
+  { label: "Triage", value: Badge.Triage },
+  { label: "Community", value: Badge.Community },
 ];
 
-/** For maintainers: give a member badges in the project. */
+/** The badges `address` holds, from the project's lists. */
+const heldBadges = (badges: Badges, address: string): Badge[] =>
+  (
+    [
+      [badges.developer, Badge.Developer],
+      [badges.triage, Badge.Triage],
+      [badges.community, Badge.Community],
+      [badges.verified, Badge.Verified],
+    ] as const
+  ).flatMap(([holders, badge]) => (holders.includes(address) ? [badge] : []));
+
+/**
+ * For maintainers: set a member's badges in the project. Setting replaces
+ * them all, so the dialog starts from those the member holds now.
+ */
 const AddBadgeModal = ({ projectName }: { projectName: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [memberAddress, setMemberAddress] = useState("");
   const [selectedBadges, setSelectedBadges] = useState<Badge[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // The address whose badges are loaded, or why they could not be.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadRun = useRef(0);
+
+  const loadBadges = async (address: string) => {
+    const run = ++loadRun.current;
+    setLoadedFor(null);
+    setLoadError(null);
+    setSelectedBadges([]);
+    if (!StrKey.isValidEd25519PublicKey(address)) return;
+    try {
+      const badges = await queryClient.query({
+        ...badgesQuery(projectName),
+        staleTime: 0,
+      });
+      if (run !== loadRun.current) return;
+      setSelectedBadges(heldBadges(badges, address));
+      setLoadedFor(address);
+    } catch (error: any) {
+      if (run === loadRun.current) setLoadError(error.message);
+    }
+  };
 
   const handleClose = () => {
     setIsOpen(false);
@@ -28,20 +67,18 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
     );
   };
 
-  const handleAdd = async () => {
-    if (!memberAddress) {
-      toast.error("Add badge", "Address is required");
-      return;
-    }
+  const handleSave = async () => {
+    if (loadedFor !== memberAddress) return;
     setIsLoading(true);
     try {
       await setBadges(projectName, memberAddress, selectedBadges);
-      toast.success("Add badge", "Badges added successfully");
+      toast.success("Member badges", "The member's badges are saved.");
       setMemberAddress("");
+      setLoadedFor(null);
       setSelectedBadges([]);
       setIsOpen(false);
     } catch (err: any) {
-      toast.error("Add badge", err.message);
+      toast.error("Member badges", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -70,22 +107,39 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-9 w-full">
               <h6 className="text-xl sm:text-2xl font-medium text-primary text-center sm:text-left">
-                Add badge
+                Member badges
               </h6>
               <div className="flex flex-col gap-4 sm:gap-[18px]">
-                <div className="flex flex-col gap-2 sm:gap-3">
-                  <p className="text-sm sm:text-base font-[600] text-primary">
-                    Member address
-                  </p>
+                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-primary">
+                  Member address
                   <input
                     type="text"
-                    className="p-3 sm:p-[18px] border border-[#978AA1] outline-none w-full text-sm sm:text-base"
+                    className="p-3 sm:p-[18px] border border-[#978AA1] outline-none w-full text-sm sm:text-base font-normal"
                     placeholder="Member address as G..."
                     value={memberAddress}
-                    onChange={(e) => setMemberAddress(e.target.value)}
+                    onChange={(e) => {
+                      const address = e.target.value.trim();
+                      setMemberAddress(address);
+                      loadBadges(address);
+                    }}
                     required
                   />
-                </div>
+                </label>
+                {loadError && (
+                  <div
+                    role="alert"
+                    className="flex flex-col gap-2 text-sm text-red-600"
+                  >
+                    <p>Could not read the member's badges: {loadError}</p>
+                    <Button
+                      type="secondary"
+                      size="sm"
+                      onClick={() => loadBadges(memberAddress)}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2 sm:gap-3">
                   <p className="text-sm sm:text-base font-[600] text-primary">
                     Badges
@@ -99,6 +153,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                         <input
                           type="checkbox"
                           checked={selectedBadges.includes(opt.value)}
+                          disabled={loadedFor !== memberAddress}
                           onChange={() => handleToggleBadge(opt.value)}
                           className="w-4 h-4"
                         />
@@ -109,11 +164,12 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                 </div>
                 <div className="flex justify-end mt-2 sm:mt-0">
                   <Button
-                    onClick={handleAdd}
+                    onClick={handleSave}
                     isLoading={isLoading}
+                    disabled={isLoading || loadedFor !== memberAddress}
                     className="w-full sm:w-auto"
                   >
-                    Add Badges
+                    Save badges
                   </Button>
                 </div>
               </div>

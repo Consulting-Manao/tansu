@@ -50,19 +50,45 @@ describe("contributionMetricsQuery", () => {
 
   it("reads pages until one is not full", async () => {
     mockHistory
-      .mockResolvedValueOnce(page(commits("Alice", "2026-01", 30)))
-      .mockResolvedValueOnce(page(commits("Bob", "2026-02", 30)))
+      .mockResolvedValueOnce(page(commits("Alice", "2026-01", 100)))
+      .mockResolvedValueOnce(page(commits("Bob", "2026-02", 100)))
       .mockResolvedValueOnce(page(commits("Carol", "2026-03", 5)));
 
     const metrics = await queryClient.query(contributionMetricsQuery(REPO));
 
     expect(mockHistory.mock.calls).toEqual([
-      [REPO, 1, 30],
-      [REPO, 2, 30],
-      [REPO, 3, 30],
+      [REPO, 1, 100],
+      [REPO, 2, 100],
+      [REPO, 3, 100],
     ]);
-    expect(metrics.totalCommits).toBe(65);
+    expect(metrics.totalCommits).toBe(205);
     expect(metrics.totalContributors).toBe(3);
+    expect(metrics.complete).toBe(true);
+  });
+
+  it("follows a host that serves fewer per page than asked", async () => {
+    mockHistory
+      .mockResolvedValueOnce(page(commits("Alice", "2026-01", 50)))
+      .mockResolvedValueOnce(page(commits("Bob", "2026-02", 50)))
+      .mockResolvedValueOnce(page(commits("Carol", "2026-03", 7)));
+
+    const metrics = await queryClient.query(contributionMetricsQuery(REPO));
+
+    expect(mockHistory).toHaveBeenCalledTimes(3);
+    expect(metrics.totalCommits).toBe(107);
+    expect(metrics.complete).toBe(true);
+  });
+
+  it("stops after ten pages: the latest thousand commits", async () => {
+    mockHistory.mockImplementation(async () =>
+      page(commits("Alice", "2026-01", 100)),
+    );
+
+    const metrics = await queryClient.query(contributionMetricsQuery(REPO));
+
+    expect(mockHistory).toHaveBeenCalledTimes(10);
+    expect(metrics.totalCommits).toBe(1000);
+    expect(metrics.complete).toBe(false);
   });
 
   it("has nothing to count for an unknown host or an empty repository", async () => {

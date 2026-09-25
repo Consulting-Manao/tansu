@@ -166,8 +166,21 @@ export async function registerProject(
 /** Replace a project's configuration; its name stays. */
 export async function updateConfig(
   name: string,
-  config: ProjectConfigWrite,
+  config: ProjectConfigWrite & {
+    /** The project's directory the form was filled from. */
+    basedOn: string;
+  },
 ): Promise<void> {
+  // A change another maintainer made since would be overwritten.
+  const current = await queryClient.query({
+    ...projectQuery(name),
+    staleTime: 0,
+  });
+  if (current?.config.ipfs !== config.basedOn) {
+    throw new Error(
+      "Another maintainer updated this project meanwhile. Close this dialog and open it again to edit their version.",
+    );
+  }
   const upload = await packUpload([
     config.tomlFile,
     ...(config.additionalFiles ?? []),
@@ -234,16 +247,19 @@ export async function setBadges(
   });
 }
 
-/** Make the project an organization of these projects (none: it is not). */
+/**
+ * Make the project an organization of these projects, by key in hex (none:
+ * it is not one).
+ */
 export async function setSubProjects(
   name: string,
-  subProjects: string[],
+  subProjectKeys: string[],
 ): Promise<void> {
   const address = connectedAddress();
   const tx = await tansuFor(address).set_sub_projects({
     maintainer: address,
     project_key: deriveProjectKey(name),
-    sub_projects: subProjects.map(deriveProjectKey),
+    sub_projects: subProjectKeys.map((key) => Buffer.from(key, "hex")),
   });
   await sendTransaction(tx, { invalidate: [["project", projectKeyHex(name)]] });
 }

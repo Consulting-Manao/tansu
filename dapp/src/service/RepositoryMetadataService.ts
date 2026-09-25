@@ -12,6 +12,7 @@ import {
   type ParsedRadicleRepositoryUrl,
   type ParsedRepositoryUrl,
 } from "../utils/editLinkFunctions";
+import { fetchWithin } from "../utils/deadline";
 
 interface GitHistoryCommit {
   sha: string;
@@ -131,7 +132,7 @@ function getEncodedRepositorySegments(repo: ParsedHostedRepositoryUrl) {
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetchWithin(url, init);
   if (!response.ok) {
     throw new HttpError(response.status, new URL(url).hostname);
   }
@@ -143,7 +144,7 @@ async function fetchMaybeJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T | undefined> {
-  const response = await fetch(url, init);
+  const response = await fetchWithin(url, init);
   if (response.status === 404) {
     return undefined;
   }
@@ -162,7 +163,7 @@ async function fetchRadicleJsonFromSeeds<T>(
   let lastError: Error | undefined;
 
   for (const seedHost of getRadicleSeedHosts(repo)) {
-    const response = await fetch(buildUrl(seedHost));
+    const response = await fetchWithin(buildUrl(seedHost));
     if (response.status === 404) {
       continue;
     }
@@ -332,7 +333,7 @@ async function getGithubReadme(
   repo: ParsedHostedRepositoryUrl,
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
-  const response = await fetch(
+  const response = await fetchWithin(
     `https://api.github.com/repos/${owner}/${repoName}/readme`,
     {
       headers: { Accept: "application/vnd.github.raw+json" },
@@ -409,7 +410,7 @@ async function getGitlabReadme(
   const project = encodeURIComponent(repo.projectPath);
 
   for (const candidate of README_CANDIDATES) {
-    const response = await fetch(
+    const response = await fetchWithin(
       `https://gitlab.com/api/v4/projects/${project}/repository/files/${encodeURIComponent(candidate)}/raw?ref=HEAD`,
     );
     if (response.status === 404) {
@@ -491,7 +492,7 @@ async function getBitbucketReadme(
 ): Promise<string | undefined> {
   const { owner, repoName } = getEncodedRepositorySegments(repo);
   for (const candidate of README_CANDIDATES) {
-    const response = await fetch(
+    const response = await fetchWithin(
       `https://api.bitbucket.org/2.0/repositories/${owner}/${repoName}/src/HEAD/${encodeURIComponent(candidate)}`,
     );
     if (response.status === 404) {

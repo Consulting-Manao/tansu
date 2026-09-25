@@ -12,8 +12,9 @@ import type { FormattedCommit } from "../types/github";
 import { commitHistoryQuery } from "./RepositoryMetadataService";
 import { queryClient } from "./queryClient";
 
-const PER_PAGE = 30;
-const MAX_PAGES = 34;
+const PER_PAGE = 100;
+// A few requests, not a host's hourly quota (GitHub: 60 without a token).
+const MAX_PAGES = 10;
 
 const BOT_PATTERNS = [
   /dependabot/i,
@@ -26,27 +27,41 @@ const BOT_PATTERNS = [
   /codecov/i,
 ];
 
-/** Metrics over the repository's latest ~1000 commits. */
+/**
+ * Metrics over the repository's latest commits, up to 1000; `complete` when
+ * they are all of them.
+ */
 export const contributionMetricsQuery = (repoUrl: string) =>
   queryOptions({
     queryKey: ["repo", repoUrl, "metrics"],
-    queryFn: async () => calculateMetrics(await readCommits(repoUrl)),
+    queryFn: async () => {
+      const { commits, complete } = await readCommits(repoUrl);
+      return { ...calculateMetrics(commits), complete };
+    },
     staleTime: 60 * 60_000,
     // Its pages retry on their own.
     retry: false,
   });
 
-async function readCommits(repoUrl: string): Promise<FormattedCommit[]> {
+async function readCommits(
+  repoUrl: string,
+): Promise<{ commits: FormattedCommit[]; complete: boolean }> {
   const commits: FormattedCommit[] = [];
+  // A host may serve fewer per page than asked (Gitea: 50): a page shorter
+  // than the first is the last.
+  let pageSize = 0;
   for (let page = 1; page <= MAX_PAGES; page++) {
     const days = await queryClient.query(
       commitHistoryQuery(repoUrl, page, PER_PAGE),
     );
     const pageCommits = (days ?? []).flatMap((day) => day.commits);
     commits.push(...pageCommits);
-    if (pageCommits.length < PER_PAGE) break;
+    pageSize ||= pageCommits.length;
+    if (!pageCommits.length || pageCommits.length < pageSize) {
+      return { commits, complete: true };
+    }
   }
-  return commits;
+  return { commits, complete: false };
 }
 
 const isBot = (name: string) =>

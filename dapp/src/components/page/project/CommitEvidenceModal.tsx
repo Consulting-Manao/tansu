@@ -543,7 +543,11 @@ const CommitEvidenceModal = ({
                                           type="secondary"
                                           icon="/icons/ipfs.svg"
                                           onClick={() =>
-                                            window.open(ipfsUrl, "_blank")
+                                            window.open(
+                                              ipfsUrl,
+                                              "_blank",
+                                              "noopener",
+                                            )
                                           }
                                           size="sm"
                                         >

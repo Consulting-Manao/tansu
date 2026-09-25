@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildRadicleBrowseUrl,
-  buildRepositoryUrlFromProjectPath,
   getRepositoryCloneCommand,
   getRepositoryIconInfo,
   getRepositoryProvider,
@@ -424,21 +423,6 @@ describe("normalizeRepositoryUrl", () => {
         "https://seed.example/api/v1/repos/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
       ),
     ).toBe("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5");
-  });
-});
-
-describe("buildRepositoryUrlFromProjectPath", () => {
-  it("uses the canonical repository host when ORG_GITHUB is present", () => {
-    expect(
-      buildRepositoryUrlFromProjectPath(
-        "https://gitlab.com/group/project",
-        "group/docs",
-      ),
-    ).toBe("https://gitlab.com/group/docs");
-  });
-
-  it("does not guess a provider when the canonical repository URL is missing", () => {
-    expect(buildRepositoryUrlFromProjectPath("", "group/docs")).toBeUndefined();
   });
 });
 

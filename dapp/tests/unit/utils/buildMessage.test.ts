@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMessage } from "../../../src/components/page/dashboard/GitVerification";
+import { buildMessage } from "../../../src/utils/sshSignature";
 
 /**
  * Regression test for byte-level alignment between the TypeScript frontend and

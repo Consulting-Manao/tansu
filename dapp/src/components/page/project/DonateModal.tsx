@@ -1,102 +1,54 @@
-import {
-  useRef,
-  useState,
-  type FC,
-  type ReactNode,
-  isValidElement,
-  cloneElement,
-} from "react";
+import { useState, type FC, type ReactNode } from "react";
 
 import Modal from "components/utils/Modal";
-import Tooltip from "components/utils/Tooltip";
 import { toast } from "utils/utils";
 import Button from "components/utils/Button";
 
-import { sendXLM } from "service/TxService";
+import { MEMO_BYTES, sendXLM } from "service/TxService";
 import { errorMessage } from "utils/contractErrors";
-import { StrKey } from "@stellar/stellar-sdk";
 
-interface Props {
-  children: ReactNode;
-  onBeforeOpen?: () => void;
-}
+const AMOUNTS = ["10", "100", "1000"];
 
-const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
+/** XLM with at most 7 decimals, from 1 XLM. */
+const isAmount = (value: string) =>
+  /^\d+(\.\d{1,7})?$/.test(value) && Number(value) >= 1;
+
+const byteLength = (text: string) => new TextEncoder().encode(text).length;
+
+/**
+ * Support Tansu: an XLM donation to the account that builds and runs the
+ * platform, with an optional message.
+ */
+const DonateModal: FC<{ children: ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [amount, setAmount] = useState<number>(10);
-  const [tipAmount, setTipAmount] = useState<string>("");
-  const [donateMessage, setDonateMessage] = useState<string>("");
+  const [amount, setAmount] = useState("10");
+  const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const amountInputRef = useRef<HTMLInputElement>(null);
-  const tipAmountInputRef = useRef<HTMLInputElement>(null);
+  const messageBytes = byteLength(message);
+  const amountError = isAmount(amount)
+    ? null
+    : "Enter at least 1 XLM, with up to 7 decimals.";
+  const messageError =
+    messageBytes > MEMO_BYTES
+      ? `A message holds ${MEMO_BYTES} bytes: shorten it.`
+      : null;
 
-  const amountOptions = [10, 100, 1000];
-
-  // --- Reset form state ---
-  const resetForm = () => {
-    setAmount(10);
-    setTipAmount("");
-    setDonateMessage("");
-    setIsLoading(false);
-    amountInputRef.current?.blur();
-    tipAmountInputRef.current?.blur();
-  };
-
-  const onClose = () => {
-    setIsOpen(false);
-    resetForm();
-  };
-
-  const handleOpen = () => {
-    onBeforeOpen?.();
-    resetForm(); // clean slate on open
+  const open = () => {
+    setAmount("10");
+    setMessage("");
     setIsOpen(true);
   };
 
-  // --- Input handlers ---
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAmount(Number(e.target.value));
-  };
-
-  const handleTipAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTipAmount(e.target.value.replace(/[^0-9]/g, ""));
-  };
-
-  const handleAmountButtonClick = (value: number) => {
-    setAmount(value);
-  };
-
-  // --- Donation logic ---
   const handleContribute = async () => {
-    if (amount < 1) {
-      toast.error("Support", "Minimum donation is 1 XLM.");
-      return;
-    }
-
+    if (amountError || messageError) return;
     setIsLoading(true);
-
     try {
-      const recipientAddress = import.meta.env.PUBLIC_TANSU_OWNER_ID;
-      if (
-        !recipientAddress ||
-        !StrKey.isValidEd25519PublicKey(recipientAddress)
-      ) {
-        toast.error("Support", "Invalid donation recipient address.");
-        return;
-      }
-
-      await sendXLM(
-        amount.toString(),
-        recipientAddress,
-        tipAmount.toString(),
-        donateMessage,
-      );
-      toast.success("Congratulations!", "You successfully donated.");
+      await sendXLM(amount, message);
+      toast.success("Thank you!", "Your donation to Tansu is on its way.");
       setIsOpen(false);
-      resetForm();
     } catch (error) {
-      toast.error("Support", errorMessage(error));
+      toast.error("Support Tansu", errorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -104,127 +56,93 @@ const DonateModal: FC<Props> = ({ children, onBeforeOpen }) => {
 
   return (
     <>
-      {/*
-        Playwright tests expect a `#support-button` selector. When the consumer
-        passes any JSX as children (currently a <Button/>), we clone it and
-        inject the required id so the tests can click it deterministically.
-      */}
-      <div onClick={handleOpen}>
-        {isValidElement(children)
-          ? cloneElement(children as any, { id: "support-button" } as any)
-          : children}
-      </div>
+      <div onClick={open}>{children}</div>
 
       {isOpen && (
-        <Modal onClose={onClose}>
+        <Modal onClose={() => setIsOpen(false)} closable={!isLoading}>
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
             <img
               src="/images/heart.svg"
-              alt="Heart"
+              alt=""
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0 mb-2 sm:mb-0"
             />
             <div className="flex-grow flex flex-col gap-4 sm:gap-6 w-full">
               <div className="flex flex-col gap-2 sm:gap-3">
                 <h6 className="text-xl sm:text-2xl font-medium text-primary text-center sm:text-left">
-                  Support
+                  Support Tansu
                 </h6>
                 <p className="text-sm sm:text-base text-secondary text-center sm:text-left">
-                  Help bring this project to life with your contribution.
+                  Your donation goes to Tansu, which builds and runs this
+                  platform for every project on it.
                 </p>
               </div>
 
-              {/* Amount Input */}
               <div className="flex flex-col gap-2 sm:gap-3">
-                <p className="text-sm sm:text-base font-[600] text-primary">
-                  Contribute
-                </p>
-                <div className="w-full flex-grow flex border border-[#978AA1]">
-                  <input
-                    ref={amountInputRef}
-                    className="flex-grow p-3 sm:p-[18px] outline-none text-sm sm:text-base"
-                    placeholder="Enter the amount"
-                    value={amount}
-                    onChange={handleAmountChange}
-                  />
-                  <div className="px-2 sm:px-[18px] flex items-center">
-                    <p className="text-base sm:text-xl text-primary">XLM</p>
-                  </div>
-                </div>
+                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-primary">
+                  Amount
+                  <span className="w-full flex-grow flex border border-[#978AA1] font-normal">
+                    <input
+                      className="flex-grow p-3 sm:p-[18px] outline-none text-sm sm:text-base"
+                      inputMode="decimal"
+                      placeholder="Enter the amount"
+                      value={amount}
+                      aria-invalid={!!amountError}
+                      onChange={(e) => setAmount(e.target.value.trim())}
+                    />
+                    <span className="px-2 sm:px-[18px] flex items-center text-base sm:text-xl text-primary">
+                      XLM
+                    </span>
+                  </span>
+                </label>
                 <div className="w-full grid grid-cols-3 text-sm sm:text-base">
-                  {amountOptions.map((value, index) => (
+                  {AMOUNTS.map((value) => (
                     <button
-                      key={index}
-                      className={`amount-button py-2 sm:py-[11px] flex justify-center items-center leading-5 text-base sm:text-xl border border-[#FFB21E] ${
+                      key={value}
+                      type="button"
+                      aria-pressed={amount === value}
+                      className={`py-2 sm:py-[11px] flex justify-center items-center leading-5 text-base sm:text-xl border border-[#FFB21E] ${
                         amount === value
                           ? "bg-[#FFB21E] text-white"
                           : "text-primary"
                       }`}
-                      onClick={() => handleAmountButtonClick(value)}
+                      onClick={() => setAmount(value)}
                     >
                       {value} XLM
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-2 sm:gap-3">
-                  <p className="text-xs sm:text-base text-tertiary">
-                    Minimum amount:
-                  </p>
-                  <p className="text-xs sm:text-base font-[600] text-primary">
-                    1 XLM
-                  </p>
-                </div>
+                <p
+                  className={`text-xs sm:text-base ${amountError ? "text-red-500" : "text-tertiary"}`}
+                >
+                  {amountError ?? "Minimum amount: 1 XLM"}
+                </p>
               </div>
 
-              {/* Message Input */}
-              <div className="flex flex-col gap-2">
-                <p className="text-sm sm:text-base font-[600] text-primary">
-                  Say Something to Support the Project (optional)
-                </p>
+              <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-primary">
+                Message (optional)
                 <textarea
-                  className="p-3 sm:p-[18px] w-full border border-[#978AA1] outline-none text-sm sm:text-base"
+                  className="p-3 sm:p-[18px] w-full border border-[#978AA1] outline-none text-sm sm:text-base font-normal"
                   placeholder="Write your message here"
-                  value={donateMessage}
-                  onChange={(e) => setDonateMessage(e.target.value)}
+                  value={message}
+                  aria-invalid={!!messageError}
+                  onChange={(e) => setMessage(e.target.value)}
                   rows={2}
                 />
-              </div>
+                <span
+                  className={`text-xs font-normal ${messageError ? "text-red-500" : "text-tertiary"}`}
+                >
+                  {messageError ?? `${messageBytes}/${MEMO_BYTES} bytes`}
+                </span>
+              </label>
 
-              {/* Platform Tip */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <p className="text-sm sm:text-base font-[600] text-primary">
-                    Platform tip (optional)
-                  </p>
-                  <Tooltip text="Help us run the Tansu platform sustainably">
-                    <img
-                      src="/icons/info.svg"
-                      alt="Info"
-                      className="w-4 h-4 sm:w-auto sm:h-auto"
-                    />
-                  </Tooltip>
-                </div>
-                <div className="flex border border-[#978AA1]">
-                  <input
-                    ref={tipAmountInputRef}
-                    className="flex-grow p-3 sm:p-[18px] outline-none text-sm sm:text-base"
-                    placeholder="Enter the amount"
-                    value={tipAmount}
-                    onChange={handleTipAmountChange}
-                  />
-                  <div className="px-2 sm:px-[18px] flex items-center">
-                    <p className="text-base sm:text-xl text-primary">XLM</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
               <div className="flex justify-end w-full">
                 <Button
                   className="w-full sm:w-[220px] h-[48px] sm:h-[56px]"
                   onClick={handleContribute}
                   isLoading={isLoading}
+                  disabled={!!amountError || !!messageError}
                 >
-                  Contribute
+                  Donate
                 </Button>
               </div>
             </div>

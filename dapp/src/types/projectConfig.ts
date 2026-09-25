@@ -20,7 +20,7 @@ export interface ConfigData {
     telegram: string;
     discord: string;
   };
-  authorGithubNames: string[];
-  maintainersAddresses: string[];
+  /** Each maintainer's handle on the repository host, by address. */
+  handles: Record<string, string>;
   readmeContent?: string;
 }

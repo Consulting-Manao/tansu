@@ -82,7 +82,8 @@ const ProjectPage = () => {
       </p>
     );
   }
-  if (projectRead.isError) {
+  // A refetch that fails leaves the project as last read.
+  if (projectRead.isError && !project) {
     return (
       <div className="py-12 flex flex-col items-center gap-4">
         <p className="text-xl text-primary">
@@ -109,16 +110,7 @@ const ProjectPage = () => {
   const repositoryUrl = config.officials.githubLink || project.config.url;
   const key = projectKeyHex(name);
 
-  // Maintainers' handles, when the tansu.toml lists one per address.
-  const handles =
-    config.maintainersAddresses.length === config.authorGithubNames.length
-      ? Object.fromEntries(
-          config.maintainersAddresses.map((address, index) => [
-            address,
-            config.authorGithubNames[index],
-          ]),
-        )
-      : {};
+  const { handles } = config;
   const maintainers = showAllMaintainers
     ? project.maintainers
     : project.maintainers.slice(0, MAINTAINERS_SHOWN);
@@ -156,11 +148,7 @@ const ProjectPage = () => {
         </a>
         {isMaintainer && (
           <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:grid-cols-3 md:gap-3">
-            <UpdateConfigModal
-              project={project}
-              config={config}
-              isSoftware={isSoftware}
-            />
+            <UpdateConfigModal project={project} />
             <AddBadgeModal projectName={name} />
             <ManageSubProjectsModal project={project} />
           </div>
@@ -252,7 +240,7 @@ const ProjectPage = () => {
                   type="secondary"
                   className="w-full sm:w-auto"
                 >
-                  Support
+                  Support Tansu
                 </Button>
               </DonateModal>
               {isSoftware && (
@@ -379,7 +367,7 @@ const ProjectPage = () => {
               <Suspense fallback={null}>
                 <ContributionMetrics
                   repoUrl={repositoryUrl}
-                  maintainerHandles={config.authorGithubNames}
+                  maintainerHandles={Object.values(handles)}
                 />
               </Suspense>
             </div>

@@ -38,6 +38,20 @@ import { navigate } from "astro:transitions/client";
 import Loading from "components/utils/Loading";
 import { proposalUrl } from "utils/urls";
 
+/** The last moment of `day`: the vote runs through the day picked. */
+function endOfDay(day: Date): Date {
+  const end = new Date(day);
+  end.setHours(23, 59, 59, 0);
+  return end;
+}
+
+/** Two days from now, to comfortably exceed the 24 h minimum. */
+function defaultEndDay(): Date {
+  const day = new Date();
+  day.setDate(day.getDate() + 2);
+  return endOfDay(day);
+}
+
 /**
  * The proposal wizard. It stays mounted while closed, so a draft survives
  * closing it.
@@ -79,11 +93,7 @@ const CreateProposalModal = ({
   // The outcomes the author added, by kind; a removed one is absent.
   const [outcomes, setOutcomes] = useState<OutcomeDrafts>({});
   // Default to 2 days in the future to comfortably exceed the 24h minimum
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d;
-  });
+  const [selectedDate, setSelectedDate] = useState(defaultEndDay);
   const [proposalId, setProposalId] = useState<number | null>(null);
   const [_ipfsLink, setIpfsLink] = useState("");
   const [isAnonymousVoting, setIsAnonymousVoting] = useState(false);
@@ -203,7 +213,7 @@ const CreateProposalModal = ({
 
       setProposalId(id);
       setIpfsLink(getIpfsBasicLink(cid));
-
+      resetDraft();
       setIsSuccessful(true);
     } catch (err: any) {
       console.error(err.message);
@@ -302,6 +312,24 @@ const CreateProposalModal = ({
       setKeysConfirmed(false);
       toast.error("Anonymous voting", error.message);
     }
+  };
+
+  /** A submitted proposal leaves no draft to submit twice. */
+  const resetDraft = () => {
+    imageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
+    setImageFiles([]);
+    setProposalName("");
+    setMdText("");
+    setOutcomes({});
+    setSelectedDate(defaultEndDay());
+    setIsAnonymousVoting(false);
+    setVotingType("badge");
+    setTokenContract("");
+    setPreparedFiles(null);
+    setGeneratedKeys(null);
+    setKeysConfirmed(false);
+    setConfirmReset(false);
+    setResetAnonKeys(false);
   };
 
   const handleCloseModal = () => {
@@ -693,7 +721,7 @@ const CreateProposalModal = ({
                 <div className="flex flex-col gap-6">
                   <DatePicker
                     selectedDate={selectedDate}
-                    onDateChange={setSelectedDate}
+                    onDateChange={(day) => setSelectedDate(endOfDay(day))}
                   />
 
                   <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 text-sm sm:text-base">

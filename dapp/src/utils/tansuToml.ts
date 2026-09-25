@@ -2,6 +2,7 @@
  * tansu.toml, a project's information file (like SEP-1's stellar.toml): the
  * rules for its form, and a writer that keeps what the form does not manage.
  */
+import { stringify } from "smol-toml";
 import { ProjectType } from "../types/projectConfig";
 import {
   getRepositoryPrincipalField,
@@ -29,9 +30,13 @@ export interface TansuTomlForm {
 
 type Toml = Record<string, any>;
 
+const isTable = (value: unknown): value is Toml =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 /**
  * The file for a form. Over a previous file (parsed), what the form does not
- * manage stays: unknown keys, and the Radicle seed of the same repository.
+ * manage stays: every other value, each maintainer's other principal fields,
+ * and the Radicle seed of the same repository.
  */
 export function writeTansuToml(
   form: TansuTomlForm,
@@ -41,7 +46,9 @@ export function writeTansuToml(
   const isSoftware = form.projectType === ProjectType.SOFTWARE;
   const isRadicle = isSoftware && form.repositoryProvider === "radicle";
 
-  const doc: Toml = { ...(previous.DOCUMENTATION ?? {}) };
+  const doc: Toml = isTable(previous.DOCUMENTATION)
+    ? { ...previous.DOCUMENTATION }
+    : {};
   doc.ORG_DBA = form.fullName.trim();
   doc.ORG_NAME = form.orgName.trim();
   doc.ORG_URL = form.orgUrl.trim();
@@ -67,45 +74,40 @@ export function writeTansuToml(
     }
   }
 
-  const principal = getRepositoryPrincipalField(form.repositoryProvider);
-  const { VERSION: _version, PROJECT_TYPE: _type, ...rest } = previous;
-  return serialize({
+  // PRINCIPALS[i] is ACCOUNTS[i]'s: a maintainer keeps their entry.
+  const accounts: unknown[] = Array.isArray(previous.ACCOUNTS)
+    ? previous.ACCOUNTS
+    : [];
+  const principals: unknown[] = Array.isArray(previous.PRINCIPALS)
+    ? previous.PRINCIPALS
+    : [];
+  const field = getRepositoryPrincipalField(form.repositoryProvider);
+  const PRINCIPALS = form.maintainers.map((address, i) => {
+    const entry = principals[accounts.indexOf(address)];
+    const {
+      github: _github,
+      radicle: _radicle,
+      ...other
+    } = isTable(entry) ? entry : {};
+    return { ...other, [field]: form.handles[i] ?? "" };
+  });
+
+  const {
+    VERSION: _version,
+    PROJECT_TYPE: _type,
+    ACCOUNTS: _accounts,
+    DOCUMENTATION: _doc,
+    PRINCIPALS: _principals,
+    ...rest
+  } = previous;
+  return stringify({
     VERSION: "2.0.0",
     PROJECT_TYPE: form.projectType,
     ...rest,
     ACCOUNTS: form.maintainers,
     DOCUMENTATION: doc,
-    PRINCIPALS: form.handles.map((handle) => ({ [principal]: handle })),
+    PRINCIPALS,
   });
-}
-
-/** A TOML value: strings as basic strings, which JSON's escaping fits. */
-const value = (v: unknown) =>
-  typeof v === "string" ? JSON.stringify(v) : String(v);
-
-const isScalar = (v: unknown) =>
-  typeof v === "string" || typeof v === "number" || typeof v === "boolean";
-
-/** Top-level keys first, then the tables, in the order readers expect. */
-function serialize(data: Toml): string {
-  const lines: string[] = [];
-  const tables = new Set(["ACCOUNTS", "DOCUMENTATION", "PRINCIPALS"]);
-  for (const [key, v] of Object.entries(data)) {
-    if (!tables.has(key) && isScalar(v)) lines.push(`${key}=${value(v)}`);
-  }
-  const accounts = (data.ACCOUNTS as string[]).map((a) => `    ${value(a)}`);
-  lines.push("", `ACCOUNTS=[\n${accounts.join(",\n")}\n]`, "");
-  lines.push("[DOCUMENTATION]");
-  for (const [key, v] of Object.entries(data.DOCUMENTATION as Toml)) {
-    if (isScalar(v)) lines.push(`${key}=${value(v)}`);
-  }
-  for (const principal of data.PRINCIPALS as Toml[]) {
-    lines.push("", "[[PRINCIPALS]]");
-    for (const [key, v] of Object.entries(principal)) {
-      lines.push(`${key}=${value(v)}`);
-    }
-  }
-  return `${lines.join("\n")}\n`;
 }
 
 /** The project's display name: printable ASCII, at most 100 characters. */

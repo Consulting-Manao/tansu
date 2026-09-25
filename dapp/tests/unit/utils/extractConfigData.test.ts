@@ -25,8 +25,7 @@ describe("extractConfigData", () => {
     expect(out.projectName).toBe("myproject");
     expect(out.officials.githubLink).toBe("https://github.com/org/repo");
     expect(out.organizationName).toBe("My Org");
-    expect(out.authorGithubNames).toEqual(["alice"]);
-    expect(out.maintainersAddresses).toEqual(["GAAA..."]);
+    expect(out.handles).toEqual({ "GAAA...": "alice" });
   });
 
   it("handles missing toml fields with defaults", () => {
@@ -34,10 +33,10 @@ describe("extractConfigData", () => {
     expect(out.projectName).toBe("myproject");
     expect(out.logoImageLink).toBe("");
     expect(out.description).toBe("");
-    expect(out.authorGithubNames).toEqual([]);
+    expect(out.handles).toEqual({});
   });
 
-  it("keeps the canonical provider when ORG_GITHUB is set", () => {
+  it("reads the repository on chain, whatever ORG_GITHUB says", () => {
     const project = {
       ...minimalProject,
       config: { url: "https://gitlab.com/org/repo", ipfs: "bafy..." },
@@ -52,7 +51,7 @@ describe("extractConfigData", () => {
       project as any,
     );
 
-    expect(out.officials.githubLink).toBe("https://gitlab.com/org/alt-repo");
+    expect(out.officials.githubLink).toBe("https://gitlab.com/org/repo");
   });
 
   it("preserves unsupported repository URLs when normalization fails", () => {
@@ -78,6 +77,7 @@ describe("extractConfigData", () => {
           ORG_REPOSITORY_SEED: "iris.radicle.network",
         },
         PRINCIPALS: [{ radicle: "cloudhead" }],
+        ACCOUNTS: ["GAAA..."],
       },
       project as any,
     );
@@ -85,6 +85,30 @@ describe("extractConfigData", () => {
     expect(out.officials.githubLink).toBe(
       "https://radicle.network/nodes/iris.radicle.network/rad%3Az3gqcJUoA1n9HaHKufZs5FCSGazv5",
     );
-    expect(out.authorGithubNames).toEqual(["cloudhead"]);
+    expect(out.handles).toEqual({ "GAAA...": "cloudhead" });
+  });
+
+  it("reads text where tansu.toml has anything else", () => {
+    const out = extractConfigData(
+      {
+        PROJECT_TYPE: { evil: true },
+        DOCUMENTATION: {
+          ORG_NAME: { nested: "table" },
+          ORG_LOGO: 42,
+          ORG_DESCRIPTION: ["a", "b"],
+          ORG_TWITTER: { x: 1 },
+        },
+        ACCOUNTS: "GAAA...",
+      },
+      minimalProject as any,
+    );
+    expect(out).toMatchObject({
+      projectType: "SOFTWARE",
+      organizationName: "",
+      logoImageLink: "",
+      description: "",
+      socialLinks: {},
+      handles: {},
+    });
   });
 });

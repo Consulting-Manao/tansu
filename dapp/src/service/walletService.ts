@@ -3,6 +3,7 @@
  * is heavy, so it loads when a wallet is needed.
  */
 import { StrKey } from "@stellar/stellar-sdk";
+import { fetchWithin } from "utils/deadline";
 import { openModal } from "utils/modals";
 import {
   connectedPublicKey,
@@ -90,7 +91,7 @@ async function checkAndNotifyFunding(address: string): Promise<void> {
 export async function horizonAccount(
   address: string,
 ): Promise<{ sequence: string; balance: number } | null> {
-  const resp = await fetch(
+  const resp = await fetchWithin(
     `${import.meta.env.PUBLIC_HORIZON_URL}/accounts/${address}`,
     { headers: { Accept: "application/json" } },
   );

@@ -1,4 +1,5 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { rpcServer } from "../contracts/soroban_tansu";
 import { checkSimulationError, errorMessage } from "../utils/contractErrors";
 import { MAX_VOTE_WEIGHT_U32 } from "../utils/utils";
 
@@ -184,10 +185,6 @@ async function simulateBalanceViaRpc(
   contractId: string,
   ownerAddress: string,
 ): Promise<bigint> {
-  const server = new StellarSdk.rpc.Server(
-    import.meta.env.PUBLIC_SOROBAN_RPC_URL,
-    { allowHttp: import.meta.env.DEV },
-  );
   const contract = new StellarSdk.Contract(contractId);
   const source = new StellarSdk.Account(NULL_ACCOUNT, "0");
   const op = contract.call(
@@ -202,7 +199,7 @@ async function simulateBalanceViaRpc(
     .setTimeout(30)
     .build();
 
-  const simulation = await server.simulateTransaction(tx);
+  const simulation = await rpcServer.simulateTransaction(tx);
   if (StellarSdk.rpc.Api.isSimulationError(simulation)) {
     throw new Error(simulation.error ?? "Token balance simulation failed");
   }

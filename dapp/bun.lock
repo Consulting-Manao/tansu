@@ -30,7 +30,7 @@
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "react18-json-view": "0.2.10",
-        "toml": "^5.0.0",
+        "smol-toml": "^1.9.0",
         "workbox-window": "^7.4.1",
         "zod": "^4.6.5",
       },

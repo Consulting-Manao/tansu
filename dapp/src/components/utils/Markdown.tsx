@@ -52,6 +52,30 @@ const ALLOWED_HTML = new Set([
   "ul",
 ]);
 
+/**
+ * The attributes that raw HTML keeps: what formatting needs. Styles, classes
+ * and ids could dress content up as the app's own controls, or cover them.
+ */
+const ALLOWED_ATTRIBUTES = new Set([
+  "align",
+  "alt",
+  "cite",
+  "colspan",
+  "dir",
+  "height",
+  "href",
+  "lang",
+  "media",
+  "open",
+  "rowspan",
+  "src",
+  "srcset",
+  "start",
+  "title",
+  "type",
+  "width",
+]);
+
 /** A path relative to `base`, made absolute; URLs and anchors stay. */
 export function resolvePath(
   path: string | undefined,
@@ -111,7 +135,13 @@ export default function Markdown({
         const isHtml =
           node.type === RuleType.htmlBlock ||
           node.type === RuleType.htmlSelfClosing;
-        if (isHtml && !ALLOWED_HTML.has(node.tag.toLowerCase())) return null;
+        if (!isHtml) return next();
+        if (!ALLOWED_HTML.has(node.tag.toLowerCase())) return null;
+        node.attrs = Object.fromEntries(
+          Object.entries(node.attrs ?? {}).filter(([name]) =>
+            ALLOWED_ATTRIBUTES.has(name.toLowerCase()),
+          ),
+        );
         return next();
       },
     }),

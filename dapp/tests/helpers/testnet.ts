@@ -16,7 +16,7 @@ import {
   type OutcomeContract,
   type Vote,
 } from "../../packages/tansu/src/index.ts";
-import { packFilesToCar } from "../../src/utils/ipfsFunctions.ts";
+import { getIpfsUrl, packFilesToCar } from "../../src/utils/ipfsFunctions.ts";
 import { deriveProjectKey } from "../../src/utils/projectKey.ts";
 import { writeTansuToml } from "../../src/utils/tansuToml.ts";
 import { ProjectType } from "../../src/types/projectConfig.ts";
@@ -27,6 +27,7 @@ const {
   PUBLIC_SOROBAN_NETWORK_PASSPHRASE: networkPassphrase,
   PUBLIC_TANSU_CONTRACT_ID: contractId,
   PUBLIC_DELEGATION_API_URL: uploadUrl,
+  PUBLIC_HORIZON_URL: horizonUrl,
 } = E2E_ENV;
 
 /** The Tansu repository, on the public Radicle seed: no rate limit. */
@@ -65,15 +66,26 @@ function tansu(keypair?: Keypair): Client {
 
 const projectKey = deriveProjectKey;
 
+/** Files packed for a call, and their names. */
+type Pack = { cid: string; carBlob: Blob; names: string[] };
+
+async function packFiles(files: File[]): Promise<Pack> {
+  return {
+    ...(await packFilesToCar(files)),
+    names: files.map((f) => f.name),
+  };
+}
+
 /**
  * Sign `tx`, upload the packed files with the signed envelope as proof, then
  * send it and wait for it to land; like the dapp's TxService, without a
  * wallet. Results are read back from the contract, not parsed from the
- * transaction.
+ * transaction. The files are served before it returns: a gateway takes a
+ * while with new ones, and the pages under test read them there.
  */
 async function land<T>(
   tx: contract.AssembledTransaction<T>,
-  pack?: { cid: string; carBlob: Blob },
+  pack?: Pack,
 ): Promise<void> {
   await tx.sign();
   if (pack) {
@@ -100,23 +112,41 @@ async function land<T>(
       `${tx.options.method} ${response?.status}: ${JSON.stringify(events ?? response)}`,
     );
   }
+  if (pack) {
+    await Promise.all(
+      pack.names.map((name) => read.ipfs(pack.cid, `/${name}`)),
+    );
+  }
 }
 
-/** tansu.toml and a README, as the create-project form writes them. */
-function projectFiles(name: string, maintainers: Keypair[]): File[] {
-  const toml = writeTansuToml({
-    projectType: ProjectType.SOFTWARE,
-    maintainers: maintainers.map((m) => m.publicKey()),
-    handles: maintainers.map((_, i) => `maintainer${i}`),
-    fullName: `${name} project`,
-    orgName: "E2E Labs",
-    orgUrl: "https://tansu.dev",
-    orgLogo: "",
-    orgDescription: `The ${name} project, set up by the e2e flows.`,
-    repositoryUrl: RADICLE_REPO,
-    repositoryProvider: "radicle",
-  });
-  return [new File([toml], "tansu.toml")];
+/**
+ * tansu.toml as the create-project form writes it, over `toml`: values the
+ * form does not manage.
+ */
+function projectFiles(
+  name: string,
+  maintainers: Keypair[],
+  {
+    toml = {},
+    fullName = `${name} project`,
+  }: { toml?: Record<string, unknown>; fullName?: string } = {},
+): File[] {
+  const file = writeTansuToml(
+    {
+      projectType: ProjectType.SOFTWARE,
+      maintainers: maintainers.map((m) => m.publicKey()),
+      handles: maintainers.map((_, i) => `maintainer${i}`),
+      fullName,
+      orgName: "E2E Labs",
+      orgUrl: "https://tansu.dev",
+      orgLogo: "",
+      orgDescription: `The ${name} project, set up by the e2e flows.`,
+      repositoryUrl: RADICLE_REPO,
+      repositoryProvider: "radicle",
+    },
+    toml,
+  );
+  return [new File([file], "tansu.toml")];
 }
 
 /**
@@ -128,9 +158,10 @@ export async function registerProject(
   name: string,
   maintainers: Keypair[],
   periods: { minVotingPeriod?: number; executeDelay?: number } = {},
+  toml: Record<string, unknown> = {},
 ): Promise<void> {
   const [first] = maintainers;
-  const pack = await packFilesToCar(projectFiles(name, maintainers));
+  const pack = await packFiles(projectFiles(name, maintainers, { toml }));
   const tx = await tansu(first).register({
     maintainer: first!.publicKey(),
     name,
@@ -150,9 +181,44 @@ export async function registerProject(
   await land(tx, pack);
 }
 
+/** A new tansu.toml for `name`, as another maintainer would write it. */
+export async function updateConfig(
+  maintainer: Keypair,
+  name: string,
+  maintainers: Keypair[],
+  files: { toml?: Record<string, unknown>; fullName?: string } = {},
+) {
+  const pack = await packFiles(projectFiles(name, maintainers, files));
+  const tx = await tansu(maintainer).update_config({
+    maintainer: maintainer.publicKey(),
+    key: projectKey(name),
+    maintainers: maintainers.map((m) => m.publicKey()),
+    url: RADICLE_REPO,
+    ipfs: pack.cid,
+    min_voting_period: undefined,
+    execute_delay: undefined,
+    attestation_threshold: undefined,
+  });
+  await land(tx, pack);
+}
+
+/** Make `name` an organization of the projects with these keys. */
+export async function setSubProjects(
+  maintainer: Keypair,
+  name: string,
+  keys: Buffer[],
+) {
+  const tx = await tansu(maintainer).set_sub_projects({
+    maintainer: maintainer.publicKey(),
+    project_key: projectKey(name),
+    sub_projects: keys,
+  });
+  await land(tx);
+}
+
 /** Make `member` a member, with a profile.json. */
 export async function join(member: Keypair, profileName: string) {
-  const pack = await packFilesToCar([
+  const pack = await packFiles([
     new File(
       [JSON.stringify({ name: profileName, description: "", social: "" })],
       "profile.json",
@@ -194,7 +260,7 @@ export async function createProposal(
     publicVoting = true,
   }: { outcomeContracts?: OutcomeContract[]; publicVoting?: boolean } = {},
 ): Promise<number> {
-  const pack = await packFilesToCar([
+  const pack = await packFiles([
     new File([`# ${title}\n\nSet up by the e2e flows.`], "proposal.md"),
   ]);
   const tx = await tansu(proposer).create_proposal({
@@ -237,6 +303,35 @@ export async function castVote(
 }
 
 export const read = {
+  /** An account's latest payment, with its transaction's memo. */
+  lastPayment: async (address: string) => {
+    const response = await fetch(
+      `${horizonUrl}/accounts/${address}/payments?order=desc&limit=1&join=transactions`,
+      { signal: AbortSignal.timeout(30_000) },
+    );
+    const [payment] = (await response.json())._embedded.records;
+    return payment as {
+      from: string;
+      to: string;
+      amount: string;
+      transaction: { memo?: string };
+    };
+  },
+  /** A file in an IPFS directory, once the gateway serves it: a new one takes a while. */
+  ipfs: async (cid: string, path: string): Promise<Response> => {
+    for (let attempt = 1; ; attempt++) {
+      const response = await fetch(getIpfsUrl(cid, path), {
+        signal: AbortSignal.timeout(30_000),
+      }).catch((error: Error) => error);
+      if (response instanceof Response && response.ok) return response;
+      if (attempt === 6) {
+        throw new Error(
+          `${cid}${path}: ${response instanceof Response ? response.status : response.message}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    }
+  },
   project: async (name: string) =>
     (await tansu().get_project({ project_key: projectKey(name) })).result,
   proposal: async (name: string, id: number) =>

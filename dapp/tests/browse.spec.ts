@@ -53,6 +53,8 @@ test.describe("browsing without a wallet", () => {
     await page.getByRole("button", { name: "View Details" }).click();
     await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${project}`));
     await expect(page.getByText("E2E Labs").first()).toBeVisible();
+    // The metrics are read once their section is in view.
+    await page.getByText("Contribution Metrics").scrollIntoViewIfNeeded();
     await expect(
       page.getByRole("heading", { name: "Pony Factor" }),
     ).toBeVisible({ timeout: 60_000 });
@@ -61,6 +63,15 @@ test.describe("browsing without a wallet", () => {
     await page.getByRole("button", { name: "Proposals" }).click();
     await page.getByRole("link", { name: /Adopt a code of conduct/ }).click();
     await expect(page.getByText("Set up by the e2e flows.")).toBeVisible();
+  });
+
+  test("the terms still show after landing on them first", async ({ page }) => {
+    const terms = page.getByRole("dialog", { name: "Terms of Service" });
+    await page.goto("/terms/");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(terms).toBeHidden();
+    await page.getByRole("link", { name: "Tansu homepage" }).click();
+    await expect(terms).toBeVisible();
   });
 });
 

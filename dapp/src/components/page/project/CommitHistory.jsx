@@ -13,6 +13,25 @@ import CommitPeriod from "./CommitPeriod.jsx";
 import CommitRecord from "../../CommitRecord";
 import AttestationCard from "./AttestationCard.tsx";
 
+/**
+ * A commit's attestations. Those of the commit on chain show at once; the
+ * others are read when asked for: each costs RPC calls, and a page lists 30.
+ */
+const Attestation = ({ onChain, ...card }) => {
+  const [shown, setShown] = useState(onChain);
+  return shown ? (
+    <AttestationCard {...card} />
+  ) : (
+    <button
+      type="button"
+      className="text-xs text-secondary underline cursor-pointer"
+      onClick={() => setShown(true)}
+    >
+      Attestations
+    </button>
+  );
+};
+
 /** The repository's commits, or the README of a project without code. */
 const CommitHistory = ({ project, config, isSoftware }) => {
   const publicKey = useStore(connectedPublicKey);
@@ -26,9 +45,9 @@ const CommitHistory = ({ project, config, isSoftware }) => {
     queryClient,
   );
   const readme = readmeRead.data;
-  const authors = config.authorGithubNames
-    .filter((name) => typeof name === "string")
-    .map((name) => name.toLowerCase());
+  const authors = Object.values(config.handles).map((name) =>
+    name.toLowerCase(),
+  );
   const repositoryUrl = config.officials.githubLink || project.config.url;
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,7 +125,8 @@ const CommitHistory = ({ project, config, isSoftware }) => {
                           )}
                           isLatest={commit.sha === onChainSha}
                           attestation={
-                            <AttestationCard
+                            <Attestation
+                              onChain={commit.sha === onChainSha}
                               projectName={project.name}
                               commitHash={commit.sha}
                               connectedPublicKey={publicKey}

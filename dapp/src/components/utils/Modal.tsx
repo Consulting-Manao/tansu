@@ -10,64 +10,55 @@
  */
 
 import type { FC, ReactNode } from "react";
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 export interface ModalProps {
   id?: string;
   children?: ReactNode;
   onClose: () => void;
   fullWidth?: boolean;
+  /** False while the dialog must stay open, e.g. during signing. */
+  closable?: boolean;
 }
+
+// The open dialogs, innermost last: Escape and the backdrop close only the
+// one on top, and the page scrolls again when the last one closes.
+const openDialogs: symbol[] = [];
 
 const Modal: FC<ModalProps> = ({
   id: _id,
   children,
   onClose,
   fullWidth = false,
+  closable = true,
 }) => {
-  // Handle ESC key to close modal
-  const handleEsc = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    },
-    [onClose],
-  );
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      // Only close if the click was directly on the backdrop element
-      if (e.target === e.currentTarget) {
-        // First remove any event listeners to prevent double-triggering
-        window.removeEventListener("keydown", handleEsc);
-
-        // Then close the modal
-        onClose();
-      }
-    },
-    [onClose, handleEsc],
-  );
-
-  // Prevent propagation from modal content to backdrop
-  const handleModalClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-  }, []);
+  const self = useRef(Symbol("dialog")).current;
+  const isOnTop = () => openDialogs[openDialogs.length - 1] === self;
+  const close = useRef(() => {});
+  close.current = () => {
+    if (closable) onClose();
+  };
 
   useEffect(() => {
-    // Add event listener for ESC key
-    window.addEventListener("keydown", handleEsc);
-
-    // Prevent scrolling on body when modal is open
+    openDialogs.push(self);
     document.body.style.overflow = "hidden";
-
-    // Cleanup
-    return () => {
-      window.removeEventListener("keydown", handleEsc);
-      document.body.style.overflow = "";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isOnTop()) close.current();
     };
-  }, [handleEsc]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      openDialogs.splice(openDialogs.indexOf(self), 1);
+      if (!openDialogs.length) document.body.style.overflow = "";
+    };
+  }, []);
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && isOnTop()) close.current();
+  };
+
+  // Clicks inside the dialog never reach the backdrop.
+  const handleModalClick = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
     <div
@@ -87,8 +78,9 @@ const Modal: FC<ModalProps> = ({
           {children}
         </div>
         <button
-          className="absolute top-1 right-1 sm:top-2 sm:right-2 md:top-0 md:right-0 md:translate-x-1/2 md:-translate-y-1/2 p-2 sm:p-[18px] bg-red cursor-pointer z-10"
-          onClick={onClose}
+          className="absolute top-1 right-1 sm:top-2 sm:right-2 md:top-0 md:right-0 md:translate-x-1/2 md:-translate-y-1/2 p-2 sm:p-[18px] bg-red cursor-pointer z-10 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => close.current()}
+          disabled={!closable}
           aria-label="Close modal"
         >
           <img

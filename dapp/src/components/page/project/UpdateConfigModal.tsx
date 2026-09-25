@@ -1,4 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { parse } from "smol-toml";
 import FlowProgressModal from "components/utils/FlowProgressModal";
 import Button from "components/utils/Button";
 import Input from "components/utils/Input";
@@ -21,8 +23,14 @@ import {
   MIN_FINALITY_THRESHOLD_PERCENT,
   validateFinalityThresholdPercent,
 } from "constants/attestation";
-import { toast } from "utils/utils";
-import { getIpfsBasicLink, ipfsQuery } from "utils/ipfsFunctions";
+import { extractConfigData } from "utils/utils";
+import {
+  fetchFromIpfs,
+  getIpfsBasicLink,
+  ipfsQuery,
+} from "utils/ipfsFunctions";
+import { isValidCid } from "utils/contentHashes";
+import { IpfsMissError } from "utils/ipfsMissCache";
 import type { Project } from "../../../../packages/tansu";
 import type { ConfigData } from "types/projectConfig";
 import {
@@ -34,7 +42,6 @@ import {
   SUPPORTED_REPOSITORY_PROVIDERS,
   type RepositoryProvider,
 } from "utils/editLinkFunctions";
-import toml from "toml";
 import {
   validateFullName,
   validateHandle,
@@ -42,21 +49,16 @@ import {
   writeTansuToml,
 } from "utils/tansuToml";
 
-/** A file of the project's IPFS directory; `null` when it cannot be read. */
-const readIpfsFile = (cid: string, path: string) =>
-  queryClient.query(ipfsQuery(cid, path)).catch(() => null);
-
-/** For maintainers: change the project's maintainers and tansu.toml. */
-const UpdateConfigModal = ({
-  project,
-  config,
-  isSoftware: isSoftwareProject,
-}: {
-  project: Project;
-  config: ConfigData;
-  isSoftware: boolean;
-}) => {
+/**
+ * For maintainers: change the project's maintainers and tansu.toml. The form
+ * starts from the project's files as they are when the dialog opens, and the
+ * update keeps what the form does not edit: it waits for them, a failed read
+ * stops it, and so does a change another maintainer made meanwhile.
+ */
+const UpdateConfigModal = ({ project }: { project: Project }) => {
   const [open, setOpen] = useState(false);
+  // The project directory the form was filled from; `null` until it is.
+  const [basedOn, setBasedOn] = useState<string | null>(null);
   const [ipfsBaseUrl, setIpfsBaseUrl] = useState<string | undefined>(undefined);
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,9 +67,6 @@ const UpdateConfigModal = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Holds the raw parsed existing TOML so we can merge into it on submit
-  const existingTomlRef = useRef<Record<string, any> | null>(null);
 
   // fields
   const [maintainerAddresses, setMaintainerAddresses] = useState<string[]>([
@@ -103,6 +102,45 @@ const UpdateConfigModal = ({
   const [orgErrors, setOrgErrors] = useState<
     ReturnType<typeof validateOrganization>
   >({});
+  const cid = project.config.ipfs;
+  const hasFiles = isValidCid(cid);
+  const tomlRead = useQuery(
+    { ...ipfsQuery(cid, "/tansu.toml"), enabled: open && hasFiles },
+    queryClient,
+  );
+  /** The current tansu.toml; `null` when it is not valid TOML. */
+  const previousToml = useMemo(() => {
+    try {
+      return tomlRead.data ? parse(tomlRead.data) : {};
+    } catch {
+      return null;
+    }
+  }, [tomlRead.data]);
+  const current = useMemo(
+    () => extractConfigData(previousToml ?? {}, project) as ConfigData,
+    [previousToml, project],
+  );
+  const tomlKnown = !hasFiles || tomlRead.isSuccess;
+  const isSoftwareProject = current.projectType === "SOFTWARE";
+  const readmeRead = useQuery(
+    {
+      ...ipfsQuery(cid, "/README.md"),
+      enabled: open && hasFiles && tomlKnown && !isSoftwareProject,
+    },
+    queryClient,
+  );
+  const thresholdRead = useQuery(
+    { ...thresholdQuery(project.name), enabled: open },
+    queryClient,
+  );
+  const readError = [tomlRead, readmeRead, thresholdRead].find(
+    (read) => read.isError,
+  )?.error;
+  const ready =
+    tomlKnown &&
+    thresholdRead.isSuccess &&
+    (isSoftwareProject || !hasFiles || readmeRead.isSuccess);
+
   const parsedRepositoryProvider = getRepositoryProvider(githubRepoUrl);
   const activeRepositoryProvider = isSoftwareProject
     ? parsedRepositoryProvider || selectedRepositoryProvider
@@ -120,83 +158,49 @@ const UpdateConfigModal = ({
     activeRepositoryProvider,
   );
 
-  const loadThreshold = async (name: string) => {
-    if (!name) return;
-    const value = await queryClient
-      .query(thresholdQuery(name))
-      .catch(() => DEFAULT_FINALITY_THRESHOLD_PERCENT);
-    const resolved = String(value || DEFAULT_FINALITY_THRESHOLD_PERCENT);
-    originalThresholdRef.current = resolved;
-    setFinalityThreshold(resolved);
-  };
-
-  // Pre-fill all fields from the project and its config, as they load
   useEffect(() => {
+    if (!open) {
+      setBasedOn(null);
+      return;
+    }
+    if (basedOn !== null || !ready) return;
+    setBasedOn(cid);
+    setIpfsBaseUrl(hasFiles ? getIpfsBasicLink(cid) : undefined);
     setMaintainerAddresses(project.maintainers);
     setMaintainerGithubs(
-      config.authorGithubNames.length
-        ? config.authorGithubNames
-        : project.maintainers.map(() => ""),
+      project.maintainers.map((address) => current.handles[address] ?? ""),
     );
-    const repositoryUrl = config.officials.githubLink || project.config.url;
+    const repositoryUrl = current.officials.githubLink || project.config.url;
     originalRepositoryUrlRef.current = repositoryUrl;
     setGithubRepoUrl(repositoryUrl);
     setSelectedRepositoryProvider(
       getRepositoryProvider(repositoryUrl) || "github",
     );
     setProjectName(project.name);
-    setProjectFullName(config.projectFullName || project.name);
-    setOrgName(config.organizationName);
-    setOrgUrl(config.officials.websiteLink);
-    setOrgLogo(config.logoImageLink);
-    setOrgDescription(config.description);
-    loadThreshold(project.name);
-
+    setProjectFullName(current.projectFullName || project.name);
+    setOrgName(current.organizationName);
+    setOrgUrl(current.officials.websiteLink);
+    setOrgLogo(current.logoImageLink);
+    setOrgDescription(current.description);
+    const threshold = String(
+      thresholdRead.data || DEFAULT_FINALITY_THRESHOLD_PERCENT,
+    );
+    originalThresholdRef.current = threshold;
+    setFinalityThreshold(threshold);
+    setReadmeContent(readmeRead.data ?? "");
     setAddrErrors(project.maintainers.map(() => null));
     setGhErrors(project.maintainers.map(() => null));
-  }, [project, config]);
+  }, [open, ready]);
 
-  /**
-   * When the modal opens, fetch the existing tansu.toml from IPFS so we can
-   * merge into it rather than overwrite it.
-   *
-   * We also sync README.md from the file on IPFS as the source of truth.
-   */
+  // On open: no images attached yet.
   useEffect(() => {
     if (!open) return;
-
     setReadmeImageFiles((prev) => {
       prev.forEach((img) => URL.revokeObjectURL(img.localUrl));
       return [];
     });
     setReadmeImageError(null);
-
-    const ipfsCid = project.config.ipfs;
-    if (!ipfsCid) {
-      existingTomlRef.current = null;
-      return;
-    }
-
-    setIpfsBaseUrl(getIpfsBasicLink(ipfsCid));
-
-    // Parallel read of TOML and README, usually from the query cache
-    Promise.all([
-      readIpfsFile(ipfsCid, "/tansu.toml"),
-      !isSoftwareProject ? readIpfsFile(ipfsCid, "/README.md") : null,
-    ]).then(([tomlText, readme]) => {
-      try {
-        existingTomlRef.current = tomlText ? toml.parse(tomlText) : null;
-      } catch {
-        existingTomlRef.current = null;
-      }
-
-      // Use the README from IPFS as the source of truth so the form is
-      // always in sync with what will be preserved.
-      if (!isSoftwareProject && readme !== null) {
-        setReadmeContent(readme);
-      }
-    });
-  }, [open, isSoftwareProject]);
+  }, [open]);
 
   const handleClose = () => {
     readmeImageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
@@ -238,7 +242,7 @@ const UpdateConfigModal = ({
   const buildToml = (): string =>
     writeTansuToml(
       {
-        projectType: config.projectType,
+        projectType: current.projectType,
         maintainers: maintainerAddresses,
         handles: maintainerGithubs,
         fullName: projectFullName,
@@ -249,24 +253,16 @@ const UpdateConfigModal = ({
         repositoryUrl: githubRepoUrl,
         repositoryProvider: activeRepositoryProvider,
       },
-      existingTomlRef.current ?? {},
+      previousToml ?? {},
       originalRepositoryUrlRef.current,
     );
 
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const ipfsCid = project.config.ipfs;
-
-      // Double-check: if readmeContent is empty and we have an existing CID,
-      // try one last time to fetch it to prevent accidental overwrites if
-      // the initial fetch on mount was slow/failed.
-      let finalReadme = readmeContent;
-      if (!isSoftwareProject && !finalReadme && ipfsCid) {
-        const existing = await readIpfsFile(ipfsCid, "/README.md");
-        if (existing) finalReadme = existing;
+      if (basedOn === null) {
+        throw new Error("The project's files are not loaded");
       }
-
       const tomlContent = buildToml();
       const tomlFile = new File([tomlContent], "tansu.toml", {
         type: "text/plain",
@@ -274,7 +270,7 @@ const UpdateConfigModal = ({
 
       const additionalFiles: File[] = [];
       if (!isSoftwareProject) {
-        let readmeToSave = finalReadme || "";
+        let readmeToSave = readmeContent;
         const imageFilesToInclude: File[] = [];
         readmeImageFiles.forEach((img) => {
           if (readmeToSave.includes(img.localUrl)) {
@@ -290,9 +286,9 @@ const UpdateConfigModal = ({
             );
           }
         });
-        // Re-fetch any existing relative images from the old IPFS CID so they
-        // are carried over into the new CAR and not orphaned after the update.
-        if (ipfsCid) {
+        // The images the README already had move to the new directory; one
+        // that cannot be read stops the update rather than go missing.
+        if (hasFiles) {
           const handledPaths = new Set(imageFilesToInclude.map((f) => f.name));
           const relativeImgRegex = /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g;
           const matches = [...readmeToSave.matchAll(relativeImgRegex)];
@@ -300,18 +296,22 @@ const UpdateConfigModal = ({
             matches.map(async (match) => {
               const relativePath = match[2];
               if (!relativePath || handledPaths.has(relativePath)) return;
-              try {
-                const res = await fetch(
-                  `${getIpfsBasicLink(ipfsCid)}/${relativePath}`,
-                );
-                if (!res.ok) return;
-                const blob = await res.blob();
-                imageFilesToInclude.push(
-                  new File([blob], relativePath, { type: blob.type }),
-                );
-              } catch {
-                // image no longer reachable — leave the reference as-is
-              }
+              handledPaths.add(relativePath);
+              const response = await fetchFromIpfs(cid, relativePath).catch(
+                (error) => {
+                  // Missing already: there is nothing to lose.
+                  if (error instanceof IpfsMissError && error.scope === "path")
+                    return null;
+                  throw new Error(
+                    `Could not copy the README image ${relativePath}: ${error.message}`,
+                  );
+                },
+              );
+              if (!response) return;
+              const blob = await response.blob();
+              imageFilesToInclude.push(
+                new File([blob], relativePath, { type: blob.type }),
+              );
             }),
           );
         }
@@ -323,6 +323,7 @@ const UpdateConfigModal = ({
       }
 
       await updateConfig(project.name, {
+        basedOn,
         tomlFile,
         repositoryUrl: githubRepoUrl,
         maintainers: maintainerAddresses,
@@ -334,14 +335,9 @@ const UpdateConfigModal = ({
           : {}),
       });
       originalThresholdRef.current = finalityThreshold;
-
-      toast.success(
-        "Config updated",
-        "Project configuration updated successfully.",
-      );
       setIsSuccessful(true);
     } catch (e: any) {
-      toast.error("Update config", e.message);
+      setError(e.message);
     } finally {
       setIsLoading(false);
     }
@@ -378,7 +374,10 @@ const UpdateConfigModal = ({
     <>
       <button
         className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setStep(1);
+          setOpen(true);
+        }}
       >
         <img src="/icons/gear.svg" className="w-5 h-5 flex-shrink-0" alt="" />
         <span>Update config</span>
@@ -403,7 +402,34 @@ const UpdateConfigModal = ({
           successTitle="Config Updated!"
           successMessage="Project configuration updated successfully."
         >
-          {step <= 3 && (
+          {step <= 3 && basedOn === null && (
+            <div className="flex flex-col gap-4">
+              {readError ? (
+                <div role="alert" className="flex flex-col gap-2 text-red-600">
+                  <p>
+                    The project's current files could not be read, so the
+                    configuration cannot be edited yet: {readError.message}
+                  </p>
+                  <Button
+                    type="secondary"
+                    size="sm"
+                    onClick={() =>
+                      [tomlRead, readmeRead, thresholdRead].forEach(
+                        (read) => read.isError && read.refetch(),
+                      )
+                    }
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-secondary">
+                  Loading the project's current files...
+                </p>
+              )}
+            </div>
+          )}
+          {step <= 3 && basedOn !== null && (
             <div className="flex flex-col gap-8">
               {step === 1 && (
                 <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
@@ -476,7 +502,7 @@ const UpdateConfigModal = ({
                       </div>
                     )}
                     {maintainerAddresses.map((addr, i) => (
-                      <div key={i} className="flex gap-3 mb-3">
+                      <div key={i} className="flex items-end gap-3 mb-3">
                         <Input
                           label={
                             i === 0 ? "Maintainer Wallet Address" : undefined
@@ -500,6 +526,23 @@ const UpdateConfigModal = ({
                             setMaintainerGithubs(v);
                           }}
                         />
+                        {maintainerAddresses.length > 1 && (
+                          <Button
+                            type="tertiary"
+                            size="sm"
+                            aria-label={`Remove maintainer ${i + 1}`}
+                            onClick={() => {
+                              const without = <T,>(list: T[]) =>
+                                list.filter((_, j) => j !== i);
+                              setMaintainerAddresses(without);
+                              setMaintainerGithubs(without);
+                              setAddrErrors(without);
+                              setGhErrors(without);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
                       </div>
                     ))}
                     <Button
@@ -635,11 +678,21 @@ const UpdateConfigModal = ({
                   <p className="mb-4">
                     A new tansu.toml will be generated and stored on IPFS.
                   </p>
+                  {previousToml === null && (
+                    <p role="alert" className="mb-4 text-red-600">
+                      The current tansu.toml is not valid TOML: only the values
+                      of this form will be kept.
+                    </p>
+                  )}
                   <div className="flex justify-between">
                     <Button type="secondary" onClick={() => setStep(2)}>
                       Back
                     </Button>
-                    <Button isLoading={isLoading} onClick={handleSubmit}>
+                    <Button
+                      isLoading={isLoading}
+                      disabled={basedOn === null || isLoading}
+                      onClick={handleSubmit}
+                    >
                       Update Config
                     </Button>
                   </div>

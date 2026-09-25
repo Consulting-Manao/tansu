@@ -7,7 +7,11 @@ vi.mock("../../../src/components/stellar-wallets-kit", () => ({
 }));
 
 import { connect } from "../../../src/service/walletService";
-import { closeModal, openedModal } from "../../../src/utils/modals";
+import {
+  closeAllModals,
+  openModal,
+  openedModals,
+} from "../../../src/utils/modals";
 import { connectedPublicKey } from "../../../src/utils/store";
 
 const SMART_ACCOUNT =
@@ -29,7 +33,7 @@ function horizon(xlm: string | null) {
 
 describe("connecting a wallet", () => {
   beforeEach(() => {
-    closeModal();
+    closeAllModals();
     const saved = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       setItem: (key: string, value: string) => void saved.set(key, value),
@@ -38,19 +42,23 @@ describe("connecting a wallet", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("offers to fund an account the network does not know", async () => {
+  it("offers to fund an account the network does not know, over the form being filled", async () => {
     const address = Keypair.random().publicKey();
     authModalMock.mockResolvedValue({ address });
     horizon(null);
+    openModal("join", {});
 
     await expect(connect()).resolves.toBe(address);
 
     expect(connectedPublicKey.get()).toBe(address);
     await vi.waitFor(() =>
-      expect(openedModal.get()).toEqual({
-        name: "funding",
-        props: { exists: false, balance: 0, network: "testnet" },
-      }),
+      expect(openedModals.get()).toEqual([
+        { name: "join", props: {} },
+        {
+          name: "funding",
+          props: { exists: false, balance: 0, network: "testnet" },
+        },
+      ]),
     );
   });
 
@@ -66,6 +74,6 @@ describe("connecting a wallet", () => {
 
     await new Promise((resolve) => setTimeout(resolve));
     expect(smart).not.toHaveBeenCalled();
-    expect(openedModal.get()).toBeNull();
+    expect(openedModals.get()).toEqual([]);
   });
 });

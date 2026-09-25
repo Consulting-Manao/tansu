@@ -13,7 +13,6 @@ import {
 } from "types/proposal";
 import {
   buildRadicleBrowseUrl,
-  buildRepositoryUrlFromProjectPath,
   getRepositoryProvider,
   normalizeRepositoryUrl,
 } from "./editLinkFunctions";
@@ -31,52 +30,68 @@ export function truncateMiddle(str: string, maxLength: number): string {
   );
 }
 
+/** A tansu.toml value that must be text: anyone writes that file. */
+const text = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
 export function extractConfigData(tomlData: any, project: Project) {
-  const fullName = tomlData.DOCUMENTATION?.ORG_DBA || project.name;
-  const projectType = tomlData.PROJECT_TYPE || "SOFTWARE";
+  const doc =
+    typeof tomlData.DOCUMENTATION === "object" && tomlData.DOCUMENTATION
+      ? tomlData.DOCUMENTATION
+      : {};
+  const fullName = text(doc.ORG_DBA) || project.name;
+  const projectType =
+    tomlData.PROJECT_TYPE === "GENERIC" ? "GENERIC" : "SOFTWARE";
   const canonicalRepositoryUrl =
     normalizeRepositoryUrl(project.config.url) || project.config.url || "";
   const repositoryProvider = getRepositoryProvider(canonicalRepositoryUrl);
+  // The repository is the one on chain; tansu.toml only names the Radicle
+  // seed that serves it.
   const repositoryLink =
     repositoryProvider === "radicle"
       ? buildRadicleBrowseUrl(
           canonicalRepositoryUrl,
-          tomlData.DOCUMENTATION?.ORG_REPOSITORY_SEED,
+          text(doc.ORG_REPOSITORY_SEED),
         )
-      : buildRepositoryUrlFromProjectPath(
-          canonicalRepositoryUrl,
-          tomlData.DOCUMENTATION?.ORG_GITHUB,
-        ) || canonicalRepositoryUrl;
+      : canonicalRepositoryUrl;
+  const social = (key: string, field: string) =>
+    text(doc[key]) ? { [field]: text(doc[key]) } : {};
 
   return {
     projectName: project.name,
     projectFullName: fullName,
     projectType: projectType,
-    logoImageLink: tomlData.DOCUMENTATION?.ORG_LOGO || "",
-    thumbnailImageLink: tomlData.DOCUMENTATION?.ORG_THUMBNAIL || "",
-    description: tomlData.DOCUMENTATION?.ORG_DESCRIPTION || "",
-    organizationName: tomlData.DOCUMENTATION?.ORG_NAME || "",
+    logoImageLink: text(doc.ORG_LOGO),
+    thumbnailImageLink: text(doc.ORG_THUMBNAIL),
+    description: text(doc.ORG_DESCRIPTION),
+    organizationName: text(doc.ORG_NAME),
     officials: {
-      websiteLink: tomlData.DOCUMENTATION?.ORG_URL || "",
+      websiteLink: text(doc.ORG_URL),
       githubLink: repositoryLink,
     },
     socialLinks: {
-      ...(tomlData.DOCUMENTATION?.ORG_TWITTER && {
-        twitter: tomlData.DOCUMENTATION.ORG_TWITTER,
-      }),
-      ...(tomlData.DOCUMENTATION?.ORG_TELEGRAM && {
-        telegram: tomlData.DOCUMENTATION.ORG_TELEGRAM,
-      }),
-      ...(tomlData.DOCUMENTATION?.ORG_DISCORD && {
-        discord: tomlData.DOCUMENTATION.ORG_DISCORD,
-      }),
+      ...social("ORG_TWITTER", "twitter"),
+      ...social("ORG_TELEGRAM", "telegram"),
+      ...social("ORG_DISCORD", "discord"),
     },
-    authorGithubNames:
-      tomlData.PRINCIPALS?.map(
-        (p: { github?: string; radicle?: string }) => p.github || p.radicle,
-      ).filter(Boolean) || [],
-    maintainersAddresses: tomlData.ACCOUNTS || [],
+    handles: maintainerHandles(tomlData),
   };
+}
+
+/** ACCOUNTS[i]'s handle is PRINCIPALS[i]'s, when both are there. */
+function maintainerHandles(tomlData: any): Record<string, string> {
+  const accounts: unknown[] = Array.isArray(tomlData.ACCOUNTS)
+    ? tomlData.ACCOUNTS
+    : [];
+  return Object.fromEntries(
+    accounts.flatMap((address, i) => {
+      const principal = tomlData.PRINCIPALS?.[i];
+      const handle = principal?.github || principal?.radicle;
+      return typeof address === "string" && typeof handle === "string"
+        ? [[address, handle]]
+        : [];
+    }),
+  );
 }
 
 export function capitalizeFirstLetter(str: string): string {

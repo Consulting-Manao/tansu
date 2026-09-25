@@ -152,7 +152,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
   // Free only when the contract has no project by that name: a failed read
   // throws, and its message shows instead of a guess.
   const checkProjectNameAvailable = async (name: string): Promise<boolean> =>
-    (await queryClient.query(projectQuery(name))) === null;
+    (await queryClient.query({ ...projectQuery(name), staleTime: 0 })) === null;
 
   // Update maintainersErrors array when maintainers change
   useEffect(() => {
@@ -277,8 +277,7 @@ const CreateProjectModal: FC<ModalProps> = ({ onClose }) => {
 
       navigate(projectUrl(projectName));
     } catch (err: any) {
-      toast.error("Something Went Wrong!", err.message);
-      return;
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }

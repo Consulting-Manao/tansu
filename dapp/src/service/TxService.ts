@@ -4,6 +4,7 @@
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
 import type { QueryKey } from "@tanstack/react-query";
+import { rpcServer } from "../contracts/soroban_tansu";
 import { checkSimulationError } from "../utils/contractErrors";
 import {
   ipfsQuery,
@@ -60,43 +61,111 @@ async function sign(
   return submitted === true ? { hash: signedTxXdr } : { xdr: signedTxXdr };
 }
 
-const server = () =>
-  new StellarSdk.rpc.Server(import.meta.env.PUBLIC_SOROBAN_RPC_URL, {
-    allowHttp: import.meta.env.DEV,
-  });
-
 /** A call that landed: its result, as the binding types it, and its hash. */
 export interface Landed<T> {
   result: T;
   hash: string;
 }
 
-/** Wait for a transaction to be in a ledger, and read its result. */
+/** When a transaction can last land (Unix seconds); 0 when it has no bound. */
+const maxTimeOf = (tx: StellarSdk.Transaction | undefined) =>
+  Number(tx?.timeBounds?.maxTime ?? 0);
+
+/**
+ * Wait for a transaction to be in a ledger, and read its result. Network
+ * errors do not end the wait: it lasts until the transaction's time bound has
+ * passed, after which it can no longer land. Only then does it say whether it
+ * expired, or that its status is unknown and must be checked before a retry.
+ */
+async function awaitLanding(
+  hash: string,
+  maxTime: number,
+): Promise<StellarSdk.rpc.Api.GetSuccessfulTransactionResponse> {
+  // Past the bound, a ledger or two settles it.
+  const settled =
+    (maxTime > 0 ? maxTime * 1000 : Date.now() + 5 * 60_000) + 15_000;
+  for (;;) {
+    let response: StellarSdk.rpc.Api.GetTransactionResponse | undefined;
+    try {
+      response = await rpcServer.getTransaction(hash);
+    } catch {
+      response = undefined;
+    }
+    if (response?.status === "SUCCESS") return response;
+    if (response?.status === "FAILED") {
+      throw new Error(`Transaction ${hash} failed on-chain.`);
+    }
+    if (Date.now() > settled) {
+      throw new Error(
+        response
+          ? `Transaction ${hash} expired without landing: nothing changed, you can try again.`
+          : `The status of transaction ${hash} could not be read: check it on a Stellar explorer before trying again.`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+}
+
+/** Wait for a contract call to land, and read its result. */
 async function confirm<T>(
   tx: StellarSdk.contract.AssembledTransaction<T>,
   hash: string,
+  maxTime: number,
 ): Promise<Landed<T>> {
-  const response = await server().pollTransaction(hash, { attempts: 30 });
-  if (response.status === "SUCCESS") {
-    const value = response.returnValue ?? StellarSdk.xdr.ScVal.scvVoid();
-    return { result: tx.options.parseResultXdr(value), hash };
-  }
-  if (response.status === "FAILED") {
-    throw new Error(`Transaction ${hash} failed on-chain.`);
-  }
-  throw new Error(`Transaction ${hash} was not confirmed in time.`);
+  const { returnValue } = await awaitLanding(hash, maxTime);
+  const value = returnValue ?? StellarSdk.xdr.ScVal.scvVoid();
+  return { result: tx.options.parseResultXdr(value), hash };
 }
 
-/** Submit a signed envelope and wait for it. */
-async function submit<T>(
-  tx: StellarSdk.contract.AssembledTransaction<T>,
-  xdr: string,
-): Promise<Landed<T>> {
+/**
+ * What the wallet is asked to authorize: the Tansu call and, as collateral,
+ * XLM transfers to Tansu. A contract a proposal names, or any other, gets
+ * nothing signed on the member's behalf.
+ */
+export function checkAuthorization(
+  tx: StellarSdk.contract.AssembledTransaction<unknown>,
+): void {
+  const tansu = import.meta.env.PUBLIC_TANSU_CONTRACT_ID;
+  const xlm = StellarSdk.Asset.native().contractId(NETWORK_PASSPHRASE);
+  const check = (
+    invocation: StellarSdk.xdr.SorobanAuthorizedInvocation,
+    root: boolean,
+  ): void => {
+    const call =
+      invocation.function.type === "sorobanAuthorizedFunctionTypeContractFn"
+        ? invocation.function.contractFn
+        : undefined;
+    const contract = call
+      ? StellarSdk.Address.fromScAddress(call.contractAddress).toString()
+      : "a contract creation";
+    const fn = call ? String(call.functionName) : "";
+    const allowed = root
+      ? contract === tansu
+      : contract === xlm &&
+        fn === "transfer" &&
+        StellarSdk.scValToNative(call!.args[1]!) === tansu;
+    if (!allowed) {
+      throw new Error(
+        `This transaction would also authorize ${fn ? `${fn} on ` : ""}${contract}, so it is not signed.`,
+      );
+    }
+    invocation.subInvocations.forEach((sub) => check(sub, false));
+  };
+  for (const entry of tx.simulationData.result.auth) {
+    check(entry.rootInvocation, true);
+  }
+}
+
+/**
+ * Send a signed envelope; returns its hash and when it can last land. The
+ * network takes it at once and includes it later.
+ */
+async function send(xdr: string): Promise<{ hash: string; maxTime: number }> {
   const envelope = StellarSdk.TransactionBuilder.fromXDR(
     xdr,
     NETWORK_PASSPHRASE,
   );
-  const sent = await retryAsync(() => server().sendTransaction(envelope));
+  const sent = await retryAsync(() => rpcServer.sendTransaction(envelope));
   if (sent.status === "ERROR") {
     const code = sent.errorResult?.result.type ?? "error";
     throw new Error(`The network rejected the transaction (${code}).`);
@@ -104,7 +173,21 @@ async function submit<T>(
   if (sent.status === "TRY_AGAIN_LATER") {
     throw new Error("The network is busy: try again in a moment.");
   }
-  return confirm(tx, sent.hash);
+  return {
+    hash: sent.hash,
+    maxTime: maxTimeOf(
+      envelope instanceof StellarSdk.Transaction ? envelope : undefined,
+    ),
+  };
+}
+
+/** Submit a signed contract call and wait for its result. */
+async function submit<T>(
+  tx: StellarSdk.contract.AssembledTransaction<T>,
+  xdr: string,
+): Promise<Landed<T>> {
+  const { hash, maxTime } = await send(xdr);
+  return confirm(tx, hash, maxTime);
 }
 
 /** Files packed for a call to point to, by their directory's CID. */
@@ -153,6 +236,7 @@ export async function sendTransaction<T>(
 ): Promise<Landed<T>> {
   // A contract error shows before the wallet is asked to sign.
   checkSimulationError(tx);
+  checkAuthorization(tx);
   const signed = await sign(tx.toXDR());
   return invalidateAfter(land(tx, signed, upload, onProgress), ...invalidate);
 }
@@ -165,11 +249,13 @@ async function land<T>(
 ): Promise<Landed<T>> {
   if (!upload) {
     onProgress?.(9);
-    return "hash" in signed ? confirm(tx, signed.hash) : submit(tx, signed.xdr);
+    return "hash" in signed
+      ? confirm(tx, signed.hash, maxTimeOf(tx.built))
+      : submit(tx, signed.xdr);
   }
 
   if ("hash" in signed) {
-    const landed = await confirm(tx, signed.hash);
+    const landed = await confirm(tx, signed.hash, maxTimeOf(tx.built));
     onProgress?.(8);
     try {
       await uploadToIpfsProxy({ ...upload, txHash: signed.hash });
@@ -189,16 +275,15 @@ async function land<T>(
   return submit(tx, signed.xdr);
 }
 
+/** A donation's message: a text memo holds 28 bytes. */
+export const MEMO_BYTES = 28;
+
 /**
- * Donate XLM, with an optional tip to Tansu: a classic payment, sent through
- * Horizon. Throws what to tell the user.
+ * Donate `amount` XLM (a decimal string) to Tansu, with an optional message:
+ * a classic payment, sent and confirmed like a contract call. Throws what to
+ * tell the user.
  */
-export async function sendXLM(
-  donateAmount: string,
-  projectAddress: string,
-  tipAmount: string,
-  donateMessage: string,
-): Promise<void> {
+export async function sendXLM(amount: string, message: string): Promise<void> {
   const sender = connectedAddress();
   if (StellarSdk.StrKey.isValidContract(sender)) {
     throw new Error(
@@ -211,41 +296,25 @@ export async function sendXLM(
       "Your account does not exist on this network yet: fund it, then donate.",
     );
   }
-
-  const txBuilder = new StellarSdk.TransactionBuilder(
+  const transaction = new StellarSdk.TransactionBuilder(
     new StellarSdk.Account(sender, account.sequence),
     { fee: StellarSdk.BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE },
   )
     .addOperation(
       StellarSdk.Operation.payment({
-        destination: projectAddress,
-        asset: StellarSdk.Asset.native(),
-        amount: donateAmount,
-      }),
-    )
-    .addMemo(StellarSdk.Memo.text(donateMessage));
-  if (Number(tipAmount) > 0) {
-    txBuilder.addOperation(
-      StellarSdk.Operation.payment({
         destination: import.meta.env.PUBLIC_TANSU_OWNER_ID,
         asset: StellarSdk.Asset.native(),
-        amount: tipAmount,
+        amount,
       }),
-    );
-  }
-  const transaction = txBuilder.setTimeout(StellarSdk.TimeoutInfinite).build();
+    )
+    .addMemo(message ? StellarSdk.Memo.text(message) : StellarSdk.Memo.none())
+    .setTimeout(180)
+    .build();
 
   const signed = await sign(transaction.toXDR(), sender);
   if (!("xdr" in signed)) {
     throw new Error("The wallet submitted the payment instead of signing it");
   }
-  const response = await fetch(
-    `${import.meta.env.PUBLIC_HORIZON_URL}/transactions`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `tx=${encodeURIComponent(signed.xdr)}`,
-    },
-  );
-  if (!response.ok) throw new Error(await response.text());
+  const { hash, maxTime } = await send(signed.xdr);
+  await awaitLanding(hash, maxTime);
 }

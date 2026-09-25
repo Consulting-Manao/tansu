@@ -6,7 +6,10 @@ import { projectQuery, projectsQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
 import { openModal } from "../../../utils/modals";
 import Button from "components/utils/Button";
-import { withErrorBoundary } from "components/utils/ErrorBoundary";
+import {
+  ErrorBoundary,
+  withErrorBoundary,
+} from "components/utils/ErrorBoundary";
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
 import Loading from "components/utils/Loading";
@@ -177,7 +180,11 @@ const ProjectList = () => {
                     className="w-full h-full"
                     key={`${project.name}:${project.config.ipfs}`}
                   >
-                    <OnChainProjectCard project={project} />
+                    {/* Anyone writes a project's files: one cannot take the
+                        list down. */}
+                    <ErrorBoundary>
+                      <OnChainProjectCard project={project} />
+                    </ErrorBoundary>
                   </div>
                 ))}
               </div>

@@ -50,7 +50,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
 
   const handleGoToReleases = useCallback(() => {
     if (releasesUrl) {
-      window.open(releasesUrl, "_blank");
+      window.open(releasesUrl, "_blank", "noopener");
     }
   }, [releasesUrl]);
 
