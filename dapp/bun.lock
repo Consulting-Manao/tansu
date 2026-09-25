@@ -70,6 +70,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@nidohq/stellar-wallets-kit-module@0.1.0": "patches/@nidohq%2Fstellar-wallets-kit-module@0.1.0.patch",
+  },
   "overrides": {
     "axios": "^1.19.0",
     "devalue": "^5.9.0",

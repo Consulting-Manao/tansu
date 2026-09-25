@@ -1,0 +1,69 @@
+diff --git a/dist/handover.js b/dist/handover.js
+--- a/dist/handover.js
++++ b/dist/handover.js
+@@ -44,11 +44,17 @@ export function parseConnectReturn(search) {
+ export function parseSignReturn(search) {
+     const p = new URLSearchParams(search);
+     const signed = p.get('nido_signed');
++    const submitted = p.get('nido_submitted');
+     const sign = p.get('nido_sign');
+     if (signed) {
+         const kind = p.get('kind') ?? 'tx';
+         return { status: 'ok', kind, result: signed };
+     }
++    // The relayer already submitted the transaction: `result` is its hash.
++    if (submitted) {
++        const kind = p.get('kind') ?? 'tx';
++        return { status: 'submitted', kind, result: submitted };
++    }
+     if (sign === 'cancelled')
+         return { status: 'cancelled' };
+     if (sign === 'switch-account')
+diff --git a/dist/module.js b/dist/module.js
+--- a/dist/module.js
++++ b/dist/module.js
+@@ -123,8 +123,10 @@ export class NidoModule {
+             dappOrigin: this.dappOrigin(),
+             returnUrl: this.returnUrl(),
+         });
+-        const signed = await this.runSign(url, account);
+-        return { signedTxXdr: signed, signerAddress: account };
++        const { result, submitted } = await this.runSign(url, account);
++        return submitted
++            ? { signedTxXdr: result, signerAddress: account, submitted: true }
++            : { signedTxXdr: result, signerAddress: account };
+     }
+     async signMessage(message, opts) {
+         const account = await this.resolveAccount(opts?.address);
+@@ -135,8 +137,8 @@ export class NidoModule {
+             dappOrigin: this.dappOrigin(),
+             returnUrl: this.returnUrl(),
+         });
+-        const signed = await this.runSign(url, account);
+-        return { signedMessage: signed, signerAddress: account };
++        const { result } = await this.runSign(url, account);
++        return { signedMessage: result, signerAddress: account };
+     }
+     async signAuthEntry(authEntry, opts) {
+         const account = await this.resolveAccount(opts?.address);
+@@ -148,8 +150,8 @@ export class NidoModule {
+             dappOrigin: this.dappOrigin(),
+             returnUrl: this.returnUrl(),
+         });
+-        const signed = await this.runSign(url, account);
+-        return { signedAuthEntry: signed, signerAddress: account };
++        const { result } = await this.runSign(url, account);
++        return { signedAuthEntry: result, signerAddress: account };
+     }
+     /** The kit calls this on disconnect; drop the cached address. */
+     async disconnect() {
+@@ -189,7 +191,7 @@ export class NidoModule {
+         }
+         if (result.status === 'error')
+             throw new Error(`Nido: ${result.error}`);
+-        return result.result;
++        return { result: result.result, submitted: result.status === 'submitted' };
+     }
+ }
+ //# sourceMappingURL=module.js.map
+\ No newline at end of file

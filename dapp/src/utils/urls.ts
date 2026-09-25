@@ -2,10 +2,15 @@
  * URL utility functions
  */
 
-/** An account, contract or transaction on Stellar Expert, on this network. */
+/**
+ * An account, contract or transaction on Stellar Expert, on this network. An
+ * address is a contract when it is a C… one, like a smart account's.
+ */
 export function getStellarExpertUrl(
   identifier: string,
-  type: "account" | "contract" | "transaction" = "account",
+  type: "account" | "contract" | "transaction" = identifier.startsWith("C")
+    ? "contract"
+    : "account",
 ): string {
   const horizonUrl = import.meta.env.PUBLIC_HORIZON_URL;
   const network = horizonUrl.includes("testnet") ? "testnet" : "public";

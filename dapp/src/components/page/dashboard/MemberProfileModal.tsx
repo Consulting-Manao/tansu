@@ -8,6 +8,7 @@ import Modal from "components/utils/Modal";
 import Button from "components/utils/Button";
 import { getIpfsBasicLink, getIpfsUrl, ipfsQuery } from "utils/ipfsFunctions";
 import { isValidCid } from "utils/contentHashes";
+import { clearIpfsMisses } from "utils/ipfsMissCache";
 import Markdown from "components/utils/Markdown";
 import { connectedPublicKey } from "../../../utils/store";
 import {
@@ -281,6 +282,8 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
                     type="secondary"
                     size="sm"
                     onClick={() => {
+                      // A remembered miss would answer at once, for a day.
+                      clearIpfsMisses(cid);
                       profileRead.refetch();
                       pictureRead.refetch();
                     }}

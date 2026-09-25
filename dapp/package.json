@@ -86,5 +86,8 @@
     "devalue": "^5.9.0",
     "protobufjs": "^7.6.5",
     "toml": "^5.0.0"
+  },
+  "patchedDependencies": {
+    "@nidohq/stellar-wallets-kit-module@0.1.0": "patches/@nidohq%2Fstellar-wallets-kit-module@0.1.0.patch"
   }
 }
