@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "./helpers/app";
 import { read } from "./helpers/testnet";
-import { connectWallet } from "./helpers/wallet";
+import { connectWallet, mockWallet } from "./helpers/wallet";
 
 /** A 1×1 PNG. */
 const PICTURE = Buffer.from(
@@ -13,6 +13,7 @@ const PICTURE = Buffer.from(
 );
 
 test("join with a picture and a git identity, then edit the profile", async ({
+  browser,
   page,
   wallet,
 }) => {
@@ -103,4 +104,30 @@ test("join with a picture and a git identity, then edit the profile", async ({
   });
   const picture = await read.ipfs(member.meta, "/profile-image.png");
   expect(Buffer.from(await picture.arrayBuffer())).toEqual(PICTURE);
+
+  // Another device reads the profile from IPFS: meanwhile the dialog shows
+  // what the chain says, and Edit waits.
+  const device = await browser.newContext();
+  await mockWallet(device, wallet);
+  await device.addInitScript(() =>
+    localStorage.setItem("tansu_tos_accepted", "true"),
+  );
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await device.route("**/profile.json", async (route) => {
+    await held;
+    await route.continue().catch(() => {});
+  });
+  const other = await device.newPage();
+  await other.goto(new URL("/", page.url()).href);
+  await connectWallet(other);
+  await other.getByRole("button", { name: "Open user profile" }).click();
+  await expect(other.getByText("codeberg:ada")).toBeVisible();
+  await expect(other.getByText("Loading profile…")).toBeVisible();
+  const edit = other.getByRole("button", { name: "Edit Profile" });
+  await expect(edit).toBeDisabled();
+  release();
+  await expect(other.getByText("Ada Lovelace")).toBeVisible();
+  await expect(edit).toBeEnabled({ timeout: 30_000 });
+  await device.close();
 });

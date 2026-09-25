@@ -52,7 +52,7 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
   }));
 
   // The profile and its picture: an edit keeps what it does not change, so
-  // it waits for both.
+  // it waits for both. The dialog shows what the chain says meanwhile.
   const cid = member && isValidCid(member.meta) ? member.meta : "";
   const profileRead = useQuery(
     {
@@ -184,211 +184,206 @@ const MemberProfileModal: FC<Props> = ({ onClose, address }) => {
   return (
     <>
       <Modal onClose={onClose} fullWidth>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loading />
-          </div>
-        ) : (
-          <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">
-            <div className="flex flex-col items-center gap-3 sm:gap-4 md:w-1/3">
-              {/* Profile Image */}
-              {profileImageUrl ? (
-                <img
-                  src={profileImageUrl}
-                  alt={profileData?.name || "Profile"}
-                  className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-3 border-primary"
-                  onError={() => setPictureFailed(true)}
-                />
-              ) : (
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <span className="text-3xl md:text-4xl font-semibold text-indigo-700">
-                    {getInitialLetter(profileData?.name)}
-                  </span>
-                </div>
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">
+          <div className="flex flex-col items-center gap-3 sm:gap-4 md:w-1/3">
+            {/* Profile Image */}
+            {profileImageUrl ? (
+              <img
+                src={profileImageUrl}
+                alt={profileData?.name || "Profile"}
+                className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-3 border-primary"
+                onError={() => setPictureFailed(true)}
+              />
+            ) : (
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-indigo-100 flex items-center justify-center">
+                <span className="text-3xl md:text-4xl font-semibold text-indigo-700">
+                  {!isLoading && getInitialLetter(profileData?.name)}
+                </span>
+              </div>
+            )}
+
+            {/* Name and Address */}
+            <div className="text-center w-full">
+              <h3 className="text-xl sm:text-2xl font-semibold text-primary">
+                {isLoading
+                  ? "Loading profile…"
+                  : profileData?.name || "Anonymous"}
+              </h3>
+
+              {memberAddress && <AddressDisplay address={memberAddress} />}
+
+              {profileData?.social && (
+                <a
+                  href={profileData.social}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm sm:text-base text-blue-500 hover:underline mt-2 block"
+                >
+                  {profileData.social.replace(/^https?:\/\//, "")}
+                </a>
               )}
 
-              {/* Name and Address */}
-              <div className="text-center w-full">
-                <h3 className="text-xl sm:text-2xl font-semibold text-primary">
-                  {profileData?.name || "Anonymous"}
-                </h3>
-
-                {memberAddress && <AddressDisplay address={memberAddress} />}
-
-                {profileData?.social && (
-                  <a
-                    href={profileData.social}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm sm:text-base text-blue-500 hover:underline mt-2 block"
-                  >
-                    {profileData.social.replace(/^https?:\/\//, "")}
-                  </a>
-                )}
-
-                {/* Git Identity */}
-                {member?.git_identity ? (
-                  <div className="flex items-center justify-center gap-1.5 mt-2">
-                    <span className="text-sm font-medium text-primary">
-                      Git: {member.git_identity}
-                    </span>
-                    {gitKeyListed.data ? (
-                      <span
-                        title="The account lists this key"
-                        className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
-                      >
-                        Verified
-                      </span>
-                    ) : gitKeyListed.isSuccess ? (
-                      <span
-                        title="The key signed the link; no host lists it for this account"
-                        className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-secondary"
-                      >
-                        Self-declared
-                      </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-xs text-secondary text-center mt-2">
-                    No Git handle linked
-                  </p>
-                )}
-
-                {/* IPFS metadata link */}
-                {cid && profileData && (
-                  <a
-                    href={getIpfsBasicLink(member.meta)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1 text-sm sm:text-base text-blue-500 hover:underline mt-2"
-                  >
-                    <img
-                      src="/icons/ipfs.svg"
-                      alt="IPFS"
-                      width={16}
-                      height={16}
-                    />
-                    <span>View on IPFS</span>
-                  </a>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex w-full flex-col gap-2 sm:gap-3 mt-2 sm:mt-4">
-                {publicKey === memberAddress && profileUnreadable && (
-                  <div role="alert" className="flex flex-col gap-2 text-sm">
-                    <p className="text-red-600">
-                      Your profile could not be read, so it cannot be edited
-                      yet.
-                    </p>
-                    <Button
-                      type="secondary"
-                      size="sm"
-                      onClick={() => {
-                        profileRead.refetch();
-                        pictureRead.refetch();
-                      }}
+              {/* Git Identity */}
+              {member?.git_identity ? (
+                <div className="flex items-center justify-center gap-1.5 mt-2">
+                  <span className="text-sm font-medium text-primary">
+                    Git: {member.git_identity}
+                  </span>
+                  {gitKeyListed.data ? (
+                    <span
+                      title="The account lists this key"
+                      className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
                     >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-                {publicKey === memberAddress && (
-                  <Button
-                    type="primary"
-                    onClick={() => setShowEditModal(true)}
-                    disabled={
-                      profileUnreadable || (!!cid && !pictureRead.isSuccess)
-                    }
-                    className="w-full"
-                  >
-                    Edit Profile
-                  </Button>
-                )}
-                {publicKey === memberAddress && (
-                  <Button
-                    type="primary"
-                    onClick={handleDisconnect}
-                    className="bg-red-500 text-white hover:bg-red-600 w-full border-0"
-                  >
-                    Disconnect
-                  </Button>
-                )}
-              </div>
+                      Verified
+                    </span>
+                  ) : gitKeyListed.isSuccess ? (
+                    <span
+                      title="The key signed the link; no host lists it for this account"
+                      className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-secondary"
+                    >
+                      Self-declared
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-xs text-secondary text-center mt-2">
+                  No Git handle linked
+                </p>
+              )}
+
+              {/* IPFS metadata link */}
+              {cid && profileData && (
+                <a
+                  href={getIpfsBasicLink(member.meta)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1 text-sm sm:text-base text-blue-500 hover:underline mt-2"
+                >
+                  <img
+                    src="/icons/ipfs.svg"
+                    alt="IPFS"
+                    width={16}
+                    height={16}
+                  />
+                  <span>View on IPFS</span>
+                </a>
+              )}
             </div>
 
-            <div className="md:w-2/3 flex flex-col gap-4">
-              {/* Description - Only show if exists */}
-              {profileData?.description && (
-                <div className="w-full">
-                  <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                    About
-                  </h4>
-                  <Markdown
-                    className="bg-zinc-50 p-3 sm:p-4 rounded"
-                    baseUrl={getIpfsBasicLink(member.meta)}
+            {/* Action Buttons */}
+            <div className="flex w-full flex-col gap-2 sm:gap-3 mt-2 sm:mt-4">
+              {publicKey === memberAddress && profileUnreadable && (
+                <div role="alert" className="flex flex-col gap-2 text-sm">
+                  <p className="text-red-600">
+                    Your profile could not be read, so it cannot be edited yet.
+                  </p>
+                  <Button
+                    type="secondary"
+                    size="sm"
+                    onClick={() => {
+                      profileRead.refetch();
+                      pictureRead.refetch();
+                    }}
                   >
-                    {profileData.description}
-                  </Markdown>
+                    Retry
+                  </Button>
                 </div>
               )}
+              {publicKey === memberAddress && (
+                <Button
+                  type="primary"
+                  onClick={() => setShowEditModal(true)}
+                  disabled={
+                    profileUnreadable || (!!cid && !pictureRead.isSuccess)
+                  }
+                  className="w-full"
+                >
+                  Edit Profile
+                </Button>
+              )}
+              {publicKey === memberAddress && (
+                <Button
+                  type="primary"
+                  onClick={handleDisconnect}
+                  className="bg-red-500 text-white hover:bg-red-600 w-full border-0"
+                >
+                  Disconnect
+                </Button>
+              )}
+            </div>
+          </div>
 
-              {/* Engagement Section (previously Badges) */}
+          <div className="md:w-2/3 flex flex-col gap-4">
+            {/* Description - Only show if exists */}
+            {profileData?.description && (
               <div className="w-full">
                 <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                  Community Engagements
+                  About
                 </h4>
-                {noBadges ? (
-                  <p className="text-sm sm:text-base text-secondary">
-                    No community engagement with any projects yet
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                    {projectsWithNames.map((proj, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-zinc-50 cursor-pointer hover:bg-zinc-100 transition-colors rounded"
-                        onClick={() => navigateToProject(proj.name)}
-                      >
-                        <p className="font-medium text-primary mb-2 text-sm sm:text-base text-center">
-                          {proj.name}
-                        </p>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {Array.from(new Set(proj.badges)).map((b) => (
-                            <span
-                              key={b}
-                              className="px-2 py-0.5 sm:px-3 sm:py-1 bg-primary text-white text-xs sm:text-sm rounded"
-                            >
-                              {badgeName(b)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <Markdown
+                  className="bg-zinc-50 p-3 sm:p-4 rounded"
+                  baseUrl={getIpfsBasicLink(member.meta)}
+                >
+                  {profileData.description}
+                </Markdown>
               </div>
+            )}
 
-              {/* On-chain Actions List */}
-              {address && (
-                <div className="mt-6">
-                  <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
-                    On-chain Activity
-                  </h4>
-                  <OnChainActions
-                    address={address}
-                    projectNames={Object.fromEntries(
-                      projectsWithNames.map((p) => [
-                        Buffer.from(p.projectId).toString("hex"),
-                        p.name,
-                      ]),
-                    )}
-                  />
+            {/* Engagement Section (previously Badges) */}
+            <div className="w-full">
+              <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
+                Community Engagements
+              </h4>
+              {noBadges ? (
+                <p className="text-sm sm:text-base text-secondary">
+                  No community engagement with any projects yet
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                  {projectsWithNames.map((proj, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-zinc-50 cursor-pointer hover:bg-zinc-100 transition-colors rounded"
+                      onClick={() => navigateToProject(proj.name)}
+                    >
+                      <p className="font-medium text-primary mb-2 text-sm sm:text-base text-center">
+                        {proj.name}
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {Array.from(new Set(proj.badges)).map((b) => (
+                          <span
+                            key={b}
+                            className="px-2 py-0.5 sm:px-3 sm:py-1 bg-primary text-white text-xs sm:text-sm rounded"
+                          >
+                            {badgeName(b)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+
+            {/* On-chain Actions List */}
+            {address && (
+              <div className="mt-6">
+                <h4 className="text-base sm:text-lg font-semibold text-primary mb-1 sm:mb-2">
+                  On-chain Activity
+                </h4>
+                <OnChainActions
+                  address={address}
+                  projectNames={Object.fromEntries(
+                    projectsWithNames.map((p) => [
+                      Buffer.from(p.projectId).toString("hex"),
+                      p.name,
+                    ]),
+                  )}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </Modal>
 
       {showEditModal && (
