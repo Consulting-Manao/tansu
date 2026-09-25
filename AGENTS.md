@@ -89,6 +89,20 @@ Cross-contract references (`ContractRef` in `types.rs`) carry an optional WASM h
 
 Astro pages with React islands. Contract, IPFS, git host and Horizon reads are TanStack Query queries (one `queryClient` in `src/service/queryClient.ts`, kept in IndexedDB; factories like `projectQuery` next to their service), and writes refresh them with `invalidateAfter`; see "Data and caching" in `dapp/README.md`. Pages read the project from `?name=` (`projectNameFromUrl`) and ask the queries: there is no global project state. nanostores hold only the wallet. A Workbox service worker, generated at build time, precaches the app and waits for the user's Reload before a new version takes over (`UpdatePrompt.astro`); link to project pages with the `utils/urls.ts` helpers. All contract interaction goes through the service layer in `src/service/`, on top of the generated bindings in `dapp/packages/`: each domain service (`ProjectService`, `ProposalService`, `MemberService`, ...) holds its queries and its writes, and every write lands through `sendTransaction` in `TxService` (sign once, upload to IPFS, confirm, refetch what changed). The wallet is one address in `connectedPublicKey` (`walletService`). A project's `tansu.toml` is written and validated in one place, `utils/tansuToml.ts`, which keeps the fields the form does not manage. User journeys funnel through the `FlowProgressModal` flow component; app-wide modals (profile, join, create project, terms, funding) open with `openModal()` from `utils/modals.ts` and show in the layout's `ModalHost` — no window events. Markdown that users wrote renders through `components/utils/Markdown.tsx`, which limits raw HTML to formatting tags; `/terms/`, `/privacy/` and the terms modal are built from the root `legal/` files. Wallets via Stellar Wallets Kit. Repository metadata is fetched unauthenticated in the browser from public provider APIs (GitHub, GitLab, Bitbucket, Codeberg, Gitea) — no server proxy.
 
+Rules the dApp code keeps:
+
+| Concern | Where | Rule |
+|---|---|---|
+| Network deadline | `utils/deadline.ts`, `contracts/soroban_tansu.ts` | Every `fetch` goes through `fetchWithin` (15 s, body included); every RPC call through the shared `rpcServer`, whose HTTP client has the same timeout and which the bindings clients use (`server` option). Nothing waits forever. |
+| Writes | `service/TxService.ts` | `sendTransaction` refuses offline, shows a simulation error before signing, and `checkAuthorization` lets the wallet sign only the Tansu call and XLM transfers to Tansu (collateral), never a call a proposal names. Confirmation polls through network errors until the transaction's time bound passes, then says "expired" or "status unknown". Donations (`sendXLM`) go to Tansu through the same send and confirmation. |
+| Fresh reads | services, dialogs | A read that decides what a write replaces is fresh (`queryClient.query({...q, staleTime: 0})`): anonymous key, badges, sub-projects, name availability. `updateConfig` refuses when the project changed since the form was filled (`basedOn`). Queries whose answer is "absent" (`null`) are not persisted. |
+| Files a write keeps | `utils/tansuToml.ts`, `UpdateConfigModal`, `ProfileModal` | An edit starts from the current files once read (a failed read stops it) and keeps what the form does not manage: every other `tansu.toml` value (written with smol-toml), each maintainer's principal entry (paired by address), README images, the profile picture. |
+| Dialogs | `components/utils/Modal.tsx`, `FlowProgressModal`, `utils/modals.ts` | `Modal` moves focus in and back, keeps Tab inside, is named by its first heading, and only the top dialog answers Escape and the backdrop. Flows report errors with `setError` (their error view) and cannot close while signing. App-wide dialogs stack (`openModal`/`closeModal(name)`); each has an error boundary. |
+| Untrusted content | `utils/utils.ts`, `service/MemberService.ts`, `components/utils/Markdown.tsx` | `tansu.toml` and `profile.json` fields are type-checked where they enter (`extractConfigData`, `parseProfile`); Markdown keeps formatting tags and attributes only; new tabs open with `noopener`; `public/_headers` forbids framing. |
+| Proposals | `utils/proposalOutcomes.ts`, `service/ContractIntrospectionService.ts` | Outcome calls sit in the slot `execute` reads (Approved 0, Rejected 1, Cancelled 2); a gap holds `NO_CALL` (the XLM token's `decimals()`), hidden in the UI. Arguments are typed with the target's spec and each call is simulated before signing. |
+| Anonymous votes | `utils/anonymousVoting.ts` | Seeds are 90-bit (`SEED_BITS`); the tally checks each ballot (key, one choice, seed range, commitments on chain) and lists those that cannot count, which a maintainer removes before `execute`. |
+| Accessibility | components | Icon-only controls carry `aria-label`; decorative images `alt=""`; status colors meet 4.5:1 on white; clickable cards and choices are buttons. Lighthouse accessibility is 100 on the home, project, governance and proposal pages. |
+
 ### Events pipeline (`tansu/`)
 
 `src/tansu/events/` ingests Soroban contract events into Postgres (`ingest.py`, `consume.py`, SQLAlchemy models in `database/`, Alembic migrations in `alembic/`) and serves them through a FastAPI app (`app.py`, `routers/`).
@@ -257,8 +271,10 @@ export default defineConfig({
 **Project usage**:
 - **dapp**: Tests run with `bun playwright test --reporter=dot` (see `dapp/package.json`). Config in `dapp/playwright.config.ts`.
 - Tests are user journeys on the production build (`bun run build`, served from `dist/` on port 4321, the origin the testnet upload worker accepts) against **testnet**: the Tansu contract, Soroban RPC, Horizon, the IPFS upload worker and git hosts are real. Nothing is mocked except the wallet UI: `wallet.ts` answers the GHOSTSIG popup protocol and signs with a friendbot-funded account (`wallet` fixture in `app.ts`).
-- Set up what a journey starts from through the contract bindings in `testnet.ts` (`registerProject`, `join`, `setBadges`, `createProposal`), drive the journey itself through the UI, and assert on-chain state with `read.*`. Register projects with short governance periods (`minVotingPeriod`, `executeDelay`) to vote on and execute a proposal within one test. Name everything with `uniqueName()`: runs share the testnet contract.
-- Use the Tansu Radicle repository (`RADICLE_REPO`) for set-up projects: GitHub allows 60 unauthenticated calls an hour.
+- Set up what a journey starts from through the contract bindings in `testnet.ts` (`registerProject`, `updateConfig`, `join`, `setBadges`, `setSubProjects`, `createProposal`, `castVote`), drive the journey itself through the UI, and assert on-chain state with `read.*` (IPFS files through `read.ipfs`, payments through `read.lastPayment`). Register projects with short governance periods (`minVotingPeriod`, `executeDelay`) to vote on and execute a proposal within one test. Name everything with `uniqueName()`: runs share the testnet contract.
+- `land()` uploads through the real worker with the signed envelope, sends, and returns once the gateway serves the uploaded files: a gateway takes seconds, sometimes a minute, with new content.
+- Use the Tansu Radicle repository (`RADICLE_REPO`) for set-up projects: GitHub allows 60 unauthenticated calls an hour. Their `tansu.toml` names the repository's own seed (`radicle.consulting-manao.com`), as the Tansu project's does.
+- Journeys: `browse` (search, project page, metrics, proposal, terms gate), `member` (join with a picture and a git identity signed by running the printed `ssh-keygen` command, edit), `project` (register, config conflict and kept values, badges, sub-projects), `governance`, `proposal` (outcome calls), `anonymous` (key setup, invalid ballot removed, execute), `donate`, `pwa` (offline, precache), `update` (a deploy taken in two tabs; runs last, it rebuilds `dist/`).
 - A transaction takes a few seconds to land; wait on what the user sees or poll `read.*`, never sleep.
 - **Reports**: Use `npx playwright show-report` (or `bunx playwright show-report`) to open the HTML report after a run.
 
@@ -280,10 +296,10 @@ export default defineConfig({
 
 **Project: ipfs-delegation Worker**:
 - **Location**: `dapp/workers/ipfs-delegation/`
-- **Role**: Verifies a signed transaction and the CAR's root CID, then uploads the CAR to Filebase and optionally pins it on Pinata; uses Cloudflare Secrets for credentials (e.g. `FILEBASE_TOKEN`, `PINATA_JWT`).
+- **Role**: Verifies the proof (the signed envelope before it is sent, or the hash of a landed transaction): it must be a Tansu call (`TANSU_CONTRACT_ID`) on `NETWORK_PASSPHRASE` taking the CID as an argument, and an envelope must expire within the hour. Checks the CAR (one root, equal to the CID, at most 50 MB), uploads it to Filebase and optionally pins it on Pinata; uses Cloudflare Secrets for credentials (e.g. `FILEBASE_TOKEN`, `PINATA_JWT`).
 - **Tooling**: Wrangler 4, TypeScript, `@cloudflare/workers-types` in tsconfig for globals (e.g. `env`, `fetch` handler signature).
 - **Config**: `wrangler.toml` defines name, envs (e.g. testnet, production), and any bindings. Secrets are not in the repo; set per environment with `wrangler secret put`.
-- **Scripts**: `dev` runs `wrangler dev --port 8787`; `deploy:testnet` / `deploy:production` run `wrangler deploy --env testnet|production`.
+- **Scripts**: `test` runs the Vitest checks (also in the lint workflow); `test:upload` sends one upload to a running or deployed worker; `dev` runs `wrangler dev --port 8787`; `deploy:testnet` / `deploy:production` run `wrangler deploy --env testnet|production`. The testnet worker answers only the dApp's origins: e2e serves on port 4321.
 - **Docs**: See `dapp/workers/ipfs-delegation/README.md` for setup, secrets, and deploy steps.
 
 **TypeScript**:
@@ -315,8 +331,8 @@ This allows running Vitest commands via Bash when needed for testing.
 1. **Single source of truth**: Contract IDs live in `.env` files; don't duplicate configuration.
 2. **Testing**: All code changes need tests and documentation; human review is mandatory.
 3. **Type safety**: When adding or changing types, keep interfaces consistent; avoid `any` unless necessary.
-4. **Async loading**: For UX, render pages with minimal config first, then load additional data (TOML, hashes) in the background.
-5. **Timeouts**: Use appropriate timeouts (5s for TOML fetches, 10s max) to prevent blocking.
+4. **Async loading**: For UX, render pages with minimal config first, then load additional data (TOML, hashes) in the background. Costly reads wait until asked for or in view (attestations of older commits, contribution metrics).
+5. **Timeouts**: Every network call has the one deadline of `utils/deadline.ts`; do not call `fetch` directly.
 
 ## Common Patterns and Best Practices
 
