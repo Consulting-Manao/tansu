@@ -67,6 +67,11 @@ with a migration of the proposals to their new storage ([`575e2ae`](https://radi
 [`f48aca4`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/f48aca48fe8e811b6b58480f54c98eadfbb5762f), [`7027798`](https://radicle.network/nodes/radicle.consulting-manao.com/rad:zssaAF91kxuquZmZCV2SiK2FNX6s/commits/7027798a94382da122cafddc94a58d408b676976)). The Q2 and Q3 rounds kept every proposal and
 ballot, and stay browsable in the dApp.
 
+The round approved 18 projects for a total of $453,000, with a median ask of
+$16,500 (from $10,000 to $50,000). 22 Pilots voted, with a median of 17.5 voters
+per proposal (from 15 to 20). Stellarlight is counted once, at its revised
+budget. Amounts are the budgets in the proposals voted on.
+
 **The membership rebuild.** This is where most of the quarter went. The
 membership contract was pulled out of this repository and rewritten as its own
 project, developed on Radicle only — no GitHub remote at all, which is also the
