@@ -12,6 +12,7 @@
 | Tests | 165 workspace tests pass on a fresh build |
 | Method | Line-by-line read of each contract area by an independent reviewer, then a second reviewer who tried to refute every finding. Only findings that survived are listed, at the severity the second review settled on |
 | Out of scope | Deployed contracts and their data, migrations between versions, the dApp, the IPFS worker, the Python service, external contracts beyond their interfaces |
+| Fixes | `f490db1` to `f8985ff` on `main`, each finding's status in the [register](#4-findings-register). 185 Tansu tests and the manager's test pass after them |
 | AI usage disclosure | Drafted with Claude Opus 5.5 from the sources at the commit above and the project documentation |
 
 ## 1. Summary
@@ -62,57 +63,59 @@
 
 ## 4. Findings register
 
-| ID | Severity | Title | Location |
-|----|----------|-------|----------|
-| C-01 | Critical | Outcome calls run with Tansu's own authority | `contract_dao.rs:827-845` |
-| H-01 | High | One proposal can permanently block new proposals on its project | `contract_dao.rs:171-302`, `:516-519` |
-| H-02 | High | Any maintainer can fill another member's shared record to the entry limit | `contract_membership.rs:181-259` |
-| H-03 | High | Fresh weight-1 addresses can fill the 40-vote cap | `contract_membership.rs:328-353`, `contract_dao.rs:590-592` |
-| H-04 | High | On a manager-run project the vote gives no protection | `registry-tansu-manager/src/lib.rs:100-141` |
-| M-01 | Medium | One admin can cancel any upgrade and undo a pause | `contract_tansu.rs:37-56`, `:268-323` |
-| M-02 | Medium | Collateral asset is 1-of-N configurable and not recorded per proposal | `contract_tansu.rs:96-112`, `contract_dao.rs:205-217`, `:757-767` |
-| M-03 | Medium | `set_nqg_contract` can point any project's voting weights at any contract | `contract_tansu.rs:120-148` |
-| M-04 | Medium | Duplicate admins in a new config lock every later upgrade | `contract_tansu.rs:179-185` |
-| M-05 | Medium | The proposer chooses the token that decides every vote weight | `contract_dao.rs:179`, `:645-663` |
-| M-06 | Medium | Attestation finality is not durable and one maintainer can latch it | `contract_versioning.rs:588-599`, `:641-686`, `:971-995` |
-| M-07 | Medium | Unbounded attestation notes and evidence CIDs fill per-target entries | `contract_versioning.rs:396-417`, `:719-777` |
-| M-08 | Medium | One maintainer can replace the maintainer set instantly | `contract_versioning.rs:231-244` |
-| M-09 | Medium | Anonymous ballot validity is checked only off-chain | `contract_dao.rs:614-627`, `:1285-1316` |
-| M-10 | Medium | NQG voting power wraps when cast to `u32` | `contract_membership.rs:403-419` |
-| M-11 | Medium | A manager as sole maintainer freezes project maintenance | `registry-tansu-manager/src/lib.rs:100-141` |
-| L-01 | Low | Upgrade proposals never expire | `contract_tansu.rs:177`, `:279-286` |
-| L-02 | Low | Admins cannot revoke a proposal while paused | `contract_dao.rs:493-501` |
-| L-03 | Low | New admins never prove they control their keys | `contract_tansu.rs:179-192`, `:288-291` |
-| L-04 | Low | A tightening `update_config` drops a pending loosening | `contract_versioning.rs:258-294` |
-| L-05 | Low | Project names accept 0–3 characters and case variants | `contract_versioning.rs:96-107` |
-| L-06 | Low | Attestation commit hashes are not validated or normalized | `contract_versioning.rs:725-733`, `:832-840` |
-| L-07 | Low | `attest` depends on NQG for a weight it does not use | `contract_versioning.rs:735-739` |
-| L-08 | Low | Project URL, IPFS and sub-project keys are unbounded | `contract_versioning.rs:90-95`, `:546-563` |
-| L-09 | Low | `add_member` stores an unverified Git key | `contract_membership.rs:49-73` |
-| L-10 | Low | Duplicate badges inflate weight and can overflow | `contract_membership.rs:211-218`, `:342-346` |
-| L-11 | Low | A project's badge holders share one entry | `contract_membership.rs:225-258` |
-| L-12 | Low | The anonymous-voting key can change during a vote | `contract_dao.rs:34-72` |
-| L-13 | Low | A pause does not extend voting deadlines | `contract_dao.rs:561-581` |
-| L-14 | Low | A removed voter can vote again; ballot strings are unbounded | `contract_dao.rs:413-424`, `:619-621` |
-| L-15 | Low | `proof()` returns `true` for empty input | `contract_dao.rs:875-936` |
-| L-16 | Low | A failing outcome leaves its proposal unexecutable | `contract_dao.rs:827-845` |
-| L-17 | Low | `trigger` does not check the configured registry | `registry-tansu-manager/src/lib.rs:38-41`, `:113-123` |
-| L-18 | Low | The manager imports an unpinned Tansu WASM that CI never builds | `registry-tansu-manager/src/lib.rs:26-28` |
-| L-19 | Low | Upgrade and config events omit admins and maintainers | `events.rs:7-22`, `:137-159` |
-| L-20 | Low | `make contract_propose_upgrade` rebuilds the WASM and hard-codes admins | `Makefile:128-137` |
-| L-21 | Low | SBOM and evidence jobs run unverified downloaded binaries with secrets | `.github/workflows/sbom.yml` |
-| I-01 | Info | Missing NQG key makes votes and attestations fail untyped | `contract_membership.rs:319-323` |
-| I-02 | Info | Ambiguous and untyped errors | `lib.rs:308`, `contract_tansu.rs`, `contract_membership.rs:401` |
-| I-03 | Info | Token decimals arithmetic can overflow | `contract_dao.rs:649` |
-| I-04 | Info | Membership events | `contract_membership.rs:62-66`, `:134-138` |
-| I-05 | Info | Event naming and topics | `events.rs` |
-| I-06 | Info | `ProposalCreated` omits the outcome | `events.rs:69-110` |
-| I-07 | Info | Tests mock all auths | `tests/test_utils.rs:15-19` |
-| I-08 | Info | `trigger` has no test | `registry-tansu-manager/src/test.rs` |
-| I-09 | Info | Comments and rustdoc contradict the code | multiple |
-| I-10 | Info | Dead migration module | `contract_migration.rs` |
+| ID | Severity | Title | Location | Status |
+|----|----------|-------|----------|--------|
+| C-01 | Critical | Outcome calls run with Tansu's own authority | `contract_dao.rs:827-845` | Fixed `f490db1`: outcomes run from `tansu-executor`, which holds nothing |
+| H-01 | High | One proposal can permanently block new proposals on its project | `contract_dao.rs:171-302`, `:516-519` | Fixed `840322c`: one entry per proposal, pages hold ids, at most 3 outcomes |
+| H-02 | High | Any maintainer can fill another member's shared record to the entry limit | `contract_membership.rs:181-259` | Fixed `720e640`: four badge kinds, each once |
+| H-03 | High | Fresh weight-1 addresses can fill the 40-vote cap | `contract_membership.rs:328-353`, `contract_dao.rs:590-592` | Fixed `720e640`: at most 20 weight-1 votes per proposal |
+| H-04 | High | On a manager-run project the vote gives no protection | `registry-tansu-manager/src/lib.rs:100-141` | Not changed: manager out of this round |
+| M-01 | Medium | One admin can cancel any upgrade and undo a pause | `contract_tansu.rs:37-56`, `:268-323` | Not changed: the admin is one account with native M-of-N multisig |
+| M-02 | Medium | Collateral asset is 1-of-N configurable and not recorded per proposal | `contract_tansu.rs:96-112`, `contract_dao.rs:205-217`, `:757-767` | Fixed `f490db1`: collateral is a Stellar asset fixed at deploy |
+| M-03 | Medium | `set_nqg_contract` can point any project's voting weights at any contract | `contract_tansu.rs:120-148` | Fixed `f0aef91`: NQG set per project by its maintainers |
+| M-04 | Medium | Duplicate admins in a new config lock every later upgrade | `contract_tansu.rs:179-185` | Fixed `c49e4f4` |
+| M-05 | Medium | The proposer chooses the token that decides every vote weight | `contract_dao.rs:179`, `:645-663` | Fixed `a9b9334`: maintainers only, never on an NQG project |
+| M-06 | Medium | Attestation finality is not durable and one maintainer can latch it | `contract_versioning.rs:588-599`, `:641-686`, `:971-995` | Fixed `258923e`: lowering waits out the notice window |
+| M-07 | Medium | Unbounded attestation notes and evidence CIDs fill per-target entries | `contract_versioning.rs:396-417`, `:719-777` | Fixed `258923e`: note 256 bytes, CID 128 bytes |
+| M-08 | Medium | One maintainer can replace the maintainer set instantly | `contract_versioning.rs:231-244` | Not changed: M-of-N through a multisig maintainer account; a queue would block the handover to a contract maintainer |
+| M-09 | Medium | Anonymous ballot validity is checked only off-chain | `contract_dao.rs:614-627`, `:1285-1316` | Not changed: documented; a validity proof is future work |
+| M-10 | Medium | NQG voting power wraps when cast to `u32` | `contract_membership.rs:403-419` | Fixed `f0aef91`: NQG contracts answer a `u32` weight |
+| M-11 | Medium | A manager as sole maintainer freezes project maintenance | `registry-tansu-manager/src/lib.rs:100-141` | Not changed: manager out of this round |
+| L-01 | Low | Upgrade proposals never expire | `contract_tansu.rs:177`, `:279-286` | Not changed: multisig admin account |
+| L-02 | Low | Admins cannot revoke a proposal while paused | `contract_dao.rs:493-501` | Fixed `c49e4f4` |
+| L-03 | Low | New admins never prove they control their keys | `contract_tansu.rs:179-192`, `:288-291` | Not changed: multisig admin account |
+| L-04 | Low | A tightening `update_config` drops a pending loosening | `contract_versioning.rs:258-294` | Not changed: fails safe, documented |
+| L-05 | Low | Project names accept 0–3 characters and case variants | `contract_versioning.rs:96-107` | Fixed `258923e`: 4–30 characters; case kept, as the dApp shows names |
+| L-06 | Low | Attestation commit hashes are not validated or normalized | `contract_versioning.rs:725-733`, `:832-840` | Fixed `258923e`: lowercase hex required; evidence existence not checked |
+| L-07 | Low | `attest` depends on NQG for a weight it does not use | `contract_versioning.rs:735-739` | Fixed `f0aef91`: a failing NQG read gives weight 0 |
+| L-08 | Low | Project URL, IPFS and sub-project keys are unbounded | `contract_versioning.rs:90-95`, `:546-563` | Fixed `258923e` |
+| L-09 | Low | `add_member` stores an unverified Git key | `contract_membership.rs:49-73` | Fixed `258923e` |
+| L-10 | Low | Duplicate badges inflate weight and can overflow | `contract_membership.rs:211-218`, `:342-346` | Fixed `720e640` |
+| L-11 | Low | A project's badge holders share one entry | `contract_membership.rs:225-258` | Not changed: documented; at most four badges per holder |
+| L-12 | Low | The anonymous-voting key can change during a vote | `contract_dao.rs:34-72` | Not changed: documented |
+| L-13 | Low | A pause does not extend voting deadlines | `contract_dao.rs:561-581` | Not changed: documented |
+| L-14 | Low | A removed voter can vote again; ballot strings are unbounded | `contract_dao.rs:413-424`, `:619-621` | Fixed `a9b9334` for ballot size, `840322c` for COI reads; voting again after removal is kept on purpose |
+| L-15 | Low | `proof()` returns `true` for empty input | `contract_dao.rs:875-936` | Fixed `a9b9334` |
+| L-16 | Low | A failing outcome leaves its proposal unexecutable | `contract_dao.rs:827-845` | Not changed: documented; a revoke clears the proposal |
+| L-17 | Low | `trigger` does not check the configured registry | `registry-tansu-manager/src/lib.rs:38-41`, `:113-123` | Not changed: manager out of this round |
+| L-18 | Low | The manager imports an unpinned Tansu WASM that CI never builds | `registry-tansu-manager/src/lib.rs:26-28` | Partly fixed `b7ef81c`: CI builds Tansu first; pinning and release are the manager's |
+| L-19 | Low | Upgrade and config events omit admins and maintainers | `events.rs:7-22`, `:137-159` | Fixed `9c5fd72` |
+| L-20 | Low | `make contract_propose_upgrade` rebuilds the WASM and hard-codes admins | `Makefile:128-137` | Fixed `b7ef81c` |
+| L-21 | Low | SBOM and evidence jobs run unverified downloaded binaries with secrets | `.github/workflows/sbom.yml` | Fixed `b7ef81c` and `f8985ff` |
+| I-01 | Info | Missing NQG key makes votes and attestations fail untyped | `contract_membership.rs:319-323` | Fixed `f0aef91`: no NQG set means badges |
+| I-02 | Info | Ambiguous and untyped errors | `lib.rs:308`, `contract_tansu.rs`, `contract_membership.rs:401` | Partly fixed `f490db1`: the `unwrap` is gone; error codes unchanged |
+| I-03 | Info | Token decimals arithmetic can overflow | `contract_dao.rs:649` | Fixed `a9b9334` |
+| I-04 | Info | Membership events | `contract_membership.rs:62-66`, `:134-138` | Fixed `9c5fd72`: `MemberUpdated` |
+| I-05 | Info | Event naming and topics | `events.rs` | Partly fixed `9c5fd72`: `BadgesUpdated` |
+| I-06 | Info | `ProposalCreated` omits the outcome | `events.rs:69-110` | Not changed |
+| I-07 | Info | Tests mock all auths | `tests/test_utils.rs:15-19` | Not changed |
+| I-08 | Info | `trigger` has no test | `registry-tansu-manager/src/test.rs` | Not changed: manager out of this round |
+| I-09 | Info | Comments and rustdoc contradict the code | multiple | Fixed `9c5fd72` for Tansu; manager and e2e comments unchanged |
+| I-10 | Info | Dead migration module | `contract_migration.rs` | Not changed: kept for the future mainnet migration |
 
-"Documented" in a finding means the project documentation already describes the behaviour; the code has not changed.
+"Documented" in a finding means the project documentation already describes the behaviour; the code has not changed. The status column gives the commit that fixes a finding, or why it stays. Findings below describe the code at the reviewed commit; their line numbers are from it.
+
+What the fixes kept working: the public-goods award's anonymous NQG votes (commitments, conflicts of interest, removing a vote and voting again); the stellar-membership contract as sole maintainer of its project, which now serves its NQG to Tansu as a `u32` weight; the Stellar Registry manager, whose pre-authorization still reaches its target through the executor (`manager_authorization_reaches_the_target_through_the_executor`); and the dApp, whose bindings, error codes and proposal count follow the contract.
 
 ---
 
@@ -300,8 +303,10 @@ With the manager as only maintainer, `update_config`, `set_badges`, `remove_vote
 - Priority tests to add: C-01 outcome targeting the collateral asset; H-01 oversized outcomes; H-02 oversized badge list; H-03 cap filling; M-01 cancellation by one admin; M-04 duplicate admins; M-06 threshold drop then attest; M-10 negative NQG score; every branch of `trigger`.
 - CI runs build, tests, clippy and rustfmt; releases go through a pinned build workflow with provenance. Missing: a static-analysis gate, a Rust advisory scan, and building `tansu.wasm` before the manager.
 
+After the fixes, 185 Tansu tests pass, with a regression test for each fixed finding (`test_executor.rs`, `test_inputs.rs` and the existing suites). CI builds `tansu.wasm` before the manager and pins its downloads and actions.
+
 ## 11. Readiness
 
 Fix before an external audit: **C-01, H-01 to H-04, M-01, M-04, M-06, M-07**. Then the other Medium findings, most of which are one check each. The Low and Info items are cheap and remove the easy comments an auditor would otherwise open with.
 
-**Status: not ready.**
+**Status at the reviewed commit: not ready.** After the fixes, every finding on that list is fixed except H-04 (manager, out of this round) and M-01 (handled by a multisig admin account). The remaining open items are the manager findings, the documented trade-offs, and the Info items marked not changed.
