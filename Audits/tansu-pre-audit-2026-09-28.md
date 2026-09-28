@@ -18,25 +18,22 @@
 
 **What holds up.** Every privileged path loads its authority from storage before `require_auth`; no entry point trusts a caller-supplied role. Pause gates every state change except the admin's own calls. Proposal outcomes run from a separate executor contract that holds nothing and has no role, so an outcome never sees Tansu as its caller and cannot use Tansu's authority. Each proposal is its own ledger entry, and the entries every caller shares are bounded: badges are the four real kinds, each once; names, URLs, CIDs, notes and ballot strings have length limits; a proposal takes at most three outcomes. Weight-1 votes can take at most 20 of a proposal's 40 slots. The collateral must be a Stellar asset contract and is fixed at deployment. Loosening a project's voting durations or lowering its attestation threshold waits out a notice window, and each proposal snapshots its execute delay. Token arithmetic is checked. Anonymous-vote commitments are subgroup-checked. The attestation key is length-prefixed before hashing. The Git binding follows the SSHSIG signed-data layout. Hash-pinned contracts are re-checked on every call. Upgrades reject duplicate admins and use the SDK 28 `update_current_contract` API.
 
-**What needs attention first.**
+**What needs attention first.** Two voting modes rely on something the contract does not check (M-01, M-02). Token-weighted votes read the current balance, so the same tokens can vote from several addresses; anonymous ballots are not proven to encode one valid choice.
 
-1. **Maintainer powers are 1-of-N and immediate (M-01, M-02).** One maintainer can change every voting weight, remove votes after a vote closes, replace the maintainer set and, with that, finalize attestations alone.
-2. **Two voting modes rely on something the contract does not check (M-03, M-04).** Token-weighted votes read the current balance, so the same tokens can vote from several addresses; anonymous ballots are not proven to encode one valid choice.
-
-**Bottom line: close to audit-ready.** The remaining findings are about how much a single maintainer or voter can do, and each has a small fix or a documented operating rule.
+**Bottom line: close to audit-ready.** The two Medium findings are about what a single voter can do in token-weighted and anonymous votes; each has a fix or an operating rule. The rest are small.
 
 | Severity | Count |
 |---:|---:|
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 2 |
 | Low | 11 |
 | Info | 12 |
 
 ## 2. Trust model
 
 - **Admins** (`AdminsConfig`) pause, set the executor, revoke any proposal and upgrade. Accepting an upgrade needs the threshold and the 24-hour timelock; every other admin call, including cancelling an upgrade, needs one admin. The constructor starts with one admin at threshold 1, and the runbook (`docs/operations.md`) expects that admin to be an account with native M-of-N multisig.
-- **Maintainers** fully control their project, each acting alone: commits, evidence, badges, the project's NQG contract, sub-projects, the maintainer list, the anonymous-voting key, the attestation threshold, vote removal, conflict-of-interest lists, execution and revocation. M-of-N control of a project is expected to come from a multisig maintainer account.
+- **Maintainers**: Tansu is a permissioned DAO, and maintainers fully control their project by design, each acting alone and with immediate effect: commits, evidence, badges and the project's NQG contract (so every voting weight, including during an open vote), sub-projects, the maintainer list (and with it who counts for attestation finality), the anonymous-voting key, the attestation threshold, vote removal (including after a vote closes), conflict-of-interest lists, execution and revocation. Anyone interacting with a project trusts its maintainers. M-of-N control of a project comes from a multisig maintainer account.
 - **Voting weights** come from badges, which maintainers set, from the project's NQG contract, which a maintainer chooses, or, for a proposal a maintainer opens with a token, from token balances. On badge-weighted projects anyone without a badge votes with weight 1.
 - **The executor** runs outcome calls. It is trusted to hold nothing and to have no role in any contract; anyone may call it.
 - **Anonymous ballots** are hidden from the public, not from the holder of the project's decryption key, who computes the tallies (documented).
@@ -64,10 +61,8 @@
 
 | ID | Severity | Title | Location |
 |----|----------|-------|----------|
-| M-01 | Medium | One maintainer can decide the result of a badge- or NQG-weighted vote | `contract_membership.rs:162-268`, `:366-390`, `contract_dao.rs:434-536`, `:808-817` |
-| M-02 | Medium | One maintainer can replace the maintainer set instantly and finalize attestations alone | `contract_versioning.rs:240-321`, `:691-736`, `:1011-1035` |
-| M-03 | Medium | Token-weighted votes read the current balance, so tokens can vote twice | `contract_dao.rs:724-735` |
-| M-04 | Medium | Anonymous ballot validity is checked only off-chain | `contract_dao.rs:683-705`, `:880-893` |
+| M-01 | Medium | Token-weighted votes read the current balance, so tokens can vote twice | `contract_dao.rs:724-735` |
+| M-02 | Medium | Anonymous ballot validity is checked only off-chain | `contract_dao.rs:683-705`, `:880-893` |
 | L-01 | Low | Admin powers outside the upgrade threshold | `contract_tansu.rs:53-72`, `:114-128`, `:261-318`, `contract_dao.rs:552-560` |
 | L-02 | Low | Upgrade proposals never expire | `contract_tansu.rs:157`, `:272-279` |
 | L-03 | Low | New admins never prove they control their keys | `contract_tansu.rs:159-177`, `:281-284` |
@@ -98,31 +93,7 @@
 
 ## 5. Medium
 
-### M-01 — One maintainer can decide the result of a badge- or NQG-weighted vote
-
-`set_badges` at `contract_membership.rs:162-268`; `set_nqg_contract` at `:366-390`; `remove_vote` at `contract_dao.rs:434-536`; `execute` at `:808-817`.
-
-**Problem.** Each of these calls needs one maintainer and applies at once, including while a proposal is open:
-- `set_badges` sets any member's weight, the maintainer's own included, up to 16.5 million.
-- `set_nqg_contract` points the project's weights at any contract, which can answer any `u32`, or clears it so everyone falls back to badges. A vote's weight is checked only when it is cast, so a switch during a vote gives different voters different rules.
-- `remove_vote` works after the voting period ends, when the removed voter can no longer vote again.
-- Only a maintainer can call `execute`, so a maintainer can also hold a result back.
-
-**Impact.** On a project with several maintainers, any one of them can shape or override its vote. This matches the documented trust model ("maintainers fully control their project") but undercuts the DAO's claim that the vote decides.
-
-**Fix.** Apply the existing notice window to weight changes (`set_nqg_contract`, and badge increases), or snapshot the weight source per proposal at creation. Forbid `remove_vote` after `voting_ends_at`, or restrict it to the conflict-of-interest case. Let anyone call `execute` once the delay has passed; the maintainer then only moderates.
-
-### M-02 — One maintainer can replace the maintainer set instantly and finalize attestations alone
-
-`update_config` at `contract_versioning.rs:240-321`; finality at `:691-736`, latched at `:1011-1035`.
-
-**Problem.** `update_config` replaces the maintainer list at once, on one maintainer's authority. Attestation finality counts current maintainers, and `attest` latches finality the first time a target reaches the threshold. A maintainer who shrinks the list to themselves reaches 100% with a single attestation, and the latch survives when the list is restored. Lowering the threshold waits out a notice window, but shrinking the maintainer set achieves the same result without one.
-
-**Impact.** One maintainer can take over a project and certify any commit or evidence as final, permanently.
-
-**Fix.** Queue maintainer removals behind the same notice window as other loosening changes, or require the removed maintainers' consent. If removals must stay instant (a contract maintainer that must be installed at once, for example), compute finality against the maintainer set at the time of the first attestation, or never latch finality reached with fewer than a minimum number of maintainers. Document that M-of-N control of a project needs a multisig maintainer account.
-
-### M-03 — Token-weighted votes read the current balance, so tokens can vote twice
+### M-01 — Token-weighted votes read the current balance, so tokens can vote twice
 
 `contract_dao.rs:724-735`.
 
@@ -132,7 +103,7 @@
 
 **Fix.** Snapshot balances at creation (a token with checkpoints, read at `voting_ends_at` or creation), or lock the voted amount until the vote ends. Otherwise document that token-weighted votes suit only non-transferable or trusted-holder tokens.
 
-### M-04 — Anonymous ballot validity is checked only off-chain
+### M-02 — Anonymous ballot validity is checked only off-chain
 
 `vote` at `contract_dao.rs:683-705`; `execute` at `:880-893`.
 
@@ -174,11 +145,11 @@
 ## 8. Tests and CI
 
 - 185 Tansu tests pass, with integration-style coverage of registration, attestation, the DAO, anonymous voting, upgrades, the executor and input bounds, and expected-cost snapshots.
-- Priority tests to add: M-01 weight changes during an open vote; M-02 finality after shrinking the maintainer set; M-03 the same tokens voting twice; auth assertions outside the attestation and executor suites.
+- Priority tests to add: M-01 the same tokens voting twice; auth assertions outside the attestation and executor suites.
 - CI runs clippy with warnings as errors and rustfmt, pins its downloads with checksums and most third-party actions by commit (`actions/checkout` in `contract.yml` is pinned by tag), and scans the repository with Trivy. Releases of `tansu` go through a pinned workflow with provenance. Missing: a static-analysis gate, and a release of the executor.
 
 ## 9. Readiness
 
-Before an external audit of Tansu: decide M-01 and M-02 (fix, or document the 1-of-N maintainer model with multisig maintainer accounts as the operating rule), and M-03 and M-04 (fix, or restrict the voting modes they affect). The Low and Info items are cheap and remove the easy comments an auditor would otherwise open with.
+Before an external audit: decide M-01 and M-02 (fix, or restrict the voting modes they affect and document the rule). The Low and Info items are cheap and remove the easy comments an auditor would otherwise open with.
 
 **Status: close to ready.**
