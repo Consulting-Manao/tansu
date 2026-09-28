@@ -20,6 +20,7 @@ const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
 /// cannot fill every slot and leave none for badge holders.
 const MAX_DEFAULT_WEIGHT_VOTES: u32 = 20;
 const MAX_OUTCOMES: u32 = 3; // Approved, Rejected, Cancelled
+const MAX_ENCRYPTED_LENGTH: u32 = 1024; // each encrypted vote or seed of a ballot
 
 #[contractimpl]
 impl DaoTrait for Tansu {
@@ -161,8 +162,10 @@ impl DaoTrait for Tansu {
     /// * `ipfs` - IPFS content identifier describing the proposal
     /// * `voting_ends_at` - UNIX timestamp when voting ends
     /// * `public_voting` - Whether voting is public or anonymous
-    /// * [`Option<token_contract>`] - token contract for token-based voting
-    /// * [`Option<Vec<OutcomeContract>>`] - outcome contracts executed after proposal completion
+    /// * [`Option<token_contract>`] - token contract for token-based voting;
+    ///   only a maintainer sets one, and never on a project weighted by NQG
+    /// * [`Option<Vec<OutcomeContract>>`] - at most three outcome contracts,
+    ///   for Approved, Rejected and Cancelled, run by the executor
     ///
     /// # Returns
     /// * `u32` - The ID of the created proposal.
@@ -211,6 +214,26 @@ impl DaoTrait for Tansu {
 
         // proposers deposit a collateral
         proposer.require_auth();
+
+        // The token decides every vote weight of the proposal, so only a
+        // maintainer picks one, and never over a project weighted by NQG.
+        if token_contract.is_some() {
+            require_project(&env, &project_key);
+            let project: types::Project = env
+                .storage()
+                .persistent()
+                .get(&types::ProjectKey::Key(project_key.clone()))
+                .unwrap_or_else(|| panic_with_error!(&env, &errors::ContractErrors::InvalidKey));
+            if !project.maintainers.contains(&proposer)
+                || env
+                    .storage()
+                    .persistent()
+                    .has(&types::ProjectKey::Nqg(project_key.clone()))
+            {
+                panic_with_error!(&env, &errors::ContractErrors::UnauthorizedSigner);
+            }
+        }
+
         let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
 
         match token_stellar.try_transfer(
@@ -621,6 +644,15 @@ impl DaoTrait for Tansu {
             if vote_choice.encrypted_votes.len() != 3 || vote_choice.encrypted_seeds.len() != 3 {
                 panic_with_error!(&env, &errors::ContractErrors::BadCommitment)
             }
+            for encrypted in vote_choice
+                .encrypted_votes
+                .iter()
+                .chain(vote_choice.encrypted_seeds.iter())
+            {
+                if encrypted.len() > MAX_ENCRYPTED_LENGTH {
+                    panic_with_error!(&env, &errors::ContractErrors::BadCommitment)
+                }
+            }
             for commitment in &vote_choice.commitments {
                 if !Bls12381G1Affine::from_bytes(commitment).is_in_subgroup() {
                     panic_with_error!(&env, &errors::ContractErrors::BadCommitment)
@@ -648,9 +680,13 @@ impl DaoTrait for Tansu {
         match &proposal.vote_data.token_contract {
             Some(token_contract) => {
                 let token_client = token::TokenClient::new(&env, token_contract);
-                let required = (*vote_weight as i128) * 10_i128.pow(token_client.decimals());
-                if *vote_weight == 0 || required > token_client.balance(vote_address) {
-                    panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
+                let required = 10_i128
+                    .checked_pow(token_client.decimals())
+                    .and_then(|unit| unit.checked_mul(*vote_weight as i128));
+                match required {
+                    Some(required)
+                        if *vote_weight != 0 && required <= token_client.balance(vote_address) => {}
+                    _ => panic_with_error!(&env, &errors::ContractErrors::VoterWeight),
                 }
             }
             None => {
@@ -875,8 +911,12 @@ impl DaoTrait for Tansu {
     /// # Returns
     /// * `bool` - True if all commitments match the provided tallies and seeds
     ///
+    /// Only `proposal.id` is used; the proposal is read from storage.
+    ///
     /// # Panics
     /// * If no anonymous voting configuration exists for the project
+    /// * If the proposal doesn't exist
+    /// * If `tallies` or `seeds` does not hold three values
     fn proof(
         env: Env,
         project_key: Bytes,
@@ -884,6 +924,13 @@ impl DaoTrait for Tansu {
         tallies: Vec<u128>,
         seeds: Vec<u128>,
     ) -> bool {
+        // Only the id is taken from the argument: the rest is read from storage
+        let proposal = load_proposal(&env, &project_key, proposal.id);
+
+        if tallies.len() != 3 || seeds.len() != 3 {
+            panic_with_error!(&env, &errors::ContractErrors::TallySeedError);
+        }
+
         // Proof validation only applies to active proposals (before execution)
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);

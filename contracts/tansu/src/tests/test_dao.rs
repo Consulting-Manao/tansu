@@ -2048,3 +2048,148 @@ fn weight_one_votes_take_at_most_twenty_slots() {
         .contract
         .vote(&extra, &id, &proposal_id, &approve(&extra, 1));
 }
+
+mod odd_token {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+
+    /// A token reporting more decimals than i128 can hold.
+    #[contract]
+    pub struct OddToken;
+    #[contractimpl]
+    impl OddToken {
+        pub fn decimals(_e: &Env) -> u32 {
+            39
+        }
+        pub fn balance(_e: &Env, _id: Address) -> i128 {
+            i128::MAX
+        }
+    }
+}
+
+fn proposal_ipfs(env: &Env) -> String {
+    String::from_str(
+        env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    )
+}
+
+#[test]
+fn token_proposals_are_for_maintainers_and_not_nqg_projects() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let token = env.register(odd_token::OddToken, ());
+    let outsider = Address::generate(env);
+    setup.token_stellar.mint(&outsider, &(1_000 * 10_000_000));
+    let ends = env.ledger().timestamp() + 3600 * 24 * 2;
+    let create = |proposer: &Address| {
+        setup.contract.try_create_proposal(
+            proposer,
+            &id,
+            &String::from_str(env, "Token Proposal"),
+            &proposal_ipfs(env),
+            &ends,
+            &true,
+            &Some(token.clone()),
+            &None,
+        )
+    };
+
+    let err = create(&outsider).unwrap_err().unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+
+    // a maintainer can, and a vote with an overflowing unit is refused
+    let proposal_id = create(&setup.grogu).unwrap().unwrap();
+    let err = setup
+        .contract
+        .try_vote(
+            &setup.mando,
+            &id,
+            &proposal_id,
+            &Vote::PublicVote(PublicVote {
+                address: setup.mando.clone(),
+                weight: 1,
+                vote_choice: VoteChoice::Approve,
+            }),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::VoterWeight.into());
+
+    // not on a project weighted by NQG
+    super::test_utils::set_nqg(&setup, &id);
+    let err = create(&setup.grogu).unwrap_err().unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+}
+
+#[test]
+fn proof_needs_three_tallies_and_seeds() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    setup
+        .contract
+        .anonymous_voting_setup(&setup.grogu, &id, &String::from_str(env, "public key"));
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Anonymous Proposal"),
+        &proposal_ipfs(env),
+        &(env.ledger().timestamp() + 3600 * 24 * 2),
+        &false,
+        &None,
+        &None,
+    );
+    let proposal = setup.contract.get_proposal(&id, &proposal_id);
+    let empty: soroban_sdk::Vec<u128> = soroban_sdk::Vec::new(env);
+    let err = setup
+        .contract
+        .try_proof(&id, &proposal, &empty, &empty)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::TallySeedError.into());
+}
+
+#[test]
+fn anonymous_ballot_strings_are_bounded() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    setup
+        .contract
+        .anonymous_voting_setup(&setup.grogu, &id, &String::from_str(env, "public key"));
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Anonymous Proposal"),
+        &proposal_ipfs(env),
+        &(env.ledger().timestamp() + 3600 * 24 * 2),
+        &false,
+        &None,
+        &None,
+    );
+    let commitments = setup.contract.build_commitments_from_votes(
+        &id,
+        &vec![env, 1u128, 0u128, 0u128],
+        &vec![env, 5u128, 6u128, 7u128],
+    );
+    let long = String::from_bytes(env, &[b'a'; 1025]);
+    let short = String::from_str(env, "encrypted");
+    let err = setup
+        .contract
+        .try_vote(
+            &setup.mando,
+            &id,
+            &proposal_id,
+            &Vote::AnonymousVote(AnonymousVote {
+                address: setup.mando.clone(),
+                weight: 1,
+                encrypted_seeds: vec![env, short.clone(), short.clone(), short.clone()],
+                encrypted_votes: vec![env, long, short.clone(), short],
+                commitments,
+            }),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::BadCommitment.into());
+}
