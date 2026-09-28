@@ -51,6 +51,7 @@ fn register_events() {
     let threshold_event = AttestationThresholdSet {
         project_key: id.clone(),
         percent: types::DEFAULT_FINALITY_THRESHOLD_PERCENT,
+        activates_at: setup.env.ledger().timestamp(),
     };
     let event = ProjectRegistered {
         project_key: id.clone(),
@@ -339,6 +340,12 @@ fn set_attestation_threshold_none_resets_to_default() {
         .contract
         .set_attestation_threshold(&setup.grogu, &id, &None);
 
+    // lowering waits out the notice window of one day plus one day
+    assert_eq!(setup.contract.get_attestation_threshold(&id), 80);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(setup.env.ledger().timestamp() + 2 * 24 * 3600);
     assert_eq!(
         setup.contract.get_attestation_threshold(&id),
         types::DEFAULT_FINALITY_THRESHOLD_PERCENT
@@ -507,6 +514,7 @@ fn update_config_events() {
     let threshold_event = AttestationThresholdSet {
         project_key: id.clone(),
         percent: 90,
+        activates_at: setup.env.ledger().timestamp(),
     };
     let event = ProjectConfigUpdated {
         project_key: id.clone(),

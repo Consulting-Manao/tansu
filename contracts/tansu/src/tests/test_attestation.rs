@@ -5,6 +5,15 @@ use crate::types;
 use soroban_sdk::testutils::{Address as _, Events, Ledger, MockAuth, MockAuthInvoke};
 use soroban_sdk::{Address, Bytes, Event, IntoVal, String, vec};
 
+/// Let a lower attestation threshold take effect: the notice window is the
+/// minimum voting period plus the execute delay, one day each by default.
+fn pass_notice_window(setup: &super::test_utils::TestSetup) {
+    setup
+        .env
+        .ledger()
+        .set_timestamp(setup.env.ledger().timestamp() + 2 * 24 * 3600);
+}
+
 fn register_revocable_project(setup: &super::test_utils::TestSetup, third: &Address) -> Bytes {
     let name = String::from_str(&setup.env, "revocable");
     let url = String::from_str(&setup.env, "github.com/revocable");
@@ -337,6 +346,7 @@ fn set_attestation_threshold_stores_and_emits_event() {
     let event = AttestationThresholdSet {
         project_key: project_key.clone(),
         percent: 75,
+        activates_at: setup.env.ledger().timestamp(),
     };
 
     assert_eq!(
@@ -362,6 +372,12 @@ fn set_attestation_threshold_accepts_boundary_values() {
         &Some(types::MIN_FINALITY_THRESHOLD_PERCENT),
     );
 
+    // a lower threshold waits out the notice window
+    assert_eq!(
+        setup.contract.get_attestation_threshold(&project_key),
+        types::DEFAULT_FINALITY_THRESHOLD_PERCENT
+    );
+    pass_notice_window(&setup);
     assert_eq!(
         setup.contract.get_attestation_threshold(&project_key),
         types::MIN_FINALITY_THRESHOLD_PERCENT
@@ -1262,6 +1278,7 @@ fn finality_is_updated_against_a_threshold_raise() {
     setup
         .contract
         .set_attestation_threshold(&setup.grogu, &project_key, &Some(66));
+    pass_notice_window(&setup);
 
     setup
         .contract
@@ -1873,7 +1890,7 @@ fn revoking_the_last_attestation_removes_the_storage_entry() {
 }
 
 #[test]
-fn lowering_the_threshold_into_finality_freezes_attestations() {
+fn lowering_the_threshold_waits_out_the_notice_window() {
     let setup = create_test_data();
     init_contract(&setup);
     let third = Address::generate(&setup.env);
@@ -1899,20 +1916,17 @@ fn lowering_the_threshold_into_finality_freezes_attestations() {
         .contract
         .set_attestation_threshold(&setup.grogu, &project_key, &Some(66));
 
+    // the lower threshold is queued, so the target is not final yet and
+    // attesters can still revoke
     assert!(
-        setup
+        !setup
             .contract
             .get_attestation_finality(&project_key, &commit_hash, &target)
             .is_final
     );
-
-    let err = setup
+    setup
         .contract
-        .try_revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target)
-        .unwrap_err()
-        .unwrap();
-
-    assert_eq!(err, ContractErrors::AttestationFinalized.into());
+        .revoke_attestation(&setup.grogu, &project_key, &commit_hash, &target);
 }
 
 #[test]

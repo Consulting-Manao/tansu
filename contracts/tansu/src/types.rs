@@ -213,6 +213,7 @@ pub enum ProjectKey {
     Attestation(BytesN<32>),  // keccak256 digest of (project_key, commit_hash, target)
     AttestationFinalized(BytesN<32>), // ledger timestamp a target first reached finality
     AttestationFinalityThreshold(Bytes), // Attestation finality threshold for the project
+    PendingAttestationThreshold(Bytes), // Lower threshold waiting out its notice window
 }
 
 #[contracttype]
@@ -221,6 +222,13 @@ pub struct PendingGovernance {
     pub min_voting_period: Option<u64>, // None leaves the current value untouched
     pub execute_delay: Option<u64>,     // None leaves the current value untouched
     pub activates_at: u64,              // Ledger timestamp at which the update may be applied
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingThreshold {
+    pub percent: u32,      // Lower attestation threshold, in percent
+    pub activates_at: u64, // Ledger timestamp from which it applies
 }
 
 #[contracttype]

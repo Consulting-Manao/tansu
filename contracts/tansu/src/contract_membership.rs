@@ -46,18 +46,7 @@ impl MembershipTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::MemberAlreadyExist)
         }
 
-        if git_identity.is_some() {
-            if git_pubkey.is_none() || git_sig.is_none() {
-                panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-            }
-            verify_git_signature(
-                &env,
-                &member_address,
-                &git_pubkey.clone().unwrap(),
-                &git_identity.clone().unwrap(),
-                &git_sig.clone().unwrap(),
-            );
-        }
+        verify_git_binding(&env, &member_address, &git_identity, &git_pubkey, &git_sig);
 
         events::MemberAdded {
             member_address: member_address.clone(),
@@ -113,18 +102,8 @@ impl MembershipTrait for Tansu {
             Some(mut member) => {
                 member.meta = meta;
 
+                verify_git_binding(&env, &member_address, &git_identity, &git_pubkey, &git_sig);
                 if git_identity.is_some() {
-                    if git_pubkey.is_none() || git_sig.is_none() {
-                        panic_with_error!(&env, &errors::ContractErrors::InvalidGitIdentity);
-                    }
-                    verify_git_signature(
-                        &env,
-                        &member_address,
-                        &git_pubkey.clone().unwrap(),
-                        &git_identity.clone().unwrap(),
-                        &git_sig.clone().unwrap(),
-                    );
-
                     member.git_identity = git_identity.clone();
                     member.git_pubkey = git_pubkey.clone();
                 }
@@ -445,6 +424,24 @@ const SSHSIG_PREFIX: [u8; 33] = [
     b's', b'h', b'a', b'2', b'5', b'6', // hash algorithm
     0, 0, 0, 32, // len(sha256 output)
 ];
+
+/// Check that the Git identity, key and signature are given all together, or
+/// not at all, and verify the signature when they are.
+fn verify_git_binding(
+    env: &Env,
+    member_address: &Address,
+    git_identity: &Option<String>,
+    git_pubkey: &Option<BytesN<32>>,
+    git_sig: &Option<BytesN<64>>,
+) {
+    match (git_identity, git_pubkey, git_sig) {
+        (Some(identity), Some(pubkey), Some(sig)) => {
+            verify_git_signature(env, member_address, pubkey, identity, sig)
+        }
+        (None, None, None) => {}
+        _ => panic_with_error!(env, &errors::ContractErrors::InvalidGitIdentity),
+    }
+}
 
 fn verify_git_signature(
     env: &Env,

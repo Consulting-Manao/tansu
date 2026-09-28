@@ -38,6 +38,7 @@ pub enum ContractErrors {
     AttestationFinalized = 222,
     AttestationRevocationExpired = 223,
     InvalidBadges = 224,
+    InvalidProjectConfig = 225,
 
     // State (300-399)
     NoHashFound = 300,

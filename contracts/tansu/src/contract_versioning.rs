@@ -16,6 +16,10 @@ const REGISTER_COLLATERAL: i128 = 5 * 10_000_000;
 const MAX_EVIDENCE: u32 = 10;
 const MAX_ATTESTATIONS: u32 = 25;
 const MAX_MAINTAINERS: u32 = MAX_ATTESTATIONS;
+const MAX_PROJECT_CONFIG_LENGTH: u32 = 256; // url and ipfs of a project
+const MAX_NOTE_LENGTH: u32 = 256; // note of an attestation
+const MAX_CID_LENGTH: u32 = 128; // CID of an evidence
+const PROJECT_KEY_LENGTH: u32 = 32; // keccak256 of the project name
 
 /// Length of a hex-encoded SHA-1 Git object name (Git's current default).
 const GIT_SHA1_HEX_LENGTH: u32 = 40;
@@ -24,28 +28,29 @@ const GIT_SHA256_HEX_LENGTH: u32 = 64;
 
 /// Structural check for a Git commit hash: a hex-encoded SHA-1 (40 chars) or
 /// SHA-256 (64 chars) object name. Both lengths are accepted so validation
-/// stays correct through Git's SHA-256 ("git v3") transition; hex is matched
-/// case-insensitively. Bytes equal chars here because the input is ASCII hex.
+/// stays correct through Git's SHA-256 ("git v3") transition; hex is
+/// lowercase, as Git writes it, so one commit has one key. Bytes equal chars here because the input is ASCII hex.
 fn is_valid_commit_hash(hash: &String) -> bool {
     let len = hash.len();
     if len != GIT_SHA1_HEX_LENGTH && len != GIT_SHA256_HEX_LENGTH {
         return false;
     }
-    hash.to_bytes().iter().all(|b| b.is_ascii_hexdigit())
+    hash.to_bytes()
+        .iter()
+        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 #[contractimpl]
 impl VersioningTrait for Tansu {
     /// Register a new project.
     ///
-    /// Creates a new project entry with maintainers, URL, and commit hash.
-    /// Also registers the name in the domain contract if needed.
+    /// Creates a new project entry with maintainers, URL, and metadata.
     /// The project key is generated using keccak256 hash of the project name.
     ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `maintainer` - The address of the maintainer calling this function
-    /// * `name` - The project name (max 15 characters)
+    /// * `name` - The project name, 4 to 30 letters and digits
     /// * `maintainers` - List of maintainer addresses for the project
     /// * `url` - The project's Git repository URL
     /// * `ipfs` - CID of the tansu.toml file with associated metadata
@@ -59,7 +64,8 @@ impl VersioningTrait for Tansu {
     /// * `Bytes` - The project key (keccak256 hash of the name)
     ///
     /// # Panics
-    /// * If the project name is longer than 15 characters
+    /// * If the project name is not 4 to 30 letters and digits
+    /// * If `url` or `ipfs` is longer than 256 bytes
     /// * If the project already exists
     /// * If the maintainer is not authorized
     /// * If the maintainer has insufficient collateral balance
@@ -93,10 +99,10 @@ impl VersioningTrait for Tansu {
             maintainers: maintainers.clone(),
             sub_projects: None,
         };
-        let str_len = name.len() as usize;
-        if str_len > 30 {
+        if !(4..=30).contains(&name.len()) {
             panic_with_error!(&env, &errors::ContractErrors::InvalidProjectName);
         }
+        validate_config(&env, &project.config);
 
         let name_b = name.to_bytes();
         for b in name_b.iter() {
@@ -171,7 +177,7 @@ impl VersioningTrait for Tansu {
                     .set(&types::ProjectKey::ExecuteDelay(key.clone()), &v);
             }
 
-            set_attestation_threshold(&env, &key, attestation_threshold);
+            set_attestation_threshold(&env, &key, attestation_threshold, true);
 
             events::ProjectRegistered {
                 project_key: key.clone(),
@@ -238,12 +244,13 @@ impl VersioningTrait for Tansu {
         }
 
         let config = types::Config { url, ipfs };
+        validate_config(&env, &config);
         project.config = config;
         project.maintainers = maintainers;
         env.storage().persistent().set(&key_, &project);
 
         if attestation_threshold.is_some() {
-            set_attestation_threshold(&env, &key, attestation_threshold);
+            set_attestation_threshold(&env, &key, attestation_threshold, false);
         }
 
         events::ProjectConfigUpdated {
@@ -396,7 +403,7 @@ impl VersioningTrait for Tansu {
         if !is_valid_commit_hash(&commit_hash) {
             panic_with_error!(&env, &errors::ContractErrors::InvalidCommitHash);
         }
-        if cid.is_empty() {
+        if cid.is_empty() || cid.len() > MAX_CID_LENGTH {
             panic_with_error!(&env, &errors::ContractErrors::InvalidEvidence);
         }
 
@@ -554,6 +561,17 @@ impl VersioningTrait for Tansu {
         if sub_projects.len() > 10 {
             panic_with_error!(&env, &errors::ContractErrors::TooManySubProjects);
         }
+        for (index, sub_project) in sub_projects.iter().enumerate() {
+            if sub_project.len() != PROJECT_KEY_LENGTH
+                || sub_project == project_key
+                || sub_projects
+                    .iter()
+                    .skip(index + 1)
+                    .any(|other| other == sub_project)
+            {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidProjectConfig);
+            }
+        }
 
         let key_ = types::ProjectKey::Key(project_key.clone());
         let mut updated_project = project;
@@ -573,6 +591,8 @@ impl VersioningTrait for Tansu {
     /// A commit is considered final once the share of current maintainers that
     /// have attested it reaches this percentage. Every project defaults to
     /// `DEFAULT_FINALITY_THRESHOLD_PERCENT` until its maintainers set a value here.
+    /// A higher threshold applies at once; a lower one after the notice window
+    /// of the project's `min_voting_period + execute_delay`.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -594,7 +614,7 @@ impl VersioningTrait for Tansu {
 
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        set_attestation_threshold(&env, &project_key, attestation_threshold);
+        set_attestation_threshold(&env, &project_key, attestation_threshold, false);
     }
 
     /// Get the attestation finality threshold (percent) for a project.
@@ -609,8 +629,19 @@ impl VersioningTrait for Tansu {
     /// # Returns
     /// * `u32` - The finality threshold percent for the project
     fn get_attestation_threshold(env: Env, project_key: Bytes) -> u32 {
-        let key = types::ProjectKey::AttestationFinalityThreshold(project_key);
+        let pending = env
+            .storage()
+            .persistent()
+            .get::<_, types::PendingThreshold>(&types::ProjectKey::PendingAttestationThreshold(
+                project_key.clone(),
+            ));
+        if let Some(pending) = pending
+            && env.ledger().timestamp() >= pending.activates_at
+        {
+            return pending.percent;
+        }
 
+        let key = types::ProjectKey::AttestationFinalityThreshold(project_key);
         match env.storage().persistent().get::<_, u32>(&key) {
             Some(percent) => percent,
             None => DEFAULT_FINALITY_THRESHOLD_PERCENT,
@@ -721,12 +752,9 @@ impl VersioningTrait for Tansu {
 
         let project = crate::auth_maintainers(&env, &attester, &project_key);
 
-        if commit_hash.is_empty() {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
-        }
-
-        if let types::AttestationTarget::Evidence(_, cid) = &target
-            && cid.is_empty()
+        validate_target(&env, &commit_hash, &target);
+        if let Some(note) = &note
+            && note.len() > MAX_NOTE_LENGTH
         {
             panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
         }
@@ -828,15 +856,7 @@ impl VersioningTrait for Tansu {
 
         attester.require_auth();
 
-        if commit_hash.is_empty() {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
-        }
-
-        if let types::AttestationTarget::Evidence(_, cid) = &target
-            && cid.is_empty()
-        {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidAttestation);
-        }
+        validate_target(&env, &commit_hash, &target);
 
         let key = attestation_key(&env, &project_key, &commit_hash, &target);
         let storage = env.storage().persistent();
@@ -1011,20 +1031,90 @@ fn validate_maintainers(env: &Env, maintainers: &Vec<Address>) {
     }
 }
 
-fn set_attestation_threshold(env: &Env, project_key: &Bytes, percent: Option<u32>) {
+/// Set the attestation threshold of a project.
+///
+/// A higher threshold applies at once. A lower one waits out the same notice
+/// window as shorter voting durations, so a maintainer cannot drop the bar and
+/// then finalize targets alone. At registration it applies at once.
+fn set_attestation_threshold(
+    env: &Env,
+    project_key: &Bytes,
+    percent: Option<u32>,
+    immediate: bool,
+) {
     let percent = percent.unwrap_or(DEFAULT_FINALITY_THRESHOLD_PERCENT);
 
     if !(types::MIN_FINALITY_THRESHOLD_PERCENT..=100).contains(&percent) {
         panic_with_error!(&env, &errors::ContractErrors::InvalidAttestationThreshold);
     }
 
-    let key = types::ProjectKey::AttestationFinalityThreshold(project_key.clone());
+    let current =
+        <Tansu as VersioningTrait>::get_attestation_threshold(env.clone(), project_key.clone());
+    let storage = env.storage().persistent();
+    let pending_key = types::ProjectKey::PendingAttestationThreshold(project_key.clone());
 
-    env.storage().persistent().set(&key, &percent);
+    let activates_at = if immediate || percent >= current {
+        storage.set(
+            &types::ProjectKey::AttestationFinalityThreshold(project_key.clone()),
+            &percent,
+        );
+        storage.remove(&pending_key);
+        env.ledger().timestamp()
+    } else {
+        // the current threshold is effective from now on
+        storage.set(
+            &types::ProjectKey::AttestationFinalityThreshold(project_key.clone()),
+            &current,
+        );
+        let activates_at = env.ledger().timestamp() + notice_window(env, project_key);
+        storage.set(
+            &pending_key,
+            &types::PendingThreshold {
+                percent,
+                activates_at,
+            },
+        );
+        activates_at
+    };
 
     events::AttestationThresholdSet {
         project_key: project_key.clone(),
         percent,
+        activates_at,
     }
     .publish(env);
+}
+
+/// Notice window of a loosening change: the project's current minimum voting
+/// period plus its execute delay.
+fn notice_window(env: &Env, project_key: &Bytes) -> u64 {
+    let storage = env.storage().persistent();
+    let min_voting_period: u64 = storage
+        .get(&types::ProjectKey::MinVotingPeriod(project_key.clone()))
+        .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+    let execute_delay: u64 = storage
+        .get(&types::ProjectKey::ExecuteDelay(project_key.clone()))
+        .unwrap_or(types::TIMELOCK_DELAY);
+    min_voting_period + execute_delay
+}
+
+/// Bound the URL and IPFS CID of a project, which every maintainer call reads.
+fn validate_config(env: &Env, config: &types::Config) {
+    if config.url.len() > MAX_PROJECT_CONFIG_LENGTH || config.ipfs.len() > MAX_PROJECT_CONFIG_LENGTH
+    {
+        panic_with_error!(env, &errors::ContractErrors::InvalidProjectConfig);
+    }
+}
+
+/// An attestation target is a valid commit hash, and for an evidence a
+/// non-empty CID of bounded length.
+fn validate_target(env: &Env, commit_hash: &String, target: &types::AttestationTarget) {
+    if !is_valid_commit_hash(commit_hash) {
+        panic_with_error!(env, &errors::ContractErrors::InvalidAttestation);
+    }
+    if let types::AttestationTarget::Evidence(_, cid) = target
+        && (cid.is_empty() || cid.len() > MAX_CID_LENGTH)
+    {
+        panic_with_error!(env, &errors::ContractErrors::InvalidAttestation);
+    }
 }

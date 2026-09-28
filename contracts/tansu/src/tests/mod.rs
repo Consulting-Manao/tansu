@@ -3,6 +3,7 @@ pub mod test_attestation;
 pub mod test_cost_estimates;
 pub mod test_dao;
 pub mod test_executor;
+pub mod test_inputs;
 pub mod test_membership;
 pub mod test_pause_upgrade;
 pub mod test_register;

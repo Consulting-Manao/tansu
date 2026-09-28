@@ -203,6 +203,7 @@ pub struct AttestationThresholdSet {
     #[topic]
     pub project_key: Bytes,
     pub percent: u32,
+    pub activates_at: u64, // equal to the ledger time when it applies at once
 }
 
 #[contractevent]
