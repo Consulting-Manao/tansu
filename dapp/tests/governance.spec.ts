@@ -88,8 +88,9 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
     timeout: 120_000,
   });
   await ok.click();
-  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
-  expect((await read.proposal(name, created))?.status.tag).toBe("Malicious");
+  // Revoking deletes the proposal: its id is never reused.
+  await expect(page.getByText("Proposal not found")).toBeVisible();
+  expect(await read.proposal(name, created)).toHaveProperty("error");
 
   // Once its vote has ended, the first proposal is executed: approved.
   const endsAt = Number(
