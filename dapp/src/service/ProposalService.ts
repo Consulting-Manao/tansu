@@ -33,81 +33,73 @@ import { packUpload, sendTransaction } from "./TxService";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
-/** The contract's MAX_PROPOSALS_PER_PAGE: proposal `id` is on page `id / 9`. */
-const PROPOSALS_PER_PAGE = 9;
 
 /**
- * How many proposals a project has: their ids run from 0 to count - 1.
- *
- * Pages fill in order, so the count comes from the last page that is not
- * empty, found by doubling then bisecting.
+ * A value the contract keeps under `key` in its persistent storage, read from
+ * its ledger entry: the contract has no getter for it. `undefined` when the
+ * entry does not exist.
+ */
+async function contractStorage(key: xdr.ScVal): Promise<unknown> {
+  const ledgerKey = xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(
+        import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
+      ).toScAddress(),
+      key,
+      durability: xdr.ContractDataDurability.persistent,
+    }),
+  );
+  const { entries } = await rpcServer.getLedgerEntries(ledgerKey);
+  const data = entries[0]?.val;
+  return data?.type === "contractData"
+    ? scValToNative(data.contractData.val)
+    : undefined;
+}
+
+/**
+ * How many proposals a project has had: their ids run from 0 to count - 1.
+ * A revoked proposal is deleted, so some ids in that range can be missing.
  */
 export const proposalCountQuery = (name: string) =>
   queryOptions({
     queryKey: ["proposals", projectKeyHex(name)],
     queryFn: async () => {
-      const project_key = deriveProjectKey(name);
-      const sizes = new Map<number, number>();
-      const size = async (page: number) => {
-        if (!sizes.has(page)) {
-          const dao = readResult(
-            await tansuReads.get_dao({ project_key, page }),
-            200,
-            301,
-          );
-          sizes.set(page, dao?.proposals.length ?? 0);
-        }
-        return sizes.get(page)!;
-      };
-      if (!(await size(0))) return 0;
-      let [full, empty] = [0, 1];
-      while (await size(empty)) [full, empty] = [empty, empty * 2];
-      while (empty - full > 1) {
-        const middle = Math.floor((full + empty) / 2);
-        if (await size(middle)) full = middle;
-        else empty = middle;
-      }
-      return full * PROPOSALS_PER_PAGE + (await size(full));
+      const count = await contractStorage(
+        xdr.ScVal.scvVec([
+          xdr.ScVal.scvSymbol("DaoTotalProposals"),
+          xdr.ScVal.scvBytes(deriveProjectKey(name)),
+        ]),
+      );
+      return count === undefined ? 0 : Number(count);
     },
     staleTime: MINUTE,
   });
 
-/** A proposal with its votes; `null` when the project has no such id. */
 /** The contract's execute delay for proposals made before it kept theirs. */
 const DEFAULT_EXECUTE_DELAY = 24 * 3600;
 
 /**
  * The execute delay a proposal was made with, in seconds: it can be executed
- * that long after its vote ends. The contract keeps it without a getter, so
- * it is read from its ledger entry.
+ * that long after its vote ends.
  */
 export const executeDelayQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["executeDelay", projectKeyHex(name), id],
     queryFn: async () => {
-      const key = xdr.LedgerKey.contractData(
-        new xdr.LedgerKeyContractData({
-          contract: new Address(
-            import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
-          ).toScAddress(),
-          key: xdr.ScVal.scvVec([
-            xdr.ScVal.scvSymbol("ProposalExecuteDelay"),
-            xdr.ScVal.scvBytes(deriveProjectKey(name)),
-            xdr.ScVal.scvU32(id),
-          ]),
-          durability: xdr.ContractDataDurability.persistent,
-        }),
+      const delay = await contractStorage(
+        xdr.ScVal.scvVec([
+          xdr.ScVal.scvSymbol("ProposalExecuteDelay"),
+          xdr.ScVal.scvBytes(deriveProjectKey(name)),
+          xdr.ScVal.scvU32(id),
+        ]),
       );
-      const { entries } = await rpcServer.getLedgerEntries(key);
-      const data = entries[0]?.val;
-      return data?.type === "contractData"
-        ? Number(scValToNative(data.contractData.val))
-        : DEFAULT_EXECUTE_DELAY;
+      return delay === undefined ? DEFAULT_EXECUTE_DELAY : Number(delay);
     },
     // The delay is fixed when the proposal is made.
     staleTime: Infinity,
   });
 
+/** A proposal with its votes; `null` when the project has no such id. */
 export const proposalQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["proposal", projectKeyHex(name), id],

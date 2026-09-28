@@ -44,6 +44,8 @@ export const contractErrorMessages = {
   221: "You have no attestation to revoke on this target.",
   222: "This target is already final — attestations can no longer be withdrawn.",
   223: "The withdrawal window for this attestation has closed.",
+  224: "Badges must be Developer, Triage, Community or Verified.",
+  225: "The project URL, IPFS link or sub-projects are not valid.",
 
   // State (300-399)
   300: "No hash was found.",

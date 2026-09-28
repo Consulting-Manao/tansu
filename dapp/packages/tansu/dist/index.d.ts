@@ -262,6 +262,12 @@ export declare const ContractErrors: {
   223: {
     message: string;
   };
+  224: {
+    message: string;
+  };
+  225: {
+    message: string;
+  };
   300: {
     message: string;
   };
@@ -323,7 +329,8 @@ export interface Client {
    *
    * Badge-based proposals cap weight by membership badges. Token-based
    * proposals require `weight` (whole tokens) not to exceed the voter's
-   * current token balance.
+   * current token balance. Votes of weight 1 take at most
+   * `MAX_DEFAULT_WEIGHT_VOTES` of the `MAX_VOTES_PER_PROPOSAL` slots.
    *
    * # Arguments
    * * `env` - The environment object
@@ -378,8 +385,12 @@ export interface Client {
    * # Returns
    * * `bool` - True if all commitments match the provided tallies and seeds
    *
+   * Only `proposal.id` is used; the proposal is read from storage.
+   *
    * # Panics
    * * If no anonymous voting configuration exists for the project
+   * * If the proposal doesn't exist
+   * * If `tallies` or `seeds` does not hold
    */
   proof: (
     {
@@ -441,6 +452,9 @@ export interface Client {
   /**
    * Construct and simulate a get_dao transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Returns a page of proposals (0 to MAX_PROPOSALS_PER_PAGE proposals per page).
+   *
+   * Proposal `id` is on page `id / MAX_PROPOSALS_PER_PAGE`. Revoked
+   * proposals are deleted and left out, so a page can hold fewer.
    *
    * # Arguments
    * * `env` - The environment object
@@ -539,8 +553,10 @@ export interface Client {
    * * `ipfs` - IPFS content identifier describing the proposal
    * * `voting_ends_at` - UNIX timestamp when voting ends
    * * `public_voting` - Whether voting is public or anonymous
-   * * [`Option<token_contract>`] - token contract for token-based voting
-   * * [`Option<Vec<OutcomeContract>>`] - outcome contracts executed after proposal completion
+   * * [`Option<token_contract>`] - token contract for token-based voting;
+   * only a maintainer sets one, and never on a project weighted by NQG
+   * * [`Option<Vec<OutcomeContract>>`] - at most three outcome contracts,
+   * for Approved, Rejected and Cancelled, run by the executor
    *
    * # Returns
    * * `u32` - The ID of the created proposal.
@@ -548,7 +564,7 @@ export interface Client {
    * # Panics
    * * If the title is too long
    * * If the voting period is invalid
-   * * If the project doesn't exist
+   * * If the project doesn't
    */
   create_proposal: (
     {
@@ -576,8 +592,8 @@ export interface Client {
    * Construct and simulate a revoke_proposal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Revoke a proposal.
    *
-   * Useful if there was some spam or bad intent. Forfeits the proposer's
-   * collateral (it is not refunded on a later execute).
+   * Useful if there was some spam or bad intent. Deletes the proposal and
+   * its votes; its id stays taken. Forfeits the proposer's collateral.
    *
    * # Arguments
    * * `env` - The environment object
@@ -796,6 +812,27 @@ export interface Client {
    */
   version: (options?: MethodOptions) => Promise<AssembledTransaction<u32>>;
   /**
+   * Construct and simulate a set_executor transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Set the contract running the outcome calls of proposals.
+   *
+   * The executor has no upgrade: a new one is deployed and set here.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `admin` - The admin address
+   * * `executor` - The new executor contract
+   */
+  set_executor: (
+    {
+      admin,
+      executor,
+    }: {
+      admin: string;
+      executor: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
    * Construct and simulate a approve_upgrade transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Approve an upgrade proposal
    *
@@ -873,27 +910,6 @@ export interface Client {
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
   /**
-   * Construct and simulate a set_nqg_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Set the Neural Quorum Governance contract.
-   *
-   * # Arguments
-   * * `env` - The environment object
-   * * `admin` - The admin address
-   * * `nqg_contract` - The new NQG contract
-   */
-  set_nqg_contract: (
-    {
-      admin,
-      nqg_contract,
-      project,
-    }: {
-      admin: string;
-      nqg_contract: ContractRef;
-      project: string;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
-  /**
    * Construct and simulate a get_admins_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get current administrators configuration.
    *
@@ -923,25 +939,6 @@ export interface Client {
   get_upgrade_proposal: (
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<UpgradeProposal>>;
-  /**
-   * Construct and simulate a set_collateral_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Set the Collateral contract.
-   *
-   * # Arguments
-   * * `env` - The environment object
-   * * `admin` - The admin address
-   * * `collateral_contract` - The new collateral contract
-   */
-  set_collateral_contract: (
-    {
-      admin,
-      collateral_contract,
-    }: {
-      admin: string;
-      collateral_contract: ContractRef;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
@@ -1028,8 +1025,9 @@ export interface Client {
    * Set badges for a member in a specific project.
    *
    * This function replaces all existing badges for the member in the specified project
-   * with the new badge list. The member's maximum voting
-   * weight is calculated as the sum of all assigned badge weights.
+   * with the new badge list. Repeated badges count once, and an empty list
+   * removes the project from the member's record. The member's maximum
+   * voting weight is calculated as the sum of all assigned badge weights.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1042,6 +1040,7 @@ export interface Client {
    * * If the maintainer is not authorized
    * * If the member doesn't exist
    * * If the project doesn't exist
+   * * If `badges` holds `Default`
    */
   set_badges: (
     {
@@ -1101,8 +1100,8 @@ export interface Client {
    * Returns the Default badge weight (1) if the address has no badges
    * assigned or is not a registered member.
    *
-   * There is a special case to use Neural Quorum Governance instead of
-   * badges if we are using a specific project.
+   * A project with an NQG contract set (see `set_nqg_contract`) uses the
+   * weight that contract gives instead of badges.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1122,6 +1121,49 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<u32>>;
+  /**
+   * Construct and simulate a get_nqg_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the NQG contract of a project, if any.
+   */
+  get_nqg_contract: (
+    {
+      project_key,
+    }: {
+      project_key: Buffer;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<Option<ContractRef>>>;
+  /**
+   * Construct and simulate a set_nqg_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Set, or clear, the NQG contract giving the voting weights of a project.
+   *
+   * When set, `get_max_weight` returns the contract's
+   * `get_voting_power(user: Address) -> u32` for the project, and badges
+   * are not used. A weight of 0 means the address cannot vote. A call that
+   * fails reads as 0.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `maintainer` - A maintainer of the project
+   * * `project_key` - The project key identifier
+   * * `nqg_contract` - The NQG contract, or `None` to use badges again
+   *
+   * # Panics
+   * * If the maintainer is not authorized
+   * * If the contract's WASM hash does not match the given one
+   */
+  set_nqg_contract: (
+    {
+      maintainer,
+      project_key,
+      nqg_contract,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      nqg_contract: Option<ContractRef>;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
   /**
    * Construct and simulate a attest transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Record an endorsement (attestation) of a commit or evidence artifact.
@@ -1195,14 +1237,13 @@ export interface Client {
    * Construct and simulate a register transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Register a new project.
    *
-   * Creates a new project entry with maintainers, URL, and commit hash.
-   * Also registers the name in the domain contract if needed.
+   * Creates a new project entry with maintainers, URL, and metadata.
    * The project key is generated using keccak256 hash of the project name.
    *
    * # Arguments
    * * `env` - The environment object
    * * `maintainer` - The address of the maintainer calling this function
-   * * `name` - The project name (max 15 characters)
+   * * `name` - The project name, 4 to 30 letters and digits
    * * `maintainers` - List of maintainer addresses for the project
    * * `url` - The project's Git repository URL
    * * `ipfs` - CID of the tansu.toml file with associated metadata
@@ -1216,8 +1257,9 @@ export interface Client {
    * * `Bytes` - The project key (keccak256 hash of the name)
    *
    * # Panics
-   * * If the project name is longer than 15 characters
-   * *
+   * * If the project name is not 4 to 30 letters and digits
+   * * If `url` or `ipfs` is longer than 256 bytes
+   * * If
    */
   register: (
     {
@@ -1515,9 +1557,10 @@ export interface Client {
    * cannot strike another's. Revocation is bounded twice over, so a vouch that
    * others have already relied on cannot be pulled out from under them:
    *
-   * 1. **Not once the target is final.** Finality is recorded the first time a
-   * target reaches its threshold and is never cleared, so raising the
-   * threshold or growing the maintainer set cannot re-open withdrawal.
+   * 1. **Not once the target is final.** An `attest` that brings the target
+   * to its threshold records finality, which is never cleared. A target
+   * can also read as final without that record after maintainers are
+   * removed; it then becomes revocable again if they are added back.
    * 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
    * `created_at`. Past that the vouch is permanent.
    *
@@ -1528,8 +1571,7 @@ export interface Client {
    *
    * # Arguments
    * * `env` - The environment object
-   * * `attester` - The maintainer revoking their attestation
-   * * `project_key` - The project key identif
+   * * `attester` - The maintainer revoki
    */
   revoke_attestation: (
     {
@@ -1609,6 +1651,8 @@ export interface Client {
    * A commit is considered final once the share of current maintainers that
    * have attested it reaches this percentage. Every project defaults to
    * `DEFAULT_FINALITY_THRESHOLD_PERCENT` until its maintainers set a value here.
+   * A higher threshold applies at once; a lower one after the notice window
+   * of the project's `min_voting_period + execute_delay`.
    *
    * # Arguments
    * * `env` - The environment object
@@ -1640,8 +1684,12 @@ export declare class Client extends ContractClient {
     /** Constructor/Initialization Args for the contract's `__constructor` method */
     {
       admin,
+      collateral,
+      executor,
     }: {
       admin: string;
+      collateral: string;
+      executor: string;
     },
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions &
@@ -1676,22 +1724,25 @@ export declare class Client extends ContractClient {
     ) => AssembledTransaction<Buffer[]>;
     pause: (json: string) => AssembledTransaction<null>;
     version: (json: string) => AssembledTransaction<number>;
+    set_executor: (json: string) => AssembledTransaction<null>;
     approve_upgrade: (json: string) => AssembledTransaction<null>;
     propose_upgrade: (json: string) => AssembledTransaction<null>;
     finalize_upgrade: (json: string) => AssembledTransaction<null>;
-    set_nqg_contract: (json: string) => AssembledTransaction<null>;
     get_admins_config: (json: string) => AssembledTransaction<AdminsConfig>;
     require_not_paused: (json: string) => AssembledTransaction<null>;
     get_upgrade_proposal: (
       json: string,
     ) => AssembledTransaction<UpgradeProposal>;
-    set_collateral_contract: (json: string) => AssembledTransaction<null>;
     add_member: (json: string) => AssembledTransaction<null>;
     get_badges: (json: string) => AssembledTransaction<Badges>;
     get_member: (json: string) => AssembledTransaction<Member>;
     set_badges: (json: string) => AssembledTransaction<null>;
     update_member: (json: string) => AssembledTransaction<null>;
     get_max_weight: (json: string) => AssembledTransaction<number>;
+    get_nqg_contract: (
+      json: string,
+    ) => AssembledTransaction<Option<ContractRef>>;
+    set_nqg_contract: (json: string) => AssembledTransaction<null>;
     attest: (json: string) => AssembledTransaction<null>;
     commit: (json: string) => AssembledTransaction<null>;
     register: (json: string) => AssembledTransaction<Buffer>;

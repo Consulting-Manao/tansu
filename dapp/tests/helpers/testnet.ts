@@ -307,16 +307,13 @@ export async function createProposal(
     token_contract: undefined,
     outcome_contracts: outcomeContracts,
   });
+  // The simulation returns the id the proposal gets: ids count up in each
+  // project, and a revoked one is never reused.
+  const id = tx.result;
   await land(tx, pack);
-  // Ids count up from 0 in each project; the newest with this title is it.
-  let id = -1;
-  for (let next = 0; ; next++) {
-    // A missing id simulates to the contract's error, not a proposal.
-    const proposal = await read.proposal(name, next).catch(() => undefined);
-    if (typeof proposal?.title !== "string") break;
-    if (proposal.title === title) id = next;
-  }
-  if (id < 0) throw new Error(`proposal "${title}" not found`);
+  const proposal = await read.proposal(name, id);
+  if (proposal?.title !== title)
+    throw new Error(`proposal "${title}" not found`);
   return id;
 }
 

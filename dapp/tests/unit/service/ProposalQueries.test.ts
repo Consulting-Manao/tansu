@@ -3,12 +3,26 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { Client } from "../../../packages/tansu";
 
-const pages = vi.hoisted(() => ({ sizes: [] as number[] }));
+const stored = vi.hoisted(() => ({ total: undefined as number | undefined }));
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
-  tansuReads: {
-    get_dao: async ({ page }: { page: number }) => ({
-      result: { proposals: Array(pages.sizes[page] ?? 0).fill({}) },
+  tansuReads: {},
+  rpcServer: {
+    // DaoTotalProposals(project_key), read from its ledger entry
+    getLedgerEntries: async () => ({
+      entries:
+        stored.total === undefined
+          ? []
+          : [
+              {
+                val: {
+                  type: "contractData",
+                  contractData: {
+                    val: nativeToScVal(stored.total, { type: "u32" }),
+                  },
+                },
+              },
+            ],
     }),
   },
 }));
@@ -17,12 +31,11 @@ import { proposalCountQuery } from "../../../src/service/ProposalService";
 
 describe("proposalCountQuery", () => {
   it.each([
-    [[], 0],
-    [[3], 3],
-    [[9, 9, 3], 21],
-    [[9, 9, 9, 9], 36],
-  ])("counts the proposals of pages %j as %i", async (sizes, count) => {
-    pages.sizes = sizes;
+    [undefined, 0],
+    [3, 3],
+    [21, 21],
+  ])("reads DaoTotalProposals %s as %i", async (total, count) => {
+    stored.total = total;
     await expect(
       new QueryClient().query(proposalCountQuery("demo")),
     ).resolves.toBe(count);
