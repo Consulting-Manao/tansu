@@ -294,22 +294,6 @@ fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> typ
     }
 }
 
-/// The collateral asset contract, set at construction.
-fn collateral(env: &Env) -> Address {
-    env.storage()
-        .instance()
-        .get(&types::ContractKey::Collateral)
-        .unwrap_or_else(|| panic_with_error!(env, errors::ContractErrors::UnexpectedError))
-}
-
-/// The contract that runs proposal outcomes, see `tansu_executor`.
-fn executor(env: &Env) -> Address {
-    env.storage()
-        .instance()
-        .get(&types::ContractKey::Executor)
-        .unwrap_or_else(|| panic_with_error!(env, errors::ContractErrors::UnexpectedError))
-}
-
 /// Validate the contract WASM hash match on-chain data.
 ///
 /// # Arguments

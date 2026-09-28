@@ -7,13 +7,6 @@ use soroban_sdk::{Address, Bytes, Event, IntoVal, String, vec};
 
 /// Let a lower attestation threshold take effect: the notice window is the
 /// minimum voting period plus the execute delay, one day each by default.
-fn pass_notice_window(setup: &super::test_utils::TestSetup) {
-    setup
-        .env
-        .ledger()
-        .set_timestamp(setup.env.ledger().timestamp() + 2 * 24 * 3600);
-}
-
 fn register_revocable_project(setup: &super::test_utils::TestSetup, third: &Address) -> Bytes {
     let name = String::from_str(&setup.env, "revocable");
     let url = String::from_str(&setup.env, "github.com/revocable");
@@ -377,7 +370,11 @@ fn set_attestation_threshold_accepts_boundary_values() {
         setup.contract.get_attestation_threshold(&project_key),
         types::DEFAULT_FINALITY_THRESHOLD_PERCENT
     );
-    pass_notice_window(&setup);
+    // past the notice window: minimum voting period plus execute delay
+    setup
+        .env
+        .ledger()
+        .set_timestamp(setup.env.ledger().timestamp() + 2 * 24 * 3600);
     assert_eq!(
         setup.contract.get_attestation_threshold(&project_key),
         types::MIN_FINALITY_THRESHOLD_PERCENT
@@ -1278,7 +1275,11 @@ fn finality_is_updated_against_a_threshold_raise() {
     setup
         .contract
         .set_attestation_threshold(&setup.grogu, &project_key, &Some(66));
-    pass_notice_window(&setup);
+    // past the notice window: minimum voting period plus execute delay
+    setup
+        .env
+        .ledger()
+        .set_timestamp(setup.env.ledger().timestamp() + 2 * 24 * 3600);
 
     setup
         .contract

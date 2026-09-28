@@ -128,7 +128,15 @@ impl VersioningTrait for Tansu {
 
             validate_maintainers(&env, &project.maintainers);
 
-            let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
+            let token_stellar = token::StellarAssetClient::new(
+                &env,
+                &env.storage()
+                    .instance()
+                    .get::<_, Address>(&types::ContractKey::Collateral)
+                    .unwrap_or_else(|| {
+                        panic_with_error!(&env, &errors::ContractErrors::UnexpectedError)
+                    }),
+            );
 
             match token_stellar.try_transfer(
                 &maintainer,
@@ -1079,7 +1087,15 @@ fn set_attestation_threshold(
             &types::ProjectKey::AttestationFinalityThreshold(project_key.clone()),
             &current,
         );
-        let activates_at = env.ledger().timestamp() + notice_window(env, project_key);
+        // the notice window of a loosening change: the project's current
+        // minimum voting period plus its execute delay
+        let min_voting_period: u64 = storage
+            .get(&types::ProjectKey::MinVotingPeriod(project_key.clone()))
+            .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
+        let execute_delay: u64 = storage
+            .get(&types::ProjectKey::ExecuteDelay(project_key.clone()))
+            .unwrap_or(types::TIMELOCK_DELAY);
+        let activates_at = env.ledger().timestamp() + min_voting_period + execute_delay;
         storage.set(
             &pending_key,
             &types::PendingThreshold {
@@ -1096,19 +1112,6 @@ fn set_attestation_threshold(
         activates_at,
     }
     .publish(env);
-}
-
-/// Notice window of a loosening change: the project's current minimum voting
-/// period plus its execute delay.
-fn notice_window(env: &Env, project_key: &Bytes) -> u64 {
-    let storage = env.storage().persistent();
-    let min_voting_period: u64 = storage
-        .get(&types::ProjectKey::MinVotingPeriod(project_key.clone()))
-        .unwrap_or(crate::contract_dao::MIN_VOTING_PERIOD);
-    let execute_delay: u64 = storage
-        .get(&types::ProjectKey::ExecuteDelay(project_key.clone()))
-        .unwrap_or(types::TIMELOCK_DELAY);
-    min_voting_period + execute_delay
 }
 
 /// Bound the URL and IPFS CID of a project, which every maintainer call reads.

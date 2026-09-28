@@ -218,7 +218,6 @@ impl DaoTrait for Tansu {
         // The token decides every vote weight of the proposal, so only a
         // maintainer picks one, and never over a project weighted by NQG.
         if token_contract.is_some() {
-            require_project(&env, &project_key);
             let project: types::Project = env
                 .storage()
                 .persistent()
@@ -234,7 +233,15 @@ impl DaoTrait for Tansu {
             }
         }
 
-        let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
+        let token_stellar = token::StellarAssetClient::new(
+            &env,
+            &env.storage()
+                .instance()
+                .get::<_, Address>(&types::ContractKey::Collateral)
+                .unwrap_or_else(|| {
+                    panic_with_error!(&env, &errors::ContractErrors::UnexpectedError)
+                }),
+        );
 
         match token_stellar.try_transfer(
             &proposer,
@@ -324,7 +331,13 @@ impl DaoTrait for Tansu {
 
         // The page only lists ids: each proposal is its own entry, so one
         // proposal can never grow the entry the others are written to.
-        require_project(&env, &project_key);
+        if !env
+            .storage()
+            .persistent()
+            .has(&types::ProjectKey::Key(project_key.clone()))
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidKey);
+        }
         let page_key = types::ProjectKey::Dao(project_key.clone(), page);
         let mut page_ids: Vec<u32> = env
             .storage()
@@ -333,7 +346,10 @@ impl DaoTrait for Tansu {
             .unwrap_or(Vec::new(&env));
         page_ids.push_back(proposal_id);
         env.storage().persistent().set(&page_key, &page_ids);
-        store_proposal(&env, &project_key, &proposal);
+        env.storage().persistent().set(
+            &types::ProjectKey::Proposal(project_key.clone(), proposal_id),
+            &proposal,
+        );
 
         env.storage().persistent().set(
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
@@ -553,7 +569,35 @@ impl DaoTrait for Tansu {
         // Delete the proposal and everything attached to it. Its id stays in
         // its page, so ids keep counting up, and get_proposal reports it as
         // not found.
-        delete_proposal(&env, &project_key, proposal_id);
+        let storage = env.storage().persistent();
+        for voter in get_voters(&env, &project_key, proposal_id).iter() {
+            storage.remove(&types::ProjectKey::Vote(
+                project_key.clone(),
+                proposal_id,
+                voter,
+            ));
+        }
+        storage.remove(&types::ProjectKey::Voters(project_key.clone(), proposal_id));
+        storage.remove(&types::ProjectKey::ProposalTallies(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::ConflictOfInterest(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::ProposalExecuteDelay(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::DefaultVotes(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::Proposal(
+            project_key.clone(),
+            proposal_id,
+        ));
 
         events::ProposalExecuted {
             project_key: project_key.clone(),
@@ -795,7 +839,15 @@ impl DaoTrait for Tansu {
         }
 
         // Return proposal collateral to proposer
-        let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
+        let token_stellar = token::StellarAssetClient::new(
+            &env,
+            &env.storage()
+                .instance()
+                .get::<_, Address>(&types::ContractKey::Collateral)
+                .unwrap_or_else(|| {
+                    panic_with_error!(&env, &errors::ContractErrors::UnexpectedError)
+                }),
+        );
         match token_stellar.try_transfer(
             &env.current_contract_address(),
             &proposal.proposer,
@@ -842,7 +894,10 @@ impl DaoTrait for Tansu {
             }
         };
 
-        store_proposal(&env, &project_key, &proposal);
+        env.storage().persistent().set(
+            &types::ProjectKey::Proposal(project_key.clone(), proposal_id),
+            &proposal,
+        );
 
         events::ProposalExecuted {
             project_key: project_key.clone(),
@@ -871,7 +926,12 @@ impl DaoTrait for Tansu {
                 // The executor makes the call, so the target never sees Tansu
                 // as its caller and cannot use Tansu's authority.
                 let r = env.try_invoke_contract::<Val, InvokeError>(
-                    &crate::executor(&env),
+                    &env.storage()
+                        .instance()
+                        .get::<_, Address>(&types::ContractKey::Executor)
+                        .unwrap_or_else(|| {
+                            panic_with_error!(&env, &errors::ContractErrors::UnexpectedError)
+                        }),
                     &Symbol::new(&env, "run"),
                     vec![
                         &env,
@@ -1007,7 +1067,13 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound);
         }
 
-        require_project(&env, &project_key);
+        if !env
+            .storage()
+            .persistent()
+            .has(&types::ProjectKey::Key(project_key.clone()))
+        {
+            panic_with_error!(&env, &errors::ContractErrors::InvalidKey);
+        }
         let page_ids: Vec<u32> = env
             .storage()
             .persistent()
@@ -1174,71 +1240,22 @@ impl DaoTrait for Tansu {
     }
 }
 
-/// Panic with `InvalidKey` unless the project is registered.
-fn require_project(env: &Env, project_key: &Bytes) {
-    if !env
-        .storage()
-        .persistent()
-        .has(&types::ProjectKey::Key(project_key.clone()))
-    {
-        panic_with_error!(env, &errors::ContractErrors::InvalidKey);
-    }
-}
-
 /// Load a proposal, without its votes.
 ///
 /// # Panics
 /// * If the project doesn't exist
 /// * If the proposal doesn't exist or was revoked
 fn load_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) -> types::Proposal {
-    require_project(env, project_key);
-    env.storage()
-        .persistent()
+    let storage = env.storage().persistent();
+    if !storage.has(&types::ProjectKey::Key(project_key.clone())) {
+        panic_with_error!(env, &errors::ContractErrors::InvalidKey);
+    }
+    storage
         .get(&types::ProjectKey::Proposal(
             project_key.clone(),
             proposal_id,
         ))
         .unwrap_or_else(|| panic_with_error!(env, &errors::ContractErrors::NoProposalorPageFound))
-}
-
-fn store_proposal(env: &Env, project_key: &Bytes, proposal: &types::Proposal) {
-    env.storage().persistent().set(
-        &types::ProjectKey::Proposal(project_key.clone(), proposal.id),
-        proposal,
-    );
-}
-
-/// Delete a proposal and every entry attached to it.
-fn delete_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) {
-    let storage = env.storage().persistent();
-    for voter in get_voters(env, project_key, proposal_id).iter() {
-        storage.remove(&types::ProjectKey::Vote(
-            project_key.clone(),
-            proposal_id,
-            voter,
-        ));
-    }
-    storage.remove(&types::ProjectKey::Voters(project_key.clone(), proposal_id));
-    storage.remove(&types::ProjectKey::ProposalTallies(
-        project_key.clone(),
-        proposal_id,
-    ));
-    storage.remove(&types::ProjectKey::ConflictOfInterest(
-        project_key.clone(),
-        proposal_id,
-    ));
-    storage.remove(&types::ProjectKey::ProposalExecuteDelay(
-        project_key.clone(),
-        proposal_id,
-    ));
-    storage.remove(&types::ProjectKey::DefaultVotes(
-        project_key.clone(),
-        proposal_id,
-    ));
-    storage.remove(&types::ProjectKey::Proposal(
-        project_key.clone(),
-        proposal_id,
-    ));
 }
 
 /// Write the provided governance override entries; `None` leaves the

@@ -2066,12 +2066,7 @@ mod odd_token {
     }
 }
 
-fn proposal_ipfs(env: &Env) -> String {
-    String::from_str(
-        env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    )
-}
+const PROPOSAL_IPFS: &str = "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i";
 
 #[test]
 fn token_proposals_are_for_maintainers_and_not_nqg_projects() {
@@ -2087,7 +2082,7 @@ fn token_proposals_are_for_maintainers_and_not_nqg_projects() {
             proposer,
             &id,
             &String::from_str(env, "Token Proposal"),
-            &proposal_ipfs(env),
+            &String::from_str(env, PROPOSAL_IPFS),
             &ends,
             &true,
             &Some(token.clone()),
@@ -2134,7 +2129,7 @@ fn proof_needs_three_tallies_and_seeds() {
         &setup.grogu,
         &id,
         &String::from_str(env, "Anonymous Proposal"),
-        &proposal_ipfs(env),
+        &String::from_str(env, PROPOSAL_IPFS),
         &(env.ledger().timestamp() + 3600 * 24 * 2),
         &false,
         &None,
@@ -2162,7 +2157,7 @@ fn anonymous_ballot_strings_are_bounded() {
         &setup.grogu,
         &id,
         &String::from_str(env, "Anonymous Proposal"),
-        &proposal_ipfs(env),
+        &String::from_str(env, PROPOSAL_IPFS),
         &(env.ledger().timestamp() + 3600 * 24 * 2),
         &false,
         &None,
