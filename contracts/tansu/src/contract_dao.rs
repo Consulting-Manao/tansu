@@ -16,6 +16,7 @@ const MAX_PAGES: u32 = 1000;
 pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
 const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
+const MAX_OUTCOMES: u32 = 3; // Approved, Rejected, Cancelled
 
 #[contractimpl]
 impl DaoTrait for Tansu {
@@ -197,7 +198,10 @@ impl DaoTrait for Tansu {
 
         if !((min_voting_timestamp..=max_voting_timestamp).contains(&voting_ends_at)
             && (5..=MAX_TITLE_LENGTH).contains(&title_len)
-            && (32..=64).contains(&ipfs_len))
+            && (32..=64).contains(&ipfs_len)
+            && outcome_contracts
+                .as_ref()
+                .is_none_or(|outcomes| outcomes.len() <= MAX_OUTCOMES))
         {
             panic_with_error!(&env, &errors::ContractErrors::ProposalInputValidation);
         }
@@ -292,13 +296,18 @@ impl DaoTrait for Tansu {
             &next_id,
         );
 
-        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        dao_page.proposals.push_back(proposal.clone());
-
-        env.storage().persistent().set(
-            &types::ProjectKey::Dao(project_key.clone(), page),
-            &dao_page,
-        );
+        // The page only lists ids: each proposal is its own entry, so one
+        // proposal can never grow the entry the others are written to.
+        require_project(&env, &project_key);
+        let page_key = types::ProjectKey::Dao(project_key.clone(), page);
+        let mut page_ids: Vec<u32> = env
+            .storage()
+            .persistent()
+            .get(&page_key)
+            .unwrap_or(Vec::new(&env));
+        page_ids.push_back(proposal_id);
+        env.storage().persistent().set(&page_key, &page_ids);
+        store_proposal(&env, &project_key, &proposal);
 
         env.storage().persistent().set(
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
@@ -390,13 +399,7 @@ impl DaoTrait for Tansu {
         Tansu::require_not_paused(env.clone());
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let proposal = match dao_page.proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
+        let proposal = load_proposal(&env, &project_key, proposal_id);
 
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
@@ -477,8 +480,8 @@ impl DaoTrait for Tansu {
 
     /// Revoke a proposal.
     ///
-    /// Useful if there was some spam or bad intent. Forfeits the proposer's
-    /// collateral (it is not refunded on a later execute).
+    /// Useful if there was some spam or bad intent. Deletes the proposal and
+    /// its votes; its id stays taken. Forfeits the proposer's collateral.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -499,30 +502,17 @@ impl DaoTrait for Tansu {
             crate::auth_maintainers(&env, &maintainer, &project_key);
         }
 
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let mut proposal = match dao_page.proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
+        let proposal = load_proposal(&env, &project_key, proposal_id);
 
         // only allow to execute once
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
 
-        // we obfuscate the proposal to avoid any DMCA or else
-        proposal.title = String::from_str(&env, "REDACTED");
-        proposal.ipfs = String::from_str(&env, "NONE");
-        proposal.status = types::ProposalStatus::Malicious;
-
-        dao_page.proposals.set(sub_id, proposal.clone());
-
-        env.storage().persistent().set(
-            &types::ProjectKey::Dao(project_key.clone(), page),
-            &dao_page,
-        );
+        // Delete the proposal and everything attached to it. Its id stays in
+        // its page, so ids keep counting up, and get_proposal reports it as
+        // not found.
+        delete_proposal(&env, &project_key, proposal_id);
 
         events::ProposalExecuted {
             project_key: project_key.clone(),
@@ -562,13 +552,7 @@ impl DaoTrait for Tansu {
 
         voter.require_auth();
 
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let proposal = match dao_page.proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
+        let proposal = load_proposal(&env, &project_key, proposal_id);
 
         // Check that voting period has not ended
         let curr_timestamp = env.ledger().timestamp();
@@ -725,13 +709,7 @@ impl DaoTrait for Tansu {
         Tansu::require_not_paused(env.clone());
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let mut dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let mut proposal = match dao_page.proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
+        let mut proposal = load_proposal(&env, &project_key, proposal_id);
 
         let curr_timestamp = env.ledger().timestamp();
 
@@ -801,12 +779,7 @@ impl DaoTrait for Tansu {
             }
         };
 
-        dao_page.proposals.set(sub_id, proposal.clone());
-
-        env.storage().persistent().set(
-            &types::ProjectKey::Dao(project_key.clone(), page),
-            &dao_page,
-        );
+        store_proposal(&env, &project_key, &proposal);
 
         events::ProposalExecuted {
             project_key: project_key.clone(),
@@ -942,6 +915,9 @@ impl DaoTrait for Tansu {
 
     /// Returns a page of proposals (0 to MAX_PROPOSALS_PER_PAGE proposals per page).
     ///
+    /// Proposal `id` is on page `id / MAX_PROPOSALS_PER_PAGE`. Revoked
+    /// proposals are deleted and left out, so a page can hold fewer.
+    ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `project_key` - The project key identifier
@@ -957,22 +933,28 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound);
         }
 
-        let key_ = types::ProjectKey::Key(project_key.clone());
-        if env
+        require_project(&env, &project_key);
+        let page_ids: Vec<u32> = env
             .storage()
             .persistent()
-            .get::<types::ProjectKey, types::Project>(&key_)
-            .is_some()
-        {
-            env.storage()
+            .get(&types::ProjectKey::Dao(project_key.clone(), page))
+            .unwrap_or(Vec::new(&env));
+
+        // revoked proposals are deleted but keep their id in the page
+        let mut proposals = Vec::new(&env);
+        for id in page_ids.iter() {
+            if let Some(proposal) = env
+                .storage()
                 .persistent()
-                .get(&types::ProjectKey::Dao(project_key, page))
-                .unwrap_or(types::Dao {
-                    proposals: Vec::new(&env),
-                })
-        } else {
-            panic_with_error!(&env, &errors::ContractErrors::InvalidKey);
+                .get::<types::ProjectKey, types::Proposal>(&types::ProjectKey::Proposal(
+                    project_key.clone(),
+                    id,
+                ))
+            {
+                proposals.push_back(proposal);
+            }
         }
+        types::Dao { proposals }
     }
 
     /// Get a single proposal by ID.
@@ -988,14 +970,7 @@ impl DaoTrait for Tansu {
     /// # Panics
     /// * If the proposal doesn't exist
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal {
-        let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-        let sub_id = proposal_id % MAX_PROPOSALS_PER_PAGE;
-        let dao_page = Self::get_dao(env.clone(), project_key.clone(), page);
-        let proposals = dao_page.proposals;
-        let mut proposal = match proposals.try_get(sub_id) {
-            Ok(Some(proposal)) => proposal,
-            _ => panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound),
-        };
+        let mut proposal = load_proposal(&env, &project_key, proposal_id);
         proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
         proposal
     }
@@ -1024,7 +999,7 @@ impl DaoTrait for Tansu {
         Tansu::require_not_paused(env.clone());
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        let proposal = Self::get_proposal(env.clone(), project_key.clone(), proposal_id);
+        let proposal = load_proposal(&env, &project_key, proposal_id);
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
@@ -1075,7 +1050,7 @@ impl DaoTrait for Tansu {
         Tansu::require_not_paused(env.clone());
         crate::auth_maintainers(&env, &maintainer, &project_key);
 
-        let proposal = Self::get_proposal(env.clone(), project_key.clone(), proposal_id);
+        let proposal = load_proposal(&env, &project_key, proposal_id);
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
@@ -1123,6 +1098,69 @@ impl DaoTrait for Tansu {
             ))
             .unwrap_or(Vec::new(&env))
     }
+}
+
+/// Panic with `InvalidKey` unless the project is registered.
+fn require_project(env: &Env, project_key: &Bytes) {
+    if !env
+        .storage()
+        .persistent()
+        .has(&types::ProjectKey::Key(project_key.clone()))
+    {
+        panic_with_error!(env, &errors::ContractErrors::InvalidKey);
+    }
+}
+
+/// Load a proposal, without its votes.
+///
+/// # Panics
+/// * If the project doesn't exist
+/// * If the proposal doesn't exist or was revoked
+fn load_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) -> types::Proposal {
+    require_project(env, project_key);
+    env.storage()
+        .persistent()
+        .get(&types::ProjectKey::Proposal(
+            project_key.clone(),
+            proposal_id,
+        ))
+        .unwrap_or_else(|| panic_with_error!(env, &errors::ContractErrors::NoProposalorPageFound))
+}
+
+fn store_proposal(env: &Env, project_key: &Bytes, proposal: &types::Proposal) {
+    env.storage().persistent().set(
+        &types::ProjectKey::Proposal(project_key.clone(), proposal.id),
+        proposal,
+    );
+}
+
+/// Delete a proposal and every entry attached to it.
+fn delete_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) {
+    let storage = env.storage().persistent();
+    for voter in get_voters(env, project_key, proposal_id).iter() {
+        storage.remove(&types::ProjectKey::Vote(
+            project_key.clone(),
+            proposal_id,
+            voter,
+        ));
+    }
+    storage.remove(&types::ProjectKey::Voters(project_key.clone(), proposal_id));
+    storage.remove(&types::ProjectKey::ProposalTallies(
+        project_key.clone(),
+        proposal_id,
+    ));
+    storage.remove(&types::ProjectKey::ConflictOfInterest(
+        project_key.clone(),
+        proposal_id,
+    ));
+    storage.remove(&types::ProjectKey::ProposalExecuteDelay(
+        project_key.clone(),
+        proposal_id,
+    ));
+    storage.remove(&types::ProjectKey::Proposal(
+        project_key.clone(),
+        proposal_id,
+    ));
 }
 
 /// Write the provided governance override entries; `None` leaves the

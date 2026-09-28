@@ -734,10 +734,14 @@ fn proposal_revoke() {
         .filter_by_contract(&setup.contract_id);
     assert_eq!(all_events, [event.to_xdr(&setup.env, &setup.contract_id)]);
 
-    let proposal = setup.contract.get_proposal(&id, &proposal_id);
-    assert_eq!(proposal.title, String::from_str(&setup.env, "REDACTED"));
-    assert_eq!(proposal.ipfs, String::from_str(&setup.env, "NONE"));
-    assert_eq!(proposal.status, ProposalStatus::Malicious);
+    // the proposal and its votes are deleted
+    let err = setup
+        .contract
+        .try_get_proposal(&id, &proposal_id)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::NoProposalorPageFound.into());
+    assert_eq!(setup.contract.get_dao(&id, &0).proposals.len(), 0);
 
     // already revoked and also try to call as an admin should go through the
     // auth part and fail later
@@ -746,7 +750,23 @@ fn proposal_revoke() {
         .try_revoke_proposal(&setup.contract_admin, &id, &proposal_id)
         .unwrap_err()
         .unwrap();
-    assert_eq!(err, ContractErrors::ProposalActive.into());
+    assert_eq!(err, ContractErrors::NoProposalorPageFound.into());
+
+    // ids keep counting up after a revoke
+    let next_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+    assert_eq!(next_id, proposal_id + 1);
+    let page = setup.contract.get_dao(&id, &0);
+    assert_eq!(page.proposals.len(), 1);
+    assert_eq!(page.proposals.get(0).unwrap().id, next_id);
 }
 
 #[test]
@@ -1877,4 +1897,85 @@ fn execute_delay_loosening_waits_out_notice() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+}
+
+#[test]
+fn large_proposal_does_not_block_the_next_one() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let title = String::from_str(env, "Test Proposal");
+    let ipfs = String::from_str(
+        env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+
+    // an outcome close to the ledger entry size limit
+    let blob = soroban_sdk::Bytes::from_array(env, &[0u8; 60_000]);
+    let large = OutcomeContract {
+        address: Address::generate(env),
+        execute_fn: Symbol::new(env, "noop"),
+        args: vec![env, blob.into_val(env)],
+    };
+    let first = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &Some(vec![env, large]),
+    );
+
+    // each proposal is its own entry, so the page does not grow with it
+    let second = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+    assert_eq!(second, first + 1);
+    assert_eq!(setup.contract.get_dao(&id, &0).proposals.len(), 2);
+}
+
+#[test]
+fn at_most_three_outcomes() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let outcome = OutcomeContract {
+        address: Address::generate(env),
+        execute_fn: Symbol::new(env, "noop"),
+        args: vec![env],
+    };
+    let err = setup
+        .contract
+        .try_create_proposal(
+            &setup.grogu,
+            &id,
+            &String::from_str(env, "Test Proposal"),
+            &String::from_str(
+                env,
+                "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+            ),
+            &(env.ledger().timestamp() + 3600 * 24 * 2),
+            &true,
+            &None,
+            &Some(vec![
+                env,
+                outcome.clone(),
+                outcome.clone(),
+                outcome.clone(),
+                outcome,
+            ]),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
 }

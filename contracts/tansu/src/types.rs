@@ -196,7 +196,8 @@ pub enum ProjectKey {
     Badges(Bytes),                         // badges of the project
     LastHash(Bytes),                       // last hash of the project
     Evidence(Bytes, String, EvidenceKind), // append-only evidence history for a commit and kind
-    Dao(Bytes, u32),                       // Decentralized organization, pagination
+    Dao(Bytes, u32),                       // Proposal ids of a page, pagination
+    Proposal(Bytes, u32),                  // One proposal, by id
     DaoTotalProposals(Bytes),
     Voters(Bytes, u32),        // Voter addresses for proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
