@@ -92,6 +92,10 @@ fn test_upgrade_flow() {
         admin: setup.contract_admin.clone(),
         wasm_hash: wasm_hash.clone().into(),
         executable_at: setup.env.ledger().timestamp() + 24 * 3600,
+        admins_config: types::AdminsConfig {
+            threshold: 1,
+            admins: vec![&setup.env, setup.contract_admin.clone()],
+        },
     };
 
     let events = setup
@@ -132,6 +136,10 @@ fn test_upgrade_flow() {
         admin: setup.contract_admin.clone(),
         wasm_hash: wasm_hash.clone().into(),
         status: String::from_str(&setup.env, "Upgraded"),
+        admins_config: types::AdminsConfig {
+            threshold: 1,
+            admins: vec![&setup.env, setup.contract_admin.clone()],
+        },
     };
 
     let events = setup
@@ -172,6 +180,10 @@ fn test_upgrade_cancel() {
         admin: setup.contract_admin.clone(),
         wasm_hash: wasm_hash.clone().into(),
         status: String::from_str(&setup.env, "Cancelled"),
+        admins_config: types::AdminsConfig {
+            threshold: 1,
+            admins: vec![&setup.env, setup.contract_admin.clone()],
+        },
     };
 
     let events = setup

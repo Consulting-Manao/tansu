@@ -519,6 +519,7 @@ fn update_config_events() {
     let event = ProjectConfigUpdated {
         project_key: id.clone(),
         maintainer: setup.grogu.clone(),
+        maintainers: maintainers.clone(),
     };
 
     assert_eq!(

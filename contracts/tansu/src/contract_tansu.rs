@@ -191,6 +191,7 @@ impl TansuTrait for Tansu {
             admin,
             wasm_hash: new_wasm_hash.into(),
             executable_at,
+            admins_config: upgrade_proposal.admins_config,
         }
         .publish(&env);
     }
@@ -297,6 +298,7 @@ impl TansuTrait for Tansu {
                 admin,
                 wasm_hash: upgrade_proposal.wasm_hash.into(),
                 status: String::from_str(&env, "Upgraded"),
+                admins_config: upgrade_proposal.admins_config,
             }
             .publish(&env);
         } else {
@@ -309,6 +311,7 @@ impl TansuTrait for Tansu {
                 admin,
                 wasm_hash: upgrade_proposal.wasm_hash.into(),
                 status: String::from_str(&env, "Cancelled"),
+                admins_config: upgrade_proposal.admins_config,
             }
             .publish(&env);
         }

@@ -37,7 +37,7 @@ pub struct Badges {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Badge {
     Developer = 10_000_000,
     Triage = 5_000_000,

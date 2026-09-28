@@ -2,7 +2,7 @@
 
 use soroban_sdk::{Address, Bytes, BytesN, String, Vec, contractevent};
 
-use crate::types::{AttestationTarget, ContractRef, EvidenceKind};
+use crate::types::{AdminsConfig, AttestationTarget, Badge, ContractRef, EvidenceKind};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -19,6 +19,7 @@ pub struct ProjectConfigUpdated {
     #[topic]
     pub project_key: Bytes,
     pub maintainer: Address,
+    pub maintainers: Vec<Address>,
 }
 
 #[contractevent]
@@ -59,11 +60,19 @@ pub struct MemberAdded {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemberUpdated {
+    pub member_address: Address,
+    pub git_identity: Option<String>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BadgesUpdated {
+    #[topic]
     pub project_key: Bytes,
     pub maintainer: Address,
     pub member: Address,
-    pub badges_count: u32,
+    pub badges: Vec<Badge>,
 }
 
 #[contractevent]
@@ -140,6 +149,7 @@ pub struct UpgradeProposed {
     pub admin: Address,
     pub wasm_hash: Bytes,
     pub executable_at: u64,
+    pub admins_config: AdminsConfig, // admin set the upgrade installs
 }
 
 #[contractevent]
@@ -156,6 +166,7 @@ pub struct UpgradeStatus {
     pub admin: Address,
     pub wasm_hash: Bytes,
     pub status: String,
+    pub admins_config: AdminsConfig, // admin set installed, or dropped if cancelled
 }
 
 #[contractevent]

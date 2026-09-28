@@ -48,7 +48,7 @@ fn membership_badges() {
         project_key: id.clone(),
         maintainer: setup.mando.clone(),
         member: member.clone(),
-        badges_count: 1u32,
+        badges: badges.clone(),
     };
 
     assert_eq!(all_events, [event.to_xdr(&setup.env, &setup.contract_id)]);

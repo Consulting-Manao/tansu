@@ -110,7 +110,7 @@ impl MembershipTrait for Tansu {
 
                 env.storage().persistent().set(&member_key_, &member);
 
-                events::MemberAdded {
+                events::MemberUpdated {
                     member_address,
                     git_identity: member.git_identity.clone(),
                 }
@@ -262,7 +262,7 @@ impl MembershipTrait for Tansu {
             project_key: key,
             maintainer,
             member,
-            badges_count: badges.len(),
+            badges,
         }
         .publish(&env);
     }

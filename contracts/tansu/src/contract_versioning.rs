@@ -179,6 +179,17 @@ impl VersioningTrait for Tansu {
 
             set_attestation_threshold(&env, &key, attestation_threshold, true);
 
+            if min_voting_period.is_some() || execute_delay.is_some() {
+                events::ProjectGovernanceUpdated {
+                    project_key: key.clone(),
+                    maintainer: maintainer.clone(),
+                    min_voting_period,
+                    execute_delay,
+                    activates_at: env.ledger().timestamp(),
+                }
+                .publish(&env);
+            }
+
             events::ProjectRegistered {
                 project_key: key.clone(),
                 name,
@@ -256,6 +267,7 @@ impl VersioningTrait for Tansu {
         events::ProjectConfigUpdated {
             project_key: key.clone(),
             maintainer: maintainer.clone(),
+            maintainers: project.maintainers.clone(),
         }
         .publish(&env);
 
@@ -821,9 +833,10 @@ impl VersioningTrait for Tansu {
     /// cannot strike another's. Revocation is bounded twice over, so a vouch that
     /// others have already relied on cannot be pulled out from under them:
     ///
-    /// 1. **Not once the target is final.** Finality is recorded the first time a
-    ///    target reaches its threshold and is never cleared, so raising the
-    ///    threshold or growing the maintainer set cannot re-open withdrawal.
+    /// 1. **Not once the target is final.** An `attest` that brings the target
+    ///    to its threshold records finality, which is never cleared. A target
+    ///    can also read as final without that record after maintainers are
+    ///    removed; it then becomes revocable again if they are added back.
     /// 2. **Not after `ATTESTATION_REVOCATION_WINDOW`** has elapsed since
     ///    `created_at`. Past that the vouch is permanent.
     ///
@@ -841,7 +854,7 @@ impl VersioningTrait for Tansu {
     ///
     /// # Panics
     /// * If the contract is paused
-    /// * If the project doesn't exist or the attester is not a maintainer
+    /// * If the project doesn't exist
     /// * If the attester has no attestation on this target
     /// * If the target has already reached finality
     /// * If the revocation window has closed
