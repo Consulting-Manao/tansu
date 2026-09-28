@@ -7,7 +7,7 @@ are only covered where they affect on-chain operations.
 
 ## Networks and identities
 
-The contract id of each network is stored in `.stellar/tansu_id-<network>`. This file
+The contract id of each network is stored in `deployments/tansu-<network>`. This file
 is the source of truth, and every `make` target reads the id from it. The targets use
 two variables:
 
@@ -134,7 +134,7 @@ proposal instead, call the contract directly:
 
 ```bash
 stellar contract invoke --source-account <admin> --network mainnet \
-  --id "$(cat .stellar/tansu_id-mainnet)" \
+  --id "$(cat deployments/tansu-mainnet)" \
   -- finalize_upgrade --admin "$(stellar keys address <admin>)" --accept false
 ```
 
@@ -177,7 +177,7 @@ notice window, and `AttestationThresholdSet.activates_at` says when it applies.
 ### Checklist before a state change
 
 - `network=mainnet` is passed and the network passphrase is the expected one.
-- The contract id read from `.stellar/tansu_id-mainnet` is the expected one.
+- The contract id read from `deployments/tansu-mainnet` is the expected one.
 - The address of the signing identity is confirmed out of band.
 - The signer's admin or maintainer role is read on-chain.
 - The simulation is reviewed, including the decoded arguments.
@@ -222,7 +222,7 @@ An entry can be extended by hand with the Stellar CLI:
 
 ```bash
 stellar contract extend \
-  --id "$(cat .stellar/tansu_id-mainnet)" \
+  --id "$(cat deployments/tansu-mainnet)" \
   --network mainnet \
   --source-account <identity> \
   --ledgers-to-extend <ledgers>

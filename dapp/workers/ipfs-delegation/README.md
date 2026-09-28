@@ -63,12 +63,12 @@ PINATA_JWT=<optional_pinata_jwt>
 PINATA_GROUP_ID=<optional_pinata_group_id>
 SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-TANSU_CONTRACT_ID=CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
+TANSU_CONTRACT_ID=CCY64PD44OL3RPXZEWPXUSRGQH4T2PM4CWCHAZZBHRVY26IAOFKWWDDR
 ```
 
 `NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID` and `SOROBAN_RPC_URL` are plain
 variables, not secrets: `wrangler.toml` sets them per environment, the contract
-ids from `.stellar/tansu_id-*`. Production leaves `SOROBAN_RPC_URL` unset until
+ids from `deployments/tansu-*`. Production leaves `SOROBAN_RPC_URL` unset until
 Nido supports mainnet.
 
 ### Start the Worker

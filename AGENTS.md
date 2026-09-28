@@ -26,7 +26,7 @@ This file provides comprehensive guidance for AI assistants (Claude, Cursor, Vib
 
 ## Commands Reference
 
-`make help` lists all Makefile targets. Makefile defaults: `network=testnet` (override with `network=mainnet` or anything else for local), contract IDs read from `.stellar/tansu_id-<network>`.
+`make help` lists all Makefile targets. Makefile defaults: `network=testnet` (override with `network=mainnet` or anything else for local), contract IDs read from `deployments/tansu-<network>` (the executor's from `tansu-executor-<network>`).
 
 ### Contracts (repo root)
 
@@ -346,7 +346,7 @@ This allows running Vitest commands via Bash when needed for testing.
 
 ## File Locations and Important Paths
 
-- **Environment**: `.env` files in dapp/, `.stellar/tansu_id-<network>` for contract IDs
+- **Environment**: `.env` files in dapp/, `deployments/tansu-<network>` for contract IDs
 - **Configuration**: `dapp/astro.config.mjs`, `dapp/playwright.config.ts`, `dapp/tsconfig.json`
 - **Tests**: `dapp/tests/*.spec.ts` (Playwright e2e), `dapp/tests/unit/**/*.test.ts` (vitest units), `contracts/tansu/src/tests/` (Rust integration tests)
 - **Services**: `dapp/src/service/` — all contract interaction and business logic

@@ -31,7 +31,7 @@ from stellar_sdk.contract import ContractClient
 # -----------------------------------------------------------------------------
 TESTNET_RPC = "https://soroban-testnet.stellar.org:443"
 TESTNET_PASSPHRASE = Network.TESTNET_NETWORK_PASSPHRASE
-TESTNET_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
+TESTNET_CONTRACT_ID = "CCY64PD44OL3RPXZEWPXUSRGQH4T2PM4CWCHAZZBHRVY26IAOFKWWDDR"
 
 MAINNET_RPC = "https://soroban-mainnet.quasar.dev"
 MAINNET_PASSPHRASE = Network.PUBLIC_NETWORK_PASSPHRASE

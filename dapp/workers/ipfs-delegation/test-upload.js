@@ -78,7 +78,7 @@ async function packFilesToCar(files) {
 // The Tansu contract the worker checks uploads against (testnet by default).
 const TANSU_CONTRACT_ID =
   process.env.TANSU_CONTRACT_ID ||
-  "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA";
+  "CCY64PD44OL3RPXZEWPXUSRGQH4T2PM4CWCHAZZBHRVY26IAOFKWWDDR";
 
 /** A signed Tansu call recording `cid`, as the dapp sends; never submitted. */
 function buildSignedTestTransaction(signer, cid) {

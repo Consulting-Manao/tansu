@@ -14,11 +14,17 @@ ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
 endif
 
-override tansu_id = $(shell cat .stellar/tansu_id-$(network))
+# The address is derived from the admin and this salt. A deployment that is
+# not an upgrade needs a new one: `make contract_deploy salt=tansu-v3`.
+ifndef salt
+   override salt = tansu
+endif
+
+override tansu_id = $(shell cat deployments/tansu-$(network))
 
 override collateral_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
-override executor_id = $(shell cat .stellar/executor_id-$(network) 2>/dev/null)
+override executor_id = $(shell cat deployments/tansu-executor-$(network) 2>/dev/null)
 
 # Add help text after each target name starting with '\#\#'
 help:   ## show this help
@@ -103,27 +109,27 @@ contract_bindings: contract_build  ## Create bindings
 	bun format
 
 executor_deploy:  ## Deploy the executor running proposal outcomes (no admin, no upgrade)
-	stellar contract deploy \
+	id=$$(stellar contract deploy \
   		--wasm target/wasm32v1-none/release/tansu_executor.wasm \
   		--source-account $(admin) \
-  		--network $(network) \
-  		> .stellar/executor_id-$(network) && \
-  	cat .stellar/executor_id-$(network)
+  		--network $(network)) && \
+  	echo "$$id" > deployments/tansu-executor-$(network) && \
+  	cat deployments/tansu-executor-$(network)
 
 contract_deploy:  ## Deploy Soroban contract, with the native asset as collateral and the deployed executor
-	stellar contract deploy \
+	id=$$(stellar contract deploy \
   		--wasm $(wasm) \
   		--source-account $(admin) \
   		--network $(network) \
-  		--salt $(shell printf tansu | openssl sha256 | cut -d " " -f2) \
+  		--salt $(shell printf $(salt) | openssl sha256 | cut -d " " -f2) \
   		--inclusion-fee 200000000 \
   		--cost \
   		-- \
-  		--admin $(shell stellar keys address $(admin)) \
+  		--admin $(admin) \
   		--collateral $(collateral_contract_id) \
-  		--executor $(executor_id) \
-  		> .stellar/tansu_id-$(network) && \
-  	cat .stellar/tansu_id-$(network)
+  		--executor $(executor_id)) && \
+  	echo "$$id" > deployments/tansu-$(network) && \
+  	cat deployments/tansu-$(network)
 
 contract_unpause:  ## Unpause the contract
 	stellar contract invoke \
@@ -132,7 +138,7 @@ contract_unpause:  ## Unpause the contract
     	--id $(tansu_id) \
     	-- \
     	pause \
-		--admin $(shell stellar keys address $(admin)) \
+		--admin $(admin) \
 		--paused false
 
 contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>; the admin set is kept
@@ -142,7 +148,7 @@ contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>; the
     	--id $(tansu_id) \
     	-- \
     	propose_upgrade \
-		--admin $(shell stellar keys address $(admin)) \
+		--admin $(admin) \
 		--new_wasm_hash $(shell stellar contract upload --source-account $(admin) --network $(network) --wasm $(wasm))
 
 contract_approve_upgrade:  ## Approve the current upgrade proposal
@@ -152,7 +158,7 @@ contract_approve_upgrade:  ## Approve the current upgrade proposal
     	--id $(tansu_id) \
     	-- \
     	approve_upgrade \
-		--admin $(shell stellar keys address $(admin))
+		--admin $(admin)
 
 contract_finalize_upgrade:  ## Execute the approved upgrade proposal
 	stellar contract invoke \
@@ -161,7 +167,7 @@ contract_finalize_upgrade:  ## Execute the approved upgrade proposal
     	--id $(tansu_id) \
     	-- \
     	finalize_upgrade \
-		--admin $(shell stellar keys address $(admin)) \
+		--admin $(admin) \
 		--accept true
 
 contract_get_upgrade_proposal:  ## Get the current upgrade proposal
@@ -185,14 +191,14 @@ radicle_release:  ## Publish a release on Radicle
 
 # --------- Setup --------- #
 
-contract_set_executor:  ## Point Tansu at the executor in .stellar/executor_id-<network>
+contract_set_executor:  ## Point Tansu at the executor in deployments/tansu-executor-<network>
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
     	--id $(tansu_id) \
     	-- \
     	set_executor \
-		--admin $(shell stellar keys address $(admin)) \
+		--admin $(admin) \
 		--executor $(executor_id)
 
 contract_set_nqg_contract:  ## As maintainer of project_key=<hex>, weigh its votes with nqg=<contract id>
@@ -202,7 +208,7 @@ contract_set_nqg_contract:  ## As maintainer of project_key=<hex>, weigh its vot
     	--id $(tansu_id) \
     	-- \
     	set_nqg_contract \
-		--maintainer $(shell stellar keys address $(admin)) \
+		--maintainer $(admin) \
 		--project_key $(project_key) \
 		--nqg_contract '{"address":"$(nqg)","wasm_hash":null}'
 
@@ -243,7 +249,7 @@ contract_register:
     	--id $(tansu_id) \
     	-- \
     	register \
-    	--maintainer $(shell stellar keys address $(admin)) \
+    	--maintainer $(admin) \
     	--name tansu \
     	--maintainers '["$(shell stellar keys address $(admin))", "$(shell stellar keys address grogu-$(network))"]' \
     	--url https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s \
@@ -256,7 +262,7 @@ contract_commit:
     	--id $(tansu_id) \
     	-- \
     	commit \
-    	--maintainer $(shell stellar keys address $(admin)) \
+    	--maintainer $(admin) \
     	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
     	--hash bc4d84f2b00501ce6c176d797371f65799838720
 
@@ -302,7 +308,7 @@ contract_set_evidence:  ## Upload an evidence artifact to IPFS and record its CI
 		--network $(network) \
 		--contract-id $(tansu_id) \
 		--source-account $(admin) \
-		--maintainer $(shell stellar keys address $(admin))
+		--maintainer $(admin)
 
 contract_get_evidence:  ## Read the stored evidence history for a commit and kind
 	stellar contract invoke \
@@ -331,5 +337,5 @@ nqg:  ## Voting weight of the admin identity from the NQG contract nqg=<contract
 	  --id $(nqg) \
 	  -- \
 	  get_voting_power \
-	  --user $(shell stellar keys address $(admin))
+	  --user $(admin)
 
