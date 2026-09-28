@@ -16,6 +16,9 @@ const MAX_PAGES: u32 = 1000;
 pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
 const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
+/// Slots of a proposal that weight-1 votes can take, so fresh addresses
+/// cannot fill every slot and leave none for badge holders.
+const MAX_DEFAULT_WEIGHT_VOTES: u32 = 20;
 const MAX_OUTCOMES: u32 = 3; // Approved, Rejected, Cancelled
 
 #[contractimpl]
@@ -415,6 +418,21 @@ impl DaoTrait for Tansu {
         // Remove the vote entry
         env.storage().persistent().remove(&vote_key);
 
+        // Free the weight-1 slot it held
+        let vote_weight = match &vote {
+            types::Vote::PublicVote(vote_choice) => vote_choice.weight,
+            types::Vote::AnonymousVote(vote_choice) => vote_choice.weight,
+        };
+        if proposal.vote_data.token_contract.is_none()
+            && vote_weight == types::Badge::Default as u32
+        {
+            let key = types::ProjectKey::DefaultVotes(project_key.clone(), proposal_id);
+            let default_votes: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&key, &default_votes.saturating_sub(1));
+        }
+
         // Remove voter from the voters list
         let mut voters = get_voters(&env, &project_key, proposal_id);
         if let Some(pos) = voters.iter().position(|v| v == voter) {
@@ -532,7 +550,8 @@ impl DaoTrait for Tansu {
     ///
     /// Badge-based proposals cap weight by membership badges. Token-based
     /// proposals require `weight` (whole tokens) not to exceed the voter's
-    /// current token balance.
+    /// current token balance. Votes of weight 1 take at most
+    /// `MAX_DEFAULT_WEIGHT_VOTES` of the `MAX_VOTES_PER_PROPOSAL` slots.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -642,6 +661,14 @@ impl DaoTrait for Tansu {
                 );
                 if *vote_weight == 0 || *vote_weight > voter_max_weight {
                     panic_with_error!(&env, &errors::ContractErrors::VoterWeight);
+                }
+                if *vote_weight == types::Badge::Default as u32 {
+                    let key = types::ProjectKey::DefaultVotes(project_key.clone(), proposal_id);
+                    let default_votes: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+                    if default_votes >= MAX_DEFAULT_WEIGHT_VOTES {
+                        panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
+                    }
+                    env.storage().persistent().set(&key, &(default_votes + 1));
                 }
             }
         }
@@ -1154,6 +1181,10 @@ fn delete_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) {
         proposal_id,
     ));
     storage.remove(&types::ProjectKey::ProposalExecuteDelay(
+        project_key.clone(),
+        proposal_id,
+    ));
+    storage.remove(&types::ProjectKey::DefaultVotes(
         project_key.clone(),
         proposal_id,
     ));

@@ -1979,3 +1979,71 @@ fn at_most_three_outcomes() {
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalInputValidation.into());
 }
+
+#[test]
+fn weight_one_votes_take_at_most_twenty_slots() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Test Proposal"),
+        &String::from_str(
+            env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+    let approve = |voter: &Address, weight: u32| {
+        Vote::PublicVote(PublicVote {
+            address: voter.clone(),
+            weight,
+            vote_choice: VoteChoice::Approve,
+        })
+    };
+
+    // twenty fresh addresses vote with the default weight
+    let mut fresh = soroban_sdk::Vec::new(env);
+    for _ in 0..20 {
+        let voter = Address::generate(env);
+        setup
+            .contract
+            .vote(&voter, &id, &proposal_id, &approve(&voter, 1));
+        fresh.push_back(voter);
+    }
+    let extra = Address::generate(env);
+    let err = setup
+        .contract
+        .try_vote(&extra, &id, &proposal_id, &approve(&extra, 1))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::VoteLimitExceeded.into());
+
+    // a badge holder still has a slot
+    let member = Address::generate(env);
+    setup
+        .contract
+        .add_member(&member, &String::from_str(env, "meta"), &None, &None, &None);
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &member, &vec![env, Badge::Community]);
+    setup.contract.vote(
+        &member,
+        &id,
+        &proposal_id,
+        &approve(&member, Badge::Community as u32),
+    );
+
+    // removing a weight-1 vote frees its slot
+    setup
+        .contract
+        .remove_vote(&setup.mando, &id, &proposal_id, &fresh.get(0).unwrap());
+    setup
+        .contract
+        .vote(&extra, &id, &proposal_id, &approve(&extra, 1));
+}

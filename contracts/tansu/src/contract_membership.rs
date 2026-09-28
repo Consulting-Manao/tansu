@@ -164,8 +164,9 @@ impl MembershipTrait for Tansu {
     /// Set badges for a member in a specific project.
     ///
     /// This function replaces all existing badges for the member in the specified project
-    /// with the new badge list. The member's maximum voting
-    /// weight is calculated as the sum of all assigned badge weights.
+    /// with the new badge list. Repeated badges count once, and an empty list
+    /// removes the project from the member's record. The member's maximum
+    /// voting weight is calculated as the sum of all assigned badge weights.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -178,6 +179,7 @@ impl MembershipTrait for Tansu {
     /// * If the maintainer is not authorized
     /// * If the member doesn't exist
     /// * If the project doesn't exist
+    /// * If `badges` holds `Default`
     fn set_badges(
         env: Env,
         maintainer: Address,
@@ -188,6 +190,19 @@ impl MembershipTrait for Tansu {
         Tansu::require_not_paused(env.clone());
 
         crate::auth_maintainers(&env, &maintainer, &key);
+
+        // Only the four real badges, each at most once: the list is stored in
+        // the member's record, shared by every project.
+        let mut unique_badges: Vec<types::Badge> = Vec::new(&env);
+        for badge in badges.iter() {
+            if badge == types::Badge::Default {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidBadges);
+            }
+            if !unique_badges.contains(&badge) {
+                unique_badges.push_back(badge);
+            }
+        }
+        let badges = unique_badges;
 
         let member_key_ = types::DataKey::Member(member.clone());
         let mut member_ = if let Some(member_) = env
@@ -201,23 +216,29 @@ impl MembershipTrait for Tansu {
         };
 
         // For a member, go over its projects and replace all badges for
-        // a project
+        // a project; an empty list removes the project's entry
         'member_projects_badges: {
             for i in 0..member_.projects.len() {
                 if let Some(project_badge) = member_.projects.get(i)
                     && project_badge.project == key
                 {
-                    let mut project_badges = project_badge.clone();
-                    project_badges.badges = badges.clone();
-                    member_.projects.set(i, project_badges);
+                    if badges.is_empty() {
+                        member_.projects.remove(i);
+                    } else {
+                        let mut project_badges = project_badge.clone();
+                        project_badges.badges = badges.clone();
+                        member_.projects.set(i, project_badges);
+                    }
                     break 'member_projects_badges;
                 }
             }
-            let project_badges = types::ProjectBadges {
-                project: key.clone(),
-                badges: badges.clone(),
-            };
-            member_.projects.push_back(project_badges);
+            if !badges.is_empty() {
+                let project_badges = types::ProjectBadges {
+                    project: key.clone(),
+                    badges: badges.clone(),
+                };
+                member_.projects.push_back(project_badges);
+            }
         }
 
         // For a project, go over all badges and add the specific member if it

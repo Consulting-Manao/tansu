@@ -79,16 +79,12 @@ fn membership_badges() {
     let project_badges = setup.contract.get_badges(&id);
     assert!(project_badges.community.is_empty());
 
+    // an empty list removes the project from the member's record
     let info = setup.contract.get_member(&member);
+    assert!(info.projects.is_empty());
     assert_eq!(
-        info.projects,
-        vec![
-            &setup.env,
-            ProjectBadges {
-                project: id.clone(),
-                badges: empty
-            }
-        ]
+        setup.contract.get_max_weight(&id, &member),
+        Badge::Default as u32
     );
 }
 
@@ -562,4 +558,42 @@ fn add_member_git_identity_duplicate_fails() {
         .unwrap_err()
         .unwrap();
     assert_eq!(error, ContractErrors::MemberAlreadyExist.into());
+}
+
+#[test]
+fn badges_are_deduplicated_and_limited_to_real_kinds() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let member = Address::generate(env);
+    setup
+        .contract
+        .add_member(&member, &String::from_str(env, "meta"), &None, &None, &None);
+
+    let repeated = vec![
+        env,
+        Badge::Developer,
+        Badge::Developer,
+        Badge::Triage,
+        Badge::Developer,
+    ];
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &member, &repeated);
+    let info = setup.contract.get_member(&member);
+    assert_eq!(
+        info.projects.get(0).unwrap().badges,
+        vec![env, Badge::Developer, Badge::Triage]
+    );
+    assert_eq!(
+        setup.contract.get_max_weight(&id, &member),
+        Badge::Developer as u32 + Badge::Triage as u32
+    );
+
+    let err = setup
+        .contract
+        .try_set_badges(&setup.mando, &id, &member, &vec![env, Badge::Default])
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidBadges.into());
 }

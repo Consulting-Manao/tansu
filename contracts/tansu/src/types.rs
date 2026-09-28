@@ -209,6 +209,7 @@ pub enum ProjectKey {
     MinVotingPeriod(Bytes),              // Per-project minimum voting period override (seconds)
     ExecuteDelay(Bytes),                 // Per-project DAO execute timelock override (seconds)
     ProposalExecuteDelay(Bytes, u32),    // Timelock snapshotted at proposal creation (seconds)
+    DefaultVotes(Bytes, u32),            // Number of weight-1 votes on a proposal
     PendingGovernance(Bytes), // Loosening governance update waiting out its notice window
     Attestation(BytesN<32>),  // keccak256 digest of (project_key, commit_hash, target)
     AttestationFinalized(BytesN<32>), // ledger timestamp a target first reached finality

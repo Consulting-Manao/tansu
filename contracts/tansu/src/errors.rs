@@ -37,6 +37,7 @@ pub enum ContractErrors {
     AttestationNotFound = 221,
     AttestationFinalized = 222,
     AttestationRevocationExpired = 223,
+    InvalidBadges = 224,
 
     // State (300-399)
     NoHashFound = 300,
