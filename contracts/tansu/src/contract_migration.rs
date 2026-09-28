@@ -22,9 +22,9 @@ impl MigrationTrait for Tansu {
             .set(&types::ContractKey::Collateral, &collateral.address);
     }
 
-    /// Move the proposals of each project out of their pages into one entry
-    /// each; a page then keeps only the ids. A page already holding ids is
-    /// left as it is, so a project can be given again.
+    /// Move the proposals of each project out of their pages, which held a
+    /// `Dao`, into one entry each; a page then keeps only the ids. A page
+    /// already holding ids is left as it is, so a project can be given again.
     fn migrate_proposals(env: Env, admin: Address, project_keys: Vec<Bytes>) {
         crate::contract_tansu::auth_admin(&env, &admin);
 
@@ -35,18 +35,14 @@ impl MigrationTrait for Tansu {
                 .unwrap_or(0);
             for page in 0..total.div_ceil(MAX_PROPOSALS_PER_PAGE) {
                 let page_key = types::ProjectKey::Dao(project_key.clone(), page);
-                let Some(entries) = storage.get::<_, Vec<Val>>(&page_key) else {
+                let Some(page_entry) = storage.get::<_, Val>(&page_key) else {
                     continue;
                 };
-                if entries
-                    .get(0)
-                    .is_some_and(|entry| u32::try_from_val(&env, &entry).is_ok())
-                {
+                let Ok(dao) = types::Dao::try_from_val(&env, &page_entry) else {
                     continue;
-                }
+                };
                 let mut ids = Vec::new(&env);
-                for entry in entries {
-                    let proposal = types::Proposal::try_from_val(&env, &entry).expect("Migration");
+                for proposal in dao.proposals {
                     storage.set(
                         &types::ProjectKey::Proposal(project_key.clone(), proposal.id),
                         &proposal,
