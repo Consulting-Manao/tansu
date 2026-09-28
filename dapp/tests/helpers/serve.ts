@@ -2,9 +2,13 @@
  * Serves the production build to Playwright the way Netlify does: directory
  * indexes, and the query string left to the page. `astro preview` cannot: the
  * Netlify adapter does not support it.
+ *
+ * Like the CDN in front of Netlify, an /_astro/ file is immutable: the first
+ * answer for a URL is kept. With ?dpl= that is the deploy asked for. Without
+ * it, a rebuild leaves the plain URL on the deploy that first served it.
  */
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +27,8 @@ const types: Record<string, string> = {
   ".webmanifest": "application/manifest+json",
 };
 
+const edge = new Map<string, Buffer>();
+
 async function isFile(path: string): Promise<boolean> {
   return (await stat(path).catch(() => null))?.isFile() ?? false;
 }
@@ -38,6 +44,12 @@ createServer(async (request, response) => {
         "content-type",
         types[extname(file)] ?? "application/octet-stream",
       );
+      if (path.startsWith("/_astro/")) {
+        const key = request.url ?? path;
+        if (!edge.has(key)) edge.set(key, await readFile(file));
+        response.end(edge.get(key));
+        return;
+      }
       createReadStream(file).pipe(response);
       return;
     }

@@ -61,7 +61,7 @@ See the [contributing guide](../CONTRIBUTING.md) for details about IPFS.
 
 ## Installable app and updates
 
-`bun run build` also writes `dist/sw.js` (the `serviceWorker()` integration in `astro.config.mjs`). It precaches the pages, scripts, styles and images, so the app installs and opens offline. It leaves out the large XDR wasm, which the HTTP cache keeps instead.
+`bun run build` also writes `dist/sw.js` (the `serviceWorker()` integration in `astro.config.mjs`). It precaches the pages, scripts, styles, images and the XDR decoder's WebAssembly, so the app installs and opens offline. On Netlify each file is precached under the URL the pages load it with, `?dpl=<deploy>` included: the adapter stamps the deploy into every import without renaming files, and the CDN keeps a plain `/_astro/` URL on whichever deploy first served it. A worker that cached plain URLs could mix two deploys, and with them two copies of React. The e2e server keeps `/_astro/` files the same way, so `tests/update.spec.ts` catches such a mix.
 
 The worker waits: a new deploy is offered by the "A new version is ready" card (`src/components/layout/UpdatePrompt.astro`, logic in `src/utils/serviceWorker.ts`), and a tab keeps its version until the user presses Reload. The app looks for a new `sw.js` every hour and whenever the tab comes back, since page changes through the ClientRouter never do. The service worker only registers in production builds: `bun dev` has none.
 

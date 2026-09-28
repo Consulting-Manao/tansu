@@ -1,3 +1,5 @@
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
@@ -7,9 +9,14 @@ import { generateSW } from "workbox-build";
 /**
  * Writes dist/sw.js once the pages exist. It precaches the app, so a tab keeps
  * one consistent version, and waits for the user's Reload
- * (src/components/layout/UpdatePrompt.astro) before taking over. Every file
- * is kept by its content: Netlify stamps the deploy's ID into the imports
- * (?dpl=) without renaming the files, so a name does not tell a version.
+ * (src/components/layout/UpdatePrompt.astro) before taking over.
+ *
+ * On Netlify, the adapter stamps the deploy's ID into every import (?dpl=)
+ * without renaming the files, so one name holds a different file per deploy.
+ * The CDN keeps an /_astro/ file for a year under its plain URL, whichever
+ * deploy first served it. The worker therefore precaches each file under the
+ * URL the pages ask for, ?dpl= included: a plain URL could bring a file of an
+ * older deploy, which imports its own copy of React and breaks every island.
  */
 function serviceWorker() {
   return {
@@ -17,6 +24,7 @@ function serviceWorker() {
     hooks: {
       "astro:build:done": async ({ dir, logger }) => {
         const root = fileURLToPath(dir);
+        const stamp = await deployStamp(root);
         const { count, size, warnings } = await generateSW({
           globDirectory: root,
           swDest: `${root}sw.js`,
@@ -34,6 +42,15 @@ function serviceWorker() {
           ignoreURLParametersMatching: [/.*/],
           cleanupOutdatedCaches: true,
           inlineWorkboxRuntime: true,
+          manifestTransforms: [
+            async (entries) => ({
+              manifest: entries.map((entry) => ({
+                ...entry,
+                url: stamp(entry.url),
+              })),
+              warnings: [],
+            }),
+          ],
         });
         for (const warning of warnings) logger.warn(warning);
         logger.info(
@@ -42,6 +59,28 @@ function serviceWorker() {
       },
     },
   };
+}
+
+/**
+ * Gives a precached file the ?dpl= query the pages load it with. Files the
+ * build refers to without it, like the XDR decoder's WebAssembly, keep their
+ * plain URL. Outside Netlify there is no deploy ID and nothing is stamped.
+ */
+async function deployStamp(root) {
+  const id = process.env.DEPLOY_ID;
+  if (!id) return (url) => url;
+  const query = `?dpl=${encodeURIComponent(id)}`;
+  const files = await readdir(root, { recursive: true });
+  const sources = await Promise.all(
+    files
+      .filter((file) => /\.(html|js|css)$/.test(file))
+      .map((file) => readFile(join(root, file), "utf8")),
+  );
+  const built = sources.join("\n");
+  return (url) =>
+    url.startsWith("_astro/") && built.includes(url.slice(6) + query)
+      ? url + query
+      : url;
 }
 
 // https://astro.build/config
