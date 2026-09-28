@@ -11,7 +11,7 @@ custom_domain = true
 [env.testnet.vars]
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 # Uploads must record their CID with this contract (deployments/tansu-testnet).
-TANSU_CONTRACT_ID = "CCY64PD44OL3RPXZEWPXUSRGQH4T2PM4CWCHAZZBHRVY26IAOFKWWDDR"
+TANSU_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
 # Checks txHash proofs from smart-account wallets (Nido, testnet only).
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 
