@@ -1,38 +1,60 @@
-use soroban_sdk::{Address, Bytes, Env, String, Vec, contractimpl, contracttype};
+use soroban_sdk::{Address, Bytes, Env, TryFromVal, Val, Vec, contractimpl};
 
 use crate::{MigrationTrait, Tansu, TansuArgs, TansuClient, types};
 
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct ProjectV1 {
-    pub name: String,
-    pub config: types::Config,
-    pub maintainers: Vec<Address>,
-}
+/// Proposals per page, as `contract_dao` pages them.
+const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 
 #[contractimpl]
 impl MigrationTrait for Tansu {
-    fn projects_migration(env: Env, admin: Address, names: Vec<String>) {
+    /// Store the collateral as the address the constructor now sets, in place
+    /// of the `ContractRef` an earlier admin call stored.
+    fn migrate_collateral(env: Env, admin: Address) {
         crate::contract_tansu::auth_admin(&env, &admin);
 
-        for name in names {
-            let key: Bytes = env.crypto().keccak256(&name.to_bytes()).into();
-            let key_ = types::ProjectKey::Key(key.clone());
+        let collateral: types::ContractRef = env
+            .storage()
+            .instance()
+            .get(&types::ContractKey::Collateral)
+            .expect("Migration");
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Collateral, &collateral.address);
+    }
 
-            let project_v1 = env
-                .storage()
-                .persistent()
-                .get::<types::ProjectKey, ProjectV1>(&key_)
-                .expect("Migration");
+    /// Move the proposals of each project out of their pages into one entry
+    /// each; a page then keeps only the ids. A page already holding ids is
+    /// left as it is, so a project can be given again.
+    fn migrate_proposals(env: Env, admin: Address, project_keys: Vec<Bytes>) {
+        crate::contract_tansu::auth_admin(&env, &admin);
 
-            let project_v2 = types::Project {
-                name: project_v1.name,
-                config: project_v1.config,
-                maintainers: project_v1.maintainers,
-                sub_projects: None,
-            };
-
-            env.storage().persistent().set(&key_, &project_v2);
+        let storage = env.storage().persistent();
+        for project_key in project_keys {
+            let total: u32 = storage
+                .get(&types::ProjectKey::DaoTotalProposals(project_key.clone()))
+                .unwrap_or(0);
+            for page in 0..total.div_ceil(MAX_PROPOSALS_PER_PAGE) {
+                let page_key = types::ProjectKey::Dao(project_key.clone(), page);
+                let Some(entries) = storage.get::<_, Vec<Val>>(&page_key) else {
+                    continue;
+                };
+                if entries
+                    .get(0)
+                    .is_some_and(|entry| u32::try_from_val(&env, &entry).is_ok())
+                {
+                    continue;
+                }
+                let mut ids = Vec::new(&env);
+                for entry in entries {
+                    let proposal = types::Proposal::try_from_val(&env, &entry).expect("Migration");
+                    storage.set(
+                        &types::ProjectKey::Proposal(project_key.clone(), proposal.id),
+                        &proposal,
+                    );
+                    ids.push_back(proposal.id);
+                }
+                storage.set(&page_key, &ids);
+            }
         }
     }
 }

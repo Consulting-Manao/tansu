@@ -273,8 +273,11 @@ pub trait DaoTrait {
     fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address>;
 }
 
+// Enabled only in a build that migrates a deployed contract.
 // pub trait MigrationTrait {
-//     fn projects_migration(env: Env, admin: Address, names: Vec<String>);
+//     fn migrate_collateral(env: Env, admin: Address);
+//
+//     fn migrate_proposals(env: Env, admin: Address, project_keys: Vec<Bytes>);
 // }
 
 fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> types::Project {
