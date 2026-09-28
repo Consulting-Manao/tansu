@@ -163,6 +163,18 @@ impl TansuTrait for Tansu {
         if admins_config.threshold == 0 || admins_config.threshold > admins_config.admins.len() {
             panic_with_error!(&env, &crate::errors::ContractErrors::UpgradeError);
         }
+        // An admin approves once, so a repeated admin would make the
+        // threshold unreachable
+        for (index, admin_) in admins_config.admins.iter().enumerate() {
+            if admins_config
+                .admins
+                .iter()
+                .skip(index + 1)
+                .any(|other| other == admin_)
+            {
+                panic_with_error!(&env, &crate::errors::ContractErrors::UpgradeError);
+            }
+        }
 
         let upgrade_proposal = types::UpgradeProposal {
             wasm_hash: new_wasm_hash.clone(),

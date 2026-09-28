@@ -511,12 +511,12 @@ impl DaoTrait for Tansu {
     /// * If the proposal is not active anymore
     /// * If the maintainer is not authorized
     fn revoke_proposal(env: Env, maintainer: Address, project_key: Bytes, proposal_id: u32) {
-        Tansu::require_not_paused(env.clone());
-
+        // an admin can revoke while the contract is paused
         let admins_config = Tansu::get_admins_config(env.clone());
         if admins_config.admins.contains(maintainer.clone()) {
             maintainer.require_auth();
         } else {
+            Tansu::require_not_paused(env.clone());
             crate::auth_maintainers(&env, &maintainer, &project_key);
         }
 

@@ -342,3 +342,58 @@ fn test_upgrade_threshold_exceeds_admins() {
 
     assert_eq!(err, ContractErrors::UpgradeError.into());
 }
+
+#[test]
+fn test_upgrade_rejects_duplicate_admins() {
+    let setup = create_test_data();
+
+    // [a, a] passes the threshold check but could never reach 2 approvals
+    let duplicated = types::AdminsConfig {
+        threshold: 2,
+        admins: vec![
+            &setup.env,
+            setup.contract_admin.clone(),
+            setup.contract_admin.clone(),
+        ],
+    };
+    let wasm_bytes = Bytes::from_slice(&setup.env, b"new_wasm");
+    let new_wasm_hash: BytesN<32> = setup.env.crypto().keccak256(&wasm_bytes).into();
+
+    let err = setup
+        .contract
+        .try_propose_upgrade(&setup.contract_admin, &new_wasm_hash, &Some(duplicated))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UpgradeError.into());
+}
+
+#[test]
+fn test_admin_revokes_while_paused() {
+    let setup = create_test_data();
+    let id = super::test_utils::init_contract(&setup);
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Test Proposal"),
+        &String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &(setup.env.ledger().timestamp() + 3600 * 24 * 2),
+        &true,
+        &None,
+        &None,
+    );
+    setup.contract.pause(&setup.contract_admin, &true);
+
+    // a maintainer cannot, an admin can
+    let err = setup
+        .contract
+        .try_revoke_proposal(&setup.grogu, &id, &proposal_id)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ContractPaused.into());
+    setup
+        .contract
+        .revoke_proposal(&setup.contract_admin, &id, &proposal_id);
+}
