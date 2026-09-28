@@ -2,7 +2,7 @@
 
 use soroban_sdk::{Address, Bytes, BytesN, String, Vec, contractevent};
 
-use crate::types::{AttestationTarget, EvidenceKind};
+use crate::types::{AttestationTarget, ContractRef, EvidenceKind};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -203,4 +203,13 @@ pub struct AttestationThresholdSet {
     #[topic]
     pub project_key: Bytes,
     pub percent: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NqgContractSet {
+    #[topic]
+    pub project_key: Bytes,
+    pub maintainer: Address,
+    pub nqg_contract: Option<ContractRef>,
 }

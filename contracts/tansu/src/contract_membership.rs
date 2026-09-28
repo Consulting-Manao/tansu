@@ -1,6 +1,6 @@
 use crate::{MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, errors, events, types};
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, I256, InvokeError, String, Symbol, Vec, contractimpl,
+    Address, Bytes, BytesN, Env, IntoVal, InvokeError, String, Symbol, Vec, contractimpl,
     panic_with_error, vec,
 };
 
@@ -323,8 +323,8 @@ impl MembershipTrait for Tansu {
     /// Returns the Default badge weight (1) if the address has no badges
     /// assigned or is not a registered member.
     ///
-    /// There is a special case to use Neural Quorum Governance instead of
-    /// badges if we are using a specific project.
+    /// A project with an NQG contract set (see `set_nqg_contract`) uses the
+    /// weight that contract gives instead of badges.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -336,14 +336,8 @@ impl MembershipTrait for Tansu {
     fn get_max_weight(env: Env, project_key: Bytes, member_address: Address) -> u32 {
         let member_key = types::DataKey::Member(member_address.clone());
 
-        // special case to use Neural Quorum Governance
-        let key = env
-            .storage()
-            .instance()
-            .get(&types::DataKey::NqgProjectKey)
-            .expect("NQG project key exists");
-        if project_key == key {
-            return get_nqg(&env, member_address);
+        if let Some(nqg_contract) = Self::get_nqg_contract(env.clone(), project_key.clone()) {
+            return get_nqg(&env, &nqg_contract, member_address);
         }
 
         if let Some(member) = env
@@ -372,6 +366,55 @@ impl MembershipTrait for Tansu {
         } else {
             types::Badge::Default as u32
         }
+    }
+
+    /// Set, or clear, the NQG contract giving the voting weights of a project.
+    ///
+    /// When set, `get_max_weight` returns the contract's
+    /// `get_voting_power(user: Address) -> u32` for the project, and badges
+    /// are not used. A weight of 0 means the address cannot vote. A call that
+    /// fails reads as 0.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - A maintainer of the project
+    /// * `project_key` - The project key identifier
+    /// * `nqg_contract` - The NQG contract, or `None` to use badges again
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the contract's WASM hash does not match the given one
+    fn set_nqg_contract(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        nqg_contract: Option<types::ContractRef>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let key = types::ProjectKey::Nqg(project_key.clone());
+        match &nqg_contract {
+            Some(contract) => {
+                crate::validate_contract(&env, contract);
+                env.storage().persistent().set(&key, contract);
+            }
+            None => env.storage().persistent().remove(&key),
+        }
+
+        events::NqgContractSet {
+            project_key,
+            maintainer,
+            nqg_contract,
+        }
+        .publish(&env);
+    }
+
+    /// Get the NQG contract of a project, if any.
+    fn get_nqg_contract(env: Env, project_key: Bytes) -> Option<types::ContractRef> {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::Nqg(project_key))
     }
 }
 
@@ -421,20 +464,20 @@ fn verify_git_signature(
 
     env.crypto().ed25519_verify(git_pubkey, &tosign, sig);
 }
-fn get_nqg(e: &Env, user: Address) -> u32 {
-    let nqg_contract_address = crate::retrieve_contract(e, types::ContractKey::Nqg);
+/// Voting weight of `user` from the project's NQG contract; 0 if the call
+/// fails.
+///
+/// # Panics
+/// * If the contract's WASM hash does not match the pinned one
+fn get_nqg(e: &Env, nqg_contract: &types::ContractRef, user: Address) -> u32 {
+    crate::validate_contract(e, nqg_contract);
 
-    let r = e.try_invoke_contract::<I256, InvokeError>(
-        &nqg_contract_address.address,
-        &Symbol::new(e, "get_voting_power_for_user"),
-        vec![e, user.to_string().to_val()],
-    );
-    let nqg: I256 = match r {
-        Ok(Ok(v)) => v,
-        _ => I256::from_i128(e, 0),
-    };
-    let scaled = nqg.div(&I256::from_i128(e, 10_i128.pow(12)));
-    let nqg = scaled.to_i128().unwrap() as u32;
-    // limit to pilots who have at least 4M
-    if nqg > 4_000_000 { nqg } else { 0 }
+    match e.try_invoke_contract::<u32, InvokeError>(
+        &nqg_contract.address,
+        &Symbol::new(e, "get_voting_power"),
+        vec![e, user.into_val(e)],
+    ) {
+        Ok(Ok(weight)) => weight,
+        _ => 0,
+    }
 }

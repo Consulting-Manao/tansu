@@ -7,7 +7,7 @@ pub const MIN_FINALITY_THRESHOLD_PERCENT: u32 = 50;
 pub const ATTESTATION_REVOCATION_WINDOW: u64 = 24 * 3600; // 24 hours in seconds
 
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractRef {
     pub address: Address,
     pub wasm_hash: Option<BytesN<32>>,
@@ -16,7 +16,6 @@ pub struct ContractRef {
 #[contracttype]
 pub enum ContractKey {
     Collateral, // Collateral asset contract address, set at construction
-    Nqg,        // Neural Quorum Governance contract address
     Executor,   // Contract running the outcome calls of proposals
 }
 
@@ -26,7 +25,6 @@ pub enum DataKey {
     Paused,          // Contract pause state
     UpgradeProposal, // Pending upgrade proposal
     AdminsConfig,    // Admin configuration for upgrades and other admin operations
-    NqgProjectKey,   // project_key using NQG based system
 }
 
 #[contracttype]
@@ -210,6 +208,7 @@ pub enum ProjectKey {
     ExecuteDelay(Bytes),                 // Per-project DAO execute timelock override (seconds)
     ProposalExecuteDelay(Bytes, u32),    // Timelock snapshotted at proposal creation (seconds)
     DefaultVotes(Bytes, u32),            // Number of weight-1 votes on a proposal
+    Nqg(Bytes),                          // Contract giving the project's voting weights
     PendingGovernance(Bytes), // Loosening governance update waiting out its notice window
     Attestation(BytesN<32>),  // keccak256 digest of (project_key, commit_hash, target)
     AttestationFinalized(BytesN<32>), // ledger timestamp a target first reached finality

@@ -597,3 +597,67 @@ fn badges_are_deduplicated_and_limited_to_real_kinds() {
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidBadges.into());
 }
+
+mod failing_nqg {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+
+    #[contract]
+    pub struct Failing;
+    #[contractimpl]
+    impl Failing {
+        pub fn get_voting_power(_e: &Env, _user: Address) -> u32 {
+            panic!("unavailable")
+        }
+    }
+}
+
+#[test]
+fn nqg_is_a_project_setting_of_its_maintainers() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let voter = Address::generate(env);
+
+    // badges by default
+    assert_eq!(setup.contract.get_nqg_contract(&id), None);
+    assert_eq!(
+        setup.contract.get_max_weight(&id, &voter),
+        Badge::Default as u32
+    );
+
+    // only a maintainer sets it
+    let nqg = env.register(super::test_utils::nqg::Mock, ());
+    let nqg_ref = crate::types::ContractRef {
+        address: nqg.clone(),
+        wasm_hash: None,
+    };
+    let err = setup
+        .contract
+        .try_set_nqg_contract(&voter, &id, &Some(nqg_ref.clone()))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+
+    super::test_utils::set_nqg(&setup, &id);
+    assert_eq!(setup.contract.get_max_weight(&id, &voter), 20_000_000);
+
+    // a contract that fails gives no weight
+    let failing = env.register(failing_nqg::Failing, ());
+    setup.contract.set_nqg_contract(
+        &setup.grogu,
+        &id,
+        &Some(crate::types::ContractRef {
+            address: failing,
+            wasm_hash: None,
+        }),
+    );
+    assert_eq!(setup.contract.get_max_weight(&id, &voter), 0);
+
+    // clearing it goes back to badges
+    setup.contract.set_nqg_contract(&setup.grogu, &id, &None);
+    assert_eq!(setup.contract.get_nqg_contract(&id), None);
+    assert_eq!(
+        setup.contract.get_max_weight(&id, &voter),
+        Badge::Default as u32
+    );
+}

@@ -18,18 +18,36 @@ pub fn create_env() -> Env {
     env
 }
 
-mod nqg {
-    use super::*;
-    use soroban_sdk::{I256, contract, contractimpl};
+pub mod nqg {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
 
+    /// NQG contract giving every address the same voting weight.
     #[contract]
     pub struct Mock;
     #[contractimpl]
     impl Mock {
-        pub fn get_voting_power_for_user(e: &Env, _user: String) -> I256 {
-            I256::from_i128(e, 10_000_000_000_000_000_000i128)
+        pub fn get_voting_power(_e: &Env, _user: Address) -> u32 {
+            20_000_000
         }
     }
+}
+
+/// Point a project's voting weights at the mock NQG contract, pinned by hash.
+pub fn set_nqg(setup: &TestSetup, project_key: &Bytes) -> Address {
+    let nqg_id = setup.env.register(nqg::Mock, ());
+    let wasm_hash = match nqg_id.executable().unwrap() {
+        Executable::Wasm(wasm) => wasm,
+        _ => panic!(),
+    };
+    setup.contract.set_nqg_contract(
+        &setup.grogu,
+        project_key,
+        &Some(types::ContractRef {
+            address: nqg_id.clone(),
+            wasm_hash: Some(wasm_hash),
+        }),
+    );
+    nqg_id
 }
 
 pub fn create_test_data() -> TestSetup {
@@ -45,21 +63,6 @@ pub fn create_test_data() -> TestSetup {
     let contract = TansuClient::new(&env, &contract_id);
 
     contract.pause(&contract_admin, &false);
-
-    let nqg_id = env.register(nqg::Mock, ());
-    let wasm_hash = match nqg_id.executable().unwrap() {
-        Executable::Wasm(wasm) => wasm,
-        _ => panic!(),
-    };
-    let nqg_contract = types::ContractRef {
-        address: nqg_id.clone(),
-        wasm_hash: Some(wasm_hash.clone()),
-    };
-    contract.set_nqg_contract(
-        &contract_admin,
-        &nqg_contract,
-        &String::from_str(&env, "stellarpg"),
-    );
 
     let grogu = Address::generate(&env);
     let mando = Address::generate(&env);

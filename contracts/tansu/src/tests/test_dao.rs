@@ -163,6 +163,7 @@ fn scf_voting() {
         &None,
         &None,
     );
+    super::test_utils::set_nqg(&setup, &id);
 
     let title = String::from_str(&setup.env, "A SCF proposal");
     let ipfs = String::from_str(

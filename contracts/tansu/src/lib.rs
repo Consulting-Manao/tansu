@@ -30,13 +30,6 @@ pub trait TansuTrait {
 
     fn set_executor(env: Env, admin: Address, executor: Address);
 
-    fn set_nqg_contract(
-        env: Env,
-        admin: Address,
-        nqg_contract: types::ContractRef,
-        project: String,
-    );
-
     fn propose_upgrade(
         env: Env,
         caller: Address,
@@ -86,6 +79,15 @@ pub trait MembershipTrait {
     fn get_badges(env: Env, key: Bytes) -> types::Badges;
 
     fn get_max_weight(env: Env, key: Bytes, member_address: Address) -> u32;
+
+    fn set_nqg_contract(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        nqg_contract: Option<types::ContractRef>,
+    );
+
+    fn get_nqg_contract(env: Env, project_key: Bytes) -> Option<types::ContractRef>;
 }
 
 pub trait VersioningTrait {
@@ -306,24 +308,6 @@ fn executor(env: &Env) -> Address {
         .instance()
         .get(&types::ContractKey::Executor)
         .unwrap_or_else(|| panic_with_error!(env, errors::ContractErrors::UnexpectedError))
-}
-
-/// Retrieve a contract address and WASM hash.
-///
-/// # Arguments
-/// * `env` - The environment object
-/// * `key` - The contract key
-///
-/// # Returns
-/// * `types::ContractRef` - The contract object
-///
-/// # Panics
-/// * If the contract cannot be found
-/// * If the WASM hash of the contract does not match on-chain data
-fn retrieve_contract(env: &Env, key: types::ContractKey) -> types::ContractRef {
-    let retrieved_contract: types::ContractRef = env.storage().instance().get(&key).unwrap();
-    validate_contract(env, &retrieved_contract);
-    retrieved_contract
 }
 
 /// Validate the contract WASM hash match on-chain data.
