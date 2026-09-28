@@ -37,6 +37,9 @@ jobs:
       # soroban target
       - run: rustup target add wasm32v1-none
 
+      # registry-tansu-manager imports this WASM with contractimport!
+      - run: cargo build --target wasm32v1-none --release --package tansu
+
       - run: cargo build
 
       - run: cargo test

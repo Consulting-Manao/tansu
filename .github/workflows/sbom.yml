@@ -48,8 +48,14 @@ jobs:
           persist-credentials: false
 
       - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.74.0"
+          TRIVY_SHA256: "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"
         run: |
-          wget -qO - https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          wget -qO trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tar.gz" | sha256sum -c -
+          tar -xzf trivy.tar.gz -C /usr/local/bin trivy
 
       - name: Generate SBOMs
         run: |
@@ -118,12 +124,12 @@ jobs:
       name: publish-evidence
 
     env:
-      STELLAR_CLI_VERSION: "27.0.0"
+      STELLAR_CLI_VERSION: "28.0.0"
+      STELLAR_CLI_SHA256: "207544486734fccb4df1afc4a7745478f9f1e21688b2f9506f0ef36f60ce3fdc"
       TANSU_NETWORK: ${{ vars.TANSU_NETWORK || 'testnet' }}
       TANSU_CONTRACT_ID: ${{ vars.TANSU_CONTRACT_ID }}
       TANSU_PROJECT_KEY: ${{ vars.TANSU_PROJECT_KEY }}
       TANSU_MAINTAINER: ${{ vars.TANSU_MAINTAINER }}
-      TANSU_SOURCE_ACCOUNT: ${{ secrets.TANSU_SECRET_KEY }}
       SBOM_CID: ${{ needs.generate-sbom.outputs.cid }}
 
     steps:
@@ -131,11 +137,15 @@ jobs:
         run: |
           curl -fsSL -o stellar-cli.tar.gz \
             "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${STELLAR_CLI_SHA256}  stellar-cli.tar.gz" | sha256sum -c -
           tar -xzf stellar-cli.tar.gz
           sudo install -m 0755 stellar /usr/local/bin/stellar
           stellar --version
 
       - name: Record SBOM evidence on-chain
+        # the maintainer key is only visible to this step
+        env:
+          TANSU_SOURCE_ACCOUNT: ${{ secrets.TANSU_SECRET_KEY }}
         run: |
           stellar contract invoke \
             --source-account "${TANSU_SOURCE_ACCOUNT}" \

@@ -18,8 +18,7 @@ override tansu_id = $(shell cat .stellar/tansu_id-$(network))
 
 override collateral_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
-override nqg_contract_id = CAM3VZX47TCQWCEYGXEDTSIJYKIVM6AWMFR7VTFYTETXFO53I5LOZGBT
-override nqg_wasm_hash = c845605a5997fa425cc769dbb50d1b208e78806efaba243e174a950f1f4ae79c
+override executor_id = $(shell cat .stellar/executor_id-$(network) 2>/dev/null)
 
 # Add help text after each target name starting with '\#\#'
 help:   ## show this help
@@ -81,7 +80,8 @@ local-stack:  ## local stack
 
 # --------- CONTRACT BUILD/TEST/DEPLOY --------- #
 
-contract_build:
+contract_build:  ## Build the contracts; Tansu first, as registry-tansu-manager imports its WASM
+	stellar contract build --optimize --package tansu
 	stellar contract build --optimize
 	@ls -l target/wasm32v1-none/release/*.wasm
 
@@ -102,7 +102,15 @@ contract_bindings: contract_build  ## Create bindings
 	bun run build && \
 	bun format
 
-contract_deploy:  ## Deploy Soroban contract
+executor_deploy:  ## Deploy the executor running proposal outcomes (no admin, no upgrade)
+	stellar contract deploy \
+  		--wasm target/wasm32v1-none/release/tansu_executor.wasm \
+  		--source-account $(admin) \
+  		--network $(network) \
+  		> .stellar/executor_id-$(network) && \
+  	cat .stellar/executor_id-$(network)
+
+contract_deploy:  ## Deploy Soroban contract, with the native asset as collateral and the deployed executor
 	stellar contract deploy \
   		--wasm $(wasm) \
   		--source-account $(admin) \
@@ -112,6 +120,8 @@ contract_deploy:  ## Deploy Soroban contract
   		--cost \
   		-- \
   		--admin $(shell stellar keys address $(admin)) \
+  		--collateral $(collateral_contract_id) \
+  		--executor $(executor_id) \
   		> .stellar/tansu_id-$(network) && \
   	cat .stellar/tansu_id-$(network)
 
@@ -125,7 +135,7 @@ contract_unpause:  ## Unpause the contract
 		--admin $(shell stellar keys address $(admin)) \
 		--paused false
 
-contract_propose_upgrade: contract_build  ## After manually pulling the wasm from the pipeline, use it to propose to update the contract
+contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>; the admin set is kept
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -133,8 +143,7 @@ contract_propose_upgrade: contract_build  ## After manually pulling the wasm fro
     	-- \
     	propose_upgrade \
 		--admin $(shell stellar keys address $(admin)) \
-		--new_wasm_hash $(shell stellar contract upload --source-account $(admin) --network $(network) --wasm $(wasm)) \
-		--new_admins_config '{"threshold":1,"admins":["$(shell stellar keys address $(admin))","GBMGZFAHF7IS4XTKMH5TMKDGEZL64GXOKCWX7QVMV3J67QDC4L7E5BFD"]}'
+		--new_wasm_hash $(shell stellar contract upload --source-account $(admin) --network $(network) --wasm $(wasm))
 
 contract_approve_upgrade:  ## Approve the current upgrade proposal
 	stellar contract invoke \
@@ -176,34 +185,34 @@ radicle_release:  ## Publish a release on Radicle
 
 # --------- Setup --------- #
 
-contract_set_collateral_contract:  ## Set the collateral contract address
+contract_set_executor:  ## Point Tansu at the executor in .stellar/executor_id-<network>
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
     	--id $(tansu_id) \
     	-- \
-    	set_collateral_contract \
+    	set_executor \
 		--admin $(shell stellar keys address $(admin)) \
-		--collateral_contract '{"address":"$(collateral_contract_id)","wasm_hash":null}'
+		--executor $(executor_id)
 
-contract_set_nqg_contract:  ## Set the NQG contract address and project using it
+contract_set_nqg_contract:  ## As maintainer of project_key=<hex>, weigh its votes with nqg=<contract id>
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
     	--id $(tansu_id) \
     	-- \
     	set_nqg_contract \
-		--admin $(shell stellar keys address $(admin)) \
-		--nqg_contract '{"address":"$(nqg_contract_id)","wasm_hash":"$(nqg_wasm_hash)"}' \
-		--project stellarpg
+		--maintainer $(shell stellar keys address $(admin)) \
+		--project_key $(project_key) \
+		--nqg_contract '{"address":"$(nqg)","wasm_hash":null}'
 
 # --------- Testnet --------- #
 
 testnet_reset:  ## Playbook for testnet reset
 	make funds && \
 	make contract_bindings && \
+	make executor_deploy && \
 	make contract_deploy && \
-	make contract_set_collateral_contract && \
 	make contract_unpause && \
 	make contract_register && \
 	make contract_commit

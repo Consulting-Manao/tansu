@@ -32,6 +32,12 @@ jobs:
       - name: Install pre-commit
         run: python -m pip install pre-commit
 
+      # clippy compiles registry-tansu-manager, which imports this WASM
+      - name: Build the Tansu WASM
+        run: |
+          rustup target add wasm32v1-none
+          cargo build --target wasm32v1-none --release --package tansu
+
       - name: Run pre-commit
         run: |
           pre-commit run --all-files --show-diff-on-failure --color=always zizmor
