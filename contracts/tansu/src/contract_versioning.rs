@@ -122,8 +122,7 @@ impl VersioningTrait for Tansu {
 
             validate_maintainers(&env, &project.maintainers);
 
-            let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
-            let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
+            let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
 
             match token_stellar.try_transfer(
                 &maintainer,

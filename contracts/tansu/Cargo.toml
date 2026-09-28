@@ -13,5 +13,6 @@ soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+tansu-executor = { path = "../tansu-executor" }
 ed25519-dalek = "3.0.0"
 sha2 = "0.11"

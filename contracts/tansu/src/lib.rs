@@ -20,7 +20,7 @@ contractmeta!(key = "Description", val = "Tansu");
 pub struct Tansu;
 
 pub trait TansuTrait {
-    fn __constructor(env: Env, admin: Address);
+    fn __constructor(env: Env, admin: Address, collateral: Address, executor: Address);
 
     fn pause(env: Env, admin: Address, paused: bool);
 
@@ -28,7 +28,7 @@ pub trait TansuTrait {
 
     fn get_admins_config(env: Env) -> types::AdminsConfig;
 
-    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef);
+    fn set_executor(env: Env, admin: Address, executor: Address);
 
     fn set_nqg_contract(
         env: Env,
@@ -290,6 +290,22 @@ fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> typ
     } else {
         panic_with_error!(&env, &errors::ContractErrors::InvalidKey)
     }
+}
+
+/// The collateral asset contract, set at construction.
+fn collateral(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&types::ContractKey::Collateral)
+        .unwrap_or_else(|| panic_with_error!(env, errors::ContractErrors::UnexpectedError))
+}
+
+/// The contract that runs proposal outcomes, see `tansu_executor`.
+fn executor(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&types::ContractKey::Executor)
+        .unwrap_or_else(|| panic_with_error!(env, errors::ContractErrors::UnexpectedError))
 }
 
 /// Retrieve a contract address and WASM hash.

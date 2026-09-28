@@ -40,16 +40,11 @@ pub fn create_test_data() -> TestSetup {
     let token_stellar = token::StellarAssetClient::new(&env, &sac.address());
 
     let contract_admin = Address::generate(&env);
-    let contract_id = env.register(Tansu, (&contract_admin,));
+    let executor = env.register(tansu_executor::TansuExecutor, ());
+    let contract_id = env.register(Tansu, (&contract_admin, sac.address(), &executor));
     let contract = TansuClient::new(&env, &contract_id);
 
     contract.pause(&contract_admin, &false);
-
-    let new_collateral = types::ContractRef {
-        address: sac.address(),
-        wasm_hash: None,
-    };
-    contract.set_collateral_contract(&contract_admin, &new_collateral);
 
     let nqg_id = env.register(nqg::Mock, ());
     let wasm_hash = match nqg_id.executable().unwrap() {

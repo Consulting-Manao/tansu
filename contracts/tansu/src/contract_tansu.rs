@@ -1,6 +1,7 @@
 use crate::{Tansu, TansuArgs, TansuClient, TansuTrait, events, types, validate_contract};
 use soroban_sdk::{
-    Address, Bytes, BytesN, ContractExecutable, Env, String, contractimpl, panic_with_error, vec,
+    Address, Bytes, BytesN, ContractExecutable, Env, Executable, String, contractimpl,
+    panic_with_error, vec,
 };
 
 #[contractimpl]
@@ -10,7 +11,22 @@ impl TansuTrait for Tansu {
     /// # Arguments
     /// * `env` - The environment object
     /// * `admin` - The admin address
-    fn __constructor(env: Env, admin: Address) {
+    /// * `collateral` - The Stellar asset contract deposits are paid in
+    /// * `executor` - The contract running the outcome calls of proposals
+    ///
+    /// # Panics
+    /// * If `collateral` is not a Stellar asset contract
+    fn __constructor(env: Env, admin: Address, collateral: Address, executor: Address) {
+        if collateral.executable() != Some(Executable::StellarAsset) {
+            panic_with_error!(&env, &crate::errors::ContractErrors::ContractValidation);
+        }
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Collateral, &collateral);
+        env.storage()
+            .instance()
+            .set(&types::ContractKey::Executor, &executor);
+
         env.storage()
             .instance()
             .set(&types::DataKey::Paused, &false);
@@ -87,26 +103,26 @@ impl TansuTrait for Tansu {
             })
     }
 
-    /// Set the Collateral contract.
+    /// Set the contract running the outcome calls of proposals.
+    ///
+    /// The executor has no upgrade: a new one is deployed and set here.
     ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `admin` - The admin address
-    /// * `collateral_contract` - The new collateral contract
-    fn set_collateral_contract(env: Env, admin: Address, collateral_contract: types::ContractRef) {
+    /// * `executor` - The new executor contract
+    fn set_executor(env: Env, admin: Address, executor: Address) {
         auth_admin(&env, &admin);
-
-        validate_contract(&env, &collateral_contract);
 
         env.storage()
             .instance()
-            .set(&types::ContractKey::Collateral, &collateral_contract);
+            .set(&types::ContractKey::Executor, &executor);
 
         events::ContractUpdated {
             admin,
-            contract_key: String::from_str(&env, "collateral"),
-            address: collateral_contract.address,
-            wasm_hash: collateral_contract.wasm_hash,
+            contract_key: String::from_str(&env, "executor"),
+            address: executor,
+            wasm_hash: None,
         }
         .publish(&env);
     }

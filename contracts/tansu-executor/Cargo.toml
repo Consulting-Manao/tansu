@@ -1,0 +1,18 @@
+[package]
+name = "tansu-executor"
+description = "Runs the outcome calls of Tansu proposals without Tansu's authority."
+version = "1.0.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

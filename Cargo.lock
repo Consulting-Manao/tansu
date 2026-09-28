@@ -1750,6 +1750,14 @@ dependencies = [
  "ed25519-dalek 3.0.0",
  "sha2 0.11.0",
  "soroban-sdk",
+ "tansu-executor",
+]
+
+[[package]]
+name = "tansu-executor"
+version = "1.0.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]

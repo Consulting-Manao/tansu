@@ -5,8 +5,8 @@ use crate::{
 };
 use soroban_sdk::crypto::bls12_381::{Bls12381Fr, Bls12381G1Affine};
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, InvokeError, String, U256, Vec, contractimpl, panic_with_error,
-    token, vec,
+    Address, Bytes, BytesN, Env, IntoVal, InvokeError, String, Symbol, U256, Val, Vec,
+    contractimpl, panic_with_error, token, vec,
 };
 
 const PROPOSAL_COLLATERAL: i128 = 5 * 10_000_000;
@@ -204,8 +204,7 @@ impl DaoTrait for Tansu {
 
         // proposers deposit a collateral
         proposer.require_auth();
-        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
-        let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
+        let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
 
         match token_stellar.try_transfer(
             &proposer,
@@ -755,8 +754,7 @@ impl DaoTrait for Tansu {
         }
 
         // Return proposal collateral to proposer
-        let sac_contract = crate::retrieve_contract(&env, types::ContractKey::Collateral);
-        let token_stellar = token::StellarAssetClient::new(&env, &sac_contract.address);
+        let token_stellar = token::StellarAssetClient::new(&env, &crate::collateral(&env));
         match token_stellar.try_transfer(
             &env.current_contract_address(),
             &proposal.proposer,
@@ -834,10 +832,17 @@ impl DaoTrait for Tansu {
             };
 
             if let Some(contract) = outcome_contracts.get(outcome_index) {
-                let r = env.try_invoke_contract::<(), InvokeError>(
-                    &contract.address,
-                    &contract.execute_fn,
-                    contract.args.clone(),
+                // The executor makes the call, so the target never sees Tansu
+                // as its caller and cannot use Tansu's authority.
+                let r = env.try_invoke_contract::<Val, InvokeError>(
+                    &crate::executor(&env),
+                    &Symbol::new(&env, "run"),
+                    vec![
+                        &env,
+                        contract.address.into_val(&env),
+                        contract.execute_fn.into_val(&env),
+                        contract.args.into_val(&env),
+                    ],
                 );
                 let _ =
                     r.map_err(|_| panic_with_error!(&env, &errors::ContractErrors::OutcomeError));

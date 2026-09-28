@@ -15,7 +15,9 @@ fn constructor_stores_values() {
     // nested `pause` call, which recording mode treats as non-root auth.
     env.mock_all_auths_allowing_non_root_auth();
     let admin = Address::generate(&env);
-    let tansu = env.register(tansu::WASM, (admin,));
+    let collateral = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let executor = Address::generate(&env);
+    let tansu = env.register(tansu::WASM, (admin, collateral.address(), executor));
     let registry = Address::generate(&env);
     let project_key = Bytes::from_slice(&env, &[7u8; 16]);
     let manager = env.register(

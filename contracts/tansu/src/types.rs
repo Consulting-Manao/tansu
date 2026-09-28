@@ -15,8 +15,9 @@ pub struct ContractRef {
 
 #[contracttype]
 pub enum ContractKey {
-    Collateral, // Collateral asset contract address
+    Collateral, // Collateral asset contract address, set at construction
     Nqg,        // Neural Quorum Governance contract address
+    Executor,   // Contract running the outcome calls of proposals
 }
 
 #[contracttype]
