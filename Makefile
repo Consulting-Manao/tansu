@@ -324,12 +324,12 @@ pre_push_hook:
 
 # --------- NQG --------- #
 
-nqg:
+nqg:  ## Voting weight of the admin identity from the NQG contract nqg=<contract id>
 	stellar contract invoke \
 	  --source-account $(admin) \
-	  --network testnet \
-	  --id $(nqg_contract_id) \
+	  --network $(network) \
+	  --id $(nqg) \
 	  -- \
-	  get_voting_power_for_user \
-	  --user $(admin)
+	  get_voting_power \
+	  --user $(shell stellar keys address $(admin))
 
