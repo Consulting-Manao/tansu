@@ -110,13 +110,13 @@ The SCF Public Goods Award uses this to keep Pilots from voting on projects they
 Two maintainer actions handle bad votes and bad proposals:
 
 - `remove_vote(maintainer, project_key, proposal_id, voter)` drops a vote and its contribution to the tally, while the proposal is active (including after the voting period ends, before execution). It is also the operational answer to malformed anonymous votes, see [Known limitation](#known-limitation-ballot-well-formedness).
-- `revoke_proposal(maintainer, project_key, proposal_id)` closes an active proposal as spam or malicious. The proposer's deposit is forfeited. An admin can also revoke.
+- `revoke_proposal(maintainer, project_key, proposal_id)` deletes an active proposal as spam or malicious, with its votes. Its id stays taken, and `get_proposal` then reports it as not found. The proposer's deposit is forfeited. An admin can also revoke, even while the contract is paused.
 
 ## Acting on other contracts
 
 An approved proposal can do more than record a decision: its [outcome contract](#proposal-lifecycle) is invoked by Tansu during `execute`. How to wire it depends on what the target contract expects from its caller.
 
-**The target accepts the call as is.** Point the outcome at it directly. Tansu invokes `execute_fn(args)` from its own address.
+**The target accepts the call as is.** Point the outcome at it directly. Tansu does not make the call itself: it asks its **executor**, a separate contract with no storage, no role and no funds, to invoke `execute_fn(args)`. The target sees the executor as its caller, so an outcome can never use Tansu's own authority or spend what Tansu holds. A proposal takes at most three outcomes.
 
 Two cautions apply to every outcome:
 
@@ -128,7 +128,7 @@ Two cautions apply to every outcome:
 1. The manager is deployed with the Tansu contract address and the project key, and made the project's maintainer.
 2. A proposal is created with a single outcome contract: the call to make if approved.
 3. After voting, anyone calls `manager.trigger(proposal_id)`. The manager reads the proposal from Tansu, pre-authorizes exactly that one `(contract, fn, args)` call as itself, and calls `Tansu.execute` as the maintainer.
-4. Tansu tallies. On **Approved** it invokes the outcome, which finds the manager's authorization and runs. On any other result nothing is authorized to run.
+4. Tansu tallies. On **Approved** its executor invokes the outcome, which finds the manager's authorization and runs: a contract's pre-authorization covers the call wherever it happens below it. On any other result nothing is authorized to run.
 
 Tansu refuses to execute a proposal twice, so a `trigger` cannot be replayed. The pattern needs public voting, since `trigger` passes no tallies.
 
@@ -445,18 +445,18 @@ Tansu separates two problems: keeping junk out, and keeping votes honest. Deposi
 | Create a proposal | **5 XLM** (`PROPOSAL_COLLATERAL`) | Yes, on `execute`, whatever the outcome. Forfeited if the proposal is revoked |
 | Vote | None | -- |
 
-Deposits are paid in the collateral asset configured by the admin (`set_collateral_contract`, the native XLM asset contract).
+Deposits are paid in the collateral asset set when the contract is deployed (the native XLM asset contract).
 
 **No collateral to vote.** Voting used to require a deposit too. It was removed: locking funds for every ballot added cost and friction for voters, and did not protect anything that voting weight does not already protect.
 
 **Weight is the Sybil defense** -- when weight is bound to an identity. Then a vote only counts for as much weight as its address has earned, and creating many addresses buys nothing:
 
-- On the NQG-governed project (the SCF Public Goods Award), weight is the voter's [Neural Quorum Governance](./membership.mdx#nqg-contract-weight) score. A fresh address has no score, and scores at or below the threshold count as **zero**. Reputation, not capital, decides who is heard.
-- On badge-based projects, weight comes from badges that maintainers grant to specific addresses. An address without badges still votes with weight **1**, so badge weights (1 000 000 and above) dominate by construction.
+- On a project with an [NQG contract](./membership.mdx#nqg-contract-weight) (such as the SCF Public Goods Award rounds), weight is what that contract gives the voter. A fresh address has none, and weight **zero** cannot vote. Reputation, not capital, decides who is heard.
+- On badge-based projects, weight comes from badges that maintainers grant to specific addresses. An address without badges still votes with weight **1**, so badge weights (500 000 and above) dominate by construction. Weight-1 votes take at most **20** of a proposal's 40 slots, so fresh addresses cannot fill a proposal and leave badge holders out.
 
 :::warning[Token-weighted proposals are not Sybil-resistant]
 
-On a token-based proposal the contract only checks the voter's **current** balance. Tokens are not locked and no snapshot is taken, so the same tokens can be moved to a new address and voted again, up to the 40-vote cap. Treat token-weighted results as advisory, and use NQG or badge weight for binding decisions. Escrow or balance snapshots are needed before token weight can be relied on.
+Only a maintainer can create a token-based proposal, and never on a project with an NQG contract. The contract then only checks the voter's **current** balance. Tokens are not locked and no snapshot is taken, so the same tokens can be moved to a new address and voted again, up to the 40-vote cap. Treat token-weighted results as advisory, and use NQG or badge weight for binding decisions. Escrow or balance snapshots are needed before token weight can be relied on.
 
 :::
 
@@ -469,6 +469,7 @@ The contract enforces several limits to prevent abuse:
 **Voting Limits:**
 
 - `MAX_VOTES_PER_PROPOSAL`: **40 votes** per proposal
+- `MAX_DEFAULT_WEIGHT_VOTES`: at most **20** of them with weight 1
 - Once reached, proposal closes to new votes (existing votes still count)
 
 **Proposal Limits:**
@@ -487,6 +488,8 @@ The contract enforces several limits to prevent abuse:
 
 - Proposal title: **5-256 characters**
 - IPFS CID: **32-64 characters**
+- Outcome contracts: at most **3**, one per final status
+- Each encrypted vote or seed of an anonymous ballot: **1,024 bytes**
 
 The constants live at the top of `contract_dao.rs` and in `types.rs`.
 
@@ -512,11 +515,11 @@ Custom quorum logic (percentage, thresholds…) can be built off-chain before de
 
 ### Voting Eligibility
 
-**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge). Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
+**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge), within the 20 slots open to weight-1 votes. Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
 
-**Token-based proposals:** Any address holding the proposal's token can vote. Vote `weight` is in **whole token units** (the contract checks `weight * 10^decimals` against the voter's current balance). Badge validation is skipped.
+**Token-based proposals:** Created by a maintainer only. Any address holding the proposal's token can vote. Vote `weight` is in **whole token units** (the contract checks `weight * 10^decimals` against the voter's current balance). Badge validation is skipped.
 
-**NQG-weighted project:** For the admin-configured SCF Public Goods project key, `get_max_weight` returns the voter's Neural Quorum Governance score from the external NQG contract (zero if score ≤ 4M). This is a project-level setting, not a separate proposal flag like `token_contract`.
+**NQG-weighted project:** When a maintainer has set an NQG contract on the project (`set_nqg_contract`), `get_max_weight` returns that contract's `get_voting_power(voter)`, and badges are not used. This is a project-level setting, not a separate proposal flag like `token_contract`.
 
 All voters must:
 

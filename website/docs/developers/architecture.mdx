@@ -92,12 +92,14 @@ The contract emits events for all state changes:
 **Membership Events:**
 
 - `MemberAdded` - New member registered
+- `MemberUpdated` - Member metadata or Git identity changed
 - `BadgesUpdated` - Badges assigned/updated
+- `NqgContractSet` - A project's NQG contract set or cleared
 
 **Admin Events:**
 
 - `ContractPaused` - Contract paused or unpaused
-- `ContractUpdated` - Collateral or NQG contract changed
+- `ContractUpdated` - Outcome executor changed
 - `UpgradeProposed` - Contract upgrade proposed
 - `UpgradeApproved` - Upgrade approval recorded
 - `UpgradeStatus` - Upgrade executed or cancelled

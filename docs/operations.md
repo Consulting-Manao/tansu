@@ -16,26 +16,30 @@ two variables:
 - `admin` selects the signing identity of the Stellar CLI. It defaults to
   `tansu-<network>`.
 
-The contract also references two external contracts:
+The contract also references external contracts:
 
-| Reference        | Value                                                                                     | Set with                  |
-| ---------------- | ----------------------------------------------------------------------------------------- | ------------------------- |
-| Collateral asset | Native XLM asset contract: `stellar contract id asset --asset native --network <network>` | `set_collateral_contract` |
-| NQG contract     | `nqg_contract_id` and `nqg_wasm_hash` in the `Makefile`                                   | `set_nqg_contract`        |
+| Reference        | Value                                                                                     | Set with                                         |
+| ---------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Collateral asset | Native XLM asset contract: `stellar contract id asset --asset native --network <network>` | Constructor, fixed for the deployment            |
+| Executor         | `tansu-executor`, deployed with `make executor_deploy`                                    | Constructor, then `set_executor` (admin)         |
+| NQG contract     | stellar-membership, per project                                                           | `set_nqg_contract` (a maintainer of the project) |
 
-When a reference carries a WASM hash, `validate_contract` checks it when the
-reference is set and before each use. A call fails if the contract at that address
-runs another WASM. Hence, the NQG hash is updated together with the NQG contract, and
-never removed.
+The executor runs proposal outcomes, so that an outcome never acts with Tansu's
+authority. It has no storage, no admin and no upgrade: it must never hold funds or
+be given a role. To change it, deploy a new one and call `set_executor`.
+
+When an NQG reference carries a WASM hash, `validate_contract` checks it when it is
+set and before each use. A call fails if the contract at that address runs another
+WASM.
 
 ## Roles
 
-| Role               | Authority                                                                                                                                                                                                                           | Key custody                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Deployer           | Upload and deploy the WASM                                                                                                                                                                                                          | Dedicated key, used only for deployment |
-| Admin              | `pause`, `set_collateral_contract`, `set_nqg_contract`, the upgrade flow, `revoke_proposal` on any project                                                                                                                          | Hardware-backed, one key per admin      |
-| Project maintainer | Everything scoped to one project: `commit`, `set_evidence`, `attest`, `set_badges`, `update_config`, `set_attestation_threshold`, `anonymous_voting_setup`, `execute`, `remove_vote`, `revoke_proposal`, conflict-of-interest lists | Chosen by each project                  |
-| Proposer, voter    | `create_proposal`, `vote`                                                                                                                                                                                                           | End users                               |
+| Role               | Authority                                                                                                                                                                                                                                               | Key custody                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Deployer           | Upload and deploy the WASM                                                                                                                                                                                                                              | Dedicated key, used only for deployment |
+| Admin              | `pause`, `set_executor`, the upgrade flow, `revoke_proposal` on any project, also while paused                                                                                                                                                          | Hardware-backed, one key per admin      |
+| Project maintainer | Everything scoped to one project: `commit`, `set_evidence`, `attest`, `set_badges`, `update_config`, `set_attestation_threshold`, `set_nqg_contract`, `anonymous_voting_setup`, `execute`, `remove_vote`, `revoke_proposal`, conflict-of-interest lists | Chosen by each project                  |
+| Proposer, voter    | `create_proposal`, `vote`                                                                                                                                                                                                                               | End users                               |
 
 The following rules apply to admins:
 
@@ -48,10 +52,15 @@ The following rules apply to admins:
   possible key compromise.
 - Admin keys are hardware-backed. Stellar supports Shamir secret sharing through
   SEP-52, for instance with Trezor devices.
+- To require several people for admin actions, use a single admin entry that is a
+  Stellar account with native multisig. The in-contract threshold only applies to
+  accepting upgrades; pausing, unpausing, cancelling an upgrade and `set_executor`
+  each take one admin.
 
 On the project side, any single maintainer can call `update_config`, which replaces
-the maintainer list, and `set_attestation_threshold`. Projects that need stronger
-guarantees keep their maintainer list small and monitor the corresponding events.
+the maintainer list, `set_attestation_threshold` and `set_nqg_contract`. Projects
+that need stronger guarantees make their maintainer a multisig account, keep the list
+small and monitor the corresponding events.
 
 ## Release and verification
 
@@ -76,20 +85,25 @@ vulnerability scans. Their results are checked before tagging a release.
 A new deployment follows these steps:
 
 1. Configure the network and identities with `make prepare network=<network>`.
-2. Download the WASM from the release and deploy it with
-   `make contract_deploy network=<network> wasm=<path>`. The deployment uses a fixed
-   salt. Hence, deploying again with the same deployer key gives the same contract id
-   and fails instead of creating a second contract.
-3. Read the state back. `get_admins_config` must return the deployer as admin, and
+2. Deploy the executor with `make executor_deploy network=<network>`.
+3. Download the WASM from the release and deploy it with
+   `make contract_deploy network=<network> wasm=<path>`. The constructor takes the
+   admin, the native XLM asset contract as collateral and the executor. The deployment
+   uses a fixed salt. Hence, deploying again with the same deployer key gives the same
+   contract id and fails instead of creating a second contract.
+4. Read the state back. `get_admins_config` must return the deployer as admin, and
    the contract must be paused, since the constructor ends by pausing it.
-4. Set the collateral asset with `make contract_set_collateral_contract network=<network>`.
-5. Set the NQG contract and the project using it with
-   `make contract_set_nqg_contract network=<network>`. The project name is written in
-   the target and must be checked first.
-6. Add the other admins and raise the threshold with an upgrade proposal, see
+5. Add the other admins and raise the threshold with an upgrade proposal, see
    [Admin operations](#admin-operations).
-7. Unpause with `make contract_unpause network=<network>` once every value read back
+6. Unpause with `make contract_unpause network=<network>` once every value read back
    matches the expected configuration.
+
+A project weighted by NQG, such as a round of the SCF Public Goods Award, is set up
+by one of its maintainers with
+`make contract_set_nqg_contract network=<network> project_key=<hex> nqg=<contract id>`.
+For a project run by a contract as its only maintainer (stellar-membership
+promotions, the Registry manager), the founder sets NQG first and then hands the
+project over with `update_config`.
 
 Before a production deployment, the following is verified:
 
@@ -145,19 +159,20 @@ approving, which can make the threshold impossible to reach.
 | `commit`                       | Maintainer                     | Full commit hash, 40 or 64 hexadecimal characters                                                                                    |
 | `set_evidence`                 | Maintainer                     | `make contract_set_evidence` records evidence for the Tansu project itself. Other projects call `tools/evidence/publish.sh` directly |
 | `attest`, `revoke_attestation` | Maintainer, resp. the attester | Revocation is possible during `ATTESTATION_REVOCATION_WINDOW` and before finality                                                    |
-| `set_attestation_threshold`    | Maintainer                     | Applies immediately                                                                                                                  |
+| `set_attestation_threshold`    | Maintainer                     | A higher value applies at once, a lower one after the notice window                                                                  |
+| `set_nqg_contract`             | Maintainer                     | Weights the project's votes with an NQG contract, or with badges again when cleared                                                  |
 | `update_config`                | Maintainer                     | Replaces the maintainer list, metadata and governance settings                                                                       |
 | `execute`                      | Maintainer                     | After `voting_ends_at` plus the project's execution delay                                                                            |
 | `remove_vote`                  | Maintainer                     | Drops a vote from an active proposal                                                                                                 |
-| `revoke_proposal`              | Maintainer or admin            | Closes the proposal and keeps the proposer's deposit                                                                                 |
+| `revoke_proposal`              | Maintainer or admin            | Deletes the proposal and its votes, and keeps the proposer's deposit                                                                 |
 
 The governance settings `min_voting_period` and `execute_delay` change in two ways.
 A change that only lengthens them applies immediately. A change that shortens one of
 them waits for a notice window equal to the current `min_voting_period` plus
 `execute_delay`. Proposals keep the execution delay they had when they were created.
 
-A change of the attestation threshold applies immediately and affects every target
-of the project. It is announced to the maintainers before it is made.
+A higher attestation threshold applies immediately. A lower one waits for the same
+notice window, and `AttestationThresholdSet.activates_at` says when it applies.
 
 ### Checklist before a state change
 
@@ -217,8 +232,8 @@ Without `--key` or `--key-xdr`, the command extends the contract instance. For a
 persistent entry, add `--durability persistent` and the entry key. The transaction is
 simulated and checked before submission.
 
-Instance storage holds the pause flag, the admin set, the pending upgrade, the NQG
-project key and the external contract references. Persistent storage holds projects,
+Instance storage holds the pause flag, the admin set, the pending upgrade, the
+collateral asset and the executor. Persistent storage holds projects,
 members, badges, commits, evidence, proposals, votes, conflict-of-interest lists and
 attestations. The first write to a dormant project costs more than usual, and scripted
 operations must budget for it.
@@ -250,7 +265,8 @@ The following events raise an alert:
 | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `ContractPaused`                                      | Any change of the pause state                                                    |
 | `UpgradeProposed`, `UpgradeApproved`, `UpgradeStatus` | Every upgrade step, including cancellations                                      |
-| `ContractUpdated`                                     | Change of the collateral or NQG reference                                        |
+| `ContractUpdated`                                     | Change of the executor                                                           |
+| `NqgContractSet`                                      | Change of a project's NQG contract                                               |
 | `ProjectConfigUpdated`                                | Change of a project's maintainers or metadata                                    |
 | `ProjectGovernanceUpdated`                            | Change of voting period or execution delay. `activates_at` gives when it applies |
 | `AttestationThresholdSet`                             | Change of a project's finality threshold                                         |
@@ -318,11 +334,12 @@ the name.
 
 ### Faulty external contract
 
-- NQG. If the NQG contract returns wrong values, point `set_nqg_contract` to a
-  correct contract. This call also sets the NQG project, which must be given again.
-- Collateral asset. If transfers fail, `register`, `create_proposal` and `execute`
-  fail with `CollateralError`. Pause the contract and set a correct asset with
-  `set_collateral_contract`.
+- NQG. If a project's NQG contract returns wrong values, a maintainer of the project
+  points `set_nqg_contract` to a correct contract, or clears it to use badges.
+- Collateral asset. It is fixed at deployment. If its transfers fail, `register`,
+  `create_proposal` and `execute` fail with `CollateralError`; pause the contract.
+- Executor. If outcome calls fail because of the executor, deploy a new one and call
+  `set_executor`.
 - Outcome contract. If an approved proposal's outcome keeps failing, the proposal
   cannot be executed. `revoke_proposal` closes it and keeps the proposer's deposit.
   When the proposer is not at fault, the decision and any off-chain compensation are

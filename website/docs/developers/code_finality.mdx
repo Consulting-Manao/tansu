@@ -51,7 +51,7 @@ A target is final when the share of **current maintainers** who attested it reac
 attested_maintainers × 100 ≥ threshold × maintainers
 ```
 
-- The threshold is a percentage between **50** and **100**, **66** by default. It is set at registration, with `update_config`, or with `set_attestation_threshold` (passing `None` resets it to the default). A new threshold applies immediately.
+- The threshold is a percentage between **50** and **100**, **66** by default. It is set at registration, with `update_config`, or with `set_attestation_threshold` (passing `None` resets it to the default). A higher threshold applies at once. A lower one waits out the same [notice window](./governance.mdx#project-governance-settings) as shorter voting durations, so one maintainer cannot drop the bar and finalize targets alone.
 - Only current maintainers count. An attestation from someone who has since been removed as maintainer is ignored, so a stale vouch cannot push a target over the line.
 - Finality **latches when it is reached by an attestation.** When an `attest` call brings a target to the threshold, the contract records the time, and the target stays final even if the maintainer set or the threshold changes afterwards.
 
@@ -63,12 +63,9 @@ A maintainer can take back an attestation with `revoke_attestation` within **24 
 
 ## Known limitation: finality reached without an attestation
 
-The finality check is also evaluated live, against the current maintainer set and threshold, but only an `attest` call writes the latch. Two cases follow:
+The finality check is also evaluated live, against the current maintainer set and threshold, but only an `attest` call writes the latch. Removing maintainers, or a lower threshold once its notice window has passed, can make a target read as final **without latching it**; adding maintainers or raising the threshold makes it non-final again.
 
-- Removing maintainers or lowering the threshold can make a target read as final **without latching it**. Adding maintainers or raising the threshold back makes it non-final again.
-- Lowering the threshold takes effect at once, unlike the voting settings, which wait out a [notice window](./governance.mdx#project-governance-settings). A single maintainer can drop it to 50% and make partially attested targets read as final, which also stops other maintainers from revoking.
-
-Until the contract re-evaluates and latches finality on those changes, consumers who need a durable signal should rely on `finalized_at` being set rather than on `is_final` alone.
+Consumers who need a durable signal should rely on `finalized_at` being set rather than on `is_final` alone. Maintainers act alone on a project's maintainer list; a project that wants several people to agree on such changes can make its maintainer a multisig account.
 
 ## Limits
 
