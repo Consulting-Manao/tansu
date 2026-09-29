@@ -35,7 +35,7 @@ test("outcome calls land in their slots, typed, and execute", async ({
   page,
   wallet,
 }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   const name = uniqueName("calls");
   const proposer = await fundedKeypair();
   await registerProject(name, [wallet], {
@@ -105,27 +105,9 @@ test("outcome calls land in their slots, typed, and execute", async ({
   // approved slot is the filler executes too. A call picked by a Registry
   // name is checked again at execution: the typed call's name now points to
   // another contract, the Registry call's still to its own.
-  const typed = await createProposal(proposer, name, "Typed call", 60, {
-    outcomeContracts: calls,
-    outcomes: registryOutcome(XLM, "balance"),
-  });
-  const filler = await createProposal(proposer, name, "Filler call", 60, {
-    outcomeContracts: [calls[1], calls[1], calls[2]],
-  });
-  const registryCall = {
-    address: REGISTRY,
-    execute_fn: "fetch_contract_id",
-    args: [nativeToScVal("registry", { type: "string" })],
-  };
-  const named = await createProposal(proposer, name, "Registry call", 60, {
-    outcomeContracts: [registryCall],
-    outcomes: registryOutcome(REGISTRY, "fetch_contract_id"),
-  });
-  const registryCheck = {
-    [typed]: `now points to ${REGISTRY}`,
-    [named]: "still points to the contract this proposal calls",
-  };
-  for (const id of [typed, filler, named]) {
+  // Each proposal is approved as soon as it exists: an upload can take a
+  // minute, longer than its voting window.
+  const approve = async (id: number) => {
     await page.goto(`/proposal/?id=${id}&name=${name}`);
     await page.getByRole("button", { name: "Vote", exact: true }).click();
     await page.getByText("Approve", { exact: true }).click();
@@ -134,7 +116,34 @@ test("outcome calls land in their slots, typed, and execute", async ({
       .last()
       .click();
     await page.getByRole("button", { name: "OK" }).click({ timeout: 120_000 });
-  }
+    return id;
+  };
+  const typed = await approve(
+    await createProposal(proposer, name, "Typed call", 120, {
+      outcomeContracts: calls,
+      outcomes: registryOutcome(XLM, "balance"),
+    }),
+  );
+  const filler = await approve(
+    await createProposal(proposer, name, "Filler call", 120, {
+      outcomeContracts: [calls[1], calls[1], calls[2]],
+    }),
+  );
+  const registryCall = {
+    address: REGISTRY,
+    execute_fn: "fetch_contract_id",
+    args: [nativeToScVal("registry", { type: "string" })],
+  };
+  const named = await approve(
+    await createProposal(proposer, name, "Registry call", 120, {
+      outcomeContracts: [registryCall],
+      outcomes: registryOutcome(REGISTRY, "fetch_contract_id"),
+    }),
+  );
+  const registryCheck = {
+    [typed]: `now points to ${REGISTRY}`,
+    [named]: "still points to the contract this proposal calls",
+  };
   const endsAt = Number(
     (await read.proposal(name, named))!.vote_data.voting_ends_at,
   );
