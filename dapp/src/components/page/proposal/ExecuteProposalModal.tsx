@@ -23,6 +23,7 @@ import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
 import InvalidBallots from "./InvalidBallots";
 import { proposalUrl } from "utils/urls";
 import { isNoCall } from "@service/ContractIntrospectionService";
+import { getContractByName } from "@service/StellarRegistryService";
 import { OUTCOMES, winningOutcome } from "utils/proposalOutcomes";
 
 interface ExecuteProposalModalProps extends ModalProps {
@@ -87,6 +88,43 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   useEffect(() => {
     setIsAnonymous(proposal ? !proposal.publicVoting : false);
   }, [proposal]);
+
+  // The winning call is fixed on chain. When its contract was picked by a
+  // Stellar Registry name, the name is looked up again: it may point to
+  // another contract now, which the maintainer should know before executing.
+  const winningCall = computedResult
+    ? proposal?.outcome_contracts?.[OUTCOMES.indexOf(computedResult)]
+    : undefined;
+  const callAddress =
+    winningCall && !isNoCall(winningCall) ? winningCall.address : undefined;
+  const registryName = computedResult
+    ? outcome?.[computedResult]?.registryName
+    : undefined;
+  const [registryNow, setRegistryNow] = useState<{
+    name: string;
+    address: string | null;
+  } | null>(null);
+  const [registryFailed, setRegistryFailed] = useState(false);
+  useEffect(() => {
+    setRegistryNow(null);
+    setRegistryFailed(false);
+    if (!registryName || !callAddress) return;
+    let ignore = false;
+    getContractByName(registryName)
+      .then((contract) => {
+        if (!ignore)
+          setRegistryNow({
+            name: registryName,
+            address: contract?.contractId ?? null,
+          });
+      })
+      .catch(() => {
+        if (!ignore) setRegistryFailed(true);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [registryName, callAddress]);
 
   const handleKeyFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -359,6 +397,39 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                 description="Review the transaction details before execution."
               />
               <VotingResult voteStatus={displayVoteStatus} />
+
+              {registryName && callAddress && (
+                <div className="flex flex-col gap-2 text-sm break-all">
+                  {registryNow?.address === callAddress && (
+                    <p className="text-secondary">
+                      Stellar Registry: <code>{registryNow.name}</code> still
+                      points to the contract this proposal calls.
+                    </p>
+                  )}
+                  {registryNow && registryNow.address === null && (
+                    <p className="text-red-600" role="alert">
+                      <code>{registryNow.name}</code> is no longer registered in
+                      the Stellar Registry. This proposal still calls{" "}
+                      <code>{callAddress}</code>.
+                    </p>
+                  )}
+                  {registryNow?.address &&
+                    registryNow.address !== callAddress && (
+                      <p className="text-red-600" role="alert">
+                        Stellar Registry: <code>{registryNow.name}</code> now
+                        points to <code>{registryNow.address}</code>. This
+                        proposal calls <code>{callAddress}</code>, the contract
+                        the name pointed to when it was proposed.
+                      </p>
+                    )}
+                  {registryFailed && (
+                    <p className="text-secondary">
+                      The Stellar Registry could not be reached to check{" "}
+                      <code>{registryName}</code>.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {executionXdr && (
                 <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-[18px]">

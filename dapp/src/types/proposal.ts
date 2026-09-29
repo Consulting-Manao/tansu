@@ -70,21 +70,18 @@ interface Voter {
 }
 
 export interface ProposalOutcome {
-  approved?: {
-    description: string;
-    xdr?: string; // Optional for backward compatibility
-    contract?: OutcomeContract; // New contract-based outcome
-  };
-  rejected?: {
-    description: string;
-    xdr?: string; // Optional for backward compatibility
-    contract?: OutcomeContract; // New contract-based outcome
-  };
-  cancelled?: {
-    description: string;
-    xdr?: string; // Optional for backward compatibility
-    contract?: OutcomeContract; // New contract-based outcome
-  };
+  approved?: OutcomeView;
+  rejected?: OutcomeView;
+  cancelled?: OutcomeView;
+}
+
+/** One outcome as the proposal page shows it. */
+interface OutcomeView {
+  description: string;
+  xdr?: string; // Optional for backward compatibility
+  contract?: OutcomeContract; // New contract-based outcome
+  /** The Stellar Registry name the author picked the contract by. */
+  registryName?: string;
 }
 
 export interface VoteReceipt {
@@ -108,6 +105,8 @@ interface StoredOutcomeExecution {
   type: "xdr" | "contract";
   xdr?: string;
   contract?: OutcomeContract;
+  /** The Stellar Registry name `contract.address` was resolved from. */
+  registry_name?: string;
 }
 
 /** A single outcome node in the tree-shaped outcomes.json format. */

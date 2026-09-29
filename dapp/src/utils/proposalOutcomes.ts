@@ -39,6 +39,8 @@ export interface OutcomeDraft {
   mode: "contract" | "xdr" | "none";
   xdr: string;
   call: OutcomeCall;
+  /** A Stellar Registry name the author picked, and the address it gave. */
+  registry?: { name: string; address: string } | undefined;
 }
 
 /** The outcomes the author added; a removed one is absent. */
@@ -71,8 +73,12 @@ export function storedOutcomes(drafts: OutcomeDrafts): StoredProposalOutcome {
     const xdr = draft.mode === "xdr" ? draft.xdr.trim() : "";
     if (!draft.description.trim() && !call && !xdr) continue;
     const node: StoredOutcomeNode = { description: draft.description.trim() };
-    if (call) node.execution = { type: "contract", contract: call };
-    else if (xdr) node.execution = { type: "xdr", xdr };
+    if (call) {
+      node.execution = { type: "contract", contract: call };
+      // The name stands for the address it gave: an edited address drops it.
+      if (draft.registry?.address === call.address)
+        node.execution.registry_name = draft.registry.name;
+    } else if (xdr) node.execution = { type: "xdr", xdr };
     stored.outcomes[outcome] = node;
   }
   return stored;

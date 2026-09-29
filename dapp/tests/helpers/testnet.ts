@@ -291,11 +291,20 @@ export async function createProposal(
   endsIn: number,
   {
     outcomeContracts,
+    outcomes,
     publicVoting = true,
-  }: { outcomeContracts?: OutcomeContract[]; publicVoting?: boolean } = {},
+  }: {
+    outcomeContracts?: OutcomeContract[];
+    /** The proposal's outcomes.json, as the dApp writes it. */
+    outcomes?: object;
+    publicVoting?: boolean;
+  } = {},
 ): Promise<number> {
   const pack = await packFiles([
     new File([`# ${title}\n\nSet up by the e2e flows.`], "proposal.md"),
+    ...(outcomes
+      ? [new File([JSON.stringify(outcomes)], "outcomes.json")]
+      : []),
   ]);
   const tx = await tansu(proposer).create_proposal({
     proposer: proposer.publicKey(),

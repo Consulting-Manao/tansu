@@ -198,6 +198,8 @@ export function normalizeOutcomeData(raw: unknown): ProposalOutcome {
       if (node.execution.xdr) normalized.xdr = node.execution.xdr;
       if (node.execution.contract)
         normalized.contract = node.execution.contract;
+      if (typeof node.execution.registry_name === "string")
+        normalized.registryName = node.execution.registry_name;
     } else {
       // Legacy flat format: xdr/contract sit directly on the node.
       if (node.xdr) normalized.xdr = node.xdr;
@@ -246,7 +248,7 @@ export async function fetchProposalOutcomeData(
         contract: call,
       };
     } else if (node?.contract) {
-      const { contract: _offChain, ...rest } = node;
+      const { contract: _offChain, registryName: _name, ...rest } = node;
       outcomeData[kind] = rest;
     }
   });

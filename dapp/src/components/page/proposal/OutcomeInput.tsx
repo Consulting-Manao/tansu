@@ -93,10 +93,12 @@ const OutcomeInput = ({
     onChange({ ...draft, ...change });
 
   // Another contract has other functions: the chosen one and its arguments go.
-  const setAddress = (address: string) =>
+  // The Registry name stays only with the address it resolved to.
+  const setAddress = (address: string, registry?: OutcomeDraft["registry"]) =>
     update({
       call:
         address === call.address ? call : { address, execute_fn: "", args: [] },
+      registry,
     });
 
   const headingId = useId();
@@ -196,7 +198,12 @@ const OutcomeInput = ({
                 Contract Name (Stellar Registry)
               </label>
               <ContractNameSearch
-                onSelect={(contract) => setAddress(contract.contractId)}
+                onSelect={(contract) =>
+                  setAddress(contract.contractId, {
+                    name: contract.contractName,
+                    address: contract.contractId,
+                  })
+                }
               />
             </div>
 

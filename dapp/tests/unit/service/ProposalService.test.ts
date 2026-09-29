@@ -310,6 +310,27 @@ describe("fetchProposalOutcomeData", () => {
 });
 
 describe("normalizeOutcomeData", () => {
+  it("reads the Registry name a contract was picked by", () => {
+    expect(
+      normalizeOutcomeData({
+        outcomes: {
+          approved: {
+            description: "Publish",
+            execution: {
+              type: "contract",
+              contract: { address: "C1", execute_fn: "publish", args: [] },
+              registry_name: "registry",
+            },
+          },
+        },
+      }).approved,
+    ).toEqual({
+      description: "Publish",
+      contract: { address: "C1", execute_fn: "publish", args: [] },
+      registryName: "registry",
+    });
+  });
+
   it("returns an empty object for null/undefined input", () => {
     expect(normalizeOutcomeData(null)).toEqual({});
     expect(normalizeOutcomeData(undefined)).toEqual({});

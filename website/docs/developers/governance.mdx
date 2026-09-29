@@ -140,7 +140,7 @@ The manager signs whatever call an approved proposal names. Anyone can create a 
 
 The [Stellar Registry](https://stellar.rgstry.xyz) governs its root registry this way, with the `registry-tansu-manager` contract ([stellar-registry/contracts](https://github.com/stellar-registry/contracts)): a Tansu vote publishes or deploys a contract on the registry. The Registry's web app builds these proposals itself -- it composes `outcomes.json` from the registry contract's spec, uploads the proposal directory to IPFS and calls `create_proposal` -- so registry users never leave its interface. A copy of the manager lives in this repository under `contracts/registry-tansu-manager/`.
 
-**Helpers in the dApp.** The proposal form offers outcome templates, including one for the Stellar Registry. Contract fields accept a registry name instead of an address: the dApp resolves it with the registry's `fetch_contract_id` when the proposal is created and stores the resolved address, so a later change of the name does not change what the proposal executes.
+**Helpers in the dApp.** The proposal form offers outcome templates, including one for the Stellar Registry. Contract fields accept a registry name instead of an address: the dApp resolves it with the registry's `fetch_contract_id` when the proposal is created and stores the resolved address, so a later change of the name does not change what the proposal executes. It also keeps the name with the proposal and resolves it again at execution: if the name now points to another contract, or is no longer registered, the maintainer executing sees a warning. The approved call still runs as voted.
 
 ## Public vs. Anonymous voting
 

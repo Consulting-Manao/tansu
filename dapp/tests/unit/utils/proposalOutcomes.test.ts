@@ -46,6 +46,29 @@ describe("outcome slots", () => {
 });
 
 describe("outcomes.json", () => {
+  it("keeps the Registry name only with the address it resolved to", () => {
+    const picked = {
+      ...call("mint"),
+      registry: { name: "token", address: SAC },
+    };
+    expect(storedOutcomes({ approved: picked }).outcomes.approved).toEqual({
+      description: "Runs mint",
+      execution: {
+        type: "contract",
+        contract: { address: SAC, execute_fn: "mint", args: [] },
+        registry_name: "token",
+      },
+    });
+    const edited = { ...picked, call: { ...picked.call, address: "CEDITED" } };
+    expect(
+      storedOutcomes({ approved: edited }).outcomes.approved?.execution,
+    ).not.toHaveProperty("registry_name");
+    // The name never reaches the contract's slots.
+    expect(outcomeSlots({ approved: picked })).toEqual([
+      { address: SAC, execute_fn: "mint", args: [] },
+    ]);
+  });
+
   it("writes what each added outcome means and runs, and nothing for removed ones", () => {
     expect(
       storedOutcomes({
