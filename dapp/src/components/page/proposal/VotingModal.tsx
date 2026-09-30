@@ -35,10 +35,38 @@ const VotingModal: React.FC<VotersModalProps> = ({
   const [voteReceipt, setVoteReceipt] = useState<
     import("types/proposal").VoteReceipt | null
   >(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const isInsufficientVotingPower = maxWeight <= 0;
   // Closing while the vote lands would lose its receipt.
   const close = () => {
     if (!isLoading) onClose();
+  };
+
+  const downloadReceipt = async () => {
+    if (!voteReceipt) return;
+    setIsDownloading(true);
+    try {
+      const { renderVoteReceipt, voteReceiptFileName } =
+        await import("./VoteReceiptPdf");
+      const pdf = await renderVoteReceipt(voteReceipt);
+      const url = URL.createObjectURL(
+        new Blob([pdf as BlobPart], { type: "application/pdf" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = voteReceiptFileName(voteReceipt);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      toast.error(
+        "Vote receipt",
+        `Could not create the PDF: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const insufficientPowerMessage = isTokenVoting
@@ -154,18 +182,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
   if (voteReceipt) {
     return (
       <Modal onClose={onClose}>
-        <style>{`
-          @media print {
-            body * { visibility: hidden; }
-            #printable-receipt, #printable-receipt * { visibility: visible; }
-            #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-            .no-print { display: none !important; }
-          }
-        `}</style>
-        <div
-          id="printable-receipt"
-          className="flex flex-col gap-6 w-full max-w-2xl mx-auto"
-        >
+        <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto">
           <div className="flex flex-col gap-2 border-b pb-4">
             <h2 className="text-2xl font-bold text-primary">Vote Receipt</h2>
             <p className="text-sm text-secondary">
@@ -268,11 +285,17 @@ const VotingModal: React.FC<VotersModalProps> = ({
             )}
           </div>
 
-          <div className="flex justify-end gap-3 no-print mt-4">
+          <div className="flex justify-end gap-3 mt-4">
             <Button type="secondary" onClick={onClose}>
               Close
             </Button>
-            <Button onClick={() => window.print()}>Print / Save PDF</Button>
+            <Button
+              onClick={downloadReceipt}
+              isLoading={isDownloading}
+              disabled={isDownloading}
+            >
+              Download PDF
+            </Button>
           </div>
         </div>
       </Modal>

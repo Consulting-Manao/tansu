@@ -4,6 +4,8 @@
     "@astrojs/react": "^7.0.0",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.7.0",
     "@creit.tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.7.0",
+    "@formepdf/core": "^0.25.0",
+    "@formepdf/react": "^0.25.0",
     "@nanostores/react": "^2.0.1",
     "@nidohq/stellar-wallets-kit-module": "^0.1.0",
     "@noble/curves": "^2.4.0",
