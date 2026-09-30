@@ -19,19 +19,15 @@ const { title, page } = Astro.props;
 <script>
   import { Buffer } from "buffer";
   import { openModal } from "../utils/modals";
+  import { termsAccepted } from "../utils/terms";
 
   global.Buffer = Buffer;
 
   document.addEventListener("astro:page-load", () => {
-    // The terms pages themselves, with or without the trailing slash.
-    if (/^\/(terms|privacy)\/?$/.test(window.location.pathname)) return;
-    let accepted = true;
-    try {
-      accepted = !!localStorage.getItem("tansu_tos_accepted");
-    } catch {
-      // No storage: the answer could not be kept either.
-    }
-    if (!accepted) openModal("terms", {});
+    // The legal pages themselves, with or without the trailing slash.
+    if (/^\/(terms|privacy|impressum)\/?$/.test(window.location.pathname))
+      return;
+    if (!termsAccepted()) openModal("terms", {});
   });
 </script>
 

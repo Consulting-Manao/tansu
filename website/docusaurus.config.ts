@@ -60,16 +60,6 @@ const config: Config = {
     ],
   ],
 
-  stylesheets: [
-    {
-      href: "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css",
-      type: "text/css",
-      integrity:
-        "sha384-odtC+0UGzzFL/6PNoE8rX/SPcQDXBJ+uRepguP4QkPCm2LBxH3FA3y+fKSiJ+AmM",
-      crossorigin: "anonymous",
-    },
-  ],
-
   themes: ["@docusaurus/theme-mermaid"],
 
   themeConfig: {
@@ -111,7 +101,7 @@ const config: Config = {
     },
     footer: {
       style: "dark",
-      copyright: `<p>Copyright © ${new Date().getFullYear()} Tansu. Made by <a href="https://consulting-manao.com">Consulting Manao GmbH</a> | <a href="/docs/terms-of-service">Terms of Service</a> | <a href="/docs/privacy-policy">Privacy Policy</a></p>`,
+      copyright: `<p>Copyright © ${new Date().getFullYear()} Tansu. Made by <a href="https://consulting-manao.com">Consulting Manao GmbH</a> | <a href="/docs/terms-of-service">Terms of Service</a> | <a href="/docs/privacy-policy">Privacy Policy</a> | <a href="/docs/impressum">Impressum</a></p>`,
     },
     prism: {
       theme: prismThemes.github,

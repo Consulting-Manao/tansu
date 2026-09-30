@@ -2,7 +2,7 @@ import { execFileSync, execSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "./helpers/app";
+import { acceptTermsIn, expect, test } from "./helpers/app";
 import { read } from "./helpers/testnet";
 import { connectWallet, mockWallet } from "./helpers/wallet";
 
@@ -109,9 +109,7 @@ test("join with a picture and a git identity, then edit the profile", async ({
   // what the chain says, and Edit waits.
   const device = await browser.newContext();
   await mockWallet(device, wallet);
-  await device.addInitScript(() =>
-    localStorage.setItem("tansu_tos_accepted", "true"),
-  );
+  await acceptTermsIn(device);
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   await device.route("**/profile.json", async (route) => {

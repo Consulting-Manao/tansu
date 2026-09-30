@@ -140,4 +140,4 @@ TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newe
 - **Wallet Integration**: Stellar Wallets Kit for secure wallet connections
 - **IPFS Services**: Decentralized content storage and retrieval
 - **Markdown**: one `Markdown` component renders what users wrote; raw HTML is limited to formatting tags
-- **Legal pages**: `/terms/`, `/privacy/` and the terms modal are built from the root `legal/` files
+- **Legal pages**: `/terms/`, `/privacy/`, `/impressum/` and the terms modal are built from the root `legal/` files; the modal's summary and the Terms' version (their date) are in `src/constants/terms-summary.json`, and the terms gate (`utils/terms.ts`) asks again when that version changes

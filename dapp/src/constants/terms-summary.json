@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "October 21, 2025",
-  "introduction": "Tansu is a decentralized governance platform operated by Consulting Manao GmbH, located in Austria. By using our dApp, you agree to be bound by these Terms of Service.",
-  "importantNotice": "Our architecture is fully decentralized—we do not operate backend servers or store user data. We recommend reading our Privacy Policy alongside these Terms.",
+  "lastUpdated": "30 September 2026",
+  "introduction": "Tansu is a decentralized governance platform operated by Consulting Manao GmbH, Söding-Sankt Johann, Austria. By using our dApp, you agree to be bound by these Terms of Service.",
+  "importantNotice": "The dApp runs in your browser and reads the Stellar blockchain, IPFS and git hosts directly. We keep no user database; the upload service we run puts your files on IPFS. We recommend reading our Privacy Policy alongside these Terms.",
   "sections": {
     "keyPoints": [
       {
@@ -21,12 +21,24 @@
         "content": "You are solely responsible for all content you upload to IPFS."
       },
       {
+        "title": "Reporting Illegal Content",
+        "content": "We host the files you upload. Report content you consider illegal to legal@consulting-manao.com, in German or English. A person reviews each report and tells you the outcome."
+      },
+      {
         "title": "Collateral System",
         "content": "Proposals require collateral, reimbursed to the proposer upon successful execution."
       },
       {
+        "title": "No Advice",
+        "content": "Tansu is a governance tool. Nothing in it is financial, investment, tax or legal advice."
+      },
+      {
         "title": "Austrian Law",
-        "content": "These Terms are governed by Austrian law with jurisdiction in Graz, Austria."
+        "content": "These Terms are governed by Austrian law. The courts of Graz have jurisdiction as far as the law allows; consumers keep the mandatory protections of their country of residence."
+      },
+      {
+        "title": "Changes",
+        "content": "A change to these Terms applies from the day it is published. If you do not accept it, stop using the service."
       }
     ],
     "importantRisks": [
@@ -36,7 +48,7 @@
       },
       {
         "title": "IPFS Content",
-        "content": "Content uploaded to IPFS is permanent and cannot be deleted. It remains accessible even if unlinked from our platform."
+        "content": "Content uploaded to IPFS is public and permanent. It remains accessible even if unlinked from our platform."
       },
       {
         "title": "Anonymous Voting",
@@ -44,7 +56,7 @@
       },
       {
         "title": "No Recourse",
-        "content": "Lost keys, failed transactions, or errors cannot be reversed or compensated."
+        "content": "Lost keys, failed transactions and errors on the blockchain cannot be reversed."
       }
     ],
     "yourResponsibilities": [
@@ -63,16 +75,16 @@
     "limitationsOfLiability": [
       "We do not guarantee continuous, uninterrupted access to our services",
       "Our services depend on third-party systems beyond our control",
-      "We provide services \"as is\" without warranties of any kind",
-      "Our liability is limited to the maximum extent permitted by Austrian law",
-      "We are not liable for user-generated content stored on IPFS or blockchain"
+      "We provide services \"as is\", without warranties, as far as the law allows",
+      "Consulting Manao GmbH is liable only where the law does not allow its liability to be excluded: for intent, gross negligence, personal injury and under product liability law",
+      "We are not liable for user-generated content stored on IPFS or blockchain, except where required by applicable law"
     ],
     "contactInformation": {
       "company": "Consulting Manao GmbH",
-      "details": "Registered in Austrian Commercial Register (Firmenbuch)\nLandesgericht Graz, FN 571029z\nVAT ID: ATU77780135\nManaging Director: Pamphile Tupui Christophe Roy",
-      "address": "Austria",
+      "details": "Commercial register (Firmenbuch): FN 571029z, Landesgericht für ZRS Graz\nVAT ID: ATU77780135\nManaging Director: Dr. DI Pamphile Tupui Christophe Roy",
+      "address": "Köppling 35, 8565 Söding-Sankt Johann, Austria",
       "email": "legal@consulting-manao.com",
-      "website": "tansu.dev"
+      "website": "consulting-manao.com"
     }
   }
 }

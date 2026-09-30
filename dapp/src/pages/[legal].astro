@@ -1,20 +1,30 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Container from "../components/layout/Container.astro";
+import { Content as Impressum } from "../../../legal/impressum.md";
 import { Content as Privacy } from "../../../legal/privacy-policy.md";
 import { Content as Terms } from "../../../legal/terms-of-service.md";
 
 /** The legal texts, from the repository's legal/ directory. */
 export function getStaticPaths() {
   return [
-    { params: { legal: "terms" }, props: { title: "Terms of Service" } },
-    { params: { legal: "privacy" }, props: { title: "Privacy Policy" } },
+    {
+      params: { legal: "terms" },
+      props: { title: "Terms of Service", LegalText: Terms },
+    },
+    {
+      params: { legal: "privacy" },
+      props: { title: "Privacy Policy", LegalText: Privacy },
+    },
+    {
+      params: { legal: "impressum" },
+      props: { title: "Impressum", LegalText: Impressum },
+    },
   ];
 }
 
 const { legal } = Astro.params;
-const { title } = Astro.props;
-const LegalText = legal === "terms" ? Terms : Privacy;
+const { title, LegalText } = Astro.props;
 ---
 
 <Layout title={`${title} - Tansu`} page={legal}>
@@ -137,6 +147,28 @@ const LegalText = legal === "terms" ? Terms : Privacy;
       line-height: 1.7;
     }
 
+    /* Wide tables scroll inside the card. */
+    .legal-content :global(table) {
+      display: block;
+      overflow-x: auto;
+      border-collapse: collapse;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .legal-content :global(th),
+    .legal-content :global(td) {
+      border: 1px solid #d1d5db;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .legal-content :global(th) {
+      color: #311255;
+      font-weight: 600;
+    }
+
     .legal-content :global(a) {
       color: #311255;
       text-decoration: underline;
@@ -165,7 +197,6 @@ const LegalText = legal === "terms" ? Terms : Privacy;
           <h1 class="text-4xl md:text-5xl font-bold text-primary mb-4">
             {title}
           </h1>
-          <p class="text-zinc-600 text-lg">Last Updated: October 21, 2025</p>
           <div class="mt-6 mb-8">
             <a
               href="/"

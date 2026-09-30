@@ -4,6 +4,9 @@
  * work well for content-centric websites.
  */
 
+/* Formula styles and fonts, served with the site. */
+@import "katex/dist/katex.min.css";
+
 /* You can override the default Infima variables here. */
 :root {
   --ifm-color-primary: #af44f2;

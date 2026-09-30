@@ -3,6 +3,7 @@ import Markdown from "./Markdown";
 import termsSummary from "../../constants/terms-summary.json";
 import privacy from "../../../../legal/privacy-policy.md?raw";
 import fullTerms from "../../../../legal/terms-of-service.md?raw";
+import { acceptTerms } from "../../utils/terms";
 
 type LegalView = "summary" | "fullTerms" | "privacy";
 
@@ -34,9 +35,15 @@ interface TermsSections {
 }
 
 interface TermsSummary {
+  /** The date the Terms state at their top: their version. */
+  lastUpdated: string;
   introduction: string;
+  importantNotice: string;
   sections: TermsSections;
 }
+
+const s: TermsSummary = termsSummary;
+const sections = s.sections;
 
 const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
   onAccept,
@@ -58,19 +65,9 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
   };
 
   const handleAccept = () => {
-    localStorage.setItem(
-      "tansu_tos_accepted",
-      JSON.stringify({
-        accepted: true,
-        timestamp: new Date().toISOString(),
-        version: "October 21, 2025",
-      }),
-    );
+    acceptTerms();
     onAccept();
   };
-
-  const s: TermsSummary = termsSummary;
-  const sections = s.sections;
 
   if (!isVisible) return null;
 
@@ -91,7 +88,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
               Please read and accept our Terms of Service to continue
             </div>
             <div className="text-sm text-zinc-600">
-              Last Updated: October 21, 2025
+              Last Updated: {s.lastUpdated}
             </div>
           </div>
           <div className="flex gap-2 mt-4 border-b border-gray-200">
@@ -156,18 +153,13 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     <h4 className="text-sm font-semibold text-blue-800 mb-1">
                       Important Notice
                     </h4>
-                    <p className="text-sm text-blue-700">
-                      Our architecture is fully decentralized—we do not operate
-                      backend servers or store user data. We recommend reading
-                      our Privacy Policy alongside these Terms.
-                    </p>
+                    <p className="text-sm text-blue-700">{s.importantNotice}</p>
                   </div>
                 </div>
               </div>
               <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
                 <p className="text-secondary leading-relaxed">
-                  {s.introduction ||
-                    "Tansu is a decentralized governance platform operated by Consulting Manao GmbH, located in Austria. By using our dApp, you agree to be bound by these Terms of Service."}
+                  {s.introduction}
                 </p>
               </div>
               {sections.keyPoints && (
@@ -332,6 +324,12 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                 Please scroll down to read more before accepting
               </p>
             )}
+            <a
+              href="/impressum/"
+              className="text-xs text-secondary underline mt-1 inline-block"
+            >
+              Impressum
+            </a>
           </div>
           <div className="flex gap-4 justify-center sm:justify-end">
             <button

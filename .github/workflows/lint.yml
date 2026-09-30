@@ -69,7 +69,7 @@ jobs:
 
       - name: Sync legal docs from root
         run: |
-          cp legal/terms-of-service.md legal/privacy-policy.md website/static/legal/
+          cp legal/terms-of-service.md legal/privacy-policy.md legal/impressum.md website/static/legal/
           git diff --exit-code HEAD -- website/static/legal
 
       - name: Setup Bun

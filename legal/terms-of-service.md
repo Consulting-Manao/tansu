@@ -1,15 +1,14 @@
 # Terms of Service - Tansu
 
-**Last Updated: October 21, 2025**  
-**Effective: October 21, 2025**
+**Last Updated: 30 September 2026**
 
 ## 1. Introduction
 
-Welcome to Tansu ("the dApp"), a decentralized governance platform operated by Consulting Manao GmbH ("Company", "we", "us"), located in Austria (Company Registration: FN 571029z). By accessing or using the dApp, you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do not use the dApp.
+Welcome to Tansu ("the dApp"), a decentralized governance platform operated by Consulting Manao GmbH ("Company", "we", "us"), Köppling 35, 8565 Söding-Sankt Johann, Austria (FN 571029z, Landesgericht für ZRS Graz). By accessing or using the dApp, you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do not use the dApp.
 
 Tansu is a decentralized application built on the Stellar blockchain that provides on-chain project governance, community voting, and transparent decision-making for open-source projects.
 
-**Please Note**: We recommend reading our Privacy Policy alongside these Terms to understand how your data is processed. Our architecture is fully decentralized—we do not operate backend servers or store user data.
+**Please Note**: We recommend reading our Privacy Policy alongside these Terms to understand how your data is processed. The dApp runs in your browser and reads the Stellar blockchain, IPFS and git hosts directly. We keep no user database; the upload service we run puts your files on IPFS, and our Radicle seed node serves the Tansu repository.
 
 ## 2. Definitions
 
@@ -71,7 +70,7 @@ Tansu provides a comprehensive governance platform with the following core funct
 
 **IPFS Integration**: Decentralized storage for proposals, member profiles, project metadata, and other content with immutable addressing.
 
-**Anonymous Voting**: BLS12-381 cryptographic commitment schemes with ECDH key management for privacy-preserving governance.
+**Anonymous Voting**: BLS12-381 cryptographic commitments, with a project key pair generated in the browser, for privacy-preserving governance.
 
 **Donations**: XLM transfer functionality allowing users to donate to projects.
 
@@ -83,7 +82,7 @@ Tansu provides a comprehensive governance platform with the following core funct
 
 **Lawful Use**: Use services in compliance with Austrian law, your country's laws, and these Terms.
 
-**Wallet Security**: You are responsible for securing your wallet and private keys. We are not liable for compromised wallets or lost keys.
+**Wallet Security**: You are responsible for securing your wallet and private keys.
 
 **Accurate Information**: Provide accurate information when using our services.
 
@@ -110,18 +109,18 @@ You acknowledge and accept the following risks:
 
 **Anonymous Voting Risks**:
 
-- ECDH key pairs generated client-side using Web Crypto API
-- You must securely download and store private keys before voting
+- The project's key pair is generated in the maintainer's browser with the Web Crypto API
+- The maintainer who sets up anonymous voting must download the private key and keep it safe
 - Lost keys prevent vote decryption and proposal execution
 - No recovery mechanism exists
 
-**No Recourse**: Lost keys, failed transactions, or errors cannot be reversed or compensated.
+**No Recourse**: Lost keys, failed transactions and errors on the blockchain cannot be reversed.
 
 ## 7. IPFS Content Storage and Moderation
 
-### 7.1 Infrastructure Provider Role
+### 7.1 Hosting Service
 
-**Our Role**: We provide infrastructure services for decentralized content storage using IPFS (InterPlanetary File System). We are not a content host, publisher, or content service provider under the Digital Services Act (DSA).
+**Our Role**: Our upload service stores the files you upload on IPFS (InterPlanetary File System) through our own pinning account. For these files, we are a hosting service under the Digital Services Act (Regulation (EU) 2022/2065, "DSA").
 
 **Content Permanence**: IPFS is a decentralized, peer-to-peer network where content is distributed across multiple nodes. Once content is uploaded to IPFS:
 
@@ -130,21 +129,45 @@ You acknowledge and accept the following risks:
 - It persists independently of our platform
 - It cannot be deleted from the IPFS network
 
-### 7.2 Content Moderation Limitations
+### 7.2 Content Moderation Policy
 
-**Limited Moderation Capabilities**: As an infrastructure provider, we have limited ability to moderate content on IPFS. We can only unlink content references from our smart contracts - content remains accessible via its CID even after unlinking.
+**What We May Remove or Restrict**:
+
+- We may stop pinning a file on the pinning services we use (Filebase, and Pinata when configured)
+- Tansu admins may revoke a proposal where the smart contract allows it
+
+**Human Decisions**: People take every moderation decision. We use no automated tools to detect, review or decide on content.
+
+**What Stays**: Copies on other IPFS nodes stay reachable by their CID, and on-chain data stays on the Stellar blockchain.
 
 **On-Chain Unlinking**: When we remove content references from our smart contracts, the content is no longer displayed in our dApp interface but remains on IPFS and accessible via direct CID.
-
-**Reporting Mechanisms**: Users can report inappropriate content by contacting legal@consulting-manao.com. Removal is limited to unlinking from our platform.
 
 ### 7.3 Content Liability
 
 **User Responsibility**: You are solely liable for all content you upload, including legal compliance, intellectual property rights, accuracy, and appropriateness.
 
-**Platform Immunity**: We are not liable for user-generated content stored on IPFS, except where required by applicable law.
+**Content of Others**: We are not liable for user-generated content stored on IPFS, except where required by applicable law.
 
 **Maintainer Authority**: Project maintainers have authority to moderate content within their projects and may request content unlinking from our platform.
+
+### 7.4 Points of Contact
+
+**Points of Contact (DSA Articles 11 and 12)**: Authorities and users reach Consulting Manao GmbH at legal@consulting-manao.com, in German or English.
+
+### 7.5 Reporting Illegal Content
+
+**Notice and Action (DSA Article 16)**: To report content you consider illegal, write to legal@consulting-manao.com with:
+
+- Where the content is: the proposal or project page, or its IPFS CID
+- Why you consider it illegal
+- Your name and email address (not required for a report of child sexual abuse material)
+- A statement that your report is accurate and complete
+
+**Handling**: We confirm receipt. A person reviews each report by hand, without automated tools, and decides promptly. We tell you the decision and how to contest it.
+
+### 7.6 Statement of Reasons
+
+**Statement of Reasons (DSA Article 17)**: When we unpin a file or revoke a proposal, we tell the person affected, if we can reach them, what we restricted, why, and on which legal or contractual ground. They can contest the decision at legal@consulting-manao.com.
 
 ## 8. Proposal System and Revocation Mechanisms
 
@@ -225,23 +248,25 @@ Please review our separate Privacy Policy for complete details on data collectio
 
 **Key Points**:
 
-- No backend servers or centralized databases
+- No user database on our side
 - Blockchain data is public and immutable
 - IPFS content is permanent
-- Browser local storage for session management (no cookies)
+- Browser storage only for functions you use, no cookies (Privacy Policy Section 12)
 - See Section 14 for third-party service providers
 
 **Contact**: legal@consulting-manao.com
 
 ## 11. Disclaimers and Limitations of Liability
 
+**No Advice**: Tansu is a governance tool. Nothing in the dApp, in the content it shows or in its documentation is financial, investment, tax or legal advice.
+
 **Service Availability**: We do not guarantee continuous, uninterrupted access to our services.
 
 **Third-Party Dependencies**: Our services depend on third-party systems (Stellar Network, IPFS, etc.) that are beyond our control.
 
-**No Warranties**: We provide services "as is" without warranties of any kind.
+**No Warranties**: We provide services "as is", without warranties, as far as the law allows.
 
-**Limitation of Liability**: Our liability is limited to the maximum extent permitted by Austrian law.
+**Limitation of Liability**: Consulting Manao GmbH is liable only where the law does not allow its liability to be excluded: for intent, gross negligence, personal injury and under product liability law. If you are a consumer, your mandatory rights under the Austrian Consumer Protection Act (KSchG) and under the law of your country of residence remain unaffected.
 
 **Force Majeure**: We are not liable for delays or failures due to circumstances beyond our reasonable control.
 
@@ -266,7 +291,7 @@ See Section 7 for technical details on content removal limitations.
 
 ### 12.2 Content Moderation
 
-**Reporting**: Users can report inappropriate content by contacting legal@consulting-manao.com.
+**Reporting**: Users can report content they consider illegal as Section 7.5 describes, and other inappropriate content at legal@consulting-manao.com.
 
 **Moderation Actions**: We may:
 
@@ -275,7 +300,7 @@ See Section 7 for technical details on content removal limitations.
 - Cancel proposals
 - Take other actions as necessary
 
-**Appeals**: Users may contest moderation actions by contacting legal@consulting-manao.com.
+**Appeals**: Users may contest moderation actions by contacting legal@consulting-manao.com (Section 7.6).
 
 ## 13. Service Modifications, Smart Contract Upgrades, and Administrative Rights
 
@@ -283,7 +308,7 @@ See Section 7 for technical details on content removal limitations.
 
 **Service Changes**: We reserve the right to modify, suspend, or discontinue the dApp or any part thereof at any time, with or without notice, except where notice is required by applicable law.
 
-**No Liability**: We are not liable for any modification, suspension, or discontinuation of services, except in cases of intent (_Vorsatz_) or gross negligence (_grobe Fahrlässigkeit_).
+**Liability**: Section 11 governs our liability for any modification, suspension, or discontinuation of services.
 
 ### 13.2 Smart Contract Upgrades and Modifications
 
@@ -315,7 +340,7 @@ See Section 7 for technical details on content removal limitations.
 - Update badge assignment or revocation processes
 - Affect pending proposals or voting periods
 
-**No Compensation**: Users are not entitled to compensation for changes, losses, or disruptions resulting from smart contract upgrades, except in cases of intent (_Vorsatz_) or gross negligence (_grobe Fahrlässigkeit_).
+**No Compensation**: Users are not entitled to compensation for changes, losses, or disruptions resulting from smart contract upgrades, except as Section 11 provides.
 
 ### 13.3 Administrative Actions and Data Modifications
 
@@ -357,7 +382,7 @@ See Section 7 for technical details on content removal limitations.
 
 **Appeals**: Users may contest administrative actions by contacting legal@consulting-manao.com with supporting evidence. We will review appeals in good faith but reserve final discretion.
 
-**Limitation of Liability**: We are not liable for consequences of administrative actions taken in good faith to enforce Terms, ensure security, or comply with legal requirements.
+**Limitation of Liability**: Section 11 governs our liability for administrative actions taken in good faith to enforce Terms, ensure security, or comply with legal requirements.
 
 ### 13.4 Account Suspension and Termination
 
@@ -406,33 +431,34 @@ Our platform integrates with various third-party services:
 
 - Privacy Policy: https://stellar.org/privacy-policy
 
-**IPFS/Storacha**: Decentralized content storage
+**Filebase**: Storage of uploaded files on IPFS, and the public IPFS gateway the dApp reads from
 
-- Privacy Policy: https://storacha.com/privacy
+- Privacy Policy: https://filebase.com/privacy-policy/
+
+**Pinata**: A second copy of uploaded files, when configured
 
 **Git forges** (GitHub, GitLab, Bitbucket, Codeberg, Gitea, Radicle): Code hosting and version control — subject to each provider's terms
 
-**GitHub**: Example code hosting provider
+- GitHub Privacy Policy: https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
 
-- Privacy Policy: https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
+**Wallets**: The wallet you connect, subject to its own terms
 
-**Netlify**: Web hosting and deployment
+**Netlify**: Hosting of the dApp and the website
 
 - Privacy Policy: https://www.netlify.com/privacy/
 
-**Cloudflare**: CDN and security services
+**Cloudflare**: Hosting of the upload service
 
 - Privacy Policy: https://www.cloudflare.com/privacypolicy/
 
 **Third-Party Terms**: Your use of these services is subject to their respective terms and privacy policies.
 
-**No Control**: We have no control over third-party services and are not liable for their actions or policies.
+**No Control**: Netlify and Cloudflare work for us, and so does Filebase for storage. We have no control over the other services and are not responsible for their actions or policies.
 
 ## 15. Indemnification
 
-You agree to indemnify and hold us harmless from any claims, damages, or expenses arising from:
+You agree to indemnify us against claims of third parties, and the damages and expenses they cause, where they arise through your fault from:
 
-- Your use of our services
 - Your violation of these Terms
 - Your violation of any law or regulation
 - Your infringement of third-party rights
@@ -451,13 +477,9 @@ We are not liable for delays or failures due to circumstances beyond our reasona
 
 ## 17. Amendments
 
-**Modification Rights**: We may modify these Terms at any time.
+**Modification Rights**: We may modify these Terms. The date at the top shows the current version.
 
-**Notice**: Material changes will be communicated through the dApp interface.
-
-**Acceptance**: Continued use constitutes acceptance of modified Terms.
-
-**Effective Date**: Changes become effective immediately upon posting.
+**Effective Date**: A change applies from the day it is published here. If you do not accept it, stop using the service.
 
 ## 18. Severability
 
@@ -473,30 +495,27 @@ Our failure to enforce any provision of these Terms does not constitute a waiver
 
 ## 21. Governing Law and Dispute Resolution
 
-**Governing Law**: These Terms are governed by Austrian law (_österreichisches Recht_). To the extent these Terms constitute general terms and conditions (_Allgemeine Geschäftsbedingungen_), they comply with Austrian law, particularly ABGB (Allgemeines bürgerliches Gesetzbuch) §§ 879-916 regarding unfair contract terms.
+**Governing Law**: These Terms are governed by Austrian law (_österreichisches Recht_), excluding its conflict-of-law rules and the UN Convention on Contracts for the International Sale of Goods (CISG).
 
-**Jurisdiction**: Any disputes arising from these Terms or your use of our services shall be subject to the exclusive jurisdiction of the competent courts in Graz, Austria.
+**Jurisdiction**: The competent courts in Graz, Austria, have jurisdiction over disputes arising from these Terms or your use of our services, as far as the law allows.
 
-**Consumer Protection**: If you are a consumer, you may also bring proceedings in the courts of your country of residence. This does not affect your rights under EU consumer protection law.
+**Consumer Protection**: If you are a consumer, you keep the mandatory protections of the law of your country of residence, including its rules on which courts are competent.
 
 **Dispute Resolution**: We encourage users to contact us first at legal@consulting-manao.com to resolve disputes amicably.
 
-**Alternative Dispute Resolution**: We are not obligated to participate in dispute resolution procedures before consumer arbitration boards. EU consumers may use the European Commission's Online Dispute Resolution platform: https://ec.europa.eu/consumers/odr
-
-**Right of Withdrawal**: As our platform provides digital services that begin immediately upon your request (account creation, proposal submission), the 14-day withdrawal right under EU Consumer Rights Directive 2011/83/EU does not apply per Article 16(a). By using our services, you expressly agree to immediate performance and acknowledge loss of withdrawal rights.
+**Alternative Dispute Resolution**: We are not obligated to participate in dispute resolution procedures before consumer arbitration boards.
 
 ## 22. Company Information and Contact
 
 **Consulting Manao GmbH**  
-Registered in Austrian Commercial Register (Firmenbuch)  
-Landesgericht Graz, FN 571029z  
+Köppling 35  
+8565 Söding-Sankt Johann, Austria  
+Commercial register (Firmenbuch): FN 571029z, Landesgericht für ZRS Graz  
 VAT ID: ATU77780135  
-Managing Director: Pamphile Tupui Christophe Roy
+Managing Director: Dr. DI Pamphile Tupui Christophe Roy
 
 **Contact**:  
 Email: legal@consulting-manao.com  
-Website: tansu.dev
+Website: [consulting-manao.com](https://consulting-manao.com)
 
 **Contract Language**: These Terms are provided in English. Austrian law applies.
-
-**Last Updated**: October 21, 2025
