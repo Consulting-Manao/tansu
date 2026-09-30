@@ -1,9 +1,16 @@
-import { Document, Page, View } from "@formepdf/react";
+import { Document, Page, Svg, View } from "@formepdf/react";
 import { Heading } from "components/pdf/heading";
 import { KeyValue } from "components/pdf/key-value";
 import { Section } from "components/pdf/section";
 import { Text } from "components/pdf/text";
 import type { VoteReceipt } from "types/proposal";
+import logo from "../../../../public/logo.svg?raw";
+
+const logoContent = logo
+  .replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, "")
+  .replace(/<defs>[\s\S]*<\/defs>/, "")
+  .replace("url(#paint0_linear_2001_161)", "#6600A5")
+  .replace("url(#paint1_linear_2001_161)", "#FFD61E");
 
 const mono = { fontFamily: "Courier", fontSize: 9 };
 
@@ -47,9 +54,18 @@ export const VoteReceiptDocument = ({
     lang="en"
   >
     <Page size="A4" margin={48}>
-      <Text variant="sm" color="#71717a" noMargin>
-        Tansu · {issuedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Svg
+          width={20}
+          height={24}
+          viewBox="0 0 211 252"
+          content={logoContent}
+          alt="Tansu logo"
+        />
+        <Text variant="sm" color="#71717a" noMargin>
+          Tansu · {issuedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+        </Text>
+      </View>
       <Heading level={2}>Vote Receipt</Heading>
       <Text variant="sm" color="#71717a">
         {receipt.isPublicVoting
