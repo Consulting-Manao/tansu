@@ -25,6 +25,8 @@
       "ignoreBinaries": ["jq", "pkill", "rsvg-convert", "ssh-keygen"],
     },
   },
+  // pdfcn components, copied as the registry ships them.
+  "ignoreIssues": { "src/components/pdf/**": ["exports", "types"] },
   // Generated contract bindings.
   "ignoreWorkspaces": ["packages/tansu"],
 }

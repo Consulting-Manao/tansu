@@ -35,7 +35,7 @@ function serviceWorker() {
             "*.{svg,png,jpg,json}",
             "{icons,images}/**",
           ],
-          globIgnores: ["social-card.png"],
+          globIgnores: ["social-card.png", "_astro/forme_bg.*.wasm"],
           maximumFileSizeToCacheInBytes: 8 * 2 ** 20,
           // Pages read their query string in the browser, and Netlify adds
           // ?dpl= to assets.
