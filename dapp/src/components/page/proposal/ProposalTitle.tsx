@@ -161,12 +161,22 @@ const ProposalTitle: React.FC<Props> = ({
           <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:justify-between gap-4 sm:gap-0">
               <ProposalStatusSection proposal={proposal} />
-              <div className="flex flex-col gap-2 items-start sm:items-end">
-                <div className="flex gap-3">
+              <div className="flex flex-col gap-3 items-start sm:items-end">
+                {proposal?.status == "voted" &&
+                  isMaintainer &&
+                  executableAt !== undefined &&
+                  executableAt > now && (
+                    <p className="text-sm text-secondary">
+                      Can be finalized from{" "}
+                      {new Date(executableAt).toLocaleString()}
+                    </p>
+                  )}
+                <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
                   {proposal?.status == "active" && (
                     <Button
                       {...(userHasVoted ? { type: "secondary" } : {})}
                       size="sm"
+                      className="w-full"
                       icon={userHasVoted ? "" : "/icons/vote.svg"}
                       disabled={userHasVoted}
                       onClick={() => !userHasVoted && submitVote()}
@@ -177,58 +187,52 @@ const ProposalTitle: React.FC<Props> = ({
                   {proposal?.status == "voted" &&
                     isMaintainer &&
                     executableAt !== undefined &&
-                    (executableAt <= now ? (
+                    executableAt <= now && (
                       <Button
                         size="sm"
+                        className="w-full"
                         icon="/icons/finalize-vote.svg"
                         onClick={() => executeProposal()}
                       >
                         Finalize Vote
                       </Button>
-                    ) : (
-                      <p className="text-sm text-secondary">
-                        Can be finalized from{" "}
-                        {new Date(executableAt).toLocaleString()}
-                      </p>
-                    ))}
+                    )}
                   {(proposal?.status == "active" ||
                     proposal?.status == "voted") &&
                     isMaintainer && (
                       <Button
                         size="sm"
                         type="tertiary"
-                        className="border-red-500! text-red-500!"
+                        className="w-full border-red-500! text-red-500!"
                         onClick={() => setShowMarkMaliciousModal(true)}
                       >
                         Mark as Malicious
                       </Button>
                     )}
-                </div>
-                {(proposal?.status == "active" ||
-                  proposal?.status == "voted") && (
-                  <div className="flex gap-3">
-                    {/* Votes can be removed until the proposal is executed. */}
-                    {isMaintainer && (
+                  {/* Votes can be removed until the proposal is executed. */}
+                  {(proposal?.status == "active" ||
+                    proposal?.status == "voted") &&
+                    isMaintainer && (
                       <Button
                         size="sm"
                         type="tertiary"
-                        className="border-red-500! text-red-500!"
+                        className="w-full border-red-500! text-red-500!"
                         onClick={() => setShowRemoveVoteModal(true)}
                       >
                         Remove Vote
                       </Button>
                     )}
-                    {proposal?.status == "active" && (
-                      <Button
-                        size="sm"
-                        type="secondary"
-                        onClick={() => setShowConflictModal(true)}
-                      >
-                        Conflict of Interest
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  {proposal?.status == "active" && (
+                    <Button
+                      size="sm"
+                      type="secondary"
+                      className="w-full"
+                      onClick={() => setShowConflictModal(true)}
+                    >
+                      Conflict of Interest
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="h-[1px] bg-[#EEEEEE]" />
