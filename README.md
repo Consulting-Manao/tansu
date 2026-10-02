@@ -24,3 +24,8 @@ voting mechanisms.
 - **IPFS Storage**: Decentralized content storage for proposals and project metadata
 - **Privacy-First**: Optional anonymous voting with cryptographic commitment schemes
 - **Real-time Events**: Instant updates through blockchain event streaming
+
+
+## Contributing
+
+Please check [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and development workflow.
