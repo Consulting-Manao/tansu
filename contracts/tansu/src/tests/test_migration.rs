@@ -100,6 +100,21 @@ fn test_migrate_mainnet_data() {
     let collateral = collateral::MockClient::new(env, &collateral_id);
     collateral.mint(&setup.contract_id, &(110 * XLM));
 
+    // The contract is paused while mainnet is migrated
+    setup.contract.pause(&setup.contract_admin, &true);
+    assert!(
+        setup
+            .contract
+            .try_add_member(
+                &setup.grogu,
+                &String::from_str(env, "meta"),
+                &None,
+                &None,
+                &None
+            )
+            .is_err()
+    );
+
     // The layout of mainnet before v3
     env.as_contract(&setup.contract_id, || {
         let instance = env.storage().instance();
@@ -188,6 +203,7 @@ fn test_migrate_mainnet_data() {
     assert_eq!(setup.contract.get_dao(&kmp_key, &0).proposals.len(), 1);
 
     // The collateral is the address again: registering charges it
+    setup.contract.pause(&setup.contract_admin, &false);
     setup.contract.register(
         &setup.grogu,
         &String::from_str(env, "afterwards"),
