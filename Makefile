@@ -10,8 +10,23 @@ ifndef admin
    override admin = tansu-$(network)
 endif
 
+# The account paying for the upload of a WASM, which anyone can do: it is
+# about 1 XLM per KB on mainnet.
+ifndef uploader
+   override uploader = $(admin)
+endif
+
+# `send=no` simulates a call without sending it.
+ifndef send
+   override send = default
+endif
+
 ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
+endif
+
+ifndef executor_wasm
+	override executor_wasm = target/wasm32v1-none/release/tansu_executor.wasm
 endif
 
 # The address is derived from the admin and this salt. A deployment that is
@@ -108,9 +123,9 @@ contract_bindings: contract_build  ## Create bindings
 	bun run build && \
 	bun format
 
-executor_deploy:  ## Deploy the executor running proposal outcomes (no admin, no upgrade)
+executor_deploy:  ## Deploy the executor running proposal outcomes from executor_wasm (no admin, no upgrade)
 	id=$$(stellar contract deploy \
-  		--wasm target/wasm32v1-none/release/tansu_executor.wasm \
+  		--wasm $(executor_wasm) \
   		--source-account $(admin) \
   		--network $(network)) && \
   	echo "$$id" > deployments/tansu-executor-$(network) && \
@@ -141,7 +156,38 @@ contract_unpause:  ## Unpause the contract
 		--admin $(admin) \
 		--paused false
 
-contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>; the admin set is kept
+contract_pause:  ## Pause the contract
+	stellar contract invoke \
+	--source-account $(admin) \
+	--network $(network) \
+	--id $(tansu_id) \
+	-- \
+	pause \
+	--admin $(admin) \
+	--paused true
+
+contract_cancel_upgrade:  ## Cancel the current upgrade proposal
+	stellar contract invoke \
+	--source-account $(admin) \
+	--network $(network) \
+	--id $(tansu_id) \
+	-- \
+	finalize_upgrade \
+	--admin $(admin) \
+	--accept false
+
+contract_migrate:  ## Migrate the data of the contract running on mainnet before v3: project_keys='["<hex>"]'
+	stellar contract invoke \
+	--source-account $(admin) \
+	--network $(network) \
+	--id $(tansu_id) \
+	--send $(send) \
+	-- \
+	migrate \
+	--admin $(admin) \
+	--project_keys '$(project_keys)'
+
+contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>, uploaded by uploader=; the admin set is kept
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -149,7 +195,7 @@ contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>; the
     	-- \
     	propose_upgrade \
 		--admin $(admin) \
-		--new_wasm_hash $(shell stellar contract upload --source-account $(admin) --network $(network) --wasm $(wasm))
+		--new_wasm_hash $(shell stellar contract upload --source-account $(uploader) --network $(network) --wasm $(wasm))
 
 contract_approve_upgrade:  ## Approve the current upgrade proposal
 	stellar contract invoke \

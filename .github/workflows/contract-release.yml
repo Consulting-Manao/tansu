@@ -37,3 +37,20 @@ jobs:
       package: 'tansu'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-executor:
+    needs: approve-release
+    permissions:
+      id-token: write      # OIDC token for build-provenance attestation
+      contents: write      # in order to create releases
+      attestations: write
+    name: Compile the proposal executor for production and create release
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@88068ec50cba931a96436869727ed08edeb76ade
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: "Tansu proposal executor release"
+      home_domain: 'tansu.dev'
+      relative_path: 'contracts/tansu-executor'
+      package: 'tansu-executor'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
