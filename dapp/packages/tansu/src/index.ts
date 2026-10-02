@@ -811,6 +811,35 @@ export interface Client {
   ) => Promise<AssembledTransaction<UpgradeProposal>>;
 
   /**
+   * Construct and simulate a migrate transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Move what the contract running on mainnet before v3 stored under other
+   * keys to the layout of v3, in one call that either does everything or
+   * nothing: the collateral becomes an address, the anonymous voting
+   * configurations of the given projects move to persistent storage, and
+   * their proposals move to one entry each, with their votes. An active
+   * proposal is cancelled and its deposits returned at the old amounts, to
+   * the proposer and to each voter.
+   *
+   * Members and the fields of proposals need no migration: a struct read
+   * from storage takes `None` for an optional field the old data lacks.
+   *
+   * A second call fails on the first read, before any payment.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `admin` - An admin address
+   * * `project_keys` - Every project with proposals or an anonymous voting configuration
+   *
+   * # Panics
+   * * If the admin is not authorized
+   * * If the data is not in the old layout
+   */
+  migrate: (
+    { admin, project_keys }: { admin: string; project_keys: Array<Buffer> },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+
+  /**
    * Construct and simulate a add_member transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Add a new member to the system with metadata.
    *
@@ -1565,6 +1594,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAJ1HZXQgY3VycmVudCBhZG1pbmlzdHJhdG9ycyBjb25maWd1cmF0aW9uLgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKCiMgUmV0dXJucwoqIGB0eXBlczo6QWRtaW5zQ29uZmlnYCAtIFRoZSBhZG1pbmlzdHJhdG9ycyBjb25maWd1cmF0aW9uAAAAAAAAEWdldF9hZG1pbnNfY29uZmlnAAAAAAAAAAAAAAEAAAfQAAAADEFkbWluc0NvbmZpZw==",
         "AAAAAAAAAF5SZXF1aXJlIHRoYXQgdGhlIGNvbnRyYWN0IGlzIG5vdCBwYXVzZWQsIHBhbmljIGlmIGl0IGlzCgojIFBhbmljcwoqIElmIHRoZSBjb250cmFjdCBpcyBwYXVzZWQuAAAAAAAScmVxdWlyZV9ub3RfcGF1c2VkAAAAAAAAAAAAAA==",
         "AAAAAAAAABxHZXQgdXBncmFkZSBwcm9wb3NhbCBkZXRhaWxzAAAAFGdldF91cGdyYWRlX3Byb3Bvc2FsAAAAAAAAAAEAAAfQAAAAD1VwZ3JhZGVQcm9wb3NhbAA=",
+        "AAAAAAAAA3RNb3ZlIHdoYXQgdGhlIGNvbnRyYWN0IHJ1bm5pbmcgb24gbWFpbm5ldCBiZWZvcmUgdjMgc3RvcmVkIHVuZGVyIG90aGVyCmtleXMgdG8gdGhlIGxheW91dCBvZiB2MywgaW4gb25lIGNhbGwgdGhhdCBlaXRoZXIgZG9lcyBldmVyeXRoaW5nIG9yCm5vdGhpbmc6IHRoZSBjb2xsYXRlcmFsIGJlY29tZXMgYW4gYWRkcmVzcywgdGhlIGFub255bW91cyB2b3RpbmcKY29uZmlndXJhdGlvbnMgb2YgdGhlIGdpdmVuIHByb2plY3RzIG1vdmUgdG8gcGVyc2lzdGVudCBzdG9yYWdlLCBhbmQKdGhlaXIgcHJvcG9zYWxzIG1vdmUgdG8gb25lIGVudHJ5IGVhY2gsIHdpdGggdGhlaXIgdm90ZXMuIEFuIGFjdGl2ZQpwcm9wb3NhbCBpcyBjYW5jZWxsZWQgYW5kIGl0cyBkZXBvc2l0cyByZXR1cm5lZCBhdCB0aGUgb2xkIGFtb3VudHMsIHRvCnRoZSBwcm9wb3NlciBhbmQgdG8gZWFjaCB2b3Rlci4KCk1lbWJlcnMgYW5kIHRoZSBmaWVsZHMgb2YgcHJvcG9zYWxzIG5lZWQgbm8gbWlncmF0aW9uOiBhIHN0cnVjdCByZWFkCmZyb20gc3RvcmFnZSB0YWtlcyBgTm9uZWAgZm9yIGFuIG9wdGlvbmFsIGZpZWxkIHRoZSBvbGQgZGF0YSBsYWNrcy4KCkEgc2Vjb25kIGNhbGwgZmFpbHMgb24gdGhlIGZpcnN0IHJlYWQsIGJlZm9yZSBhbnkgcGF5bWVudC4KCiMgQXJndW1lbnRzCiogYGVudmAgLSBUaGUgZW52aXJvbm1lbnQgb2JqZWN0CiogYGFkbWluYCAtIEFuIGFkbWluIGFkZHJlc3MKKiBgcHJvamVjdF9rZXlzYCAtIEV2ZXJ5IHByb2plY3Qgd2l0aCBwcm9wb3NhbHMgb3IgYW4gYW5vbnltb3VzIHZvdGluZyBjb25maWd1cmF0aW9uCgojIFBhbmljcwoqIElmIHRoZSBhZG1pbiBpcyBub3QgYXV0aG9yaXplZAoqIElmIHRoZSBkYXRhIGlzIG5vdCBpbiB0aGUgb2xkIGxheW91dAAAAAdtaWdyYXRlAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAMcHJvamVjdF9rZXlzAAAD6gAAAA4AAAAA",
         "AAAAAAAAAsxBZGQgYSBuZXcgbWVtYmVyIHRvIHRoZSBzeXN0ZW0gd2l0aCBtZXRhZGF0YS4KCk9wdGlvbmFsbHkgYmluZHMgYSBHaXQgaWRlbnRpdHkuIFdoZW4gcHJvdmlkZWQsIHRoZSBpZGVudGl0eSBpcyB2ZXJpZmllZApieSBjaGVja2luZyBhbiBFZDI1NTE5IHNpZ25hdHVyZSBhZ2FpbnN0IHRoZSBjYWxsZXIncyBhZGRyZXNzLCBwdWJsaWMga2V5LAphbmQgaWRlbnRpdHkgc3RyaW5nLiBPbmx5IGBnaXRfaWRlbnRpdHlgIGFuZCBgZ2l0X3B1YmtleWAgYXJlIHBlcnNpc3RlZC4KCiMgQXJndW1lbnRzCiogYGVudmAgLSBUaGUgZW52aXJvbm1lbnQgb2JqZWN0CiogYG1lbWJlcl9hZGRyZXNzYCAtIFRoZSBhZGRyZXNzIG9mIHRoZSBtZW1iZXIgdG8gYWRkCiogYG1ldGFgIC0gTWV0YWRhdGEgc3RyaW5nIGFzc29jaWF0ZWQgd2l0aCB0aGUgbWVtYmVyIChlLmcuLCBJUEZTIGhhc2gpCiogYGdpdF9pZGVudGl0eWAgLSBHaXQgaGFuZGxlIChlLmcuLCAiZ2l0aHViOmFsaWNlIikKKiBgZ2l0X3B1YmtleWAgLSBFZDI1NTE5IHB1YmxpYyBrZXkKKiBgZ2l0X3NpZ2AgLSBFZDI1NTE5IHNpZ25hdHVyZQoKIyBQYW5pY3MKKiBJZiB0aGUgbWVtYmVyIGFscmVhZHkgZXhpc3RzCiogSWYgZ2l0IHBhcmFtcyBhcmUgaW5jb21wbGV0ZSAoaWRlbnRpdHksIGtleSwgc2lnIG11c3QgYmUgYWxsIFNvbWUgb3IgTm9uZSkKKiBJZiB0aGUgc2lnbmF0dXJlIHZlcmlmaWNhdGlvbiBmYWlscwAAAAphZGRfbWVtYmVyAAAAAAAFAAAAAAAAAA5tZW1iZXJfYWRkcmVzcwAAAAAAEwAAAAAAAAAEbWV0YQAAABAAAAAAAAAADGdpdF9pZGVudGl0eQAAA+gAAAAQAAAAAAAAAApnaXRfcHVia2V5AAAAAAPoAAAD7gAAACAAAAAAAAAAB2dpdF9zaWcAAAAD6AAAA+4AAABAAAAAAA==",
         "AAAAAAAAAWVHZXQgYWxsIGJhZGdlcyBmb3IgYSBzcGVjaWZpYyBwcm9qZWN0LCBvcmdhbml6ZWQgYnkgYmFkZ2UgdHlwZS4KClJldHVybnMgYSBzdHJ1Y3R1cmUgY29udGFpbmluZyB2ZWN0b3JzIG9mIG1lbWJlciBhZGRyZXNzZXMgZm9yIGVhY2ggYmFkZ2UgdHlwZQooRGV2ZWxvcGVyLCBUcmlhZ2UsIENvbW11bml0eSwgVmVyaWZpZWQpLgoKIyBBcmd1bWVudHMKKiBgZW52YCAtIFRoZSBlbnZpcm9ubWVudCBvYmplY3QKKiBga2V5YCAtIFRoZSBwcm9qZWN0IGtleSBpZGVudGlmaWVyCgojIFJldHVybnMKKiBgdHlwZXM6OkJhZGdlc2AgLSBTdHJ1Y3R1cmUgY29udGFpbmluZyBtZW1iZXIgYWRkcmVzc2VzIGZvciBlYWNoIGJhZGdlIHR5cGUAAAAAAAAKZ2V0X2JhZGdlcwAAAAAAAQAAAAAAAAADa2V5AAAAAA4AAAABAAAH0AAAAAZCYWRnZXMAAA==",
         "AAAAAAAAAR1HZXQgbWVtYmVyIGluZm9ybWF0aW9uIGluY2x1ZGluZyBhbGwgcHJvamVjdCBiYWRnZXMuCgojIEFyZ3VtZW50cwoqIGBlbnZgIC0gVGhlIGVudmlyb25tZW50IG9iamVjdAoqIGBtZW1iZXJfYWRkcmVzc2AgLSBUaGUgYWRkcmVzcyBvZiB0aGUgbWVtYmVyIHRvIHJldHJpZXZlCgojIFJldHVybnMKKiBgdHlwZXM6Ok1lbWJlcmAgLSBNZW1iZXIgaW5mb3JtYXRpb24gaW5jbHVkaW5nIG1ldGFkYXRhIGFuZCBwcm9qZWN0IGJhZGdlcwoKIyBQYW5pY3MKKiBJZiB0aGUgbWVtYmVyIGRvZXNuJ3QgZXhpc3QAAAAAAAAKZ2V0X21lbWJlcgAAAAAAAQAAAAAAAAAObWVtYmVyX2FkZHJlc3MAAAAAABMAAAABAAAH0AAAAAZNZW1iZXIAAA==",
@@ -1666,6 +1696,7 @@ export class Client extends ContractClient {
     get_admins_config: this.txFromJSON<AdminsConfig>,
     require_not_paused: this.txFromJSON<null>,
     get_upgrade_proposal: this.txFromJSON<UpgradeProposal>,
+    migrate: this.txFromJSON<null>,
     add_member: this.txFromJSON<null>,
     get_badges: this.txFromJSON<Badges>,
     get_member: this.txFromJSON<Member>,

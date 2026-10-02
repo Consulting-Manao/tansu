@@ -332,7 +332,7 @@ impl TansuTrait for Tansu {
     /// # Returns
     /// * `u32` - The contract version number
     fn version() -> u32 {
-        2
+        3
     }
 }
 

@@ -11,7 +11,7 @@ use soroban_sdk::{
 
 const PROPOSAL_COLLATERAL: i128 = 5 * 10_000_000;
 const MAX_TITLE_LENGTH: u32 = 256;
-const MAX_PROPOSALS_PER_PAGE: u32 = 9;
+pub(crate) const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
 pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
