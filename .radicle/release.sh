@@ -2,25 +2,21 @@
 # cargo install radicle-artifact --locked
 set -euxo pipefail
 
-REV=56f9a87218597df213174b448bcd750133e97015
-TAG=v2.0.2
-WASM=./release/tansu_v2.0.2.wasm
-WASM_IPFS=ipfs://QmXqnfboZRjNmT6vVUhQri6MZepaXUn6AVWiH2CaKJ8DWh
-ATT=./release/tansu-attestation_v2.0.2.json
-ATT_IPFS=ipfs://QmVTNGMAWtLhCAdTBfrsehCmytYSoYswM57PxdZy9KvBXR
-SBOM=./release/sbom.spdx_v2.0.2.json
-SBOM_IPFS=ipfs://QmS5JaG4S8TwYmq8rUr7TG81PJUV2sTW5rtYk9cTB8SnxZ
+REV=090186630bccc0504dfe670a5b920483aed081e1
+TAG=v3.0.0
 
-W_CID=$(rad-artifact cid $WASM)
-rad-artifact add $WASM --revision $REV --name wasm-${TAG}
-rad-artifact location add $WASM_IPFS --revision $REV --cid $W_CID
+# The location of a file is its IPFS CID, as `ipfs add` computes it.
+publish() {
+    local name=$1 file=$2 location=$3
+    local cid
+    cid=$(rad-artifact cid "$file")
+    rad-artifact add "$file" --revision $REV --name "$name"
+    rad-artifact location add "$location" --revision $REV --cid "$cid"
+}
 
-A_CID=$(rad-artifact cid $ATT)
-rad-artifact add $ATT --revision $REV --name attestation-provenance-${TAG}
-rad-artifact location add $ATT_IPFS --revision $REV --cid $A_CID
-
-S_CID=$(rad-artifact cid $SBOM)
-rad-artifact add $SBOM --revision $REV --name sbom-spdx-${TAG}
-rad-artifact location add $SBOM_IPFS --revision $REV --cid $S_CID
+publish wasm-${TAG} ./release/tansu_v3.0.0.wasm ipfs://QmWaGgKkzPPQ5BES3oCjq6EDRVmBfCmwd7RyqYc4xcnjyh
+publish attestation-provenance-${TAG} ./release/tansu-attestation_v3.0.0.json ipfs://QmSxq7jcMhhEvQmUHkdGuwCohPhfHwGWR6QRQJiNtpgexX
+publish wasm-executor-${TAG} ./release/tansu-executor_v1.0.0.wasm ipfs://QmVshQyzKP2mruKLMcYzFHircZjR8bZGv513pkMxhgLuri
+publish attestation-provenance-executor-${TAG} ./release/tansu-executor-attestation_v3.0.0.json ipfs://QmVSYUtcnnWfpXtKR6EAHMRZ9VuBjgJwrt2EFwpcr5p56G
 
 rad-artifact show --pretty $REV
