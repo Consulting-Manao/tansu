@@ -222,7 +222,7 @@ const ProjectPage = () => {
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-[18px] sm:flex-row sm:flex-wrap md:flex-nowrap">
+            <div className="flex flex-col gap-[18px] sm:flex-row sm:flex-wrap">
               <Button
                 icon="/icons/gear-white.svg"
                 size="xl"
