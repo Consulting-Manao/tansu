@@ -224,6 +224,19 @@ contract_get_upgrade_proposal:  ## Get the current upgrade proposal
     	-- \
     	get_upgrade_proposal
 
+# --------- dApp --------- #
+
+# xlm.sh serves the dApp from the IPFS CID stored in a data entry of the account
+# owning the Soroban Domain. The CID of a build is in the summary of the dApp
+# IPFS workflow. The CLI takes the value in hexadecimal.
+dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, signed by owner=<identity of the domain's account>
+	@test -n "$(cid)" -a -n "$(owner)" || { echo "usage: make dapp_ipfs cid=<cid> owner=<identity> network=mainnet"; exit 1; }
+	stellar tx new manage-data \
+	--source-account $(owner) \
+	--network $(network) \
+	--data-name app.xlm_sh.ipfs \
+	--data-value $$(printf %s '$(cid)' | xxd -p | tr -d '\n')
+
 # --------- Radicle --------- #
 
 radicle_push:
