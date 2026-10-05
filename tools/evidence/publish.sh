@@ -26,6 +26,8 @@
 #
 # Network / contract / account / maintainer also read from the environment:
 #   TANSU_NETWORK, TANSU_CONTRACT_ID, TANSU_SOURCE_ACCOUNT, TANSU_MAINTAINER.
+# A maintainer without a local key signs with the extra `stellar contract invoke`
+# arguments in TANSU_SIGN_ARGS, e.g. "--sign-with-lab".
 
 set -euo pipefail
 
@@ -147,6 +149,7 @@ set_evidence_cmd=(
   --source-account "$SOURCE_ACCOUNT"
   --network "$NETWORK"
   --id "$CONTRACT_ID"
+  ${TANSU_SIGN_ARGS:-}
   --
   set_evidence
   --maintainer "$MAINTAINER"

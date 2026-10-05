@@ -230,7 +230,6 @@ contract_get_upgrade_proposal:  ## Get the current upgrade proposal
 # owning the Soroban Domain. The CID of a build is in the summary of the dApp
 # IPFS workflow. The CLI takes the value in hexadecimal.
 dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, signed by owner=<identity of the domain's account>
-	@test -n "$(cid)" -a -n "$(owner)" || { echo "usage: make dapp_ipfs cid=<cid> owner=<identity> network=mainnet"; exit 1; }
 	stellar tx new manage-data \
 	--source-account $(owner) \
 	--network $(network) \
@@ -379,6 +378,38 @@ contract_get_evidence:  ## Read the stored evidence history for a commit and kin
     	--project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156 \
     	--commit_hash $(commit) \
     	--kind Sbom
+
+# --------- Release --------- #
+
+# The Tansu project on the network, whose releases are declared on-chain.
+override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156
+
+# The commit of tag=<vX.Y.Z> becomes the latest commit of the project, and the
+# attestations of release/ become evidence of it. The maintainer of the project
+# signs, as admin=<identity or address>; one without a local key adds
+# sign=--sign-with-lab. Needs FILEBASE_TOKEN, and an unpaused contract.
+contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
+	stellar contract invoke \
+	--source-account $(admin) \
+	--network $(network) \
+	--id $(tansu_id) \
+	$(sign) \
+	-- \
+	commit \
+	--maintainer $(admin) \
+	--project_key $(tansu_key) \
+	--hash $$(git rev-parse '$(tag)^{commit}')
+	for attestation in release/tansu-attestation_$(tag).json release/tansu-executor-attestation_$(tag).json; do \
+		TANSU_SIGN_ARGS='$(sign)' tools/evidence/publish.sh \
+			--project-key $(tansu_key) \
+			--commit-hash $$(git rev-parse '$(tag)^{commit}') \
+			--kind attestation \
+			--file $$attestation \
+			--network $(network) \
+			--contract-id $(tansu_id) \
+			--source-account $(admin) \
+			--maintainer $(admin) || exit 1; \
+	done
 
 # --------- Hook --------- #
 

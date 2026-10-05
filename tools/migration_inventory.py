@@ -14,8 +14,6 @@ url = (
 )
 request = urllib.request.Request(url, headers={"User-Agent": "tansu-migration"})
 entries = json.load(urllib.request.urlopen(request))["_embedded"]["records"]
-if len(entries) >= LIMIT:
-    sys.exit(f"{len(entries)} entries fill the page: raise LIMIT")
 
 
 def decode(xdr):

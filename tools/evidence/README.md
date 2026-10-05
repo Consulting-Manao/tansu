@@ -28,6 +28,8 @@ attestation + trusted-root pair).
 
 Network / contract / account / maintainer can also come from the environment:
 `TANSU_NETWORK`, `TANSU_CONTRACT_ID`, `TANSU_SOURCE_ACCOUNT`, `TANSU_MAINTAINER`.
+A maintainer who signs with a wallet instead of a local key sets `TANSU_SIGN_ARGS`
+to the extra `stellar contract invoke` arguments, e.g. `--sign-with-lab`.
 
 ### IPFS upload (pluggable)
 
