@@ -99,6 +99,90 @@ export const executeDelayQuery = (name: string, id: number) =>
     staleTime: Infinity,
   });
 
+const DEFAULT_MIN_VOTING_PERIOD = 24 * 3600;
+export const MAX_GOVERNANCE_PERIOD = 30 * 24 * 3600;
+
+export interface GovernanceTiming {
+  minVotingPeriod: number;
+  executeDelay: number;
+}
+
+export interface PendingGovernance {
+  minVotingPeriod: number | null;
+  executeDelay: number | null;
+  activatesAt: number;
+}
+
+/** The contract applies a pending update once its notice has passed. */
+export function effectiveGovernance(
+  stored: GovernanceTiming,
+  pending: PendingGovernance | null,
+  now: number,
+): { timing: GovernanceTiming; pending: PendingGovernance | null } {
+  if (!pending || now < pending.activatesAt) return { timing: stored, pending };
+  return {
+    timing: {
+      minVotingPeriod: pending.minVotingPeriod ?? stored.minVotingPeriod,
+      executeDelay: pending.executeDelay ?? stored.executeDelay,
+    },
+    pending: null,
+  };
+}
+
+/**
+ * As `update_config`: a stricter timing applies at once, a looser one after
+ * the current voting period and execute delay.
+ */
+export function governanceActivation(
+  current: GovernanceTiming,
+  next: GovernanceTiming,
+  now: number,
+): number {
+  return next.minVotingPeriod >= current.minVotingPeriod &&
+    next.executeDelay >= current.executeDelay
+    ? now
+    : now + current.minVotingPeriod + current.executeDelay;
+}
+
+const optionalNumber = (value: unknown) =>
+  value === undefined || value === null ? null : Number(value);
+
+export const governanceQuery = (name: string) =>
+  queryOptions({
+    queryKey: ["governance", projectKeyHex(name)],
+    queryFn: async () => {
+      const entry = (symbol: string) =>
+        contractStorage(
+          xdr.ScVal.scvVec([
+            xdr.ScVal.scvSymbol(symbol),
+            xdr.ScVal.scvBytes(deriveProjectKey(name)),
+          ]),
+        );
+      const [min, delay, pending] = await Promise.all([
+        entry("MinVotingPeriod"),
+        entry("ExecuteDelay"),
+        entry("PendingGovernance") as Promise<
+          Record<string, unknown> | undefined
+        >,
+      ]);
+      return effectiveGovernance(
+        {
+          minVotingPeriod: optionalNumber(min) ?? DEFAULT_MIN_VOTING_PERIOD,
+          executeDelay: optionalNumber(delay) ?? DEFAULT_EXECUTE_DELAY,
+        },
+        pending
+          ? {
+              minVotingPeriod: optionalNumber(pending.min_voting_period),
+              executeDelay: optionalNumber(pending.execute_delay),
+              activatesAt: Number(pending.activates_at),
+            }
+          : null,
+        Math.floor(Date.now() / 1000),
+      );
+    },
+    staleTime: 10 * MINUTE,
+  });
+
 /** A proposal with its votes; `null` when the project has no such id. */
 export const proposalQuery = (name: string, id: number) =>
   queryOptions({

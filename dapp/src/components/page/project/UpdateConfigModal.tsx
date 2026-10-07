@@ -13,6 +13,10 @@ import MarkdownEditorWithImages, {
 import { validateGithubUrl } from "utils/validations";
 import { updateConfig } from "@service/ProjectService";
 import { thresholdQuery } from "@service/AttestationService";
+import {
+  governanceActivation,
+  governanceQuery,
+} from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import {
   DEFAULT_FINALITY_THRESHOLD_PERCENT,
@@ -42,11 +46,13 @@ import {
   activeProvider,
   checkMaintainers,
   emptyOrganization,
+  GovernanceFields,
   handleLabel,
   MaintainerRows,
   OrganizationFields,
   RepositoryFields,
   ThresholdField,
+  validateGovernanceHours,
   type MaintainerRow,
 } from "./ProjectFields";
 
@@ -120,6 +126,12 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     string | null
   >(null);
   const originalThresholdRef = useRef("");
+  const [timing, setTiming] = useState({ votingPeriod: "", executeDelay: "" });
+  const [timingErrors, setTimingErrors] = useState<{
+    votingPeriod?: string | null;
+    executeDelay?: string | null;
+  }>({});
+  const originalTimingRef = useRef(timing);
   const originalRepositoryUrlRef = useRef("");
   const [readmeContent, setReadmeContent] = useState("");
   const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
@@ -156,12 +168,16 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     { ...thresholdQuery(project.name), enabled: open },
     queryClient,
   );
-  const readError = [tomlRead, readmeRead, thresholdRead].find(
-    (read) => read.isError,
-  )?.error;
+  const governanceRead = useQuery(
+    { ...governanceQuery(project.name), enabled: open },
+    queryClient,
+  );
+  const reads = [tomlRead, readmeRead, thresholdRead, governanceRead];
+  const readError = reads.find((read) => read.isError)?.error;
   const ready =
     tomlKnown &&
     thresholdRead.isSuccess &&
+    governanceRead.isSuccess &&
     (isSoftware || !hasFiles || readmeRead.isSuccess);
 
   const provider = isSoftware
@@ -197,6 +213,14 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     );
     originalThresholdRef.current = threshold;
     setFinalityThreshold(threshold);
+    const hours = (seconds: number) => String(Math.round(seconds / 3600));
+    const currentTiming = {
+      votingPeriod: hours(governanceRead.data!.timing.minVotingPeriod),
+      executeDelay: hours(governanceRead.data!.timing.executeDelay),
+    };
+    originalTimingRef.current = currentTiming;
+    setTiming(currentTiming);
+    setTimingErrors({});
     setReadmeContent(readmeRead.data ?? "");
   }, [open, ready]);
 
@@ -224,6 +248,53 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     if (checked.valid && !urlError) setStep(2);
   };
 
+  const timingChanged = {
+    votingPeriod:
+      timing.votingPeriod !== originalTimingRef.current.votingPeriod,
+    executeDelay:
+      timing.executeDelay !== originalTimingRef.current.executeDelay,
+  };
+  const timingNotice = (() => {
+    const current = governanceRead.data;
+    if (!current) return null;
+    const lines: string[] = [];
+    if (current.pending) {
+      lines.push(
+        `A looser timing is pending and applies on ${new Date(current.pending.activatesAt * 1000).toLocaleString()}.`,
+      );
+    }
+    const valid = (field: "votingPeriod" | "executeDelay") =>
+      !timingChanged[field] || !validateGovernanceHours(timing[field]);
+    if (
+      (timingChanged.votingPeriod || timingChanged.executeDelay) &&
+      valid("votingPeriod") &&
+      valid("executeDelay")
+    ) {
+      const now = Math.floor(Date.now() / 1000);
+      const seconds = (
+        field: "votingPeriod" | "executeDelay",
+        stored: number,
+      ) => (timingChanged[field] ? Number(timing[field]) * 3600 : stored);
+      const activatesAt = governanceActivation(
+        current.timing,
+        {
+          minVotingPeriod: seconds(
+            "votingPeriod",
+            current.timing.minVotingPeriod,
+          ),
+          executeDelay: seconds("executeDelay", current.timing.executeDelay),
+        },
+        now,
+      );
+      lines.push(
+        activatesAt === now
+          ? "The new timing is stricter: it applies as soon as the update lands."
+          : `The new timing is looser: it applies around ${new Date(activatesAt * 1000).toLocaleString()}, once proposals opened under the current timing are through.`,
+      );
+    }
+    return lines.length ? lines.join(" ") : null;
+  })();
+
   const nextFromDetails = () => {
     const fullNameError = validateFullName(projectFullName);
     setProjectFullNameError(fullNameError);
@@ -231,7 +302,22 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     setOrgErrors(errors);
     const thresholdError = validateFinalityThresholdPercent(finalityThreshold);
     setFinalityThresholdError(thresholdError);
-    if (!fullNameError && !Object.keys(errors).length && !thresholdError) {
+    const timingCheck = {
+      votingPeriod: timingChanged.votingPeriod
+        ? validateGovernanceHours(timing.votingPeriod)
+        : null,
+      executeDelay: timingChanged.executeDelay
+        ? validateGovernanceHours(timing.executeDelay)
+        : null,
+    };
+    setTimingErrors(timingCheck);
+    if (
+      !fullNameError &&
+      !Object.keys(errors).length &&
+      !thresholdError &&
+      !timingCheck.votingPeriod &&
+      !timingCheck.executeDelay
+    ) {
       setStep(3);
     }
   };
@@ -291,8 +377,15 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
         ...(finalityThreshold !== originalThresholdRef.current
           ? { attestationThreshold: Number(finalityThreshold) }
           : {}),
+        ...(timingChanged.votingPeriod
+          ? { minVotingPeriod: BigInt(Number(timing.votingPeriod) * 3600) }
+          : {}),
+        ...(timingChanged.executeDelay
+          ? { executeDelay: BigInt(Number(timing.executeDelay) * 3600) }
+          : {}),
       });
       originalThresholdRef.current = finalityThreshold;
+      originalTimingRef.current = timing;
       setIsSuccessful(true);
     } catch (e: any) {
       setError(e.message);
@@ -352,9 +445,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                     type="secondary"
                     size="sm"
                     onClick={() =>
-                      [tomlRead, readmeRead, thresholdRead].forEach(
-                        (read) => read.isError && read.refetch(),
-                      )
+                      reads.forEach((read) => read.isError && read.refetch())
                     }
                   >
                     Retry
@@ -452,6 +543,18 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                     setFinalityThresholdError(null);
                   }}
                 />
+                <GovernanceFields
+                  votingPeriod={timing.votingPeriod}
+                  executeDelay={timing.executeDelay}
+                  errors={timingErrors}
+                  onChange={(field, value) => {
+                    setTiming((prev) => ({ ...prev, [field]: value }));
+                    setTimingErrors((prev) => ({ ...prev, [field]: null }));
+                  }}
+                />
+                {timingNotice && (
+                  <p className="text-sm text-secondary">{timingNotice}</p>
+                )}
                 {!isSoftware && (
                   <div className="flex flex-col gap-3">
                     <p className="text-sm font-medium text-primary">README</p>

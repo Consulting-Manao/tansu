@@ -27,7 +27,12 @@ vi.mock("../../../src/contracts/soroban_tansu", () => ({
   },
 }));
 
-import { proposalCountQuery } from "../../../src/service/ProposalService";
+import {
+  effectiveGovernance,
+  governanceActivation,
+  governanceQuery,
+  proposalCountQuery,
+} from "../../../src/service/ProposalService";
 
 describe("proposalCountQuery", () => {
   it.each([
@@ -39,6 +44,43 @@ describe("proposalCountQuery", () => {
     await expect(
       new QueryClient().query(proposalCountQuery("demo")),
     ).resolves.toBe(count);
+  });
+});
+
+describe("governance timing", () => {
+  const day = 24 * 3600;
+  const current = { minVotingPeriod: day, executeDelay: day };
+
+  it("defaults to a day each when the project has no override", async () => {
+    stored.total = undefined;
+    await expect(
+      new QueryClient().query(governanceQuery("demo")),
+    ).resolves.toEqual({ timing: current, pending: null });
+  });
+
+  it("applies a stricter timing at once and a looser one after notice", () => {
+    expect(
+      governanceActivation(current, { ...current, executeDelay: 2 * day }, 100),
+    ).toBe(100);
+    expect(
+      governanceActivation(current, { ...current, minVotingPeriod: 3600 }, 100),
+    ).toBe(100 + 2 * day);
+  });
+
+  it("counts a pending update once its notice has passed", () => {
+    const pending = {
+      minVotingPeriod: 3600,
+      executeDelay: null,
+      activatesAt: 500,
+    };
+    expect(effectiveGovernance(current, pending, 499)).toEqual({
+      timing: current,
+      pending,
+    });
+    expect(effectiveGovernance(current, pending, 500)).toEqual({
+      timing: { minVotingPeriod: 3600, executeDelay: day },
+      pending: null,
+    });
   });
 });
 

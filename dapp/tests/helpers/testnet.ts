@@ -7,8 +7,9 @@
 import {
   Keypair,
   contract,
+  rpc,
   scValToNative,
-  type xdr,
+  xdr,
 } from "@stellar/stellar-sdk";
 import {
   Client,
@@ -374,6 +375,21 @@ export const read = {
   },
   project: async (name: string) =>
     (await tansu().get_project({ project_key: projectKey(name) })).result,
+  minVotingPeriod: async (name: string) => {
+    const entry = await new rpc.Server(rpcUrl)
+      .getContractData(
+        contractId,
+        xdr.ScVal.scvVec([
+          xdr.ScVal.scvSymbol("MinVotingPeriod"),
+          xdr.ScVal.scvBytes(projectKey(name)),
+        ]),
+        rpc.Durability.Persistent,
+      )
+      .catch(() => undefined);
+    return entry?.val.type === "contractData"
+      ? Number(scValToNative(entry.val.contractData.val))
+      : undefined;
+  },
   proposal: async (name: string, id: number) =>
     (
       await tansu().get_proposal({

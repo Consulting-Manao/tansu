@@ -201,7 +201,12 @@ export async function updateConfig(
   await sendTransaction(tx, {
     upload,
     onProgress: config.onProgress,
-    invalidate: [["project", key], ["projects"], ["threshold", key]],
+    invalidate: [
+      ["project", key],
+      ["projects"],
+      ["threshold", key],
+      ["governance", key],
+    ],
   });
 }
 

@@ -101,6 +101,10 @@ test("register a project, then update its config, badges and sub-projects", asyn
   expect((await read.project(taken))!.config.ipfs).toBe(theirs);
 
   await editFullName("Demo Project");
+  await dialog.getByRole("button", { name: "Back" }).click();
+  await page.getByLabel("Minimum voting period (hours)").fill("48");
+  await expect(page.getByText(/stricter: it applies as soon/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
   await page
     .getByRole("button", { name: "Update Config", exact: true })
     .click();
@@ -109,6 +113,7 @@ test("register a project, then update its config, badges and sub-projects", asyn
       timeout: 120_000,
     })
     .not.toBe(theirs);
+  expect(await read.minVotingPeriod(taken)).toBe(48 * 3600);
   // The page shows the new configuration at once.
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Demo Project", { exact: true })).toBeVisible();

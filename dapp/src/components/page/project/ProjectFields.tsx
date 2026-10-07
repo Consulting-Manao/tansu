@@ -25,6 +25,7 @@ import {
   type TansuTomlForm,
 } from "utils/tansuToml";
 import { validateMaintainerAddress } from "utils/validations";
+import { MAX_GOVERNANCE_PERIOD } from "@service/ProposalService";
 
 /** A maintainer: their address, and their handle on the repository host. */
 export interface MaintainerRow {
@@ -255,4 +256,51 @@ export const ThresholdField = ({
     description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}; it can be changed later in the project config.`}
     error={error}
   />
+);
+
+const MAX_GOVERNANCE_HOURS = MAX_GOVERNANCE_PERIOD / 3600;
+
+export function validateGovernanceHours(value: string): string | null {
+  const hours = Number(value.trim());
+  if (value.trim() === "" || !Number.isInteger(hours) || hours < 1) {
+    return "Must be a whole number of hours, at least 1";
+  }
+  return hours > MAX_GOVERNANCE_HOURS
+    ? `Must be at most ${MAX_GOVERNANCE_HOURS} hours (30 days)`
+    : null;
+}
+
+export const GovernanceFields = ({
+  votingPeriod,
+  executeDelay,
+  errors,
+  onChange,
+}: {
+  votingPeriod: string;
+  executeDelay: string;
+  errors: { votingPeriod?: string | null; executeDelay?: string | null };
+  onChange: (field: "votingPeriod" | "executeDelay", value: string) => void;
+}) => (
+  <>
+    <Input
+      label="Minimum voting period (hours)"
+      type="number"
+      min={1}
+      max={MAX_GOVERNANCE_HOURS}
+      value={votingPeriod}
+      onChange={(e) => onChange("votingPeriod", e.target.value)}
+      description="The shortest vote a new proposal can have."
+      error={errors.votingPeriod}
+    />
+    <Input
+      label="Execute delay (hours)"
+      type="number"
+      min={1}
+      max={MAX_GOVERNANCE_HOURS}
+      value={executeDelay}
+      onChange={(e) => onChange("executeDelay", e.target.value)}
+      description="How long after its vote ends a proposal can be executed."
+      error={errors.executeDelay}
+    />
+  </>
 );
