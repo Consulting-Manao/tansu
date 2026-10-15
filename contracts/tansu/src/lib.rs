@@ -271,6 +271,15 @@ pub trait DaoTrait {
     );
 
     fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address>;
+
+    fn set_quorum_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        threshold: Option<u32>,
+    );
+
+    fn get_quorum_threshold(env: Env, project_key: Bytes) -> Option<u32>;
 }
 
 // One-shot migration of the contract deployed on mainnet before v3.
