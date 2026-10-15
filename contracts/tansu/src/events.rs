@@ -35,6 +35,15 @@ pub struct ProjectGovernanceUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QuorumThresholdSet {
+    #[topic]
+    pub project_key: Bytes,
+    pub maintainer: Address,
+    pub threshold: Option<u32>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Commit {
     #[topic]
     pub project_key: Bytes,
