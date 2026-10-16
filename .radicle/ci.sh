@@ -50,11 +50,13 @@ git worktree add --detach "$ci_worktree_dir" HEAD
 if ! rad-job show $sha >/dev/null; then rad-job new $sha; fi
 run=$(rad-job run $sha $uri)
 
-# CI job itself
-{ cargo test; } 2>&1 | tee -a "$ci_worktree_dir/$log"
+# Keep errexit off until PIPESTATUS is saved, so failures are recorded too.
+set +e
+{ python3 -m unittest discover -s .radicle/tests && cargo test; } 2>&1 | tee -a "$ci_worktree_dir/$log"
 
 # outcome
 rc=${PIPESTATUS[0]}
+set -e
 if [ $rc -eq 0 ]; then status=succeeded; else status=failed; fi
 rad job $status $sha $run
 

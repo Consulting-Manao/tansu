@@ -183,16 +183,31 @@ Once on Netlify on production, the dApp can be deployed on IPFS:
 
 ### Smart contract release and upgrade
 
-Contract artifacts are published by GitHub Actions on tag push:
+Contract artifacts are built locally from a tag and published as signed Radicle
+release artifacts. The canonical commands, prerequisites, provenance format and
+independent rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
 
 1. Ensure code is merged and stable on `main`.
-2. Create and push a tag matching `v*` (for example `v1.2.3`).
-3. Confirm `.github/workflows/contract-release.yml` completes and publishes the
-   release artifact.
+2. Create a release tag (for example `v3.0.1`) and push it to Radicle.
+3. Select a trusted single-architecture Stellar CLI image pinned by digest.
+   Run `make radicle_release tag=v3.0.1 image="$IMAGE"` to build both contracts
+   from the tag's archived source, with SEP-55 discovery metadata and SEP-58
+   build/source fields embedded in each WASM.
+4. Review the artifacts and run
+   `make radicle_release_verify tag=v3.0.1 image="$IMAGE"` to independently
+   rebuild and compare their hashes.
+5. With `FILEBASE_TOKEN` set, run
+   `make radicle_release_publish tag=v3.0.1`. This uploads source, WASMs, logs,
+   provenance and checksums to IPFS and signs their registrations and a
+   publication job on Radicle. Inspect the signed release and have another
+   delegate verify/attest the artifact CIDs. GitHub tag pushes no longer release
+   contracts. Radicle signatures replace GitHub attestations; the original
+   SEP-55 GitHub-only verifier needs Radicle discovery support.
 
 Then execute on-chain upgrade flow (see `Makefile` targets for exact commands):
 
-1. Build/upload the new WASM.
+1. Verify the release's signed checksums and rebuild, then use its exact WASM
+   (`wasm=release/<tag>/tansu_v<package-version>.wasm`) for the upload.
 2. Propose upgrade (`make contract_propose_upgrade network=<network>`).
 3. Approve upgrade (`make contract_approve_upgrade network=<network>`).
 4. Finalize upgrade (`make contract_finalize_upgrade network=<network>`).
