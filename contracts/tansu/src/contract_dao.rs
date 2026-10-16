@@ -374,6 +374,7 @@ impl DaoTrait for Tansu {
             );
         }
         let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
+
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
         } else {
@@ -1285,8 +1286,7 @@ impl DaoTrait for Tansu {
     /// Set or clear the quorum voting weight threshold for early proposal finalization.
     ///
     /// When set, proposals whose total participating vote weight meets or exceeds this
-    /// threshold can be executed once the anti-flash cooling window (execute_delay) has
-    /// passed, without having to wait out the full voting period.
+    /// threshold can be executed, without having to wait out the full voting period.
     ///
     /// # Arguments
     /// * `env` - The environment object
