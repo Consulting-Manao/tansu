@@ -22,6 +22,8 @@ Remote **`rad`**, branch **`rad-ci`**.
 The script **exits with the failing test command's exit code**, or zero when both pass. Failed commands still produce a failed job and an archived log.
 
 Logs on **`rad-ci`** are pruned automatically after 90 days by parsing the **`<YYYY-MM-DD>`** date prefix in each filename. Old job COBs are **not** pruned (`rad-job` has no delete subcommand).
+Keeping a recent log must also leave a successful shell status, so a subsequent
+CI run reaches its tests instead of exiting during pruning under `set -e`.
 
 ## Local contract releases
 
@@ -105,7 +107,10 @@ release commit with that real `ipfs://` log location. The run records the
 publication of the completed local build; it does not assert that a separate
 CI runner performed the compilation. Each of the seven files, including source
 and provenance, is uploaded to Filebase and registered in one explicitly
-selected Radicle release, with its IPFS download location. The token is sent
+selected Radicle release keyed by the verified commit, with its IPFS download
+location. The tag remains in the provenance and artifact names: a pushed tag
+can exist only in a delegate's namespace and fail unqualified name resolution
+in `rad-artifact`. The token is sent
 through curl's standard input rather than exposed in process arguments.
 
 Radicle's signed registration binds the publisher to the artifact's blob CID.
@@ -122,11 +127,12 @@ signers, then verify the downloaded release index against trusted Radicle
 registrations before using the hashes it contains:
 
 ```bash
-rad-artifact show --pretty v3.0.1
+REV=$(git rev-parse 'v3.0.1^{commit}')
+rad-artifact show --pretty "$REV"
 rad-artifact verify release/v3.0.1/SHA256SUMS
 make radicle_release_verify tag=v3.0.1 image="$IMAGE"
 # An independent delegate who checked the bytes/rebuild can attest the blob CID:
-rad-artifact attest --revision v3.0.1 --cid <registered-blob-cid> --no-input
+rad-artifact attest --revision "$REV" --cid <registered-blob-cid> --no-input
 rad sync --announce
 ```
 
@@ -168,7 +174,7 @@ make radicle_release_test
 Tests use real temporary Git repositories/tags/archives and simulate Docker,
 Radicle and Filebase. They cover dirty checkouts, repeatable source bytes,
 independent rebuilds, differing package versions, embedded metadata and
-provenance, tampering, build/upload failures, moved tags, and signed publication
+provenance, tampering, build/upload failures, moved tags, namespaced release tags, and signed publication
 ordering. They run in Rad CI before the contract tests. They require neither
 network credentials nor a Docker daemon; a real build/rebuild is still the
 release operator's check for the selected compiler image.

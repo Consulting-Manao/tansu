@@ -424,10 +424,12 @@ def publish(root, output):
         job("new", commit)
     job_run = job("run", commit, log_url).stdout.strip()
     try:
+        # Pushed tags can exist only in a delegate's namespace, where an
+        # unqualified tag name cannot be resolved by rad-artifact.
         release = run(
             "rad-artifact",
             "create",
-            manifest["tag"],
+            commit,
             "--no-input",
             "--no-announce",
             cwd=root,

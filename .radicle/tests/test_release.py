@@ -107,6 +107,7 @@ class ReleaseTests(unittest.TestCase):
         self.upload_count = 0
         self.fail = None
         self.changed_build = False
+        self.namespaced_tag = False
         self.image_manifest = {"config": {}, "layers": []}
         # Keep the test reporter readable; production commands still stream output.
         self.enterContext(redirect_stdout(io.StringIO()))
@@ -160,6 +161,10 @@ class ReleaseTests(unittest.TestCase):
             self.upload_count += 1
             output = json.dumps({"Hash": IPFS})
         elif args[:2] == ("rad-artifact", "create"):
+            if self.namespaced_tag and args[2] != self.commit:
+                raise subprocess.CalledProcessError(
+                    1, args, stderr="tag exists only in a Radicle namespace"
+                )
             output = "d" * 40
         elif args[:2] == ("rad-artifact", "register"):
             output = json.dumps({"cid": ARTIFACT_CID})
@@ -334,6 +339,11 @@ class ReleaseTests(unittest.TestCase):
         sums.write_text("\n".join(sums.read_text().splitlines()[1:]) + "\n")
         with self.assertRaisesRegex(ValueError, "complete release"):
             release.verify(self.output)
+
+    def test_publish_with_namespaced_tag(self):
+        self.build()
+        self.namespaced_tag = True
+        release.publish(self.root, self.output)
 
     def test_publish_signs_and_registers_all_artifacts(self):
         self.build()

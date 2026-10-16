@@ -42,7 +42,10 @@ git worktree add --detach "$ci_worktree_dir" HEAD
   cutoff=$(date -u -v-"$keep"d +%F 2>/dev/null || date -u -d "$keep days ago" +%F)
   for f in .radicle/ci/*.log; do
     [ -e "$f" ] || continue
-    d=$(basename "$f"); [[ ${d%%_*} < $cutoff ]] && rm -f "$f"
+    d=$(basename "$f")
+    if [[ ${d%%_*} < $cutoff ]]; then
+      rm -f "$f"
+    fi
   done
 )
 
