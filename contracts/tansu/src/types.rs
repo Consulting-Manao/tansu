@@ -208,8 +208,6 @@ pub enum ProjectKey {
     ExecuteDelay(Bytes),                 // Per-project DAO execute timelock override (seconds)
     ProposalExecuteDelay(Bytes, u32),    // Timelock snapshotted at proposal creation (seconds)
     QuorumThreshold(Bytes), // Per-project quorum voting weight threshold for early finalization
-    ProposalQuorumThreshold(Bytes, u32), // Quorum threshold snapshotted at proposal creation
-    ProposalCreatedAt(Bytes, u32), // Proposal creation ledger timestamp for anti-flash limits
     DefaultVotes(Bytes, u32), // Number of weight-1 votes on a proposal
     Nqg(Bytes),             // Contract giving the project's voting weights
     PendingGovernance(Bytes), // Loosening governance update waiting out its notice window

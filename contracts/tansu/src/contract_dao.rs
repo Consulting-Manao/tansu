@@ -374,25 +374,6 @@ impl DaoTrait for Tansu {
             );
         }
         let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
-
-        // Record proposal creation timestamp for anti-flash attack window enforcement.
-        env.storage().persistent().set(
-            &types::ProjectKey::ProposalCreatedAt(project_key.clone(), proposal_id),
-            &curr_timestamp,
-        );
-
-        // Snapshot the project's quorum threshold so a later change cannot affect
-        // this in-flight proposal.
-        let quorum_override = env.storage().persistent().get::<types::ProjectKey, u32>(
-            &types::ProjectKey::QuorumThreshold(project_key.clone()),
-        );
-        if let Some(quorum) = quorum_override {
-            env.storage().persistent().set(
-                &types::ProjectKey::ProposalQuorumThreshold(project_key.clone(), proposal_id),
-                &quorum,
-            );
-        }
-
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
         } else {
@@ -605,14 +586,6 @@ impl DaoTrait for Tansu {
             proposal_id,
         ));
         storage.remove(&types::ProjectKey::ProposalExecuteDelay(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::ProposalQuorumThreshold(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::ProposalCreatedAt(
             project_key.clone(),
             proposal_id,
         ));
@@ -861,7 +834,7 @@ impl DaoTrait for Tansu {
             ))
             .unwrap_or(types::TIMELOCK_DELAY);
         let quorum_threshold = env.storage().persistent().get::<types::ProjectKey, u32>(
-            &types::ProjectKey::ProposalQuorumThreshold(project_key.clone(), proposal_id),
+            &types::ProjectKey::QuorumThreshold(project_key.clone()),
         );
 
         let reached_quorum = if let Some(threshold) = quorum_threshold {
@@ -902,34 +875,10 @@ impl DaoTrait for Tansu {
             false
         };
 
-        if !reached_quorum {
-            if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
-                panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
-            }
-        } else {
-            // Anti-flash attack protection: A minimum cooling-off period equal to
-            // execute_delay must elapse from proposal creation before early finalization,
-            // giving maintainers and community time to review and revoke if necessary.
-            let created_at = env
-                .storage()
-                .persistent()
-                .get::<types::ProjectKey, u64>(&types::ProjectKey::ProposalCreatedAt(
-                    project_key.clone(),
-                    proposal_id,
-                ))
-                .unwrap_or_else(|| {
-                    let min_period = env
-                        .storage()
-                        .persistent()
-                        .get::<types::ProjectKey, u64>(&types::ProjectKey::MinVotingPeriod(
-                            project_key.clone(),
-                        ))
-                        .unwrap_or(MIN_VOTING_PERIOD);
-                    proposal.vote_data.voting_ends_at.saturating_sub(min_period)
-                });
-            if curr_timestamp < created_at + execute_delay {
-                panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
-            }
+        if !reached_quorum
+            && curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay
+        {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
         // Return proposal collateral to proposer

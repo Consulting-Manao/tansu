@@ -2190,7 +2190,7 @@ fn anonymous_ballot_strings_are_bounded() {
 }
 
 #[test]
-fn early_finalization_with_quorum_and_anti_flash_limit() {
+fn early_finalization_with_quorum() {
     let setup = create_test_data();
     let id = init_contract(&setup);
 
@@ -2219,7 +2219,7 @@ fn early_finalization_with_quorum_and_anti_flash_limit() {
         &None,
     );
 
-    // Member mando votes with weight 1 -> total weight 1
+    // Member mando votes with weight 1 -> total weight 1 (under quorum)
     setup.contract.vote(
         &setup.mando,
         &id,
@@ -2230,6 +2230,14 @@ fn early_finalization_with_quorum_and_anti_flash_limit() {
             vote_choice: VoteChoice::Approve,
         }),
     );
+
+    // Cannot execute yet because quorum (2) has not been reached
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 
     // Another member votes with weight 1 -> total weight 2 (reaches quorum 2)
     setup.contract.vote(
@@ -2243,8 +2251,65 @@ fn early_finalization_with_quorum_and_anti_flash_limit() {
         }),
     );
 
-    // 1. Anti-flash attack test: Attempting to execute immediately in the same block/minute
-    // before the cooling-off period (execute_delay) must fail with ProposalVotingTime
+    // Now execute succeeds early because quorum threshold was reached,
+    // well before voting_ends_at!
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn early_finalization_dynamic_quorum_update() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // Set initial quorum threshold to 5
+    setup
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(5));
+
+    let title = String::from_str(&setup.env, "Dynamic Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Cast 2 votes (weight 2 < current quorum 5)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+    setup.contract.vote(
+        &setup.contract_admin,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.contract_admin.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Cannot execute yet because quorum 5 is not met
     let err = setup
         .contract
         .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
@@ -2252,14 +2317,12 @@ fn early_finalization_with_quorum_and_anti_flash_limit() {
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 
-    // 2. Advance time past the cooling-off notice window (TIMELOCK_DELAY + 1),
-    // but still 12 days BEFORE voting_ends_at!
+    // Maintainers adjust quorum threshold dynamically to 2
     setup
-        .env
-        .ledger()
-        .set_timestamp(setup.env.ledger().timestamp() + TIMELOCK_DELAY + 1);
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(2));
 
-    // Now execute succeeds early because quorum threshold was reached!
+    // Execution now succeeds immediately using the updated live quorum threshold
     let result = setup
         .contract
         .execute(&setup.mando, &id, &proposal_id, &None, &None);
@@ -2306,13 +2369,7 @@ fn early_finalization_blocked_without_quorum() {
         }),
     );
 
-    // Advance time past cooling period, but before voting_ends_at
-    setup
-        .env
-        .ledger()
-        .set_timestamp(setup.env.ledger().timestamp() + TIMELOCK_DELAY + 1);
-
-    // Early execute fails because quorum was NOT met
+    // Early execute fails because quorum was NOT met and voting period hasn't ended
     let err = setup
         .contract
         .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
