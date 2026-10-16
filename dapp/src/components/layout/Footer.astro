@@ -3,6 +3,12 @@ const year = new Date().getFullYear();
 const horizonUrl = import.meta.env.PUBLIC_HORIZON_URL;
 const network = horizonUrl.includes("testnet") ? "testnet" : "public";
 const contractId = import.meta.env.PUBLIC_TANSU_CONTRACT_ID;
+// The build, to tell which version a report is about: a commit, shortened,
+// or the build time.
+const build = import.meta.env.PUBLIC_BUILD.replace(
+  /^([0-9a-f]{7})[0-9a-f]{33}$/,
+  "$1",
+);
 ---
 
 <footer class="bg-pink bg-fixed bg-bottom text-white">
@@ -20,6 +26,9 @@ const contractId = import.meta.env.PUBLIC_TANSU_CONTRACT_ID;
           <div class="text-xs md:text-lg text-center sm:max-w-[calc(100%-36px)]">
             © <span id="currentYear">{year}</span> Tansu,{" "}
             <a href="https://consulting-manao.com">Consulting Manao GmbH</a>
+            <span class="opacity-70" title="Version">
+              · {build}
+            </span>
           </div>
         </div>
         <div class="flex items-center gap-5 md:gap-[30px]">

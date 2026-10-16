@@ -3,6 +3,20 @@ import { expect, test } from "./helpers/app";
 import { E2E_ENV } from "./helpers/env";
 
 test.use({ serviceWorkers: "allow" });
+// Both tests rebuild dist/.
+test.describe.configure({ mode: "serial" });
+
+/** A deploy that changes the bundle. */
+const deploy = (id: string) =>
+  execSync("bun run build", {
+    env: {
+      ...process.env,
+      ...E2E_ENV,
+      DEPLOY_ID: id,
+      PUBLIC_DELEGATION_API_URL: `https://ipfs.${id}.e2e.test/`,
+    },
+    stdio: "ignore",
+  });
 
 // Runs after every other test (playwright.config.ts): it rebuilds dist/.
 test("a new deploy is offered, and taken on Reload in every tab", async ({
@@ -42,15 +56,7 @@ test("a new deploy is offered, and taken on Reload in every tab", async ({
   await other.goto("/");
 
   // A deploy that changes the bundle, while the tab stays open.
-  execSync("bun run build", {
-    env: {
-      ...process.env,
-      ...E2E_ENV,
-      DEPLOY_ID: "e2e-2",
-      PUBLIC_DELEGATION_API_URL: "https://ipfs.next.e2e.test/",
-    },
-    stdio: "ignore",
-  });
+  deploy("e2e-2");
 
   // Coming back to the tab looks for a new sw.js; the page keeps its version.
   for (const tab of [page, other]) {
@@ -80,4 +86,33 @@ test("a new deploy is offered, and taken on Reload in every tab", async ({
   expect(await bundle(other)).toBe(await bundle());
   expect(await deploys(other)).toEqual(["e2e-2"]);
   await expect(other.getByText("A new version is ready")).toBeHidden();
+});
+
+// No service worker to find the deploy: the tab learns of it from version.json.
+test("a new deploy is offered without a service worker", async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(180_000);
+  const context = await browser.newContext({
+    baseURL: baseURL!,
+    serviceWorkers: "block",
+  });
+  const page = await context.newPage();
+  await page.goto("/");
+  const footer = page.getByTitle("Version");
+  const running = await footer.textContent();
+
+  deploy("e2e-3");
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(page.getByText("A new version is ready")).toBeVisible();
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.getByRole("button", { name: "Reload" }).click(),
+  ]);
+  await expect(footer).not.toHaveText(running!);
+  await expect(page.getByText("A new version is ready")).toBeHidden();
+  await context.close();
 });

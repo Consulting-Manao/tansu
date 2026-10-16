@@ -1,6 +1,7 @@
 ---
 // Offers a new version of the app, which the service worker holds back until
 // the user reloads. Persisted, so it stays across ClientRouter page changes.
+// Without a waiting worker to switch to, Reload drops the caches first.
 ---
 
 <div
@@ -30,9 +31,10 @@
 <script>
   import { Workbox } from "workbox-window";
   import { registerServiceWorker } from "../../utils/serviceWorker";
+  import { clearAndReload, watchVersion } from "../../utils/version";
 
   const card = document.getElementById("update-prompt")!;
-  let reload = () => window.location.reload();
+  let reload: () => void = () => void clearAndReload();
   const show = (update?: () => void) => {
     if (update) reload = update;
     card.classList.replace("hidden", "flex");
@@ -52,4 +54,5 @@
     void caches.delete("tansu-v2");
     registerServiceWorker(new Workbox("/sw.js"), show);
   }
+  if (import.meta.env.PROD) watchVersion(() => show());
 </script>

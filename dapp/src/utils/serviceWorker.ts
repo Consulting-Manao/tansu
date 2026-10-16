@@ -28,7 +28,11 @@ export function registerServiceWorker(
   wb.register().catch((error) =>
     console.warn("Service worker not registered", error),
   );
-  const check = () => wb.update().catch(() => {});
+  everyHourAndOnReturn(() => wb.update().catch(() => {}));
+}
+
+/** Runs `check` every hour and whenever the tab comes back. */
+export function everyHourAndOnReturn(check: () => unknown): void {
   setInterval(check, HOUR);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") void check();
