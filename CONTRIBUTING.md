@@ -197,6 +197,13 @@ Then execute on-chain upgrade flow (see `Makefile` targets for exact commands):
 3. Approve upgrade (`make contract_approve_upgrade network=<network>`).
 4. Finalize upgrade (`make contract_finalize_upgrade network=<network>`).
 
+Register each contract's release WASM on the
+[Stellar Registry](https://stellar.rgstry.xyz), one Radicle job per contract
+after its release job:
+`make radicle_register wasm=<release WASM> tag=<vX.Y.Z> network=<network>`,
+signed by the author of the name. A version already published succeeds;
+`dry=--dry-run` simulates without recording a job.
+
 ### Website (`website/`) deployment
 
 The website is built with Docusaurus. Validate before deployment:

@@ -55,7 +55,7 @@ install:  ## install Rust and Soroban-CLI
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && \
 	# install Soroban and config
 	rustup target add wasm32v1-none && \
-	cargo install --locked stellar-cli
+	cargo install --locked stellar-cli stellar-registry-cli
 
 prepare-network:  ## Setup network
 ifeq ($(network),testnet)
@@ -237,6 +237,37 @@ dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, sign
 	--data-value $$(printf %s '$(cid)' | xxd -p | tr -d '\n')
 
 # --------- Radicle --------- #
+
+# A Radicle job of the commit of tag=<vX.Y.Z>, run after the release job of a
+# contract: its release WASM wasm=<path>, named <package>_v<version>.wasm as the 
+# release assets are, is published on the Stellar Registry as <package> at
+# <version>.
+radicle_register:  ## Register the release WASM wasm=<path> of tag=<vX.Y.Z> on the Stellar Registry, as a Radicle job
+	file=$$(basename $(wasm) .wasm); name=$${file%_v*}; version=$${file##*_v}; \
+	[[ $$version =~ ^[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo "$(wasm) is not <package>_v<version>.wasm" >&2; exit 1; }; \
+	hash=$$(sha256sum $(wasm) | cut -d' ' -f1) && sha=$$(git rev-parse '$(tag)^{commit}') || exit 1; \
+	err=$$(mktemp); trap 'rm -f $$err' EXIT; \
+	register() { \
+		published=$$(stellar registry fetch-hash $$name --version $$version \
+			--source-account $(admin) --network $(network) 2>$$err); \
+		if [ "$$published" = "$$hash" ]; then \
+			echo "$$name $$version is already published"; \
+		elif [ -n "$$published" ]; then \
+			echo "$$name $$version is published with another hash: $$published" >&2; return 1; \
+		elif ! grep -qE 'Error\(Contract, #(1|2)\)' $$err; then \
+			cat $$err >&2; return 1; \
+		else \
+			stellar registry publish --wasm $(wasm) --wasm-name $$name --binver $$version \
+				--source-account $(admin) --network $(network) $(sign) $(dry); \
+		fi; \
+	}; \
+	if [ -n '$(dry)' ]; then register; exit; fi; \
+	rad-job show $$sha >/dev/null 2>&1 || rad-job --no-sync new $$sha >/dev/null || exit 1; \
+	run=$$(rad-job --no-sync run $$sha https://stellar.rgstry.xyz/wasms/$$name) || exit 1; \
+	if register; then status=succeeded; else status=failed; fi; \
+	rad-job --no-sync $$status $$sha $$run || exit 1; \
+	rad sync --announce || echo "announce the job later with: rad sync --announce" >&2; \
+	echo "$$name $$version: $$status"; [ $$status = succeeded ]
 
 radicle_push:
 	git push rad main
