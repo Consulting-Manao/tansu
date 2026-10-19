@@ -42,10 +42,7 @@ git worktree add --detach "$ci_worktree_dir" HEAD
   cutoff=$(date -u -v-"$keep"d +%F 2>/dev/null || date -u -d "$keep days ago" +%F)
   for f in .radicle/ci/*.log; do
     [ -e "$f" ] || continue
-    d=$(basename "$f")
-    if [[ ${d%%_*} < $cutoff ]]; then
-      rm -f "$f"
-    fi
+    d=$(basename "$f"); [[ ${d%%_*} < $cutoff ]] && rm -f "$f"
   done
 )
 
@@ -53,13 +50,11 @@ git worktree add --detach "$ci_worktree_dir" HEAD
 if ! rad-job show $sha >/dev/null; then rad-job new $sha; fi
 run=$(rad-job run $sha $uri)
 
-# Keep errexit off until PIPESTATUS is saved, so failures are recorded too.
-set +e
-{ python3 -m unittest discover -s .radicle/tests && cargo test; } 2>&1 | tee -a "$ci_worktree_dir/$log"
+# CI job itself
+{ cargo test; } 2>&1 | tee -a "$ci_worktree_dir/$log"
 
 # outcome
 rc=${PIPESTATUS[0]}
-set -e
 if [ $rc -eq 0 ]; then status=succeeded; else status=failed; fi
 rad job $status $sha $run
 

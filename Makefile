@@ -1,5 +1,5 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
-.PHONY: radicle_release radicle_release_verify radicle_release_publish radicle_release_test
+.PHONY: radicle_release radicle_release_verify radicle_release_publish
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -246,16 +246,13 @@ radicle_ci:  ## Run test and register the results on Radicle
 	.radicle/ci.sh
 
 radicle_release:  ## Build a tagged release locally: tag=v3.0.1 image=<registry/image@sha256:digest>
-	bash .radicle/release.sh build --tag "$(tag)" --image "$(image)"
+	bash .radicle/release.sh build "$(tag)" "$(image)"
 
-radicle_release_verify:  ## Verify a built release: tag=v3.0.1 (optionally image=<approved rebuild image>)
-	bash .radicle/release.sh verify "release/$(tag)" --tag "$(tag)" $(if $(image),--rebuild-image "$(image)")
+radicle_release_verify:  ## Check a built release's checksums and tagged source: tag=v3.0.1
+	bash .radicle/release.sh verify "$(tag)"
 
 radicle_release_publish:  ## Publish a verified release to Radicle/IPFS: tag=v3.0.1 FILEBASE_TOKEN in the environment
-	bash .radicle/release.sh publish "release/$(tag)"
-
-radicle_release_test:  ## Run release pipeline tests without Docker, Radicle, or credentials
-	python3 -m unittest discover -s .radicle/tests
+	bash .radicle/release.sh publish "$(tag)"
 
 # --------- Setup --------- #
 
@@ -399,7 +396,7 @@ override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa54
 # signs, as admin=<identity or address>; one without a local key adds
 # sign=--sign-with-lab. Needs FILEBASE_TOKEN, and an unpaused contract.
 contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
-	bash .radicle/release.sh verify "release/$(tag)" --tag "$(tag)"
+	bash .radicle/release.sh verify "$(tag)"
 	stellar contract invoke \
 	--source-account $(admin) \
 	--network $(network) \

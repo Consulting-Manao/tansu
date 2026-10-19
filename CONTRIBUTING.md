@@ -184,8 +184,8 @@ Once on Netlify on production, the dApp can be deployed on IPFS:
 ### Smart contract release and upgrade
 
 Contract artifacts are built locally from a tag and published as signed Radicle
-release artifacts. The canonical commands, prerequisites, provenance format and
-independent rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
+release artifacts. Commands, prerequisites and the independent rebuild procedure
+are in [`.radicle/README.md`](.radicle/README.md).
 
 1. Ensure code is merged and stable on `main`.
 2. Create a release tag (for example `v3.0.1`) and push it to Radicle.
@@ -193,16 +193,16 @@ independent rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
    Run `make radicle_release tag=v3.0.1 image="$IMAGE"` to build both contracts
    from the tag's archived source, with SEP-55 discovery metadata and SEP-58
    build/source fields embedded in each WASM.
-4. Review the artifacts and run
-   `make radicle_release_verify tag=v3.0.1 image="$IMAGE"` to independently
-   rebuild and compare their hashes.
+4. Run `make radicle_release_verify tag=v3.0.1` to check the bundle's checksums
+   and tagged source. Independently rebuild and compare the WASM hashes as
+   described in the Radicle guide, then review the provenance.
 5. With `FILEBASE_TOKEN` set, run
    `make radicle_release_publish tag=v3.0.1`. This uploads source, WASMs, logs,
    provenance and checksums to IPFS and signs their registrations and a
-   publication job on Radicle. Inspect the signed release and have another
-   delegate verify/attest the artifact CIDs. GitHub tag pushes no longer release
-   contracts. Radicle signatures replace GitHub attestations; the original
-   SEP-55 GitHub-only verifier needs Radicle discovery support.
+   publication job on Radicle. Have another delegate verify and attest the
+   artifact CIDs. GitHub tag pushes no longer release contracts. The SEP-55
+   discovery metadata is retained, but its GitHub attestation lookup does not
+   discover Radicle signatures; see the guide for that limitation.
 
 Then execute on-chain upgrade flow (see `Makefile` targets for exact commands):
 
