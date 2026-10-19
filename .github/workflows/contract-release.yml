@@ -28,7 +28,7 @@ jobs:
       contents: write      # in order to create releases
       attestations: write
     name: Compile Stellar smart contract for production and create release
-    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@88068ec50cba931a96436869727ed08edeb76ade
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@6b16426dd3a61715ddddf83a2df322a6371fe071
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Tansu contract release"
@@ -45,7 +45,7 @@ jobs:
       contents: write      # in order to create releases
       attestations: write
     name: Compile the proposal executor for production and create release
-    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@88068ec50cba931a96436869727ed08edeb76ade
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@6b16426dd3a61715ddddf83a2df322a6371fe071
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Tansu proposal executor release"
