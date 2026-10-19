@@ -1,10 +1,13 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 import netlify from "@astrojs/netlify";
 import { generateSW } from "workbox-build";
+
+/** The build: the commit being built, or the build time. */
+const BUILD = process.env.COMMIT_REF ?? String(Date.now());
 
 /**
  * Writes dist/sw.js once the pages exist. It precaches the app, so a tab keeps
@@ -24,6 +27,11 @@ function serviceWorker() {
     hooks: {
       "astro:build:done": async ({ dir, logger }) => {
         const root = fileURLToPath(dir);
+        // What a tab compares its own build with (src/utils/version.ts).
+        await writeFile(
+          `${root}version.json`,
+          JSON.stringify({ build: BUILD }),
+        );
         const stamp = await deployStamp(root);
         const { count, size, warnings } = await generateSW({
           globDirectory: root,
@@ -35,7 +43,12 @@ function serviceWorker() {
             "*.{svg,png,jpg,json}",
             "{icons,images}/**",
           ],
-          globIgnores: ["social-card.png", "_astro/forme_bg.*.wasm"],
+          // version.json must come from the network, never from the worker.
+          globIgnores: [
+            "social-card.png",
+            "_astro/forme_bg.*.wasm",
+            "version.json",
+          ],
           maximumFileSizeToCacheInBytes: 8 * 2 ** 20,
           // Pages read their query string in the browser, and Netlify adds
           // ?dpl= to assets.
@@ -90,9 +103,7 @@ export default defineConfig({
   vite: {
     define: {
       // A new build must not restore queries cached in an older data shape.
-      "import.meta.env.PUBLIC_BUILD": JSON.stringify(
-        process.env.COMMIT_REF ?? String(Date.now()),
-      ),
+      "import.meta.env.PUBLIC_BUILD": JSON.stringify(BUILD),
     },
     optimizeDeps: {
       include: ["ipfs-car"],

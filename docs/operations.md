@@ -232,6 +232,41 @@ Without `--key` or `--key-xdr`, the command extends the contract instance. For a
 persistent entry, add `--durability persistent` and the entry key. The transaction is
 simulated and checked before submission.
 
+### Rent on mainnet
+
+An entry lives at most 3,110,400 ledgers (about 180 days) after an extension, so the
+contract needs two extensions a year. Measured on 2026-10-08 by simulation (the
+charge ran about 13% below the simulation):
+
+| Entry                                            | XLM per 180 days            |
+| ------------------------------------------------ | --------------------------- |
+| Tansu code (90 KB, about 1.55 XLM per KB)        | ~136                        |
+| Executor code                                    | ~2.4                        |
+| Live data entries (14, 6.4 KB, about 0.3 XLM/KB) | ~1.8                        |
+| Both instances                                   | ~0.2                        |
+| **Total**                                        | **~141 (about 280 a year)** |
+
+Dormant entries (28, 8.6 KB, archived) cost nothing until a transaction touches
+them: restoring all of them costs about 1.7 XLM, paid by that transaction. Expired
+code is also restored by the next caller, for about 91 XLM, so extend it before.
+
+Extend the contract code and instance (the executor's too: its own id and wasm hash),
+then the live entries by `--key-xdr`:
+
+```bash
+stellar contract extend --id "$(cat deployments/tansu-mainnet)" --network mainnet \
+  --source-account <identity> --ledgers-to-extend 3110400
+stellar contract extend --wasm-hash <hash> --network mainnet \
+  --source-account <identity> --ledgers-to-extend 3110400
+```
+
+Read the TTLs first with `stellar ledger entry fetch` (`liveUntilLedgerSeq`) and
+simulate with `--build-only`. Rent depends on the network's state size and can change.
+Shrinking the WASM by 10% saves about 14 XLM per period. Status on 2026-10-08, current
+ledger 64,839,838: instance expires at 66,740,745 (about 26 January 2027), code at
+66,810,899 and executor code at about the same (30 January). Extending the code,
+instance and live data to the maximum then costs about 51 XLM, the executor about 1 XLM.
+
 Instance storage holds the pause flag, the admin set, the pending upgrade, the
 collateral asset and the executor. Persistent storage holds projects,
 members, badges, commits, evidence, proposals, votes, conflict-of-interest lists and
