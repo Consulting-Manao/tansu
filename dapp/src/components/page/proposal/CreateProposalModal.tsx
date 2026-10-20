@@ -16,11 +16,13 @@ import { validateProposalName, validateTextContent } from "utils/validations";
 import OutcomeInput from "./OutcomeInput";
 import {
   NO_CALL,
+  OutcomeCallError,
   prepareOutcomeCall,
 } from "@service/ContractIntrospectionService";
 import {
   OUTCOMES,
   emptyOutcome,
+  type Outcome,
   outcomeSlots,
   storedOutcomes,
   type OutcomeDrafts,
@@ -108,6 +110,48 @@ const CreateProposalModal = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Outcome calls that failed their check on Next, with what to highlight.
+  const [outcomeErrors, setOutcomeErrors] = useState<
+    Partial<Record<Outcome, { message: string; args: number[] }>>
+  >({});
+  const [checkingOutcomes, setCheckingOutcomes] = useState(false);
+
+  /**
+   * Run every outcome call as `execute` will, marking the ones that fail;
+   * throws the first failure. Creating the proposal checks them again.
+   */
+  const validateOutcomeCalls = async () => {
+    const slots = outcomeSlots(outcomes) ?? [];
+    const failures = await Promise.all(
+      OUTCOMES.map(async (kind, i) => {
+        const call = slots[i];
+        if (!call) return undefined;
+        try {
+          await prepareOutcomeCall(call);
+          return undefined;
+        } catch (err) {
+          return { kind, err };
+        }
+      }),
+    );
+    const failed = failures.filter((f) => f !== undefined);
+    setOutcomeErrors(
+      Object.fromEntries(
+        failed.map(({ kind, err }) => [
+          kind,
+          {
+            message: (err as Error).message,
+            args: err instanceof OutcomeCallError ? err.args : [],
+          },
+        ]),
+      ),
+    );
+    if (failed[0]) {
+      throw new Error(
+        `Invalid ${failed[0].kind} outcome: ${(failed[0].err as Error).message}`,
+      );
+    }
+  };
 
   const validateTokenContractForVoting = () => {
     if (votingType !== "token") return;
@@ -162,15 +206,13 @@ const CreateProposalModal = ({
       targetTs = Math.max(min25hMs, Math.min(max30dMs, targetTs));
       const votingEndsAt = Math.floor(targetTs / 1000);
 
-      // Each call in its outcome's slot, typed and dry-run; a gap gets a
-      // call that changes nothing.
+      // Each call in its outcome's slot, typed and dry-run as the executor
+      // makes it; a gap gets a call that changes nothing.
       const slots = outcomeSlots(outcomes);
       const outcomeContracts =
         slots &&
         (await Promise.all(
-          slots.map((call) =>
-            call ? prepareOutcomeCall(call, connectedAddress!) : NO_CALL,
-          ),
+          slots.map((call) => (call ? prepareOutcomeCall(call) : NO_CALL)),
         ));
 
       const { id, cid } = await createProposal({
@@ -440,12 +482,16 @@ const CreateProposalModal = ({
                     key={kind}
                     type={kind}
                     draft={draft}
-                    onChange={(next) =>
-                      setOutcomes((all) => ({ ...all, [kind]: next }))
-                    }
-                    onRemove={() =>
-                      setOutcomes(({ [kind]: _removed, ...rest }) => rest)
-                    }
+                    onChange={(next) => {
+                      setOutcomes((all) => ({ ...all, [kind]: next }));
+                      // An edited call is checked afresh.
+                      setOutcomeErrors(({ [kind]: _edited, ...rest }) => rest);
+                    }}
+                    callError={outcomeErrors[kind]}
+                    onRemove={() => {
+                      setOutcomes(({ [kind]: _removed, ...rest }) => rest);
+                      setOutcomeErrors(({ [kind]: _removed, ...rest }) => rest);
+                    }}
                   />
                 ) : (
                   <div key={kind} className="flex justify-center">
@@ -477,7 +523,8 @@ const CreateProposalModal = ({
             </Button>
 
             <Button
-              onClick={() => {
+              isLoading={checkingOutcomes}
+              onClick={async () => {
                 try {
                   if (
                     !validateProposalNameField() ||
@@ -493,10 +540,15 @@ const CreateProposalModal = ({
 
                   validateTokenContractForVoting();
 
+                  setCheckingOutcomes(true);
+                  await validateOutcomeCalls();
+
                   setStep(step + 1);
                 } catch (err: any) {
                   console.error(err.message);
                   toast.error("Submit proposal", err.message);
+                } finally {
+                  setCheckingOutcomes(false);
                 }
               }}
             >

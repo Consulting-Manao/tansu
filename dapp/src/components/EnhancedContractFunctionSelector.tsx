@@ -29,9 +29,12 @@ const INTEGER_TYPES = new Set([
  */
 const EnhancedContractFunctionSelector = ({
   call,
+  argError,
   onChange,
 }: {
   call: OutcomeCall;
+  /** Why the call's check failed, and the arguments it blames by position. */
+  argError?: { message: string; args: number[] } | undefined;
   onChange: (call: OutcomeCall) => void;
 }) => {
   const valid = StrKey.isValidContract(call.address);
@@ -100,6 +103,7 @@ const EnhancedContractFunctionSelector = ({
           key={`${selected.name}-${input.name}`}
           input={input}
           value={call.args[index] ?? ""}
+          error={argError?.args.includes(index) ? argError.message : null}
           onChange={(value) => {
             const args = [...call.args];
             args[index] = value;
@@ -115,10 +119,12 @@ const EnhancedContractFunctionSelector = ({
 const ArgInput = ({
   input,
   value,
+  error,
   onChange,
 }: {
   input: ContractFunctionInput;
   value: string;
+  error: string | null;
   onChange: (value: string) => void;
 }) => {
   const label = `${input.name} (${input.type})`;
@@ -129,12 +135,14 @@ const ArgInput = ({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="mt-1 w-full p-3 border border-gray-300 rounded-md"
+          aria-invalid={error ? true : undefined}
+          className={`mt-1 w-full p-3 border rounded-md ${error ? "border-red-500" : "border-gray-300"}`}
         >
           <option value="">Select true/false</option>
           <option value="false">false</option>
           <option value="true">true</option>
         </select>
+        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
       </label>
     );
   }
@@ -153,6 +161,7 @@ const ArgInput = ({
               ? "Hex bytes"
               : "Value"
       }
+      error={error}
       className="font-mono text-sm"
     />
   );
