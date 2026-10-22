@@ -18,7 +18,7 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   page,
   wallet,
 }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(720_000);
   const name = uniqueName("anon");
   const [proposer, rogue] = await Promise.all([
     fundedKeypair(),
@@ -80,14 +80,18 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
     page.getByRole("button", { name: "Download key file" }),
   ).toHaveCount(0);
 
-  // An anonymous proposal that ends within the test.
-  const id = await createProposal(proposer, name, "Adopt the new logo", 60, {
+  // An anonymous proposal that ends within the test, with time to follow
+  // the votes while it is open.
+  const id = await createProposal(proposer, name, "Adopt the new logo", 180, {
     publicVoting: false,
   });
 
   // The maintainer approves in secret and gets a receipt of the commitments.
   await page.goto(`/proposal/?id=${id}&name=${name}`);
-  await expect(page.getByText("Anonymous voting")).toBeVisible();
+  const reveal = page.getByRole("button", {
+    name: "Reveal the anonymous votes",
+  });
+  await expect(reveal).toBeVisible();
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.getByText("Approve", { exact: true }).click();
   await page.getByRole("button", { name: "Vote", exact: true }).last().click();
@@ -107,33 +111,48 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
     );
   const votes = [2n, 0n, 0n];
   const seeds = [11n, 22n, 33n];
-  await castVote(rogue, name, id, {
-    tag: "AnonymousVote",
-    values: [
-      {
-        address: rogue.publicKey(),
-        weight: 1,
-        encrypted_votes: await encrypt(votes),
-        encrypted_seeds: await encrypt(seeds),
-        commitments: await read.commitments(name, votes, seeds),
-      },
-    ],
-  });
+  const cheat = async () =>
+    castVote(rogue, name, id, {
+      tag: "AnonymousVote",
+      values: [
+        {
+          address: rogue.publicKey(),
+          weight: 1,
+          encrypted_votes: await encrypt(votes),
+          encrypted_seeds: await encrypt(seeds),
+          commitments: await read.commitments(name, votes, seeds),
+        },
+      ],
+    });
+  await cheat();
+  const invalid = page
+    .getByRole("alert")
+    .filter({ hasText: "These ballots cannot count" });
+
+  // While the vote is open, the maintainer follows it and removes the ballot.
+  await page.goto(`/proposal/?id=${id}&name=${name}`);
+  await reveal.click();
+  await page.getByLabel("Choose key file").setInputFiles(keyFile);
+  await expect(invalid).toContainText(rogue.publicKey());
+  await invalid.getByRole("button", { name: "Remove" }).click();
+  await expect(invalid).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByLabel("proof-ok")).toBeVisible();
+
+  // The voter can vote again, and does the same.
+  await cheat();
 
   const endsAt = Number(
     (await read.proposal(name, id))!.vote_data.voting_ends_at,
   );
   await expect
-    .poll(() => Date.now() / 1000, { timeout: 180_000, intervals: [5_000] })
+    .poll(() => Date.now() / 1000, { timeout: 300_000, intervals: [5_000] })
     .toBeGreaterThan(endsAt + 10);
 
-  // Revealing the votes flags the ballot; execution waits for its removal.
+  // Once the vote ends, the tally flags it again; execution waits for its
+  // removal.
   await page.goto(`/proposal/?id=${id}&name=${name}`);
   await page.getByRole("button", { name: "Finalize Vote" }).click();
   await page.getByLabel("Choose key file").setInputFiles(keyFile);
-  const invalid = page
-    .getByRole("alert")
-    .filter({ hasText: "These ballots cannot count" });
   await expect(invalid).toContainText(rogue.publicKey());
   await expect(invalid).toContainText("It does not choose exactly one option.");
   await expect(next).toBeDisabled();

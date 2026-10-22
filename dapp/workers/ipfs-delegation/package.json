@@ -12,14 +12,14 @@
   },
   "dependencies": {
     "@ipld/car": "^5.4.7",
-    "@stellar/stellar-sdk": "^17.1.0",
+    "@stellar/stellar-sdk": "^17.3.0",
     "ipfs-car": "^3.1.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260924.1",
+    "@cloudflare/workers-types": "^5.20261022.1",
     "typescript": "^7.0.2",
-    "vitest": "^5",
-    "wrangler": "^4.138.0"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.152.0"
   },
   "type": "module"
 }

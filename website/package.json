@@ -23,13 +23,13 @@
     "@docusaurus/preset-classic": "3.10.2",
     "@docusaurus/theme-mermaid": "3.10.2",
     "@mdx-js/react": "^3.1.1",
-    "caniuse-lite": "^1.0.30001806",
+    "caniuse-lite": "^1.0.30001819",
     "clsx": "^2.1.1",
-    "mermaid": "^12.1.0",
+    "mermaid": "^12.2.0",
     "prism-react-renderer": "^2.4.1",
     "raw-loader": "^4.0.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0"
   },
@@ -38,7 +38,7 @@
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@stellar/prettier-config": "^1.2.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "typescript": "7.0.2"
   },
   "overrides": {

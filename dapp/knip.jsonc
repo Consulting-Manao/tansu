@@ -9,8 +9,6 @@
         // does not follow.
         "src/components/utils/TermsAcceptanceModal.tsx",
         "scripts/*.{js,ts}",
-        // Started by Playwright's webServer command.
-        "tests/helpers/serve.ts",
       ],
       "project": [
         "src/**/*.{astro,js,jsx,ts,tsx}",

@@ -431,7 +431,7 @@ The contract checks that each anonymous vote carries three valid G1 points, but 
 
 A ballot committing to a very large value can also make the proposal impossible to execute, because no tally fits the `u128` values that `execute` accepts: the proposal would stay active and the proposer's deposit locked.
 
-The executor sees every decrypted vote before tallying, so a malformed ballot is visible. The mitigation is operational: the executor reports it and a maintainer calls `remove_vote` before execution, which also clears the blocked case. A cryptographic fix (a range or one-hot proof per ballot) is on the roadmap.
+Whoever holds the project's private key can decrypt every ballot, while the vote runs too, so a malformed ballot is visible. The mitigation is operational: in the dApp, a maintainer reveals the votes on the proposal page at any time, sees the ballots that cannot count and removes them with `remove_vote`, which also clears the blocked case. Execution waits until none is left. A cryptographic fix (a range or one-hot proof per ballot) is on the roadmap.
 
 ## Spam and Sybil resistance
 

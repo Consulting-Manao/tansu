@@ -11,6 +11,8 @@ import {
 } from "utils/anonymousVoting";
 import type { DecodedVote, InvalidBallot } from "utils/anonymousVoting";
 import type { VoteStatus } from "types/proposal";
+import { removeVote } from "@service/ProposalService";
+import { toast } from "utils/utils";
 import classNames from "classnames";
 
 interface Props extends ModalProps {
@@ -34,6 +36,23 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   const [tallies, setTallies] = useState<bigint[]>([]);
   const [invalid, setInvalid] = useState<InvalidBallot[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [privateKey, setPrivateKey] = useState("");
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const computeTallies = async (privKey: string) => {
+    const data = await computeAnonymousVotingData(
+      projectName,
+      proposalId,
+      privKey,
+      true,
+    );
+    setVoteStatus(data.voteStatus);
+    setProofOk(data.proofOk ?? null);
+    setProofErrorMessage(data.proofErrorMessage ?? null);
+    setDecodedVotes(data.decodedVotes);
+    setInvalid(data.invalid);
+    setTallies(data.tallies);
+  };
 
   const handleKeyUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsProcessing(true);
@@ -47,24 +66,27 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
       if (!parsed.privateKey) throw new Error("Invalid key file");
       // Validate uploaded key against on-chain config (centralized helper)
       await validateAnonymousKeyForProject(projectName, parsed.publicKey);
-      const data = await computeAnonymousVotingData(
-        projectName,
-        proposalId,
-        parsed.privateKey,
-        true,
-      );
-      setVoteStatus(data.voteStatus);
-      setProofOk(data.proofOk ?? null);
-      setProofErrorMessage(data.proofErrorMessage ?? null);
-      setDecodedVotes(data.decodedVotes);
-      setInvalid(data.invalid);
-      setTallies(data.tallies);
+      await computeTallies(parsed.privateKey);
+      setPrivateKey(parsed.privateKey);
       setProcessingError(null);
       setStep(2);
     } catch (err: any) {
       setProcessingError(err.message);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  /** Remove a ballot that cannot count, then count again. */
+  const removeInvalid = async (address: string) => {
+    setRemoving(address);
+    try {
+      await removeVote(projectName, proposalId, address);
+      await computeTallies(privateKey);
+    } catch (error: any) {
+      toast.error("Remove Vote", error.message);
+    } finally {
+      setRemoving(null);
     }
   };
 
@@ -130,7 +152,11 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             )}-proposal-${proposalId}-decoded-votes`}
           />
 
-          <InvalidBallots invalid={invalid} />
+          <InvalidBallots
+            invalid={invalid}
+            removing={removing}
+            onRemove={removeInvalid}
+          />
 
           <div className="flex justify-center sm:justify-end">
             <Button type="secondary" onClick={onClose}>

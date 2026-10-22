@@ -138,8 +138,9 @@ const ProposalTitle: React.FC<Props> = ({
                     onClick={openVotingResultModal}
                   />
                 ) : isAnonymousProposal ? (
-                  // Revealing the votes waits for the vote to end.
-                  isMaintainer && proposal?.status !== "active" ? (
+                  // Maintainers follow the votes as they come, to remove a
+                  // ballot that cannot count before the vote ends.
+                  isMaintainer ? (
                     <Button
                       type="secondary"
                       size="2xs"
