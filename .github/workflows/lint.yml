@@ -32,11 +32,14 @@ jobs:
       - name: Install pre-commit
         run: python -m pip install pre-commit
 
+      # soroban-sdk 28 builds contracts only through stellar-cli
+      - uses: stellar/stellar-cli@v28.1.0
+
       # clippy compiles registry-tansu-manager, which imports this WASM
       - name: Build the Tansu WASM
         run: |
           rustup target add wasm32v1-none
-          cargo build --target wasm32v1-none --release --package tansu
+          stellar contract build --package tansu
 
       - name: Run pre-commit
         run: |

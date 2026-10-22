@@ -37,8 +37,11 @@ jobs:
       # soroban target
       - run: rustup target add wasm32v1-none
 
+      # soroban-sdk 28 builds contracts only through stellar-cli
+      - uses: stellar/stellar-cli@v28.1.0
+
       # registry-tansu-manager imports this WASM with contractimport!
-      - run: cargo build --target wasm32v1-none --release --package tansu
+      - run: stellar contract build --package tansu
 
       - run: cargo build
 
