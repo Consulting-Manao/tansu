@@ -57,7 +57,7 @@ Badge weight is the default voting mode. Token-weighted proposals are chosen per
 - **Description** – Markdown editor, optionally starting from a template (stored on IPFS)
 - **Voting end** – calendar picker, at least a day and at most 30 days ahead
 - **Voting mode** – public or anonymous, and optionally a token contract for token-weighted voting
-- **Outcome Contracts** – optional contracts to invoke on each outcome (approved, rejected, cancelled), each with a target, function name and arguments. Templates pre-fill common cases, and the target can be a [Stellar Registry](https://stellar.rgstry.xyz) name instead of an address.
+- **Outcome Contracts** – optional contracts to invoke on each outcome (approved, rejected, cancelled), each with a target, function name and arguments. Templates pre-fill common cases, and the target can be a [Stellar Registry](https://stellar.rgstry.xyz) name instead of an address. The form runs each call the way the proposal will execute it and flags one that would fail, such as a call needing someone's signature.
 
 4. Submit and sign. Creating a proposal takes a **5 XLM deposit**, returned when the proposal is executed.
 

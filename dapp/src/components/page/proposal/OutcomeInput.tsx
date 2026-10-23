@@ -2,6 +2,7 @@ import { useId } from "react";
 import Button from "components/utils/Button";
 import Textarea from "components/utils/Textarea";
 import Input from "components/utils/Input";
+import OutcomeCallCheck from "./OutcomeCallCheck";
 import OutcomeModeSelector from "./OutcomeModeSelector";
 import TemplateSelector from "./TemplateSelector";
 import EnhancedContractFunctionSelector from "components/EnhancedContractFunctionSelector";
@@ -23,6 +24,8 @@ interface OutcomeInputProps {
   descriptionError?: string | null;
   xdrError?: string | null;
   contractError?: string | null;
+  /** A call that failed its check: why, and the arguments to blame (none for all). */
+  callError?: { message: string; args: number[] } | undefined;
 }
 
 /** What an outcome template fills in, on its card. */
@@ -87,6 +90,7 @@ const OutcomeInput = ({
   descriptionError,
   xdrError,
   contractError,
+  callError,
 }: OutcomeInputProps) => {
   const { description, mode, xdr, call } = draft;
   const update = (change: Partial<OutcomeDraft>) =>
@@ -213,14 +217,19 @@ const OutcomeInput = ({
               value={call.address}
               onChange={(e) => setAddress(e.target.value.trim())}
               className={contractError ? "border-red-500" : ""}
+              error={callError?.args.length === 0 ? callError.message : null}
             />
 
             {call.address && (
               <EnhancedContractFunctionSelector
                 call={call}
+                argError={callError?.args.length ? callError : undefined}
                 onChange={(next) => update({ call: next })}
               />
             )}
+
+            {/* A failed check on Next shows on the fields it blames. */}
+            {!callError && <OutcomeCallCheck call={call} />}
 
             {contractError && (
               <p className="mt-1 text-sm text-red-500">{contractError}</p>
