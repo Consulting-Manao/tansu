@@ -2188,3 +2188,202 @@ fn anonymous_ballot_strings_are_bounded() {
         .unwrap();
     assert_eq!(err, ContractErrors::BadCommitment.into());
 }
+
+#[test]
+fn early_finalization_with_quorum() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // Maintainer sets quorum threshold to 2
+    setup
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(2));
+    assert_eq!(setup.contract.get_quorum_threshold(&id), Some(2));
+
+    let title = String::from_str(&setup.env, "Early Finalization Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    // Long 14-day voting period
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 14;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Member mando votes with weight 1 -> total weight 1 (under quorum)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Cannot execute yet because quorum (2) has not been reached
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Another member votes with weight 1 -> total weight 2 (reaches quorum 2)
+    setup.contract.vote(
+        &setup.contract_admin,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.contract_admin.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Now execute succeeds early because quorum threshold was reached,
+    // well before voting_ends_at!
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn early_finalization_dynamic_quorum_update() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // Set initial quorum threshold to 5
+    setup
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(5));
+
+    let title = String::from_str(&setup.env, "Dynamic Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Cast 2 votes (weight 2 < current quorum 5)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+    setup.contract.vote(
+        &setup.contract_admin,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.contract_admin.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Cannot execute yet because quorum 5 is not met
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Maintainers adjust quorum threshold dynamically to 2
+    setup
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(2));
+
+    // Execution now succeeds immediately using the updated live quorum threshold
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn early_finalization_blocked_without_quorum() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+
+    // Set quorum threshold to 5
+    setup
+        .contract
+        .set_quorum_threshold(&setup.mando, &id, &Some(5));
+
+    let title = String::from_str(&setup.env, "Under Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Only 1 vote cast (weight 1 < quorum 5)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Early execute fails because quorum was NOT met and voting period hasn't ended
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Once voting_ends_at + TIMELOCK_DELAY passes, standard execution succeeds
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
