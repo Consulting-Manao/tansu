@@ -1,4 +1,5 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
+.PHONY: radicle_release radicle_release_verify radicle_release_publish
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -244,8 +245,14 @@ radicle_push:
 radicle_ci:  ## Run test and register the results on Radicle
 	.radicle/ci.sh
 
-radicle_release:  ## Publish a release on Radicle
-	.radicle/release.sh
+radicle_release:  ## Build a tagged release locally: tag=v3.0.1 image=<registry/image@sha256:digest>
+	bash .radicle/release.sh build "$(tag)" "$(image)"
+
+radicle_release_verify:  ## Check a built release's checksums and tagged source: tag=v3.0.1
+	bash .radicle/release.sh verify "$(tag)"
+
+radicle_release_publish:  ## Publish a verified release to Radicle/IPFS: tag=v3.0.1 FILEBASE_TOKEN in the environment
+	bash .radicle/release.sh publish "$(tag)"
 
 # --------- Setup --------- #
 
@@ -385,10 +392,11 @@ contract_get_evidence:  ## Read the stored evidence history for a commit and kin
 override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156
 
 # The commit of tag=<vX.Y.Z> becomes the latest commit of the project, and the
-# attestations of release/ become evidence of it. The maintainer of the project
+# provenance in release/<tag>/ becomes evidence of it. The maintainer of the project
 # signs, as admin=<identity or address>; one without a local key adds
 # sign=--sign-with-lab. Needs FILEBASE_TOKEN, and an unpaused contract.
 contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
+	bash .radicle/release.sh verify "$(tag)"
 	stellar contract invoke \
 	--source-account $(admin) \
 	--network $(network) \
@@ -399,17 +407,15 @@ contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its 
 	--maintainer $(admin) \
 	--project_key $(tansu_key) \
 	--hash $$(git rev-parse '$(tag)^{commit}')
-	for attestation in release/tansu-attestation_$(tag).json release/tansu-executor-attestation_$(tag).json; do \
-		TANSU_SIGN_ARGS='$(sign)' tools/evidence/publish.sh \
-			--project-key $(tansu_key) \
-			--commit-hash $$(git rev-parse '$(tag)^{commit}') \
-			--kind attestation \
-			--file $$attestation \
-			--network $(network) \
-			--contract-id $(tansu_id) \
-			--source-account $(admin) \
-			--maintainer $(admin) || exit 1; \
-	done
+	TANSU_SIGN_ARGS='$(sign)' tools/evidence/publish.sh \
+		--project-key $(tansu_key) \
+		--commit-hash $$(git rev-parse '$(tag)^{commit}') \
+		--kind attestation \
+		--file "release/$(tag)/provenance.json" \
+		--network $(network) \
+		--contract-id $(tansu_id) \
+		--source-account $(admin) \
+		--maintainer $(admin)
 
 # --------- Hook --------- #
 
