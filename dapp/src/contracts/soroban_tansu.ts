@@ -35,7 +35,7 @@ export const tansuReads = new Client.Client(options);
  * becomes the source, so any existing account serves to build and simulate
  * it.
  */
-export function sourceAccountFor(address: string): string {
+function sourceAccountFor(address: string): string {
   return StrKey.isValidContract(address)
     ? import.meta.env.PUBLIC_TANSU_OWNER_ID
     : address;

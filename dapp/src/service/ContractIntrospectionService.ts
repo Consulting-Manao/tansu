@@ -3,17 +3,20 @@
  * their arguments typed by their spec, and a dry run of each call.
  */
 import {
+  Address,
   Asset,
   BASE_FEE,
   Operation,
   TransactionBuilder,
   contract,
   rpc,
+  scValToNative,
+  StrKey,
   xdr,
 } from "@stellar/stellar-sdk";
 import { queryOptions } from "@tanstack/react-query";
 import type { OutcomeContract } from "../../packages/tansu";
-import { rpcServer, sourceAccountFor } from "../contracts/soroban_tansu";
+import { rpcServer } from "../contracts/soroban_tansu";
 import { errorMessage } from "../utils/contractErrors";
 import type { OutcomeCall } from "../utils/proposalOutcomes";
 import { queryClient } from "./queryClient";
@@ -125,14 +128,49 @@ function nativeArg(raw: string, type: string): unknown {
 }
 
 /**
- * The call `execute` will make, its arguments encoded with the called
- * contract's spec, after a dry run from `author`: a call that cannot run is
- * refused before the proposal is created.
+ * The contract `execute` asks to make outcome calls, kept in Tansu's instance
+ * storage (`ContractKey::Executor`): the contract has no getter for it.
  */
-export async function prepareOutcomeCall(
-  call: OutcomeCall,
-  author: string,
-): Promise<OutcomeContract> {
+const executorQuery = () =>
+  queryOptions({
+    queryKey: ["tansuExecutor"],
+    queryFn: async () => {
+      const { val } = await rpcServer.getContractData(
+        import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
+        xdr.ScVal.scvLedgerKeyContractInstance(),
+      );
+      const instance =
+        val.type === "contractData" &&
+        val.contractData.val.type === "scvContractInstance"
+          ? val.contractData.val.instance
+          : undefined;
+      const key = xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("Executor")]);
+      const executor = instance?.storage?.find((entry) =>
+        entry.key.equals(key),
+      );
+      if (!executor) throw new Error("Tansu has no executor for outcome calls");
+      return scValToNative(executor.val) as string;
+    },
+    // `set_executor` replaces it rarely, and only through an admin.
+    staleTime: 60 * 60_000,
+  });
+
+/**
+ * Why an outcome call cannot run, and the arguments to blame (by position):
+ * none when the call as a whole fails.
+ */
+export class OutcomeCallError extends Error {
+  constructor(
+    message: string,
+    readonly args: number[] = [],
+  ) {
+    super(message);
+    this.name = "OutcomeCallError";
+  }
+}
+
+/** The arguments as typed, encoded with the called function's spec. */
+async function encodeOutcomeCall(call: OutcomeCall): Promise<OutcomeContract> {
   const spec = await queryClient.query(contractSpecQuery(call.address));
   const inputs = spec.getFunc(call.execute_fn).inputs;
   if (inputs.length !== call.args.length) {
@@ -140,33 +178,145 @@ export async function prepareOutcomeCall(
       `${call.execute_fn} takes ${inputs.length} arguments, not ${call.args.length}`,
     );
   }
-  const args = inputs.map((input, i) =>
-    spec.nativeToScVal(
-      nativeArg(call.args[i]!, specTypeName(input.type)),
-      input.type,
-    ),
-  );
-  const prepared = { address: call.address, execute_fn: call.execute_fn, args };
+  const args = inputs.map((input, i) => {
+    try {
+      return spec.nativeToScVal(
+        nativeArg(call.args[i]!, specTypeName(input.type)),
+        input.type,
+      );
+    } catch (error) {
+      throw new OutcomeCallError(
+        `${input.name.toString()}: ${(error as Error).message}`,
+        [i],
+      );
+    }
+  });
+  return { address: call.address, execute_fn: call.execute_fn, args };
+}
 
-  const account = await rpcServer.getAccount(sourceAccountFor(author));
+/** Who an authorization entry asks a signature from. */
+function signer(entry: xdr.SorobanAuthorizationEntry, source: string): string {
+  const { credentials } = entry;
+  switch (credentials.type) {
+    case "sorobanCredentialsSourceAccount":
+      return source;
+    case "sorobanCredentialsAddress":
+      return Address.fromScAddress(credentials.address.address).toString();
+    case "sorobanCredentialsAddressV2":
+      return Address.fromScAddress(credentials.addressV2.address).toString();
+    case "sorobanCredentialsAddressWithDelegates":
+      return Address.fromScAddress(
+        credentials.addressWithDelegates.addressCredentials.address,
+      ).toString();
+  }
+}
+
+/**
+ * Why a call failed, in the called contract's words: its error codes are its
+ * own, not Tansu's, so they are named from its spec when it documents them.
+ */
+async function outcomeError(call: OutcomeCall, error: string): Promise<string> {
+  const code = error.match(/Error\(Contract, #(\d+)\)/)?.[1];
+  if (code === undefined) return errorMessage(error);
+  const spec = await queryClient.query(contractSpecQuery(call.address));
+  const known = spec
+    .errorCases()
+    .find((errorCase) => errorCase.value === Number(code));
+  const doc = known?.doc.toString().trim();
+  return known
+    ? `error #${code} ${known.name.toString()}${doc ? ` (${doc})` : ""}`
+    : `error #${code}`;
+}
+
+export interface OutcomeSimulation {
+  /** The call, its arguments encoded, as the proposal stores it. */
+  prepared: OutcomeContract;
+  /** What the call returns, decoded. */
+  returns: unknown;
+  /**
+   * Contracts that must authorize the call: it runs only when one of them
+   * executes the proposal and authorizes it first, as a manager contract does.
+   */
+  authorizedBy: string[];
+}
+
+/**
+ * A dry run of an outcome call as `execute` will make it: the executor calls
+ * the target, so the target sees the executor as its caller, and no account
+ * signs anything when the proposal executes. A call that needs an account's
+ * signature, or that the target refuses, throws why. A contract's
+ * authorization is reported: a manager contract gives it when it executes.
+ *
+ * The ledger can change before the proposal executes: a call that runs now may
+ * not run then.
+ */
+export async function simulateOutcomeCall(
+  call: OutcomeCall,
+): Promise<OutcomeSimulation> {
+  const prepared = await encodeOutcomeCall(call);
+  const executor = await queryClient.query(executorQuery());
+  // Any existing account builds the transaction: no one signs it.
+  const source = import.meta.env.PUBLIC_TANSU_OWNER_ID;
+  const account = await rpcServer.getAccount(source);
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase,
   })
     .addOperation(
       Operation.invokeContractFunction({
-        contract: call.address,
-        function: call.execute_fn,
-        args,
+        contract: executor,
+        function: "run",
+        args: [
+          new Address(call.address).toScVal(),
+          xdr.ScVal.scvSymbol(call.execute_fn),
+          xdr.ScVal.scvVec(prepared.args),
+        ],
       }),
     )
     .setTimeout(60)
     .build();
-  const simulation = await rpcServer.simulateTransaction(tx);
+  // Recording every authorization, the target's own included: in the real
+  // call none of them is signed.
+  const simulation = await rpcServer.simulateTransaction(
+    tx,
+    undefined,
+    "record_allow_nonroot",
+    false,
+  );
+  const what = `${call.execute_fn} on ${call.address}`;
   if (rpc.Api.isSimulationError(simulation)) {
-    throw new Error(
-      `${call.execute_fn} on ${call.address} cannot run: ${errorMessage(simulation.error)}`,
+    throw new OutcomeCallError(
+      `${what} cannot run: ${await outcomeError(call, simulation.error)}`,
     );
   }
-  return prepared;
+  const signers = [
+    ...new Set((simulation.result?.auth ?? []).map((e) => signer(e, source))),
+  ];
+  // An account cannot sign inside `execute`; a contract can authorize the call
+  // ahead, as a manager contract executing the proposal does.
+  const accounts = signers.filter((s) => !StrKey.isValidContract(s));
+  if (accounts.length > 0) {
+    // The arguments naming a signer are where the author can fix it.
+    throw new OutcomeCallError(
+      `${what} needs a signature from ${accounts.join(", ")}, and no one signs when the proposal executes`,
+      call.args.flatMap((arg, i) => (accounts.includes(arg.trim()) ? [i] : [])),
+    );
+  }
+  const retval = simulation.result?.retval;
+  return {
+    prepared,
+    returns: retval ? scValToNative(retval) : undefined,
+    authorizedBy: signers,
+  };
+}
+
+/**
+ * The call `execute` will make, its arguments encoded with the called
+ * contract's spec, after a dry run as the executor makes it: a call that
+ * cannot run is refused before the proposal is created.
+ */
+export async function prepareOutcomeCall(
+  call: OutcomeCall,
+): Promise<OutcomeContract> {
+  return (await simulateOutcomeCall(call)).prepared;
 }
