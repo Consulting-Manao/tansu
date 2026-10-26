@@ -168,7 +168,7 @@ export function checkAuthorization(
  * network takes it at once and includes it later.
  */
 async function send(xdr: string): Promise<{ hash: string; maxTime: number }> {
-  const envelope = StellarSdk.TransactionBuilder.fromXDR(
+  const envelope = StellarSdk.TransactionBuilder.fromXdr(
     xdr,
     NETWORK_PASSPHRASE,
   );
