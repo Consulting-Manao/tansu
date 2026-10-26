@@ -168,7 +168,7 @@ export function checkAuthorization(
  * network takes it at once and includes it later.
  */
 async function send(xdr: string): Promise<{ hash: string; maxTime: number }> {
-  const envelope = StellarSdk.TransactionBuilder.fromXDR(
+  const envelope = StellarSdk.TransactionBuilder.fromXdr(
     xdr,
     NETWORK_PASSPHRASE,
   );
@@ -307,7 +307,10 @@ export async function sendXLM(amount: string, message: string): Promise<void> {
   }
   const transaction = new StellarSdk.TransactionBuilder(
     new StellarSdk.Account(sender, account.sequence),
-    { fee: StellarSdk.BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE },
+    {
+      fee: import.meta.env.PUBLIC_DEFAULT_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
   )
     .addOperation(
       StellarSdk.Operation.payment({

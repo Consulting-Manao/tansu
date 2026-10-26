@@ -15,10 +15,11 @@ rpcServer.httpClient.defaults.timeout = DEADLINE_MS;
 
 // Client options reach every call, so this is where method options go too.
 const options: contract.ClientOptions &
-  Pick<contract.MethodOptions, "useUpgradedAuth"> = {
+  Pick<contract.MethodOptions, "fee" | "useUpgradedAuth"> = {
   networkPassphrase: import.meta.env.PUBLIC_SOROBAN_NETWORK_PASSPHRASE,
   contractId: import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
   rpcUrl: import.meta.env.PUBLIC_SOROBAN_RPC_URL,
+  fee: import.meta.env.PUBLIC_DEFAULT_FEE,
   allowHttp: import.meta.env.DEV,
   server: rpcServer,
   // Legacy address credentials: wallets on an older stellar-base, like Nido's
