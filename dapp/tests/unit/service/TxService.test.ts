@@ -321,6 +321,7 @@ describe("sendXLM", () => {
     const sent = send.mock.calls[0]![0] as StellarSdk.Transaction;
     expect(sent.source).toBe(connected);
     expect(sent.sequence).toBe("42");
+    expect(sent.fee).toBe(import.meta.env.PUBLIC_DEFAULT_FEE);
     expect(Buffer.from(sent.memo.value as Uint8Array).toString()).toBe(
       "thanks",
     );

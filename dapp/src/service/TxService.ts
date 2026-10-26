@@ -307,7 +307,10 @@ export async function sendXLM(amount: string, message: string): Promise<void> {
   }
   const transaction = new StellarSdk.TransactionBuilder(
     new StellarSdk.Account(sender, account.sequence),
-    { fee: StellarSdk.BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE },
+    {
+      fee: import.meta.env.PUBLIC_DEFAULT_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
   )
     .addOperation(
       StellarSdk.Operation.payment({
