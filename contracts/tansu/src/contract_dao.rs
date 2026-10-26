@@ -834,7 +834,51 @@ impl DaoTrait for Tansu {
                 proposal_id,
             ))
             .unwrap_or(types::TIMELOCK_DELAY);
-        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
+        let quorum_threshold = env.storage().persistent().get::<types::ProjectKey, u32>(
+            &types::ProjectKey::QuorumThreshold(project_key.clone()),
+        );
+
+        let reached_quorum = if let Some(threshold) = quorum_threshold {
+            let total_voted: u128 = match proposal.vote_data.public_voting {
+                true => {
+                    let tallies = env
+                        .storage()
+                        .persistent()
+                        .get::<types::ProjectKey, types::VoteTallies>(
+                            &types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id),
+                        );
+                    match tallies {
+                        Some(types::VoteTallies::PublicVote(t)) => {
+                            t.get(0).unwrap_or(0) + t.get(1).unwrap_or(0) + t.get(2).unwrap_or(0)
+                        }
+                        _ => 0,
+                    }
+                }
+                false => {
+                    let voters = get_voters(&env, &project_key, proposal_id);
+                    let mut total: u128 = 0;
+                    for voter in voters.iter() {
+                        let vote_key =
+                            types::ProjectKey::Vote(project_key.clone(), proposal_id, voter);
+                        if let Some(types::Vote::AnonymousVote(av)) =
+                            env.storage()
+                                .persistent()
+                                .get::<types::ProjectKey, types::Vote>(&vote_key)
+                        {
+                            total += av.weight as u128;
+                        }
+                    }
+                    total
+                }
+            };
+            threshold > 0 && total_voted >= threshold as u128
+        } else {
+            false
+        };
+
+        if !reached_quorum
+            && curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay
+        {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
@@ -1237,6 +1281,55 @@ impl DaoTrait for Tansu {
                 proposal_id,
             ))
             .unwrap_or(Vec::new(&env))
+    }
+
+    /// Set or clear the quorum voting weight threshold for early proposal finalization.
+    ///
+    /// When set, proposals whose total participating vote weight meets or exceeds this
+    /// threshold can be executed, without having to wait out the full voting period.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - A maintainer of the project (must be authorized)
+    /// * `project_key` - The project key identifier
+    /// * `threshold` - Minimum voting weight required for early finalization, or None to disable
+    fn set_quorum_threshold(
+        env: Env,
+        maintainer: Address,
+        project_key: Bytes,
+        threshold: Option<u32>,
+    ) {
+        Tansu::require_not_paused(env.clone());
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let storage = env.storage().persistent();
+        let key = types::ProjectKey::QuorumThreshold(project_key.clone());
+        if let Some(t) = threshold {
+            storage.set(&key, &t);
+        } else {
+            storage.remove(&key);
+        }
+
+        events::QuorumThresholdSet {
+            project_key,
+            maintainer,
+            threshold,
+        }
+        .publish(&env);
+    }
+
+    /// Get the quorum threshold for a project.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    ///
+    /// # Returns
+    /// * `Option<u32>` - The configured quorum threshold, or None
+    fn get_quorum_threshold(env: Env, project_key: Bytes) -> Option<u32> {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::QuorumThreshold(project_key))
     }
 }
 
