@@ -2188,3 +2188,192 @@ fn anonymous_ballot_strings_are_bounded() {
         .unwrap();
     assert_eq!(err, ContractErrors::BadCommitment.into());
 }
+
+
+#[test]
+fn early_finalization_with_maintainer_quorum() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    setup.token_stellar.mint(&setup.contract_admin, &(100 * 10_000_000));
+
+    let title = String::from_str(&setup.env, "Early Finalization Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    // 14-day voting period
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 14;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.contract_admin,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Maintainers: grogu and mando. Each has default weight 1 -> total maintainer weight = 2.
+    // Default attestation threshold is 66%.
+    // Required quorum = (2 * 66 + 99) / 100 = 231 / 100 = 2.
+    // Mando votes with weight 1 -> total voted = 1 < 2 (not reached)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Cannot execute yet because quorum (2) has not been reached and voting time is active
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Grogu (second maintainer) votes with weight 1 -> total voted = 2 >= required quorum (2)
+    setup.contract.vote(
+        &setup.grogu,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.grogu.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Now execute succeeds early before voting_ends_at!
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn early_finalization_with_nqg_weighted_quorum() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    setup.token_stellar.mint(&setup.contract_admin, &(100 * 10_000_000));
+
+    // Configure project with NQG mock giving 20,000,000 weight per maintainer
+    super::test_utils::set_nqg(&setup, &id);
+
+    let title = String::from_str(&setup.env, "NQG Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.contract_admin,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // 2 maintainers * 20_000_000 = 40_000_000 total maintainer weight.
+    // Threshold 66% -> required quorum = (40_000_000 * 66 + 99) / 100 = 26_400_000.
+    // Mando votes with 20_000_000 -> 20_000_000 < 26_400_000 (not reached)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 20_000_000,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Grogu votes with 20_000_000 -> total voted = 40_000_000 >= 26_400_000
+    setup.contract.vote(
+        &setup.grogu,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.grogu.clone(),
+            weight: 20_000_000,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn early_finalization_blocked_until_deadline_without_quorum() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    setup.token_stellar.mint(&setup.contract_admin, &(100 * 10_000_000));
+
+    let title = String::from_str(&setup.env, "Under Quorum Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
+
+    let proposal_id = setup.contract.create_proposal(
+        &setup.contract_admin,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // Only 1 vote cast (weight 1 < required maintainer quorum 2)
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // Early execute fails because quorum was NOT met and voting period hasn't ended
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Once voting_ends_at + TIMELOCK_DELAY passes, standard execution succeeds
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    let result = setup
+        .contract
+        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}

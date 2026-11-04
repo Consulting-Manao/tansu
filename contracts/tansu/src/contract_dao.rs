@@ -1,7 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
-    DaoTrait, MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, errors, events, types,
+    DaoTrait, MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors,
+    events, types,
 };
 use soroban_sdk::crypto::bls12_381::{Bls12381Fr, Bls12381G1Affine};
 use soroban_sdk::{
@@ -834,7 +835,62 @@ impl DaoTrait for Tansu {
                 proposal_id,
             ))
             .unwrap_or(types::TIMELOCK_DELAY);
-        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
+        let project = <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone());
+        let mut total_maintainer_weight: u128 = 0;
+        for m in project.maintainers.iter() {
+            total_maintainer_weight +=
+                <Tansu as MembershipTrait>::get_max_weight(env.clone(), project_key.clone(), m)
+                    as u128;
+        }
+
+        let reached_quorum = if total_maintainer_weight > 0 {
+            let attestation_threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
+                env.clone(),
+                project_key.clone(),
+            ) as u128;
+            let required_quorum_weight =
+                (total_maintainer_weight * attestation_threshold + 99) / 100;
+
+            let total_voted: u128 = match proposal.vote_data.public_voting {
+                true => {
+                    let tallies = env
+                        .storage()
+                        .persistent()
+                        .get::<types::ProjectKey, types::VoteTallies>(
+                            &types::ProjectKey::ProposalTallies(project_key.clone(), proposal_id),
+                        );
+                    match tallies {
+                        Some(types::VoteTallies::PublicVote(t)) => {
+                            t.get(0).unwrap_or(0) + t.get(1).unwrap_or(0) + t.get(2).unwrap_or(0)
+                        }
+                        _ => 0,
+                    }
+                }
+                false => {
+                    let voters = get_voters(&env, &project_key, proposal_id);
+                    let mut total: u128 = 0;
+                    for voter in voters.iter() {
+                        let vote_key =
+                            types::ProjectKey::Vote(project_key.clone(), proposal_id, voter);
+                        if let Some(types::Vote::AnonymousVote(av)) =
+                            env.storage()
+                                .persistent()
+                                .get::<types::ProjectKey, types::Vote>(&vote_key)
+                        {
+                            total += av.weight as u128;
+                        }
+                    }
+                    total
+                }
+            };
+            total_voted >= required_quorum_weight
+        } else {
+            false
+        };
+
+        if !reached_quorum
+            && curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay
+        {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
