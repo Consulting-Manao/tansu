@@ -183,26 +183,28 @@ Once on Netlify on production, the dApp can be deployed on IPFS:
 
 ### Smart contract release and upgrade
 
-Contract artifacts are built locally from a tag and published as signed Radicle
-release artifacts. Commands, prerequisites and the independent rebuild procedure
-are in [`.radicle/README.md`](.radicle/README.md).
+Contract artifacts are built locally from a tag, in a container, and published as
+signed Radicle release artifacts. The scripts are the `.radicle` submodule
+(`git submodule update --init`); commands, prerequisites and the independent
+rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
 
 1. Ensure code is merged and stable on `main`.
 2. Create a release tag (for example `v3.0.1`) and push it to Radicle.
 3. Select a trusted single-architecture Stellar CLI image pinned by digest.
    Run `make radicle_release tag=v3.0.1 image="$IMAGE"` to build both contracts
-   from the tag's archived source, with SEP-55 discovery metadata and SEP-58
-   build/source fields embedded in each WASM.
+   from the tag's source, with SEP-58 build/source fields and a SEP-55
+   `source_repo` embedded in each WASM. `STELLAR_CONTAINER_ENGINE` picks the
+   container engine the Stellar CLI uses.
 4. Run `make radicle_release_verify tag=v3.0.1` to check the bundle's checksums
    and tagged source. Independently rebuild and compare the WASM hashes as
    described in the Radicle guide, then review the provenance.
-5. With `FILEBASE_TOKEN` set, run
-   `make radicle_release_publish tag=v3.0.1`. This uploads source, WASMs, logs,
-   provenance and checksums to IPFS and signs their registrations and a
-   publication job on Radicle. Have another delegate verify and attest the
-   artifact CIDs. GitHub tag pushes no longer release contracts. The SEP-55
-   discovery metadata is retained, but its GitHub attestation lookup does not
-   discover Radicle signatures; see the guide for that limitation.
+5. Start the local seeder (`rad-artifact node start`) and run
+   `make radicle_release_publish tag=v3.0.1`. This registers and attests the
+   source, WASMs, SBOM, provenance and checksums as Radicle artifacts, seeds them
+   from your node and records a publication job. Have another delegate verify
+   and attest the artifact CIDs. GitHub tag pushes no longer release contracts.
+   SEP-55 only defines a GitHub source, so a verifier that knows only GitHub does
+   not follow the `radicle:` one; see the guide.
 
 Then execute on-chain upgrade flow (see `Makefile` targets for exact commands):
 

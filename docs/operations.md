@@ -64,18 +64,14 @@ small and monitor the corresponding events.
 
 ## Release and verification
 
-Contract releases are built by `.github/workflows/contract-release.yml` when a `v*`
-tag is pushed. The job runs in the `publish-contract` GitHub environment and attaches
-build provenance to the artifact. A mainnet WASM is never built by hand.
+Contract releases are built from a tag in a Stellar CLI container pinned by digest and
+published as signed Radicle artifacts (`make radicle_release`, `radicle_release_verify`,
+`radicle_release_publish`; see `CONTRIBUTING.md`). A mainnet WASM is never built by hand
+outside that flow. Another delegate rebuilds with the same image, compares the WASM
+hashes in `SHA256SUMS` and attests the artifacts.
 
-The `publish-contract` environment is configured as follows:
-
-- at least two required reviewers, with self-review disabled,
-- a wait timer,
-- deployments restricted to `main`, which is a protected branch.
-
-Tags and releases are immutable. After a release, the build must show as verified on
-Stellar.Expert. This check relies on SEP-55 build provenance.
+Tags and releases are immutable. The WASM carries SEP-58 build and source metadata
+(`bldimg`, `bldopt`, `source_sha256`); read it with `stellar contract info meta`.
 
 The other workflows in `.github/workflows` run tests, linters, SBOM generation and
 vulnerability scans. Their results are checked before tagging a release.
@@ -108,7 +104,7 @@ project over with `update_config`.
 Before a production deployment, the following is verified:
 
 - the WASM hash matches the release artifact and its attestation,
-- the release shows as verified on Stellar.Expert,
+- another delegate has rebuilt the release and attested its artifacts,
 - the admin addresses and the threshold are confirmed out of band,
 - the collateral asset id matches the native asset contract of the target network.
 

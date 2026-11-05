@@ -1,5 +1,5 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
-.PHONY: radicle_release radicle_release_verify radicle_release_publish
+.PHONY: radicle_ci radicle_release radicle_release_verify radicle_release_publish radicle_register
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -239,51 +239,28 @@ dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, sign
 
 # --------- Radicle --------- #
 
-# A Radicle job of the commit of tag=<vX.Y.Z>, run after the release job of a
-# contract: its release WASM wasm=<path>, named <package>_v<version>.wasm as the 
-# release assets are, is published on the Stellar Registry as <package> at
-# <version>.
-radicle_register:  ## Register the release WASM wasm=<path> of tag=<vX.Y.Z> on the Stellar Registry, as a Radicle job
-	file=$$(basename $(wasm) .wasm); name=$${file%_v*}; version=$${file##*_v}; \
-	[[ $$version =~ ^[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo "$(wasm) is not <package>_v<version>.wasm" >&2; exit 1; }; \
-	hash=$$(sha256sum $(wasm) | cut -d' ' -f1) && sha=$$(git rev-parse '$(tag)^{commit}') || exit 1; \
-	err=$$(mktemp); trap 'rm -f $$err' EXIT; \
-	register() { \
-		published=$$(stellar registry fetch-hash $$name --version $$version \
-			--source-account $(admin) --network $(network) 2>$$err); \
-		if [ "$$published" = "$$hash" ]; then \
-			echo "$$name $$version is already published"; \
-		elif [ -n "$$published" ]; then \
-			echo "$$name $$version is published with another hash: $$published" >&2; return 1; \
-		elif ! grep -qE 'Error\(Contract, #(1|2)\)' $$err; then \
-			cat $$err >&2; return 1; \
-		else \
-			stellar registry publish --wasm $(wasm) --wasm-name $$name --binver $$version \
-				--source-account $(admin) --network $(network) $(sign) $(dry); \
-		fi; \
-	}; \
-	if [ -n '$(dry)' ]; then register; exit; fi; \
-	rad-job show $$sha >/dev/null 2>&1 || rad-job --no-sync new $$sha >/dev/null || exit 1; \
-	run=$$(rad-job --no-sync run $$sha https://stellar.rgstry.xyz/wasms/$$name) || exit 1; \
-	if register; then status=succeeded; else status=failed; fi; \
-	rad-job --no-sync $$status $$sha $$run || exit 1; \
-	rad sync --announce || echo "announce the job later with: rad sync --announce" >&2; \
-	echo "$$name $$version: $$status"; [ $$status = succeeded ]
-
+# .radicle is the radicle-ci-cd submodule: git submodule update --init
 radicle_push:
 	git push rad main
 
-radicle_ci:  ## Run test and register the results on Radicle
-	.radicle/ci.sh
+radicle_ci:  ## Run the tests as a Radicle job; the log goes to the rad-ci branch
+	RADICLE_CI_CMD='cargo test' .radicle/ci.sh
 
-radicle_release:  ## Build a tagged release locally: tag=v3.0.1 image=<registry/image@sha256:digest>
-	bash .radicle/release.sh build "$(tag)" "$(image)"
+radicle_release:  ## Build tag=v3.0.1 in the stellar-cli container image=<registry/image@sha256:digest>
+	STELLAR_IMAGE='$(image)' RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev \
+		.radicle/release.sh build "$(tag)"
 
-radicle_release_verify:  ## Check a built release's checksums and tagged source: tag=v3.0.1
-	bash .radicle/release.sh verify "$(tag)"
+radicle_release_verify:  ## Check a built release's checksums and tagged commit: tag=v3.0.1
+	.radicle/release.sh verify "$(tag)"
 
-radicle_release_publish:  ## Publish a verified release to Radicle/IPFS: tag=v3.0.1 FILEBASE_TOKEN in the environment
-	bash .radicle/release.sh publish "$(tag)"
+radicle_release_publish:  ## Register, attest and seed a verified release on Radicle: tag=v3.0.1
+	.radicle/release.sh publish "$(tag)"
+
+# A Radicle job of the commit of tag=<vX.Y.Z>, run after the release job of a contract: its
+# release WASM wasm=<path>, named <package>_v<version>.wasm, is published on the Stellar
+# Registry as <package> at <version>.
+radicle_register:  ## Publish the release WASM wasm=<path> of tag=<vX.Y.Z> on the Stellar Registry, as a Radicle job
+	STELLAR_NETWORK=$(network) STELLAR_ACCOUNT=$(admin) .radicle/registry.sh $(wasm) $(tag) $(sign) $(dry)
 
 # --------- Setup --------- #
 
@@ -425,9 +402,9 @@ override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa54
 # The commit of tag=<vX.Y.Z> becomes the latest commit of the project, and the
 # provenance in release/<tag>/ becomes evidence of it. The maintainer of the project
 # signs, as admin=<identity or address>; one without a local key adds
-# sign=--sign-with-lab. Needs FILEBASE_TOKEN, and an unpaused contract.
+# sign=--sign-with-lab. Needs an unpaused contract.
 contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
-	bash .radicle/release.sh verify "$(tag)"
+	.radicle/release.sh verify "$(tag)"
 	stellar contract invoke \
 	--source-account $(admin) \
 	--network $(network) \

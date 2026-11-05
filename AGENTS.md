@@ -112,7 +112,7 @@ Rules the dApp code keeps:
 
 - **Trunk-based development**: every change goes through a branch + review; squash-merge keeps history linear. `main` must stay green.
 - **All code changes need tests and documentation**; human review is mandatory (see CONTRIBUTING.md for the AI tool-use policy).
-- **CONTRIBUTING.md** is the canonical reference for deployment/release procedures (Python release via hatch + tag-triggered workflow, dApp via Netlify — staging `testnet.tansu.dev` tracks `main`, production `app.tansu.dev` tracks `app_prod` — contract releases on `v*` tags followed by the on-chain propose/approve/finalize upgrade flow).
+- **CONTRIBUTING.md** is the canonical reference for deployment/release procedures (Python release via hatch + tag-triggered workflow, dApp via Netlify — staging `testnet.tansu.dev` tracks `main`, production `app.tansu.dev` tracks `app_prod` — contract releases built in a pinned container from a `v*` tag and published on Radicle, followed by the on-chain propose/approve/finalize upgrade flow). `.radicle` is the `radicle-ci-cd` submodule that holds the CI and release scripts.
 
 ## Technology Stack Skills
 
