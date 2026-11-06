@@ -483,7 +483,8 @@ export interface Client {
    *
    * Only a project maintainer can call this. The vote and its tally
    * contribution are dropped. The vote must be cast on an active proposal
-   * (removal is allowed even after the voting period ends).
+   * (removal is allowed even after the voting period ends) and its ballot
+   * must still live: see [`DaoTrait::vote`].
    *
    * # Arguments
    * * `env` - The environment object
@@ -514,6 +515,8 @@ export interface Client {
   /**
    * Construct and simulate a get_proposal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get a single proposal by ID.
+   *
+   * `vote_data.votes` lists the ballots that have not expired (see `vote`).
    *
    * # Arguments
    * * `env` - The environment object

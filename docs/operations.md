@@ -265,9 +265,17 @@ instance and live data to the maximum then costs about 51 XLM, the executor abou
 
 Instance storage holds the pause flag, the admin set, the pending upgrade, the
 collateral asset and the executor. Persistent storage holds projects,
-members, badges, commits, evidence, proposals, votes, conflict-of-interest lists and
-attestations. The first write to a dormant project costs more than usual, and scripted
-operations must budget for it.
+members, badges, commits, evidence, proposals with their voters and tallies,
+conflict-of-interest lists and attestations. The first write to a dormant project costs
+more than usual, and scripted operations must budget for it.
+
+Each ballot is a temporary entry, paid by the voter until 14 days after the earliest
+execution of its proposal (`BALLOT_GRACE`), then deleted: a vote costs about 0.04 XLM on
+mainnet instead of the 120-day persistent minimum (0.48 XLM). An anonymous proposal
+must be executed before its ballots expire: the tally is decrypted from them. If it
+cannot, extend them first with `stellar contract extend --durability temporary
+--key-xdr <ballot key> --ledgers-to-extend <n>`. Ballots of proposals open during an
+upgrade to v4 were persistent and are no longer read: upgrade with no proposal open.
 
 Limits and delays are constants in `contracts/tansu/src/types.rs`,
 `contract_dao.rs` and `contract_versioning.rs`:

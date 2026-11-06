@@ -21,6 +21,10 @@ const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
 const MAX_DEFAULT_WEIGHT_VOTES: u32 = 20;
 const MAX_OUTCOMES: u32 = 3; // Approved, Rejected, Cancelled
 const MAX_ENCRYPTED_LENGTH: u32 = 1024; // each encrypted vote or seed of a ballot
+/// Time a ballot lives after the earliest execution of its proposal. Ballots
+/// are temporary entries: the network deletes them once it has passed.
+const BALLOT_GRACE: u64 = 14 * 24 * 3600; // 14 days in seconds
+const LEDGER_SECONDS: u64 = 5;
 
 #[contractimpl]
 impl DaoTrait for Tansu {
@@ -351,16 +355,6 @@ impl DaoTrait for Tansu {
             &proposal,
         );
 
-        env.storage().persistent().set(
-            &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
-            &vote_,
-        );
-        let voters = vec![&env, proposer.clone()];
-        env.storage().persistent().set(
-            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
-            &voters,
-        );
-
         // Snapshot the project's execute timelock so a later update_governance
         // cannot change the delay for this in-flight proposal.
         let delay_override = env
@@ -374,6 +368,18 @@ impl DaoTrait for Tansu {
             );
         }
         let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
+
+        set_ballot(
+            &env,
+            &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
+            &vote_,
+            voting_ends_at + execute_delay,
+        );
+        let voters = vec![&env, proposer.clone()];
+        env.storage().persistent().set(
+            &types::ProjectKey::Voters(project_key.clone(), proposal_id),
+            &voters,
+        );
 
         let proposal_tallies = if public_voting {
             types::VoteTallies::PublicVote(vec![&env, 0u128, 0u128, 0u128])
@@ -418,7 +424,8 @@ impl DaoTrait for Tansu {
     ///
     /// Only a project maintainer can call this. The vote and its tally
     /// contribution are dropped. The vote must be cast on an active proposal
-    /// (removal is allowed even after the voting period ends).
+    /// (removal is allowed even after the voting period ends) and its ballot
+    /// must still live: see [`DaoTrait::vote`].
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -450,12 +457,12 @@ impl DaoTrait for Tansu {
         let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
         let vote = env
             .storage()
-            .persistent()
+            .temporary()
             .get::<types::ProjectKey, types::Vote>(&vote_key)
             .unwrap_or_else(|| panic_with_error!(&env, &errors::ContractErrors::VoteNotFound));
 
         // Remove the vote entry
-        env.storage().persistent().remove(&vote_key);
+        env.storage().temporary().remove(&vote_key);
 
         // Free the weight-1 slot it held
         let vote_weight = match &vote {
@@ -571,7 +578,7 @@ impl DaoTrait for Tansu {
         // not found.
         let storage = env.storage().persistent();
         for voter in get_voters(&env, &project_key, proposal_id).iter() {
-            storage.remove(&types::ProjectKey::Vote(
+            env.storage().temporary().remove(&types::ProjectKey::Vote(
                 project_key.clone(),
                 proposal_id,
                 voter,
@@ -660,9 +667,9 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
         }
 
-        // only allow to vote once per voter
-        let vote_key = types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone());
-        if env.storage().persistent().has(&vote_key) {
+        // only allow to vote once per voter: the voters list, not the
+        // ballot, which is a temporary entry
+        if voters.contains(&voter) {
             panic_with_error!(&env, &errors::ContractErrors::AlreadyVoted);
         }
 
@@ -753,8 +760,17 @@ impl DaoTrait for Tansu {
             }
         }
 
-        // Record the vote in keyed storage
-        env.storage().persistent().set(&vote_key, &vote.clone());
+        // Record the vote as a temporary entry, paid until BALLOT_GRACE after
+        // the earliest execution. The network then deletes it: the tallies
+        // stay, but the ballot can no longer be read, removed or used by
+        // proof. Anyone can extend its TTL.
+        set_ballot(
+            &env,
+            &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone()),
+            &vote,
+            proposal.vote_data.voting_ends_at
+                + proposal_execute_delay(&env, &project_key, proposal_id),
+        );
         voters.push_back(voter.clone());
         env.storage().persistent().set(
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
@@ -824,17 +840,10 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        // Snapshot at proposal creation; proposals without a snapshot use
-        // the global default.
-        let execute_delay = env
-            .storage()
-            .persistent()
-            .get(&types::ProjectKey::ProposalExecuteDelay(
-                project_key.clone(),
-                proposal_id,
-            ))
-            .unwrap_or(types::TIMELOCK_DELAY);
-        if curr_timestamp < proposal.vote_data.voting_ends_at + execute_delay {
+        if curr_timestamp
+            < proposal.vote_data.voting_ends_at
+                + proposal_execute_delay(&env, &project_key, proposal_id)
+        {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
@@ -1017,6 +1026,8 @@ impl DaoTrait for Tansu {
             tally_commitment_init_.clone(),
         ];
 
+        // Sums the ballots that still live, so the proof only holds until
+        // they expire; execute checks the persistent aggregate instead.
         let all_votes = get_all_votes(&env, &project_key, proposal.id);
         for vote_ in all_votes.iter() {
             if let types::Vote::AnonymousVote(anonymous_vote) = &vote_ {
@@ -1098,6 +1109,8 @@ impl DaoTrait for Tansu {
     }
 
     /// Get a single proposal by ID.
+    ///
+    /// `vote_data.votes` lists the ballots that have not expired (see `vote`).
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -1294,15 +1307,30 @@ pub(crate) fn promote_pending_governance(env: &Env, project_key: &Bytes) {
     }
 }
 
-/// Load all persisted votes for a proposal.
-///
-/// # Arguments
-/// * `env` - The environment object
-/// * `project_key` - The project key identifier
-/// * `proposal_id` - The ID of the proposal to load votes for
-///
-/// # Returns
-/// * `Vec<types::Vote>` - All votes of the proposal
+/// Execute delay of a proposal: the snapshot taken at its creation, or the
+/// global default for proposals without one.
+fn proposal_execute_delay(env: &Env, project_key: &Bytes, proposal_id: u32) -> u64 {
+    env.storage()
+        .persistent()
+        .get(&types::ProjectKey::ProposalExecuteDelay(
+            project_key.clone(),
+            proposal_id,
+        ))
+        .unwrap_or(types::TIMELOCK_DELAY)
+}
+
+/// Store a ballot as a temporary entry, paid until `BALLOT_GRACE` after
+/// `executable_at`, the earliest time its proposal can execute.
+fn set_ballot(env: &Env, key: &types::ProjectKey, vote: &types::Vote, executable_at: u64) {
+    let ledgers = ((executable_at + BALLOT_GRACE - env.ledger().timestamp()) / LEDGER_SECONDS)
+        .try_into()
+        .unwrap_or(u32::MAX);
+    let storage = env.storage().temporary();
+    storage.set(key, vote);
+    storage.extend_ttl(key, ledgers, ledgers);
+}
+
+/// Addresses that voted on a proposal, whose ballots may have expired.
 fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> {
     env.storage()
         .persistent()
@@ -1310,13 +1338,22 @@ fn get_voters(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<Address> 
         .unwrap_or(Vec::new(env))
 }
 
+/// Load the ballots of a proposal that still live.
+///
+/// # Arguments
+/// * `env` - The environment object
+/// * `project_key` - The project key identifier
+/// * `proposal_id` - The ID of the proposal to load votes for
+///
+/// # Returns
+/// * `Vec<types::Vote>` - The votes whose ballot has not expired
 fn get_all_votes(env: &Env, project_key: &Bytes, proposal_id: u32) -> Vec<types::Vote> {
     let mut votes = Vec::new(env);
     let voters = get_voters(env, project_key, proposal_id);
     for voter in voters.iter() {
         if let Some(vote_) = env
             .storage()
-            .persistent()
+            .temporary()
             .get::<types::ProjectKey, types::Vote>(&types::ProjectKey::Vote(
                 project_key.clone(),
                 proposal_id,

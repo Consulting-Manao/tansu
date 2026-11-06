@@ -1,5 +1,5 @@
 use crate::{Tansu, TansuClient, types};
-use soroban_sdk::testutils::Address as _;
+use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::{Address, Bytes, Env, Executable, String, token, vec};
 
 pub struct TestSetup {
@@ -15,6 +15,12 @@ pub struct TestSetup {
 pub fn create_env() -> Env {
     let env = Env::default();
     env.mock_all_auths();
+    // Mainnet's minimum lifetimes, so a test can outlive a ballot without
+    // archiving the persistent entries.
+    env.ledger().with_mut(|ledger| {
+        ledger.min_persistent_entry_ttl = 2_073_600;
+        ledger.min_temp_entry_ttl = 17_280;
+    });
     env
 }
 

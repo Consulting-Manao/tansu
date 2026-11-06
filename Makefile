@@ -177,17 +177,6 @@ contract_cancel_upgrade:  ## Cancel the current upgrade proposal
 	--admin $(admin) \
 	--accept false
 
-contract_migrate:  ## Migrate the data of the contract running on mainnet before v3: project_keys='["<hex>"]'
-	stellar contract invoke \
-	--source-account $(admin) \
-	--network $(network) \
-	--id $(tansu_id) \
-	--send $(send) \
-	-- \
-	migrate \
-	--admin $(admin) \
-	--project_keys '$(project_keys)'
-
 contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>, uploaded by uploader=; the admin set is kept
 	stellar contract invoke \
     	--source-account $(admin) \

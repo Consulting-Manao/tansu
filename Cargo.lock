@@ -1745,7 +1745,7 @@ dependencies = [
 
 [[package]]
 name = "tansu"
-version = "3.0.0"
+version = "4.0.0"
 dependencies = [
  "ed25519-dalek 3.0.0",
  "sha2 0.11.1",

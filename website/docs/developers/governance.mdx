@@ -79,8 +79,19 @@ The contract enforces strict voting deadlines:
 - Attempts to vote after the deadline will be rejected
 - Only maintainers can execute proposals, once the voting period has ended **and** the execution delay has passed (24 hours by default)
 - Voting periods must end between the project's minimum voting period (1 day by default) and 30 days from creation
+- Ballots live until **14 days after the earliest execution** (`voting_ends_at` plus the execution delay), then the network deletes them
 
 Both durations can be changed per project, see [Project governance settings](#project-governance-settings).
+
+### Ballot lifetime
+
+Each ballot is a temporary ledger entry. The voter pays its rent only until 14 days after the proposal can first be executed, which keeps a vote cheap (about 0.04 XLM on mainnet for a 7-day vote, against 0.48 XLM for a persistent entry, whose minimum lifetime is 120 days). The proposal, its list of voters and its tallies stay persistent.
+
+Once a ballot expires it is deleted, not archived, and cannot be restored:
+
+- `get_proposal` no longer lists it, `remove_vote` reports `VoteNotFound`, and `proof`, which sums the individual ballots, no longer matches.
+- `execute` is unaffected: it checks the revealed tally against the persistent aggregate. But an anonymous tally is decrypted from the ballots, so execute an anonymous proposal before they expire.
+- Anyone can extend a ballot before it expires, with `stellar contract extend --durability temporary --key-xdr <ballot key>`.
 
 ## Project governance settings
 
@@ -148,8 +159,8 @@ Anonymous voting uses cryptographic commitments (BLS12-381) to keep individual v
 
 | Mode | Call | On-chain storage | Who can see the vote? |
 | --- | --- | --- | --- |
-| Public | `vote(PublicVote)` | Full vote payload | Everyone, instantly |
-| Anonymous | `vote(AnonymousVote)` | 3 BLS-12-381 commitments | Nobody (until execute) |
+| Public | `vote(PublicVote)` | Full vote payload, until the [ballot expires](#ballot-lifetime) | Everyone, instantly |
+| Anonymous | `vote(AnonymousVote)` | 3 BLS-12-381 commitments, until the [ballot expires](#ballot-lifetime) | Nobody (until execute) |
 
 Anonymous voting requires a one-time configuration (`anonymous_voting_setup`). The contract stores two BLS12-381 generator points (g, h) and an RSA-2048 public key used to encrypt voters' votes and seeds.
 

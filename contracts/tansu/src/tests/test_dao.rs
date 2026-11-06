@@ -3,11 +3,11 @@ use crate::events::{AnonymousVotingSetup, ProposalCreated, ProposalExecuted, Vot
 use crate::{
     errors::ContractErrors,
     types::{
-        AnonymousVote, Badge, Dao, OutcomeContract, ProposalStatus, PublicVote, TIMELOCK_DELAY,
-        Vote, VoteChoice,
+        AnonymousVote, Badge, Dao, OutcomeContract, ProjectKey, ProposalStatus, PublicVote,
+        TIMELOCK_DELAY, Vote, VoteChoice,
     },
 };
-use soroban_sdk::testutils::{Address as _, Events, Ledger};
+use soroban_sdk::testutils::{Address as _, Events, Ledger, storage::Temporary as _};
 use soroban_sdk::{
     Address, BytesN, Env, Event, IntoVal, String, Symbol, contract, contractimpl, vec,
 };
@@ -2187,4 +2187,157 @@ fn anonymous_ballot_strings_are_bounded() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::BadCommitment.into());
+}
+
+#[test]
+fn ballots_expire_after_the_grace_period() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+
+    setup
+        .contract
+        .anonymous_voting_setup(&setup.mando, &id, &String::from_str(env, "public key"));
+
+    let kuiil = Address::generate(env);
+    setup
+        .contract
+        .add_member(&kuiil, &String::from_str(env, "kuiil"), &None, &None, &None);
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &kuiil, &vec![env, Badge::Community]);
+
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Temporary ballots"),
+        &String::from_str(
+            env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &voting_ends_at,
+        &false,
+        &None,
+        &None,
+    );
+
+    let tallies = vec![env, 3u128, 0u128, 0u128];
+    let seeds = vec![env, 6u128, 0u128, 0u128];
+    let kuiil_vote = Vote::AnonymousVote(AnonymousVote {
+        address: kuiil.clone(),
+        weight: 3,
+        encrypted_seeds: vec![
+            env,
+            String::from_str(env, "s0"),
+            String::from_str(env, "s1"),
+            String::from_str(env, "s2"),
+        ],
+        encrypted_votes: vec![
+            env,
+            String::from_str(env, "v0"),
+            String::from_str(env, "v1"),
+            String::from_str(env, "v2"),
+        ],
+        commitments: setup.contract.build_commitments_from_votes(
+            &id,
+            &vec![env, 1u128, 0u128, 0u128],
+            &vec![env, 2u128, 0u128, 0u128],
+        ),
+    });
+    setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
+
+    // Both ballots, the proposer's and kuiil's, are temporary entries paid
+    // until 14 days after the earliest execution.
+    let ttl =
+        ((voting_ends_at + TIMELOCK_DELAY + 14 * 24 * 3600 - env.ledger().timestamp()) / 5) as u32;
+    for voter in [&setup.grogu, &kuiil] {
+        let key = ProjectKey::Vote(id.clone(), proposal_id, voter.clone());
+        env.as_contract(&setup.contract_id, || {
+            assert!(!env.storage().persistent().has(&key));
+            assert_eq!(env.storage().temporary().get_ttl(&key), ttl);
+        });
+    }
+
+    // While the ballots live, proof sums them and kuiil cannot vote again.
+    let proposal = setup.contract.get_proposal(&id, &proposal_id);
+    assert_eq!(proposal.vote_data.votes.len(), 2);
+    assert!(setup.contract.proof(&id, &proposal, &tallies, &seeds));
+    assert_eq!(
+        setup
+            .contract
+            .try_vote(&kuiil, &id, &proposal_id, &kuiil_vote),
+        Err(Ok(ContractErrors::AlreadyVoted.into()))
+    );
+
+    // The network deletes them once their TTL has passed.
+    env.ledger().with_mut(|ledger| {
+        ledger.sequence_number += ttl + 1;
+        ledger.timestamp = voting_ends_at + TIMELOCK_DELAY + 14 * 24 * 3600 + 5;
+    });
+    let proposal = setup.contract.get_proposal(&id, &proposal_id);
+    assert_eq!(proposal.vote_data.votes.len(), 0);
+    assert!(!setup.contract.proof(&id, &proposal, &tallies, &seeds));
+    assert_eq!(
+        setup
+            .contract
+            .try_remove_vote(&setup.grogu, &id, &proposal_id, &kuiil),
+        Err(Ok(ContractErrors::VoteNotFound.into()))
+    );
+
+    // The persistent aggregate still proves the revealed tally.
+    let result = setup.contract.execute(
+        &setup.grogu,
+        &id,
+        &proposal_id,
+        &Some(tallies),
+        &Some(seeds),
+    );
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn removed_voter_can_vote_again() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Vote again"),
+        &String::from_str(
+            env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    let vote = |choice| {
+        Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: choice,
+        })
+    };
+    setup
+        .contract
+        .vote(&setup.mando, &id, &proposal_id, &vote(VoteChoice::Reject));
+    setup
+        .contract
+        .remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
+    setup
+        .contract
+        .vote(&setup.mando, &id, &proposal_id, &vote(VoteChoice::Approve));
+
+    env.ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    let result = setup
+        .contract
+        .execute(&setup.grogu, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
 }

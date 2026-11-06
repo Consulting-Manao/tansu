@@ -273,10 +273,8 @@ pub trait DaoTrait {
     fn get_conflict_of_interest(env: Env, project_key: Bytes, proposal_id: u32) -> Vec<Address>;
 }
 
-// One-shot migration of the contract deployed on mainnet before v3.
-pub trait MigrationTrait {
-    fn migrate(env: Env, admin: Address, project_keys: Vec<Bytes>);
-}
+// Data migrations of an upgrade, kept empty between them.
+pub trait MigrationTrait {}
 
 fn auth_maintainers(env: &Env, maintainer: &Address, project_key: &Bytes) -> types::Project {
     maintainer.require_auth();
