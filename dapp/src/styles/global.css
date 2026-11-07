@@ -1,5 +1,7 @@
 @import "tailwindcss/index.css";
-@import "github-markdown-css/github-markdown.css";
+/* The light theme only: the default file follows the system's dark mode,
+   which painted dark Markdown panels inside the light app. */
+@import "github-markdown-css/github-markdown-light.css";
 
 @theme {
   --breakpoint-sm: 640px;
