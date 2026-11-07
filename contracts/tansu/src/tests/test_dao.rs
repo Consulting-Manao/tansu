@@ -1,4 +1,5 @@
-use super::test_utils::{create_test_data, init_contract};
+use super::test_utils::{create_test_data, init_contract, scalars};
+use crate::contract_dao::{MAX_DEFAULT_WEIGHT_VOTES, MAX_VOTES_PER_PROPOSAL};
 use crate::events::{AnonymousVotingSetup, ProposalCreated, ProposalExecuted, VoteCast};
 use crate::{
     errors::ContractErrors,
@@ -325,7 +326,7 @@ fn dao_anonymous() {
         commitments: setup.contract.build_commitments_from_votes(
             &id,
             &vec![&setup.env, 0u128, 0u128, 1u128],
-            &vec![&setup.env, 0u128, 0u128, 0u128],
+            &scalars(&setup.env, &[0, 0, 0]),
         ),
     });
 
@@ -352,7 +353,7 @@ fn dao_anonymous() {
         commitments: setup.contract.build_commitments_from_votes(
             &id,
             &vec![&setup.env, 3u128, 1u128, 1u128],
-            &vec![&setup.env, 5u128, 4u128, 6u128],
+            &scalars(&setup.env, &[5, 4, 6]),
         ),
     });
     setup.contract.vote(&kuiil, &id, &proposal_id, &vote_);
@@ -367,7 +368,7 @@ fn dao_anonymous() {
         &id,
         &proposal_id,
         &Some(vec![&setup.env, 9u128, 3u128, 3u128]),
-        &Some(vec![&setup.env, 15u128, 12u128, 18u128]),
+        &Some(scalars(&setup.env, &[15, 12, 18])),
     );
 
     assert_eq!(vote_result, ProposalStatus::Approved);
@@ -591,7 +592,7 @@ fn voting_errors() {
             &id,
             &proposal_id_anonymous,
             &Some(vec![&setup.env, 0u128, 0u128, 500_001u128]), // 500_000u128
-            &Some(vec![&setup.env, 0u128, 0u128, 0u128]),
+            &Some(scalars(&setup.env, &[0, 0, 0])),
         )
         .unwrap_err()
         .unwrap();
@@ -735,7 +736,7 @@ fn proposal_revoke() {
         .filter_by_contract(&setup.contract_id);
     assert_eq!(all_events, [event.to_xdr(&setup.env, &setup.contract_id)]);
 
-    // the proposal and its votes are deleted
+    // the proposal is deleted; the proposer's ballot is left to expire
     let err = setup
         .contract
         .try_get_proposal(&id, &proposal_id)
@@ -743,6 +744,17 @@ fn proposal_revoke() {
         .unwrap();
     assert_eq!(err, ContractErrors::NoProposalorPageFound.into());
     assert_eq!(setup.contract.get_dao(&id, &0).proposals.len(), 0);
+    let ballot = ProjectKey::Vote(id.clone(), proposal_id, setup.grogu.clone());
+    setup.env.as_contract(&setup.contract_id, || {
+        assert!(setup.env.storage().temporary().has(&ballot));
+        assert!(
+            !setup
+                .env
+                .storage()
+                .persistent()
+                .has(&ProjectKey::Voters(id.clone(), proposal_id))
+        );
+    });
 
     // already revoked and also try to call as an admin should go through the
     // auth part and fail later
@@ -1389,7 +1401,7 @@ fn remove_vote_anonymous_flips_outcome() {
         commitments: setup.contract.build_commitments_from_votes(
             &id,
             &vec![&setup.env, 1u128, 0u128, 0u128],
-            &vec![&setup.env, 2u128, 0u128, 0u128],
+            &scalars(&setup.env, &[2, 0, 0]),
         ),
     });
     setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
@@ -1415,7 +1427,7 @@ fn remove_vote_anonymous_flips_outcome() {
         commitments: setup.contract.build_commitments_from_votes(
             &id,
             &vec![&setup.env, 0u128, 1u128, 0u128],
-            &vec![&setup.env, 0u128, 3u128, 0u128],
+            &scalars(&setup.env, &[0, 3, 0]),
         ),
     });
     setup.contract.vote(&rex, &id, &proposal_id, &rex_vote);
@@ -1435,7 +1447,7 @@ fn remove_vote_anonymous_flips_outcome() {
         &id,
         &proposal_id,
         &Some(vec![&setup.env, 3u128, 0u128, 0u128]),
-        &Some(vec![&setup.env, 6u128, 0u128, 0u128]),
+        &Some(scalars(&setup.env, &[6, 0, 0])),
     );
     assert_eq!(result, ProposalStatus::Approved);
 }
@@ -1982,7 +1994,7 @@ fn at_most_three_outcomes() {
 }
 
 #[test]
-fn weight_one_votes_take_at_most_twenty_slots() {
+fn weight_one_votes_take_at_most_half_the_slots() {
     let setup = create_test_data();
     let id = init_contract(&setup);
     let env = &setup.env;
@@ -2008,9 +2020,9 @@ fn weight_one_votes_take_at_most_twenty_slots() {
         })
     };
 
-    // twenty fresh addresses vote with the default weight
+    // fresh addresses vote with the default weight
     let mut fresh = soroban_sdk::Vec::new(env);
-    for _ in 0..20 {
+    for _ in 0..MAX_DEFAULT_WEIGHT_VOTES {
         let voter = Address::generate(env);
         setup
             .contract
@@ -2047,6 +2059,47 @@ fn weight_one_votes_take_at_most_twenty_slots() {
     setup
         .contract
         .vote(&extra, &id, &proposal_id, &approve(&extra, 1));
+}
+
+#[test]
+fn a_proposal_takes_at_most_a_thousand_votes() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    // every address weighs the same, so no vote takes a weight-1 slot
+    super::test_utils::set_nqg(&setup, &id);
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Test Proposal"),
+        &String::from_str(env, PROPOSAL_IPFS),
+        &(env.ledger().timestamp() + 3600 * 24 * 2),
+        &true,
+        &None,
+        &None,
+    );
+    let approve = |voter: &Address| {
+        Vote::PublicVote(PublicVote {
+            address: voter.clone(),
+            weight: 1_000,
+            vote_choice: VoteChoice::Approve,
+        })
+    };
+
+    // the proposer's ballot is the first vote
+    for _ in 1..MAX_VOTES_PER_PROPOSAL {
+        let voter = Address::generate(env);
+        setup
+            .contract
+            .vote(&voter, &id, &proposal_id, &approve(&voter));
+    }
+    let extra = Address::generate(env);
+    let err = setup
+        .contract
+        .try_vote(&extra, &id, &proposal_id, &approve(&extra))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::VoteLimitExceeded.into());
 }
 
 mod odd_token {
@@ -2139,7 +2192,7 @@ fn proof_needs_three_tallies_and_seeds() {
     let empty: soroban_sdk::Vec<u128> = soroban_sdk::Vec::new(env);
     let err = setup
         .contract
-        .try_proof(&id, &proposal, &empty, &empty)
+        .try_proof(&id, &proposal, &empty, &soroban_sdk::Vec::new(env))
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::TallySeedError.into());
@@ -2166,7 +2219,7 @@ fn anonymous_ballot_strings_are_bounded() {
     let commitments = setup.contract.build_commitments_from_votes(
         &id,
         &vec![env, 1u128, 0u128, 0u128],
-        &vec![env, 5u128, 6u128, 7u128],
+        &scalars(env, &[5, 6, 7]),
     );
     let long = String::from_bytes(env, &[b'a'; 1025]);
     let short = String::from_str(env, "encrypted");
@@ -2223,7 +2276,7 @@ fn ballots_expire_after_the_grace_period() {
     );
 
     let tallies = vec![env, 3u128, 0u128, 0u128];
-    let seeds = vec![env, 6u128, 0u128, 0u128];
+    let seeds = scalars(env, &[6, 0, 0]);
     let kuiil_vote = Vote::AnonymousVote(AnonymousVote {
         address: kuiil.clone(),
         weight: 3,
@@ -2242,7 +2295,7 @@ fn ballots_expire_after_the_grace_period() {
         commitments: setup.contract.build_commitments_from_votes(
             &id,
             &vec![env, 1u128, 0u128, 0u128],
-            &vec![env, 2u128, 0u128, 0u128],
+            &scalars(env, &[2, 0, 0]),
         ),
     });
     setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
@@ -2339,5 +2392,88 @@ fn removed_voter_can_vote_again() {
     let result = setup
         .contract
         .execute(&setup.grogu, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn seeds_are_scalars_summed_modulo_the_group_order() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    setup
+        .contract
+        .anonymous_voting_setup(&setup.mando, &id, &String::from_str(env, "public key"));
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Full-size seeds"),
+        &String::from_str(env, PROPOSAL_IPFS),
+        &voting_ends_at,
+        &false,
+        &None,
+        &None,
+    );
+
+    // the order of the BLS12-381 group
+    let order = soroban_sdk::U256::from_be_bytes(
+        env,
+        &soroban_sdk::Bytes::from_array(
+            env,
+            &[
+                0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48, 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1,
+                0xd8, 0x05, 0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe, 0xff, 0xff, 0xff, 0xff,
+                0x00, 0x00, 0x00, 0x01,
+            ],
+        ),
+    );
+    let one = soroban_sdk::U256::from_u32(env, 1);
+    let largest = order.sub(&one);
+    // two voters of weight 1 blind every value with the largest seed
+    for _ in 0..2 {
+        let voter = Address::generate(env);
+        let vote = Vote::AnonymousVote(AnonymousVote {
+            address: voter.clone(),
+            weight: 1,
+            encrypted_seeds: vec![
+                env,
+                String::from_str(env, "s0"),
+                String::from_str(env, "s1"),
+                String::from_str(env, "s2"),
+            ],
+            encrypted_votes: vec![
+                env,
+                String::from_str(env, "v0"),
+                String::from_str(env, "v1"),
+                String::from_str(env, "v2"),
+            ],
+            commitments: setup.contract.build_commitments_from_votes(
+                &id,
+                &vec![env, 1u128, 0u128, 0u128],
+                &vec![env, largest.clone(), largest.clone(), largest.clone()],
+            ),
+        });
+        setup.contract.vote(&voter, &id, &proposal_id, &vote);
+    }
+
+    // the seed sums exceed u128: reduced or not, they prove the tally
+    let tallies = vec![env, 2u128, 0u128, 0u128];
+    let sum = largest.add(&largest);
+    let reduced = sum.sub(&order);
+    let proposal = setup.contract.get_proposal(&id, &proposal_id);
+    for seeds in [&sum, &reduced] {
+        let seeds = vec![env, seeds.clone(), seeds.clone(), seeds.clone()];
+        assert!(setup.contract.proof(&id, &proposal, &tallies, &seeds));
+    }
+
+    env.ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    let result = setup.contract.execute(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Some(tallies),
+        &Some(vec![env, reduced.clone(), reduced.clone(), reduced]),
+    );
     assert_eq!(result, ProposalStatus::Approved);
 }

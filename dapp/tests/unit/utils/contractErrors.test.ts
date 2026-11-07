@@ -46,15 +46,6 @@ describe("errorMessage", () => {
     expect(msg).toBe("Contract error #999");
   });
 
-  it("returns VM hint for WasmVm with build_commitments_from_votes", () => {
-    const msg = errorMessage({
-      message:
-        "HostError: Error(WasmVm, InvalidAction) topics:[fn_call,x,build_commitments_from_votes]",
-    });
-    expect(msg).toContain("Invalid input for contract execution");
-    expect(msg).toContain("anonymous voting");
-  });
-
   it("returns neutral VM hint for WasmVm in create_proposal", () => {
     const msg = errorMessage({
       message:

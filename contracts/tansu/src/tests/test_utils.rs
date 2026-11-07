@@ -1,6 +1,6 @@
 use crate::{Tansu, TansuClient, types};
 use soroban_sdk::testutils::{Address as _, Ledger};
-use soroban_sdk::{Address, Bytes, Env, Executable, String, token, vec};
+use soroban_sdk::{Address, Bytes, Env, Executable, String, U256, Vec, token, vec};
 
 pub struct TestSetup {
     pub env: Env,
@@ -10,6 +10,15 @@ pub struct TestSetup {
     pub grogu: Address,
     pub mando: Address,
     pub contract_admin: Address,
+}
+
+/// Seeds as the contract takes them: scalars of the BLS12-381 group.
+pub fn scalars(env: &Env, values: &[u128]) -> Vec<U256> {
+    let mut scalars = Vec::new(env);
+    for value in values {
+        scalars.push_back(U256::from_u128(env, *value));
+    }
+    scalars
 }
 
 pub fn create_env() -> Env {

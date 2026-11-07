@@ -5,7 +5,13 @@ import {
   ClientOptions as ContractClientOptions,
   MethodOptions,
 } from "@stellar/stellar-sdk/contract";
-import type { u32, u64, u128, Option } from "@stellar/stellar-sdk/contract";
+import type {
+  u32,
+  u64,
+  u128,
+  u256,
+  Option,
+} from "@stellar/stellar-sdk/contract";
 export * from "@stellar/stellar-sdk";
 export * as contract from "@stellar/stellar-sdk/contract";
 export * as rpc from "@stellar/stellar-sdk/rpc";
@@ -380,7 +386,7 @@ export interface Client {
    * * `project_key` - The project key identifier
    * * `proposal` - The proposal containing vote commitments
    * * `tallies` - Decoded tally values [approve, reject, abstain] (scaled by weights)
-   * * `seeds` - Decoded seed values [approve, reject, abstain] (scaled by weights)
+   * * `seeds` - Decoded seed values [approve, reject, abstain] (scaled by weights, modulo the group order)
    *
    * # Returns
    * * `bool` - True if all commitments match the provided tallies and seeds
@@ -390,7 +396,7 @@ export interface Client {
    * # Panics
    * * If no anonymous voting configuration exists for the project
    * * If the proposal doesn't exist
-   * * If `tallies` or `seeds` does not hold
+   * * If `tallies`
    */
   proof: (
     {
@@ -402,7 +408,7 @@ export interface Client {
       project_key: Buffer;
       proposal: Proposal;
       tallies: Array<u128>;
-      seeds: Array<u128>;
+      seeds: Array<u256>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<boolean>>;
@@ -421,7 +427,7 @@ export interface Client {
    * * `project_key` - The project key identifier
    * * `proposal_id` - The ID of the proposal to execute
    * * [`Option<tallies>`] - decoded tally values (scaled by weights), respectively Approve, reject and abstain
-   * * [`Option<seeds>`] - decoded seed values (scaled by weights), respectively Approve, reject and abstain
+   * * [`Option<seeds>`] - decoded seed values (scaled by weights, modulo the group order), respectively Approve, reject and abstain
    *
    * # Returns
    * * `types::ProposalStatus` - The final status of the proposal (Approved, Rejected, or Cancelled)
@@ -430,8 +436,7 @@ export interface Client {
    * * If the voting period hasn't ended
    * * If the proposal doesn't exist
    * * If the proposal is not active anymore
-   * * If tallies/seeds are missing for anonymous votes
-   * * If commitment
+   * * If tallies/seeds are missing for anonymo
    */
   execute: (
     {
@@ -445,7 +450,7 @@ export interface Client {
       project_key: Buffer;
       proposal_id: u32;
       tallies: Option<Array<u128>>;
-      seeds: Option<Array<u128>>;
+      seeds: Option<Array<u256>>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<ProposalStatus>>;
@@ -595,8 +600,9 @@ export interface Client {
    * Construct and simulate a revoke_proposal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Revoke a proposal.
    *
-   * Useful if there was some spam or bad intent. Deletes the proposal and
-   * its votes; its id stays taken. Forfeits the proposer's collateral.
+   * Useful if there was some spam or bad intent. Deletes the proposal; its
+   * id stays taken and its ballots expire on their own. Forfeits the
+   * proposer's collateral.
    *
    * # Arguments
    * * `env` - The environment object
@@ -760,13 +766,14 @@ export interface Client {
    *
    * Note: This function does not consider voting weights, which are applied
    * during the tallying phase. Calling this on the smart contract would reveal
-   * the votes and seeds, so it must be run either in simulation or client-side.
+   * the votes and seeds, and so does a simulation to the RPC server that runs
+   * it: a voter computes them client-side, this function is the reference.
    *
    * # Arguments
    * * `env` - The environment object
    * * `project_key` - Unique identifier for the project
    * * `votes` - Vector of vote choices (0=approve, 1=reject, 2=abstain)
-   * * `seeds` - Vector of random seeds for each vote
+   * * `seeds` - A random scalar for each vote, modulo the group order
    *
    * # Returns
    * * `Vec<BytesN<96>>` - Vector of vote commitments (one per vote)
@@ -782,7 +789,7 @@ export interface Client {
     }: {
       project_key: Buffer;
       votes: Array<u128>;
-      seeds: Array<u128>;
+      seeds: Array<u256>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Array<Buffer>>>;

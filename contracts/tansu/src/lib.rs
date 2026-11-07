@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{Address, Bytes, BytesN, Env, String, Vec, contract, panic_with_error};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String, U256, Vec, contract, panic_with_error};
 use soroban_sdk::{Executable, contractmeta};
 
 mod contract_dao;
@@ -205,7 +205,7 @@ pub trait DaoTrait {
         env: Env,
         project_key: Bytes,
         votes: Vec<u128>,
-        seeds: Vec<u128>,
+        seeds: Vec<U256>,
     ) -> Vec<BytesN<96>>;
 
     #[allow(clippy::too_many_arguments)]
@@ -239,7 +239,7 @@ pub trait DaoTrait {
         project_key: Bytes,
         proposal_id: u32,
         tallies: Option<Vec<u128>>,
-        seeds: Option<Vec<u128>>,
+        seeds: Option<Vec<U256>>,
     ) -> types::ProposalStatus;
 
     fn proof(
@@ -247,7 +247,7 @@ pub trait DaoTrait {
         project_key: Bytes,
         proposal: types::Proposal,
         tallies: Vec<u128>,
-        seeds: Vec<u128>,
+        seeds: Vec<U256>,
     ) -> bool;
 
     fn get_dao(env: Env, project_key: Bytes, page: u32) -> types::Dao;

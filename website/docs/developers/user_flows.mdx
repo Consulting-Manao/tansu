@@ -148,16 +148,14 @@ sequenceDiagram
     Note over Voter,Storage: PHASE 3: ANONYMOUS VOTING
 
     Voter->>Voter: Select vote choice (approve/reject/abstain)
-    Note over Voter: Create vote array:<br/>approve=[1,0,0], reject=[0,1,0], abstain=[0,0,1]<br/>Generate random seeds: crypto.getRandomValues()
+    Note over Voter: Create vote array:<br/>approve=[1,0,0], reject=[0,1,0], abstain=[0,0,1]<br/>Draw random seeds below the group order: crypto.getRandomValues()
 
     Voter->>Contract: get_anonymous_voting_config(project_key)
     Contract->>Storage: Retrieve config
     Storage-->>Voter: {g, h, RSA_pub}
 
     Note over Voter: RSA-OAEP encrypt votes & seeds
-    Voter->>Contract: build_commitments_from_votes(votes, seeds) [SIMULATION]
-    Note over Contract: Build commitments using Pedersen scheme
-    Contract-->>Voter: commitments [C0, C1, C2]
+    Voter->>Voter: commitments C[i] = g·v[i] + h·r[i], in the browser
 
     Voter->>Contract: vote(voter, proposal_id, AnonymousVote)
     activate Contract
@@ -175,7 +173,7 @@ sequenceDiagram
     Storage-->>Executor: Proposal with AnonymousVotes
 
     Note over Executor: For each vote:<br/>1. RSA-decrypt votes & seeds<br/>2. Apply voting weight<br/>3. Accumulate tallies & seed tallies
-    Executor->>Executor: tallies = [Σ(v[i]×w), ...] for i in {approve, reject, abstain}<br/>seeds = [Σ(r[i]×w), ...]
+    Executor->>Executor: tallies = [Σ(v[i]×w), ...] for i in {approve, reject, abstain}<br/>seeds = [Σ(r[i]×w) mod order, ...]
     end
 
     rect rgb(245, 240, 255)
@@ -187,7 +185,7 @@ sequenceDiagram
 
     Note over Contract: PROOF VERIFICATION:<br/>Verify proof using homomorphic properties
 
-    Contract->>Contract: proof(project_key, proposal, tallies, seeds)
+    Contract->>Contract: g·tallies + h·seeds = stored aggregate commitments
 
     alt Proof Valid
         Note over Contract: Determine outcome (supermajority):<br/>Approved: approve > (reject + abstain)<br/>Rejected: reject > (approve + abstain)<br/>Cancelled: otherwise

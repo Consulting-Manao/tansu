@@ -2,9 +2,15 @@
  * Anonymous votes, as a maintainer reveals them with the project's key: each
  * ballot decrypted and checked, and the valid ones summed into the tallies
  * and seeds `execute` proves against the commitments on chain.
+ *
+ * A commitment is `g·vote + h·seed` on BLS12-381, computed here as the
+ * contract's `build_commitments_from_votes` does: a simulation would send the
+ * votes and seeds to the RPC server, and `proof` through one stops at about
+ * 37 ballots, the 400 million instructions of a transaction.
  */
+import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { Buffer } from "buffer";
-import type { AnonymousVote } from "../../packages/tansu";
+import type { AnonymousVote, AnonymousVoteConfig } from "../../packages/tansu";
 import { tansuReads } from "../contracts/soroban_tansu";
 import type { VoteStatus } from "types/proposal";
 import { VoteType } from "types/proposal";
@@ -12,16 +18,43 @@ import { readResult } from "./contractErrors";
 import { decryptWithPrivateKey } from "./crypto";
 import { deriveProjectKey } from "./projectKey";
 
-/**
- * The widest seeds the contract's u128 sums allow: 40 votes, each seed
- * multiplied by a u32 weight, stay below 2^128.
- */
-const SEED_BITS = 90;
+const G1 = bls12_381.G1.Point;
+type G1Point = typeof G1.BASE;
 
-/** A random seed of `SEED_BITS` bits, to blind one value of a ballot. */
+/** The order of the group: seeds, and their sums, are taken modulo it. */
+const ORDER = bls12_381.fields.Fr.ORDER;
+
+/** A random seed below the group's order, to blind one value of a ballot. */
 export function randomSeed(): bigint {
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return bytes.reduce((n, byte) => (n << 8n) | BigInt(byte), 0n) >> 6n;
+  // 384 bits reduced modulo the 255-bit order: uniform to within 2^-128.
+  const bytes = crypto.getRandomValues(new Uint8Array(48));
+  return bytes.reduce((n, byte) => (n << 8n) | BigInt(byte), 0n) % ORDER;
+}
+
+/** `point·n`, with `n` taken modulo the order: noble refuses a zero scalar. */
+function times(point: G1Point, n: bigint): G1Point {
+  const k = n % ORDER;
+  return k === 0n ? G1.ZERO : point.multiply(k);
+}
+
+/** The project's generators `g` and `h`, ready for many multiplications. */
+export function commitmentGenerators(config: AnonymousVoteConfig) {
+  const g = G1.fromBytes(config.vote_generator_point);
+  const h = G1.fromBytes(config.seed_generator_point);
+  g.precompute(8);
+  h.precompute(8);
+  return { g, h };
+}
+
+/** The commitments `g·vote + h·seed` of a ballot, as the contract encodes them. */
+export function buildCommitments(
+  { g, h }: { g: G1Point; h: G1Point },
+  votes: bigint[],
+  seeds: bigint[],
+): Buffer[] {
+  return votes.map((vote, i) =>
+    Buffer.from(times(g, vote).add(times(h, seeds[i]!)).toBytes(false)),
+  );
 }
 
 /**
@@ -96,7 +129,7 @@ async function checkBallot(
   ballot: AnonymousVote,
   prefix: string,
   privateKey: string,
-  projectKey: Buffer,
+  generators: { g: G1Point; h: G1Point },
 ): Promise<{ votes: bigint[]; seeds: bigint[] } | { reason: string }> {
   let votes: bigint[];
   let seeds: bigint[];
@@ -120,19 +153,12 @@ async function checkBallot(
   ) {
     return { reason: "It does not choose exactly one option." };
   }
-  if (seeds.some((s) => s >= 1n << BigInt(SEED_BITS))) {
-    return { reason: "Its seeds are out of range." };
-  }
   // The ballot must be what the voter committed to on chain.
-  const commitments = readResult(
-    await tansuReads.build_commitments_from_votes({
-      project_key: projectKey,
-      votes,
-      seeds,
-    }),
-  );
-  const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
-  if (commitments.map(hex).join() !== ballot.commitments.map(hex).join()) {
+  const commitments = buildCommitments(generators, votes, seeds);
+  if (
+    ballot.commitments.length !== 3 ||
+    commitments.some((c, i) => !c.equals(Buffer.from(ballot.commitments[i]!)))
+  ) {
     return { reason: "It does not match its commitments on chain." };
   }
   return { votes, seeds };
@@ -142,7 +168,8 @@ const CHOICES = ["approve", "reject", "abstain"] as const;
 
 /**
  * Reveal a proposal's anonymous votes with the project's private key, and
- * optionally check the contract's proof over the tallies.
+ * optionally check the tallies as the contract's `proof` does: the weighted
+ * sum of the commitments on chain against `g·tally + h·seed`.
  */
 export async function computeAnonymousVotingData(
   projectName: string,
@@ -151,12 +178,18 @@ export async function computeAnonymousVotingData(
   verifyProof = false,
 ): Promise<AnonymousVotingData> {
   const projectKey = deriveProjectKey(projectName);
-  const proposal = readResult(
-    await tansuReads.get_proposal({
-      project_key: projectKey,
-      proposal_id: proposalId,
-    }),
-  );
+  const [proposal, config] = await Promise.all([
+    tansuReads
+      .get_proposal({ project_key: projectKey, proposal_id: proposalId })
+      .then((tx) => readResult(tx)),
+    tansuReads
+      .get_anonymous_voting_config({ project_key: projectKey })
+      .then((tx) => readResult(tx, 303)),
+  ]);
+  if (!config) {
+    throw new Error("Anonymous voting is not configured for this project");
+  }
+  const generators = commitmentGenerators(config);
 
   const tallies = [0n, 0n, 0n];
   const seedSums = [0n, 0n, 0n];
@@ -167,7 +200,7 @@ export async function computeAnonymousVotingData(
     if (vote.tag !== "AnonymousVote") continue;
     const [ballot] = vote.values;
     const prefix = `${ballot.address}:${projectName}:${proposalId}`;
-    const checked = await checkBallot(ballot, prefix, privateKey, projectKey);
+    const checked = await checkBallot(ballot, prefix, privateKey, generators);
     if ("reason" in checked) {
       invalid.push({ address: ballot.address, reason: checked.reason });
       continue;
@@ -175,7 +208,7 @@ export async function computeAnonymousVotingData(
     const weight = BigInt(ballot.weight);
     checked.votes.forEach((v, i) => {
       tallies[i]! += v * weight;
-      seedSums[i]! += checked.seeds[i]! * weight;
+      seedSums[i] = (seedSums[i]! + checked.seeds[i]! * weight) % ORDER;
     });
     decodedVotes.push({
       address: ballot.address,
@@ -217,15 +250,26 @@ export async function computeAnonymousVotingData(
 
   if (verifyProof) {
     try {
-      data.proofOk =
-        readResult(
-          await tansuReads.proof({
-            project_key: projectKey,
-            proposal,
-            tallies,
-            seeds: seedSums,
-          }),
-        ) === true;
+      // Every ballot on chain counts, as in `proof`: an invalid one makes it
+      // fail until it is removed.
+      const sums = [G1.ZERO, G1.ZERO, G1.ZERO];
+      for (const vote of proposal.vote_data.votes) {
+        if (vote.tag !== "AnonymousVote") continue;
+        const [ballot] = vote.values;
+        if (ballot.weight === 0) continue;
+        ballot.commitments.forEach((c, i) => {
+          sums[i] = sums[i]!.add(
+            G1.fromBytes(c).multiplyUnsafe(BigInt(ballot.weight)),
+          );
+        });
+      }
+      data.proofOk = sums.every((sum, i) =>
+        sum.equals(
+          times(generators.g, tallies[i]!).add(
+            times(generators.h, seedSums[i]!),
+          ),
+        ),
+      );
       data.proofErrorMessage = data.proofOk
         ? null
         : "The commitments on chain do not match these tallies.";

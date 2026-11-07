@@ -36,8 +36,8 @@ describe("escapeCsvValue", () => {
 describe("buildDecodedVotesCsv", () => {
   const HEADER = "Address,Vote,Weight,Votes (A/R/Abs),Seeds (A/R/Abs)";
 
-  it("writes a row per ballot, with its values and 90-bit seeds", () => {
-    const seed = (1n << 89n) + 7n;
+  it("writes a row per ballot, with its values and full-size seeds", () => {
+    const seed = (1n << 254n) + 7n;
     const votes: DecodedVote[] = [
       {
         address: "GAAA",

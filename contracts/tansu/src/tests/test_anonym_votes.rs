@@ -2,7 +2,7 @@ use core::ops::Add;
 use soroban_sdk::crypto::bls12_381::{Bls12381Fr, Bls12381G1Affine};
 use soroban_sdk::{Bytes, Env, U256, bytesn, vec};
 
-use super::test_utils::{create_test_data, init_contract};
+use super::test_utils::{create_test_data, init_contract, scalars};
 
 fn commitment(
     env: &Env,
@@ -212,9 +212,11 @@ fn anonymous_vote_commitments_roundtrip() {
     }
 
     // on-chain calculation
-    let actual = setup
-        .contract
-        .build_commitments_from_votes(&project_key, &votes, &seeds);
+    let actual = setup.contract.build_commitments_from_votes(
+        &project_key,
+        &votes,
+        &scalars(&setup.env, &[42, 43, 44]),
+    );
 
     assert_eq!(expected, actual);
 }

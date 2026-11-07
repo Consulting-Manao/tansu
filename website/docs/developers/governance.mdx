@@ -121,7 +121,7 @@ The SCF Public Goods Award uses this to keep Pilots from voting on projects they
 Two maintainer actions handle bad votes and bad proposals:
 
 - `remove_vote(maintainer, project_key, proposal_id, voter)` drops a vote and its contribution to the tally, while the proposal is active (including after the voting period ends, before execution). It is also the operational answer to malformed anonymous votes, see [Known limitation](#known-limitation-ballot-well-formedness).
-- `revoke_proposal(maintainer, project_key, proposal_id)` deletes an active proposal as spam or malicious, with its votes. Its id stays taken, and `get_proposal` then reports it as not found. The proposer's deposit is forfeited. An admin can also revoke, even while the contract is paused.
+- `revoke_proposal(maintainer, project_key, proposal_id)` deletes an active proposal as spam or malicious. Its ballots are left to expire, its id stays taken, and `get_proposal` then reports it as not found. The proposer's deposit is forfeited. An admin can also revoke, even while the contract is paused.
 
 ## Acting on other contracts
 
@@ -281,7 +281,7 @@ For proposals requiring no trust assumptions, use public voting mode where talli
 
 :::danger
 
-Never Submit as Transaction The `build_commitments_from_votes` function **MUST ONLY** be called in simulation mode (read-only). **NEVER** submit this as a transaction on-chain, as it would expose your votes and seeds publicly, completely breaking anonymity. Always use it client-side or via RPC simulation.
+Never submit `build_commitments_from_votes` as a transaction: it would publish the votes and seeds, completely breaking anonymity. A simulation sends them to the RPC server too. The dApp computes the commitments in the browser with `@noble/curves`, and the contract function is the reference they match.
 
 :::
 
@@ -297,7 +297,7 @@ Where:
 
 - `g, h` = generator points (96-byte BLS12-381 G1 points)
 - `v[i]` = vote value (0 or 1) for choice i ∈ \{0:approve, 1:reject, 2:abstain\}
-- `r[i]` = cryptographically random seed (generated via `crypto.getRandomValues()`)
+- `r[i]` = random seed below the order of the group: the dApp draws 384 bits with `crypto.getRandomValues()` and reduces them modulo the order, so the commitment hides the vote completely
 - `·` = scalar multiplication on elliptic curve
 - `+` = elliptic curve point addition
 
@@ -463,15 +463,15 @@ Deposits are paid in the collateral asset set when the contract is deployed (the
 **Weight is the Sybil defense** -- when weight is bound to an identity. Then a vote only counts for as much weight as its address has earned, and creating many addresses buys nothing:
 
 - On a project with an [NQG contract](./membership.mdx#nqg-contract-weight) (such as the SCF Public Goods Award rounds), weight is what that contract gives the voter. A fresh address has none, and weight **zero** cannot vote. Reputation, not capital, decides who is heard.
-- On badge-based projects, weight comes from badges that maintainers grant to specific addresses. An address without badges still votes with weight **1**, so badge weights (500 000 and above) dominate by construction. Weight-1 votes take at most **20** of a proposal's 40 slots, so fresh addresses cannot fill a proposal and leave badge holders out.
+- On badge-based projects, weight comes from badges that maintainers grant to specific addresses. An address without badges still votes with weight **1**, so badge weights (500 000 and above) dominate by construction. Weight-1 votes take at most **500** of a proposal's 1,000 slots, so fresh addresses cannot fill a proposal and leave badge holders out.
 
 :::warning[Token-weighted proposals are not Sybil-resistant]
 
-Only a maintainer can create a token-based proposal, and never on a project with an NQG contract. The contract then only checks the voter's **current** balance. Tokens are not locked and no snapshot is taken, so the same tokens can be moved to a new address and voted again, up to the 40-vote cap. Treat token-weighted results as advisory, and use NQG or badge weight for binding decisions. Escrow or balance snapshots are needed before token weight can be relied on.
+Only a maintainer can create a token-based proposal, and never on a project with an NQG contract. The contract then only checks the voter's **current** balance. Tokens are not locked and no snapshot is taken, so the same tokens can be moved to a new address and voted again, up to the 1,000-vote cap. Treat token-weighted results as advisory, and use NQG or badge weight for binding decisions. Escrow or balance snapshots are needed before token weight can be relied on.
 
 :::
 
-On top of that, maintainers can exclude conflicted voters and remove or revoke abuse (see [Conflicts of interest](#conflicts-of-interest) and [Moderation](#moderation)), and each proposal accepts at most 40 votes.
+On top of that, maintainers can exclude conflicted voters and remove or revoke abuse (see [Conflicts of interest](#conflicts-of-interest) and [Moderation](#moderation)), and each proposal accepts at most 1,000 votes.
 
 ## DoS Protection & Limits
 
@@ -479,8 +479,8 @@ The contract enforces several limits to prevent abuse:
 
 **Voting Limits:**
 
-- `MAX_VOTES_PER_PROPOSAL`: **40 votes** per proposal
-- `MAX_DEFAULT_WEIGHT_VOTES`: at most **20** of them with weight 1
+- `MAX_VOTES_PER_PROPOSAL`: **1,000 votes** per proposal. The addresses that voted are one ledger entry, rewritten by each vote: 1,000 accounts take 44 KB of the 64 KiB an entry holds
+- `MAX_DEFAULT_WEIGHT_VOTES`: at most **500** of them with weight 1
 - Once reached, proposal closes to new votes (existing votes still count)
 
 **Proposal Limits:**
@@ -526,7 +526,7 @@ Custom quorum logic (percentage, thresholds…) can be built off-chain before de
 
 ### Voting Eligibility
 
-**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge), within the 20 slots open to weight-1 votes. Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
+**Badge-based proposals:** Any authenticated Stellar address can vote with a minimum weight of 1 (the `Default` badge), within the 500 slots open to weight-1 votes. Registered members with assigned badges can vote with higher weights up to their `get_max_weight` value. See [Membership & Badges](./membership.mdx) for badge weights and the NQG-weighted project.
 
 **Token-based proposals:** Created by a maintainer only. Any address holding the proposal's token can vote. Vote `weight` is in **whole token units** (the contract checks `weight * 10^decimals` against the voter's current balance). Badge validation is skipped.
 

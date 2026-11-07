@@ -160,7 +160,7 @@ approving, which can make the threshold impossible to reach.
 | `update_config`                | Maintainer                     | Replaces the maintainer list, metadata and governance settings                                                                       |
 | `execute`                      | Maintainer                     | After `voting_ends_at` plus the project's execution delay                                                                            |
 | `remove_vote`                  | Maintainer                     | Drops a vote from an active proposal                                                                                                 |
-| `revoke_proposal`              | Maintainer or admin            | Deletes the proposal and its votes, and keeps the proposer's deposit                                                                 |
+| `revoke_proposal`              | Maintainer or admin            | Deletes the proposal, leaves its ballots to expire, and keeps the proposer's deposit                                                 |
 
 The governance settings `min_voting_period` and `execute_delay` change in two ways.
 A change that only lengthens them applies immediately. A change that shortens one of
@@ -303,6 +303,13 @@ cannot, extend them first with `stellar contract extend --durability temporary
 --key-xdr <ballot key> --ledgers-to-extend <n>`. Ballots of proposals open during an
 upgrade to v4 were persistent and are no longer read: upgrade with no proposal open.
 
+The addresses that voted on a proposal stay in one persistent entry, which each vote
+rewrites and grows by 44 bytes. A proposal takes at most 1,000 votes, 44 KB of the
+64 KiB a ledger entry holds; at most 500 of them weigh 1. `get_proposal` returns every
+live ballot and `proof` sums them: these are reads, and a simulation enforces only the
+400 million instructions and 40 MiB of a transaction. `proof` passes that limit at
+about 37 anonymous ballots, so the dApp checks the tally in the browser instead.
+
 Limits and delays are constants in `contracts/tansu/src/types.rs`,
 `contract_dao.rs` and `contract_versioning.rs`:
 
@@ -310,7 +317,7 @@ Limits and delays are constants in `contracts/tansu/src/types.rs`,
 | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `TIMELOCK_DELAY`                                                       | Upgrade timelock, and default execution delay of proposals |
 | `MIN_VOTING_PERIOD`, `MAX_VOTING_PERIOD`                               | Bounds of a proposal's voting period                       |
-| `MAX_VOTES_PER_PROPOSAL`                                               | Maximum number of votes on a proposal                      |
+| `MAX_VOTES_PER_PROPOSAL`, `MAX_DEFAULT_WEIGHT_VOTES`                   | Votes on a proposal, and how many of them weigh 1          |
 | `MAX_PROPOSALS_PER_PAGE`, `MAX_PAGES`                                  | Storage layout of proposals                                |
 | `MAX_EVIDENCE`                                                         | Evidence entries kept per project, commit and kind         |
 | `MAX_ATTESTATIONS`, `MAX_MAINTAINERS`                                  | Attestations kept per target, maintainers per project      |

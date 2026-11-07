@@ -34,9 +34,6 @@ export function errorMessage(error: unknown): string {
     if (!/UnreachableCodeReached|InvalidAction/i.test(message)) {
       return `Contract VM error${where}. Please retry. If the issue persists, check project configuration.`;
     }
-    if (fnName === "build_commitments_from_votes") {
-      return `Invalid input for contract execution${where}. For anonymous voting, ensure your key file matches this proposal and try again.`;
-    }
     if (fnName === "transfer") {
       return `Invalid input for contract execution${where}. Check the configured contract address and arguments for this proposal outcome.`;
     }

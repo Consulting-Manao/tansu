@@ -409,7 +409,7 @@ export const read = {
         project_key: projectKey(name),
       })
     ).result,
-  /** The commitments to anonymous `votes` and `seeds`, as the dapp builds them. */
+  /** The commitments to anonymous `votes` and `seeds`, as the contract builds them. */
   commitments: async (name: string, votes: bigint[], seeds: bigint[]) =>
     (
       await tansu().build_commitments_from_votes({

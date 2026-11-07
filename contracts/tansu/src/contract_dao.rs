@@ -15,10 +15,13 @@ pub(crate) const MAX_PROPOSALS_PER_PAGE: u32 = 9;
 const MAX_PAGES: u32 = 1000;
 pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
-const MAX_VOTES_PER_PROPOSAL: u32 = 40; // DoS protection
+/// Votes a proposal accepts. The addresses that voted are one persistent
+/// entry, rewritten by each vote: 1,000 accounts take 44 KB of the 64 KiB a
+/// ledger entry holds.
+pub(crate) const MAX_VOTES_PER_PROPOSAL: u32 = 1000;
 /// Slots of a proposal that weight-1 votes can take, so fresh addresses
 /// cannot fill every slot and leave none for badge holders.
-const MAX_DEFAULT_WEIGHT_VOTES: u32 = 20;
+pub(crate) const MAX_DEFAULT_WEIGHT_VOTES: u32 = 500;
 const MAX_OUTCOMES: u32 = 3; // Approved, Rejected, Cancelled
 const MAX_ENCRYPTED_LENGTH: u32 = 1024; // each encrypted vote or seed of a ballot
 /// Time a ballot lives after the earliest execution of its proposal. Ballots
@@ -109,13 +112,14 @@ impl DaoTrait for Tansu {
     ///
     /// Note: This function does not consider voting weights, which are applied
     /// during the tallying phase. Calling this on the smart contract would reveal
-    /// the votes and seeds, so it must be run either in simulation or client-side.
+    /// the votes and seeds, and so does a simulation to the RPC server that runs
+    /// it: a voter computes them client-side, this function is the reference.
     ///
     /// # Arguments
     /// * `env` - The environment object
     /// * `project_key` - Unique identifier for the project
     /// * `votes` - Vector of vote choices (0=approve, 1=reject, 2=abstain)
-    /// * `seeds` - Vector of random seeds for each vote
+    /// * `seeds` - A random scalar for each vote, modulo the group order
     ///
     /// # Returns
     /// * `Vec<BytesN<96>>` - Vector of vote commitments (one per vote)
@@ -126,7 +130,7 @@ impl DaoTrait for Tansu {
         env: Env,
         project_key: Bytes,
         votes: Vec<u128>,
-        seeds: Vec<u128>,
+        seeds: Vec<U256>,
     ) -> Vec<BytesN<96>> {
         // Validate that votes and seeds have the same length
         if votes.len() != seeds.len() {
@@ -142,7 +146,6 @@ impl DaoTrait for Tansu {
         let mut commitments = Vec::new(&env);
         for (vote_, seed_) in votes.iter().zip(seeds.iter()) {
             let vote_: U256 = U256::from_u128(&env, vote_);
-            let seed_: U256 = U256::from_u128(&env, seed_);
             let seed_point_ = bls12_381.g1_mul(&seed_generator_point, &seed_.into());
             let vote_point_ = bls12_381.g1_mul(&vote_generator_point, &vote_.into());
 
@@ -273,7 +276,12 @@ impl DaoTrait for Tansu {
                 env.clone(),
                 project_key.clone(),
                 vec![&env, 0u128, 0u128, 1u128],
-                vec![&env, 0u128, 0u128, 0u128],
+                vec![
+                    &env,
+                    zero_weight.clone(),
+                    zero_weight.clone(),
+                    zero_weight.clone(),
+                ],
             ))
         };
         let vote_ = match public_voting {
@@ -544,8 +552,9 @@ impl DaoTrait for Tansu {
 
     /// Revoke a proposal.
     ///
-    /// Useful if there was some spam or bad intent. Deletes the proposal and
-    /// its votes; its id stays taken. Forfeits the proposer's collateral.
+    /// Useful if there was some spam or bad intent. Deletes the proposal; its
+    /// id stays taken and its ballots expire on their own. Forfeits the
+    /// proposer's collateral.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -573,17 +582,12 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
 
-        // Delete the proposal and everything attached to it. Its id stays in
-        // its page, so ids keep counting up, and get_proposal reports it as
-        // not found.
+        // Delete the proposal and its persistent entries. Its id stays in its
+        // page, so ids keep counting up, and get_proposal reports it as not
+        // found. The ballots are temporary: nothing reads them without the
+        // proposal, and deleting them all would not fit in one transaction
+        // past about 190 votes.
         let storage = env.storage().persistent();
-        for voter in get_voters(&env, &project_key, proposal_id).iter() {
-            env.storage().temporary().remove(&types::ProjectKey::Vote(
-                project_key.clone(),
-                proposal_id,
-                voter,
-            ));
-        }
         storage.remove(&types::ProjectKey::Voters(project_key.clone(), proposal_id));
         storage.remove(&types::ProjectKey::ProposalTallies(
             project_key.clone(),
@@ -662,7 +666,7 @@ impl DaoTrait for Tansu {
             .get(&types::ProjectKey::Voters(project_key.clone(), proposal_id))
             .unwrap_or(Vec::new(&env));
 
-        // Check vote limits for DoS protection
+        // The voters list is one entry: see MAX_VOTES_PER_PROPOSAL
         if voters.len() >= MAX_VOTES_PER_PROPOSAL {
             panic_with_error!(&env, &errors::ContractErrors::VoteLimitExceeded);
         }
@@ -809,7 +813,7 @@ impl DaoTrait for Tansu {
     /// * `project_key` - The project key identifier
     /// * `proposal_id` - The ID of the proposal to execute
     /// * [`Option<tallies>`] - decoded tally values (scaled by weights), respectively Approve, reject and abstain
-    /// * [`Option<seeds>`] - decoded seed values (scaled by weights), respectively Approve, reject and abstain
+    /// * [`Option<seeds>`] - decoded seed values (scaled by weights, modulo the group order), respectively Approve, reject and abstain
     ///
     /// # Returns
     /// * `types::ProposalStatus` - The final status of the proposal (Approved, Rejected, or Cancelled)
@@ -827,7 +831,7 @@ impl DaoTrait for Tansu {
         project_key: Bytes,
         proposal_id: u32,
         tallies: Option<Vec<u128>>,
-        seeds: Option<Vec<u128>>,
+        seeds: Option<Vec<U256>>,
     ) -> types::ProposalStatus {
         Tansu::require_not_paused(env.clone());
         crate::auth_maintainers(&env, &maintainer, &project_key);
@@ -975,7 +979,7 @@ impl DaoTrait for Tansu {
     /// * `project_key` - The project key identifier
     /// * `proposal` - The proposal containing vote commitments
     /// * `tallies` - Decoded tally values [approve, reject, abstain] (scaled by weights)
-    /// * `seeds` - Decoded seed values [approve, reject, abstain] (scaled by weights)
+    /// * `seeds` - Decoded seed values [approve, reject, abstain] (scaled by weights, modulo the group order)
     ///
     /// # Returns
     /// * `bool` - True if all commitments match the provided tallies and seeds
@@ -991,7 +995,7 @@ impl DaoTrait for Tansu {
         project_key: Bytes,
         proposal: types::Proposal,
         tallies: Vec<u128>,
-        seeds: Vec<u128>,
+        seeds: Vec<U256>,
     ) -> bool {
         // Only the id is taken from the argument: the rest is read from storage
         let proposal = load_proposal(&env, &project_key, proposal.id);
@@ -1424,7 +1428,7 @@ fn commitment_checks_from_tallies_and_seeds(
     env: &Env,
     project_key: &Bytes,
     tallies: &Vec<u128>,
-    seeds: &Vec<u128>,
+    seeds: &Vec<U256>,
 ) -> Vec<Bls12381G1Affine> {
     let vote_config = Tansu::get_anonymous_voting_config(env.clone(), project_key.clone());
     let bls12_381 = env.crypto().bls12_381();
@@ -1432,7 +1436,6 @@ fn commitment_checks_from_tallies_and_seeds(
     let vote_generator_point = Bls12381G1Affine::from_bytes(vote_config.vote_generator_point);
     let mut commitment_checks = Vec::new(env);
     for (tally_, seed_) in tallies.iter().zip(seeds.iter()) {
-        let seed_: U256 = U256::from_u128(env, seed_);
         let tally_: U256 = U256::from_u128(env, tally_);
         let seed_point_ = bls12_381.g1_mul(&seed_generator_point, &seed_.into());
         let tally_commitment_votes_ = bls12_381.g1_mul(&vote_generator_point, &tally_.into());
@@ -1462,7 +1465,7 @@ fn proof_from_aggregates(
     project_key: &Bytes,
     proposal_id: u32,
     tallies: &Vec<u128>,
-    seeds: &Vec<u128>,
+    seeds: &Vec<U256>,
 ) -> bool {
     let aggregate_commitments = match env
         .storage()

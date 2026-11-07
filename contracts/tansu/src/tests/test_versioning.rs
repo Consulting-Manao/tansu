@@ -1,4 +1,4 @@
-use super::test_utils::{create_test_data, init_contract};
+use super::test_utils::{create_test_data, init_contract, scalars};
 use crate::errors::ContractErrors;
 use crate::events::{Commit, EvidenceSet};
 use crate::types::EvidenceKind;
@@ -118,7 +118,7 @@ fn test_anonymous_vote_commitment_validation() {
     let result = setup.contract.try_build_commitments_from_votes(
         &id,
         &vec![&setup.env, 1u128, 2u128], // 2 votes
-        &vec![&setup.env, 1u128],        // 1 seed - mismatch!
+        &scalars(&setup.env, &[1]),      // 1 seed - mismatch!
     );
 
     assert_eq!(
@@ -146,7 +146,7 @@ fn test_malformed_commitments_mismatched_lengths() {
     let result = setup.contract.try_build_commitments_from_votes(
         &id,
         &vec![&setup.env, 1u128, 2u128, 3u128, 4u128], // 4 votes
-        &vec![&setup.env, 1u128, 2u128, 3u128],        // 3 seeds - mismatch!
+        &scalars(&setup.env, &[1, 2, 3]),              // 3 seeds - mismatch!
     );
 
     assert_eq!(
@@ -159,8 +159,8 @@ fn test_malformed_commitments_mismatched_lengths() {
     // Test mismatched votes and seeds length - seeds longer
     let result2 = setup.contract.try_build_commitments_from_votes(
         &id,
-        &vec![&setup.env, 1u128, 2u128],        // 2 votes
-        &vec![&setup.env, 1u128, 2u128, 3u128], // 3 seeds - mismatch!
+        &vec![&setup.env, 1u128, 2u128],  // 2 votes
+        &scalars(&setup.env, &[1, 2, 3]), // 3 seeds - mismatch!
     );
 
     assert_eq!(

@@ -16,7 +16,11 @@ import type {
 } from "../../packages/tansu";
 import { rpcServer, tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { errorMessage, readResult } from "../utils/contractErrors";
-import { randomSeed } from "../utils/anonymousVoting";
+import {
+  buildCommitments,
+  commitmentGenerators,
+  randomSeed,
+} from "../utils/anonymousVoting";
 import { encryptWithPublicKey } from "../utils/crypto";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { parseContractOptionString } from "../utils/utils";
@@ -514,29 +518,28 @@ export async function vote(
     if (!publicKey) {
       throw new Error("Anonymous voting config missing public key");
     }
+    // Built here, not by simulating the contract: a simulation would send the
+    // vote and its seeds to the RPC server.
+    const commitments = buildCommitments(
+      commitmentGenerators(config),
+      votes.map(BigInt),
+      seeds,
+    );
     const saltPrefix = `${voter}:${projectName}:${proposalId}`;
 
     try {
-      const [encryptedSeeds, encryptedVotes, commitmentsTx] = await Promise.all(
-        [
-          Promise.all(
-            seeds.map((seed) =>
-              encryptWithPublicKey(`${saltPrefix}:${seed}`, publicKey),
-            ),
+      const [encryptedSeeds, encryptedVotes] = await Promise.all([
+        Promise.all(
+          seeds.map((seed) =>
+            encryptWithPublicKey(`${saltPrefix}:${seed}`, publicKey),
           ),
-          Promise.all(
-            votes.map((v) =>
-              encryptWithPublicKey(`${saltPrefix}:${v}`, publicKey),
-            ),
+        ),
+        Promise.all(
+          votes.map((v) =>
+            encryptWithPublicKey(`${saltPrefix}:${v}`, publicKey),
           ),
-          tansuReads.build_commitments_from_votes({
-            project_key,
-            votes: votes.map(BigInt),
-            seeds,
-          }),
-        ],
-      );
-      const commitments = readResult(commitmentsTx);
+        ),
+      ]);
       receipt = {
         seeds: seeds.map(String),
         votes: votes.map(String),
