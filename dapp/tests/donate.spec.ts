@@ -1,22 +1,31 @@
 import { Keypair } from "@stellar/stellar-sdk";
 import { expect, test } from "./helpers/app";
-import { E2E_ENV } from "./helpers/env";
-import { read, registerProject, uniqueName } from "./helpers/testnet";
+import {
+  fundedKeypair,
+  read,
+  registerProject,
+  uniqueName,
+} from "./helpers/testnet";
 import { connectWallet } from "./helpers/wallet";
 
-test("support Tansu with a donation and a message that fits its memo", async ({
+test("support a project: a donation to its first maintainer, with a message that fits its memo", async ({
   page,
   wallet,
 }) => {
   test.setTimeout(240_000);
   const name = uniqueName("gift");
-  await registerProject(name, [wallet]);
+  const [maintainer, other] = await Promise.all([
+    fundedKeypair(),
+    fundedKeypair(),
+  ]);
+  await registerProject(name, [maintainer, other]);
 
   await page.goto("/");
   await connectWallet(page);
   await page.goto(`/project/?name=${name}`);
-  await page.getByRole("button", { name: "Support Tansu" }).click();
-  const dialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: "Support the project" }).click();
+  const dialog = page.getByRole("dialog", { name: `Support ${name}` });
+  await expect(dialog.getByText(maintainer.publicKey())).toBeVisible();
   const donate = dialog.getByRole("button", { name: "Donate" });
   await dialog.getByLabel("Amount").fill("2.5");
 
@@ -32,7 +41,7 @@ test("support Tansu with a donation and a message that fits its memo", async ({
   await expect(page.getByText("Thank you!")).toBeVisible({ timeout: 120_000 });
   expect(await read.lastPayment(wallet.publicKey())).toMatchObject({
     from: wallet.publicKey(),
-    to: E2E_ENV.PUBLIC_TANSU_OWNER_ID,
+    to: maintainer.publicKey(),
     amount: "2.5000000",
     transaction: { memo: "Thank you for Tansu!" },
   });

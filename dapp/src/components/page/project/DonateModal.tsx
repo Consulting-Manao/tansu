@@ -16,10 +16,14 @@ const isAmount = (value: string) =>
 const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
 /**
- * Support Tansu: an XLM donation to the account that builds and runs the
- * platform, with an optional message.
+ * Support the project `name`: an XLM donation, with an optional message, to
+ * `to`, its first maintainer. Projects have no account of their own yet.
  */
-const DonateModal: FC<{ children: ReactNode }> = ({ children }) => {
+const DonateModal: FC<{ name: string; to: string; children: ReactNode }> = ({
+  name,
+  to,
+  children,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState("10");
   const [message, setMessage] = useState("");
@@ -44,11 +48,11 @@ const DonateModal: FC<{ children: ReactNode }> = ({ children }) => {
     if (amountError || messageError) return;
     setIsLoading(true);
     try {
-      await sendXLM(amount, message);
-      toast.success("Thank you!", "Your donation to Tansu is on its way.");
+      await sendXLM(to, amount, message);
+      toast.success("Thank you!", `Your donation to ${name} is on its way.`);
       setIsOpen(false);
     } catch (error) {
-      toast.error("Support Tansu", errorMessage(error));
+      toast.error(`Support ${name}`, errorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -69,11 +73,15 @@ const DonateModal: FC<{ children: ReactNode }> = ({ children }) => {
             <div className="flex-grow flex flex-col gap-4 sm:gap-6 w-full">
               <div className="flex flex-col gap-2 sm:gap-3">
                 <h6 className="text-xl sm:text-2xl font-medium text-primary text-center sm:text-left">
-                  Support Tansu
+                  Support {name}
                 </h6>
                 <p className="text-sm sm:text-base text-secondary text-center sm:text-left">
-                  Your donation goes to Tansu, which builds and runs this
-                  platform for every project on it.
+                  Projects have no account of their own yet: your donation goes
+                  to the first maintainer of {name}, who receives it for the
+                  project.
+                </p>
+                <p className="text-sm text-primary font-mono break-all text-center sm:text-left">
+                  {to}
                 </p>
               </div>
 

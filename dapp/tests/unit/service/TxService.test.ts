@@ -296,7 +296,7 @@ describe("sendXLM", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("signs a donation to Tansu, and lands it like a contract call", async () => {
+  it("signs a donation to its recipient, and lands it like a contract call", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -316,7 +316,8 @@ describe("sendXLM", () => {
       .spyOn(rpc.Server.prototype, "getTransaction")
       .mockResolvedValue({ status: "SUCCESS" } as any);
 
-    await sendXLM("10.5", "thanks");
+    const to = StellarSdk.Keypair.random().publicKey();
+    await sendXLM(to, "10.5", "thanks");
 
     const sent = send.mock.calls[0]![0] as StellarSdk.Transaction;
     expect(sent.source).toBe(connected);
@@ -332,7 +333,7 @@ describe("sendXLM", () => {
         const { destination, amount } = op as StellarSdk.Operation.Payment;
         return [destination, amount];
       }),
-    ).toEqual([[import.meta.env.PUBLIC_TANSU_OWNER_ID, "10.5000000"]]);
+    ).toEqual([[to, "10.5000000"]]);
     expect(landed).toHaveBeenCalledWith("d".repeat(64));
     vi.restoreAllMocks();
   });
@@ -343,18 +344,18 @@ describe("sendXLM", () => {
       vi.fn(async () => new Response("", { status: 404 })),
     );
 
-    await expect(sendXLM("10", "thanks")).rejects.toThrow(
-      "fund it, then donate",
-    );
+    await expect(
+      sendXLM(StellarSdk.Keypair.random().publicKey(), "10", "thanks"),
+    ).rejects.toThrow("fund it, then donate");
     expect(kitSignMock).not.toHaveBeenCalled();
   });
 
   it("refuses to donate from a smart account", async () => {
     connected = SMART_ACCOUNT;
 
-    await expect(sendXLM("10", "thanks")).rejects.toThrow(
-      "smart-account wallets",
-    );
+    await expect(
+      sendXLM(StellarSdk.Keypair.random().publicKey(), "10", "thanks"),
+    ).rejects.toThrow("smart-account wallets");
     expect(kitSignMock).not.toHaveBeenCalled();
   });
 });

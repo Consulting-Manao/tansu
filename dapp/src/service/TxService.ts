@@ -287,11 +287,15 @@ async function land<T>(
 export const MEMO_BYTES = 28;
 
 /**
- * Donate `amount` XLM (a decimal string) to Tansu, with an optional message:
- * a classic payment, sent and confirmed like a contract call. Throws what to
- * tell the user.
+ * Donate `amount` XLM (a decimal string) to the account `to`, with an
+ * optional message: a classic payment, sent and confirmed like a contract
+ * call. Throws what to tell the user.
  */
-export async function sendXLM(amount: string, message: string): Promise<void> {
+export async function sendXLM(
+  to: string,
+  amount: string,
+  message: string,
+): Promise<void> {
   checkOnline();
   const sender = connectedAddress();
   if (StellarSdk.StrKey.isValidContract(sender)) {
@@ -314,7 +318,7 @@ export async function sendXLM(amount: string, message: string): Promise<void> {
   )
     .addOperation(
       StellarSdk.Operation.payment({
-        destination: import.meta.env.PUBLIC_TANSU_OWNER_ID,
+        destination: to,
         asset: StellarSdk.Asset.native(),
         amount,
       }),
