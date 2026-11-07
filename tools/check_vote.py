@@ -14,21 +14,24 @@ Query by project + proposal_id, or by vote transaction hash (extracts proposal f
 from __future__ import annotations
 
 import argparse
+import binascii
 import json
 import sys
 from base64 import b64decode
 
 from Crypto.Hash import keccak
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
-
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 from stellar_sdk import Network, scval
 from stellar_sdk.contract import ContractClient
 
 # -----------------------------------------------------------------------------
 # Hardcoded RPC and contract IDs (plan: SDF testnet, Quasar Lightsail mainnet)
 # -----------------------------------------------------------------------------
+# The order of the BLS12-381 group: seeds, and their sums, are taken modulo it.
+BLS12_381_ORDER = 0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001
+
 TESTNET_RPC = "https://soroban-testnet.stellar.org:443"
 TESTNET_PASSPHRASE = Network.TESTNET_NETWORK_PASSPHRASE
 TESTNET_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
@@ -67,7 +70,7 @@ def load_private_key(priv_str: str):
     """Load private key from base64 DER or PEM string."""
     try:
         raw = b64decode(priv_str.replace("-", "+").replace("_", "/"))
-    except Exception:
+    except (binascii.Error, ValueError):
         raw = priv_str.encode("utf-8") if isinstance(priv_str, str) else priv_str
     if raw.startswith(b"-----BEGIN"):
         return serialization.load_pem_private_key(
@@ -120,7 +123,7 @@ def proof_scval(
     seeds: list[int],
 ) -> tuple[bool, str | None]:
     tallies_vec = scval.to_vec([scval.to_uint128(t) for t in tallies])
-    seeds_vec = scval.to_vec([scval.to_uint128(s) for s in seeds])
+    seeds_vec = scval.to_vec([scval.to_uint256(s) for s in seeds])
     params = [
         scval.to_bytes(project_key),
         proposal_scval,
@@ -138,10 +141,10 @@ def proof_scval(
         result = atx.result()
         try:
             ok = scval.from_bool(result)
-        except Exception:
+        except ValueError:
             ok = bool(scval.to_native(result))
         return (ok, None)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - any RPC failure is reported
         return (False, str(e))
 
 
@@ -194,7 +197,7 @@ def main() -> None:
 
     try:
         proposal_scval = get_proposal_scval(client, project_key, proposal_id)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - any RPC failure is reported
         print(f"get_proposal failed: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -203,16 +206,10 @@ def main() -> None:
         status = proposal.get("status")
         vote_data = proposal.get("vote_data") or {}
         votes = vote_data.get("votes") or []
-        proposer_addr = proposal.get("proposer")
     else:
         status = getattr(proposal, "status", None)
         vote_data = getattr(proposal, "vote_data", None) or {}
         votes = getattr(vote_data, "votes", []) if vote_data else []
-        proposer_addr = getattr(proposal, "proposer", None)
-    if isinstance(proposer_addr, dict):
-        proposer_addr = proposer_addr.get("address") or proposer_addr.get("value")
-    if proposer_addr is not None and not isinstance(proposer_addr, str):
-        proposer_addr = str(proposer_addr)
 
     print(f"status: {status}")
     print(f"votes count: {len(votes)}")
@@ -249,7 +246,7 @@ def main() -> None:
             sys.exit(1)
         try:
             priv_key = load_private_key(priv_b64)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any key format error is reported
             print(f"key-file load failed: {e}", file=sys.stderr)
             sys.exit(1)
 
@@ -257,25 +254,22 @@ def main() -> None:
             tag, data = _vote_tag_and_data(v)
             if tag != "AnonymousVote":
                 continue
-            addr = data.get("address")
-            if addr is not None and not isinstance(addr, str):
-                addr = str(addr)
+            # the proposer's own ballot weighs 0, as on chain
             weight = data.get("weight", 1)
-            if addr == proposer_addr:
-                weight = 500_000  # Badge::Verified
             enc_votes = data.get("encrypted_votes") or []
             enc_seeds = data.get("encrypted_seeds") or []
             for j in range(min(3, len(enc_votes), len(enc_seeds))):
                 try:
                     v_dec = decrypt_value(enc_votes[j], priv_key)
-                except Exception:
+                except ValueError:
                     v_dec = int(enc_votes[j]) if str(enc_votes[j]).isdigit() else 0
                 try:
                     s_dec = decrypt_value(enc_seeds[j], priv_key)
-                except Exception:
+                except ValueError:
                     s_dec = int(enc_seeds[j]) if str(enc_seeds[j]).isdigit() else 0
                 tallies[j] += v_dec * weight
-                seeds[j] += s_dec * weight
+                # seeds are scalars of the BLS12-381 group: summed modulo its order
+                seeds[j] = (seeds[j] + s_dec * weight) % BLS12_381_ORDER
 
         print("tallies (approve, reject, abstain):", tallies)
         print("seeds (approve, reject, abstain):", seeds)

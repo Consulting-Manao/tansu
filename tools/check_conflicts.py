@@ -174,7 +174,7 @@ def main() -> int:
         try:
             proposal = get_proposal(client, project_key, proposal_id)
             conflicts = get_conflicts(client, project_key, proposal_id)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any RPC failure is reported
             if is_missing_proposal_error(exc):
                 print(
                     f"proposal {proposal_id} does not exist in project {args.project}",
