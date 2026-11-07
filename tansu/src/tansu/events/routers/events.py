@@ -1,8 +1,8 @@
 import sqlalchemy
 from fastapi import APIRouter
 
-from tansu.events.database import SessionFactory, db_models
 from tansu.events import api_models
+from tansu.events.database import SessionFactory, db_models
 
 router = APIRouter()
 

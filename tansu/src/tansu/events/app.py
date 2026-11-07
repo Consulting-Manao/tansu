@@ -4,12 +4,12 @@ Connect all routers to the app and add error handling.
 """
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware import Middleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from tansu.events.log import logger
-from tansu.events.routers import system, events
+from tansu.events.routers import events, system
 
 ORIGINS = [
     "https://testnet.tansu.dev",
@@ -36,12 +36,10 @@ def create_app(debug: bool = False):
         middleware=[
             Middleware(
                 CORSMiddleware,
-                **{
-                    "allow_origins": ORIGINS,
-                    "allow_credentials": True,
-                    "allow_methods": ["GET", "POST", "DELETE", "OPTIONS"],
-                    "allow_headers": ["*"],
-                },
+                allow_origins=ORIGINS,
+                allow_credentials=True,
+                allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+                allow_headers=["*"],
             ),
         ],
     )

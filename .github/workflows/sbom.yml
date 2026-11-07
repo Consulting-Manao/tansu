@@ -30,7 +30,7 @@ jobs:
   generate-sbom:
     name: Generate SPDX and CycloneDX SBOM with Trivy
     runs-on: ubuntu-latest
-    container: alpine:latest
+    container: alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
     environment:
       name: sbom-ipfs
     outputs:
@@ -63,7 +63,7 @@ jobs:
           trivy fs --format cyclonedx --output sbom.cyclonedx.json .
 
       - name: Upload SBOMs as artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom-${{ github.ref_name }}
           path: |

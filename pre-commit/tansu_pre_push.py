@@ -12,6 +12,7 @@ e.g. of project key for "tansu" using
 
 import os
 import subprocess
+import sys
 
 import soroban
 
@@ -24,12 +25,14 @@ BRANCH = os.getenv("TANSU_BRANCH", "main")
 
 def main():
     branch = (
-        subprocess.run(["git", "branch", "--show-current"], capture_output=True)
+        subprocess.run(
+            ["git", "branch", "--show-current"], capture_output=True, check=True
+        )
         .stdout.decode()
         .strip("\n")
     )
     if branch != BRANCH:
-        exit(0)
+        sys.exit(0)
 
     if PROJECT_KEY is None:
         raise ValueError("'TANSU_PROJECT_KEY' is missing from the environment")
@@ -37,7 +40,7 @@ def main():
     project_key = bytes.fromhex(PROJECT_KEY)
 
     commit_hash = (
-        subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
+        subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, check=True)
         .stdout.decode()
         .split("\n")[0]
     )

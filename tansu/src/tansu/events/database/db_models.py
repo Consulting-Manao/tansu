@@ -1,4 +1,4 @@
-from sqlalchemy import orm, UniqueConstraint
+from sqlalchemy import UniqueConstraint, orm
 
 from tansu.events.database.session_factory import SqlAlchemyBase
 

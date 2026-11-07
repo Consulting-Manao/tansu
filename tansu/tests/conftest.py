@@ -1,16 +1,15 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 
 from tansu.events.app import create_app
 from tansu.events.database import db_models
 from tansu.events.database.session_factory import (
-    conn_str,
-    SqlAlchemyBase,
     SessionFactory,
+    SqlAlchemyBase,
+    conn_str,
 )
 from tansu.events.ingest import events_to_db
-
 
 TANSU_PROJECT_KEY = "37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156"
 
@@ -74,6 +73,5 @@ async def fake_events(tables):
 
     await events_to_db([event_1, event_2])
 
-    async with SessionFactory() as session:
-        async with session.begin():
-            session.add(db_models.LatestLedger(ledger=4))
+    async with SessionFactory() as session, session.begin():
+        session.add(db_models.LatestLedger(ledger=4))

@@ -2,8 +2,8 @@ import stellar_sdk
 import stellar_sdk.xdr
 from stellar_sdk.soroban_rpc import EventFilter, EventFilterType
 
-from tansu.events.database import db_models, SessionFactory
 from tansu.events import api_models
+from tansu.events.database import SessionFactory, db_models
 
 
 def fetch_events(
@@ -44,6 +44,5 @@ def fetch_events(
 
 async def events_to_db(events: list[db_models.Event]) -> None:
     """Commit events-events to DB."""
-    async with SessionFactory() as session:
-        async with session.begin():
-            session.add_all(events)
+    async with SessionFactory() as session, session.begin():
+        session.add_all(events)

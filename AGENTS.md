@@ -164,7 +164,7 @@ export default defineConfig({
 **Commands**:
 - `bun run <script>` — run a package.json script (e.g. `bun run dev`, `bun run build`)
 - `bun run <file>` — execute a TS/JS/JSX file directly (e.g. `bun run index.ts`)
-- `bun install` — install dependencies (fast, lockfile `bun.lockb`)
+- `bun install` — install dependencies (fast, text lockfile `bun.lock`)
 - `bun test` — run tests (Jest-compatible, TypeScript-first)
 - `bunx <pkg>` — run a package binary (e.g. `bunx playwright test`, `bunx wrangler deploy`)
 - `bun build ./entry` — bundle for browser or server
@@ -173,7 +173,7 @@ export default defineConfig({
 - **dapp**: `test` runs `bun playwright test --reporter=dot`; `lint` and `validate-errors` use `bun scripts/validate-contract-errors.js`; `audit` uses `bun run` and `bunx`.
 - **dapp/workers/ipfs-delegation**: scripts use `bun` for running tests and tooling.
 - Prefer `bun` / `bun run` / `bunx` in any new scripts or docs in this repo.
-- Lockfile: `bun.lockb` where Bun is used.
+- Lockfile: the text `bun.lock` where Bun is used (Trivy and Dependabot read it, not `bun.lockb`).
 
 **Reference**: [Bun documentation](https://bun.sh/docs), [Runtime](https://bun.sh/docs/runtime), [Package manager](https://bun.sh/docs/cli/install), [Test runner](https://bun.sh/docs/cli/test)
 

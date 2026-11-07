@@ -1,4 +1,4 @@
-from tansu.events.database.session_factory import SessionFactory
 from tansu.events.database import db_models
+from tansu.events.database.session_factory import SessionFactory
 
-__all__ = ["db_models", "SessionFactory"]
+__all__ = ["SessionFactory", "db_models"]

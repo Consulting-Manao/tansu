@@ -1,9 +1,9 @@
 import binascii
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator
 import stellar_sdk
 import stellar_sdk.xdr
+from pydantic import BaseModel, BeforeValidator
 
 type SCValNative = (
     bool
@@ -41,7 +41,7 @@ class Event(BaseModel):
     value: SCValNative_
     ledger: int
 
-    model_config = dict(arbitrary_types_allowed=True)
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class EventRequest(BaseModel):

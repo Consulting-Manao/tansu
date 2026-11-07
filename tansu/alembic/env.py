@@ -18,8 +18,8 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from tansu.events.database.db_models import *  # noqa
-from tansu.events.database.session_factory import SqlAlchemyBase, conn_str  # noqa
+from tansu.events.database.db_models import *
+from tansu.events.database.session_factory import SqlAlchemyBase, conn_str
 
 target_metadata = SqlAlchemyBase.metadata
 
