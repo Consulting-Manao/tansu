@@ -104,6 +104,53 @@ Rules the dApp code keeps:
 | Anonymous votes | `utils/anonymousVoting.ts` | Seeds are scalars below the BLS12-381 order, and their weighted sums are taken modulo it. Commitments and the tally's proof are computed in the browser with `@noble/curves`, never by simulating the contract: a simulation sends the votes and seeds to the RPC server, and `proof` through RPC stops at about 37 ballots. The tally checks each ballot (key, one choice, commitments on chain) and lists those that cannot count. Maintainers reveal the tally while the vote runs too (the eye on the proposal page) and remove such a ballot there or before `execute`. |
 | Accessibility | components | Icon-only controls carry `aria-label`; decorative images `alt=""`; status colors meet 4.5:1 on white; clickable cards and choices are buttons. Lighthouse accessibility is 100 on the home, project, governance and proposal pages. |
 
+### Design document (dApp)
+
+The dApp's design document is a Claude Design canvas, [Tansu dApp Design](https://claude.ai/artifact/LmHAnNnAdmqJB9EYKArw4p) (private to the owner until shared from its Share menu). It draws every page, dialog and step from the code with the shipped strings, says where each flow starts (`map-entries`) and how a write lands (`map-writes`). Its canvas pages are Map, Shared, one per e2e journey in `dapp/tests/` (`browse`, `member`, `project`, `governance`, `proposal`, `anonymous`, `donate`, `pwa · update`), and Ideas for prototypes. Its look is `project/tansu.css`: the `@theme` of `src/styles/global.css` one to one, the shared pieces of `components/utils/`, and the list of uploaded images. `Navbar`, `Footer` and `ProjectCard` are canvas components the page artboards import. The Main artboard and the readme note name the commit it was drawn from.
+
+When you touch the dApp:
+
+- A change to a file in the table below updates its artboard in the same piece of work: copy, a state, a step, a field, a button. A new page, dialog or step gets an artboard (or a frame in its journey's strip), a `map-entries` row when it is a new way in, and a step in its e2e journey.
+- Artboards carry the shipped strings verbatim; data the dApp reads is a `{placeholder}`. A quirk the screens show as they are goes in an orange sticky beside the artboard; fixing it removes the sticky.
+- A change to `global.css` `@theme` or to `Button`, `Input`, `Label`, `Title`, `Modal`, `Step`, `ProgressStep`, `FlowProgressModal` updates `tansu.css` and the `shared-*` artboards.
+- New UI is drawn first: on the Ideas page, with `tansu.css`, and the owner agrees to it before code is written. Once built, its artboard moves to its journey page, in place of the old one.
+- Once the change is committed, write that commit's hash on the Main artboard and the readme note. To find drift, `git diff --stat <that hash>..HEAD -- dapp/src dapp/tests legal`, then this table.
+- Edit the canvas with the Artifact tool: read `project/canvas.json` and the artboards you change, edit only those and publish them to the canvas (its Design type's `SKILL.md` has the format). An image not yet on the canvas is uploaded from `dapp/public/` first. Without the Artifact tool, name the artboards that need the change in your summary.
+
+| Canvas page | Artboard | Draws (under `dapp/src/`) |
+|---|---|---|
+| Map | `Main` | the pages, `layouts/Layout.astro`, `utils/urls.ts` |
+| Map | `map-entries` | every way into a dialog: `components/ModalHost.tsx`, `utils/modals.ts`, the islands' buttons |
+| Map | `map-writes` | `service/TxService.ts`, `components/utils/ProgressStep.tsx`, `FlowProgressModal.tsx` |
+| Shared | `shared-kit` | `components/utils/` (Button, Input, Label, Title, Step, Loading, Spinner, CopyButton, ErrorBoundary), `utils/toastHelper.tsx`, the `ModalHost` fallback |
+| Shared | `shared-chrome`, `Navbar`, `Footer` | `components/layout/Navbar.astro`, `Footer.astro`, `UpdatePrompt.astro`, `components/NavbarSearch.tsx`, `ConnectButton.tsx`, `JoinCommunityButton.tsx` |
+| Shared | `shared-tx` | `components/utils/FlowProgressModal.tsx`, `ProgressStep.tsx`, `Step.tsx` |
+| Shared | `ProjectCard` | `components/page/dashboard/ProjectCard.tsx`, `OnChainProjectCard.tsx` |
+| browse | `browse-home`, `browse-search` | `pages/index.astro`, `components/page/dashboard/ProjectList.tsx`, `constants/featuredProjects.ts` |
+| browse | `browse-terms` | `components/utils/TermsAcceptanceModal.tsx`, `constants/terms-summary.json` |
+| browse | `browse-project` | `pages/project/index.astro`, `components/page/project/ProjectPage.tsx`, `LatestCommit.tsx`, `ContributionMetrics.tsx`, `PonyFactorCard.tsx`, `ContributorActivityChart.tsx`, `MonthlyActivityChart.tsx`, `CommitHistory.tsx`, `CommitPeriod.tsx`, `SubProjectsSection.tsx`, `components/CommitRecord.tsx` |
+| browse | `browse-project-modals` | `components/page/dashboard/ProjectInfoModal.tsx`, `components/page/project/ReadMoreModal.tsx` |
+| browse | `browse-governance` | `pages/governance/index.astro`, `components/page/governance/` |
+| browse | `browse-proposal` | `pages/proposal/index.astro`, `components/page/proposal/ProposalPage.tsx`, `ProposalTitle.tsx`, `VoteStatusBar.tsx`, `ProposalStatusSection.tsx`, `ProposalDetail.tsx`, `DiscussionSection.tsx` |
+| browse | `browse-legal` | `pages/[legal].astro`, the root `legal/` files |
+| member | `member-profile` | `components/page/dashboard/MemberProfileModal.tsx`, `OnChainActions.tsx`, `components/page/proposal/AddressDisplay.tsx` |
+| member | `member-join` | `components/page/dashboard/ProfileModal.tsx`, `GitVerification.tsx` |
+| project | `project-register` | `components/page/dashboard/CreateProjectModal.tsx`, `components/page/project/ProjectFields.tsx` |
+| project | `project-config` | `components/page/project/UpdateConfigModal.tsx`, `ProjectFields.tsx`, `utils/tansuToml.ts` |
+| project | `project-badges` | `components/page/project/AddBadgeModal.tsx`, `ManageSubProjectsModal.tsx` |
+| project | `project-finality` | `components/page/project/CommitEvidenceModal.tsx`, `AttestationCard.tsx` |
+| governance | `governance-create` | `components/page/proposal/CreateProposalModal.tsx`, `TemplateSelector.tsx`, `components/utils/DatePicker.tsx`, `SimpleMarkdownEditor.tsx`, `MarkdownEditorWithImages.tsx` |
+| governance | `governance-vote` | `components/page/proposal/VotingModal.tsx`, `VoteTypeCheckbox.tsx`, `VotingResult.tsx`, `VotingResultModal.tsx` |
+| governance | `governance-moderate` | `components/page/proposal/RemoveVoteModal.tsx`, `MarkMaliciousModal.tsx`, `ConflictOfInterestModal.tsx`, `components/utils/VoterInfo.tsx` |
+| governance | `governance-execute` | `components/page/proposal/ExecuteProposalModal.tsx` (public vote) |
+| proposal | `proposal-outcomes` | `components/page/proposal/OutcomeInput.tsx`, `OutcomeModeSelector.tsx`, `OutcomeCallCheck.tsx`, `components/ContractNameSearch.tsx`, `EnhancedContractFunctionSelector.tsx`, `utils/proposalOutcomes.ts` |
+| proposal | `proposal-execute` | `ExecuteProposalModal.tsx` (registry check), `ProposalDetail.tsx` (executed outcome) |
+| anonymous | `anonymous-setup` | `components/page/proposal/AnonymousKeySetup.tsx`, `CreateProposalModal.tsx` (step 5) |
+| anonymous | `anonymous-reveal` | `components/page/proposal/VerifyAnonymousVotesModal.tsx`, `AnonymousTalliesDisplay.tsx`, `InvalidBallots.tsx`, `ExportDecodedVotesModal.tsx`, `VoteReceiptPdf.tsx`, `VotingModal.tsx` (receipt) |
+| anonymous | `anonymous-execute` | `components/page/proposal/ExecuteProposalModal.tsx` (anonymous vote) |
+| donate | `donate` | `components/page/project/DonateModal.tsx`, `components/utils/WalletFundingModal.tsx` |
+| pwa · update | `pwa-update` | `components/layout/UpdatePrompt.astro`, `utils/serviceWorker.ts` |
+
 ### Events pipeline (`tansu/`)
 
 `src/tansu/events/` ingests Soroban contract events into Postgres (`ingest.py`, `consume.py`, SQLAlchemy models in `database/`, Alembic migrations in `alembic/`) and serves them through a FastAPI app (`app.py`, `routers/`).
@@ -111,7 +158,7 @@ Rules the dApp code keeps:
 ## Workflow and Conventions
 
 - **Trunk-based development**: every change goes through a branch + review; squash-merge keeps history linear. `main` must stay green.
-- **All code changes need tests and documentation**; human review is mandatory (see CONTRIBUTING.md for the AI tool-use policy).
+- **All code changes need tests and documentation**; human review is mandatory (see CONTRIBUTING.md for the AI tool-use policy). A dApp UI change also updates its design canvas (see "Design document (dApp)").
 - **CONTRIBUTING.md** is the canonical reference for deployment/release procedures (Python release via hatch + tag-triggered workflow, dApp via Netlify — staging `testnet.tansu.dev` tracks `main`, production `app.tansu.dev` tracks `app_prod` — contract releases built in a pinned container from a `v*` tag and published on Radicle, followed by the on-chain propose/approve/finalize upgrade flow). `.radicle` is the `radicle-ci-cd` submodule that holds the CI and release scripts.
 
 ## Technology Stack Skills
