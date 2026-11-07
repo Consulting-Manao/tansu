@@ -212,7 +212,14 @@ For an upgrade:
 
 The contract does not extend the TTL of its entries. An archived entry is restored
 automatically by the next transaction that touches it, which pays the restoration.
-This also applies to the contract instance and the contract code.
+This also applies to the contract instance and the contract code. Reads keep working:
+a simulation reads archived entries from the archive. On 2026-11-07, `get_projects`
+returned the 10 mainnet projects while 7 of their entries were archived.
+
+Data entries are paid by the transactions that use them. The maintainers extend the
+code and the instances, which every call needs. Extending them from the contract was
+considered and left out. Tansu sees about one write a week outside the quarterly votes,
+so each write would have to pay about 1 XLM to cover the code.
 
 An entry can be extended by hand with the Stellar CLI:
 
@@ -231,23 +238,34 @@ simulated and checked before submission.
 ### Rent on mainnet
 
 An entry lives at most 3,110,400 ledgers (about 180 days) after an extension, so the
-contract needs two extensions a year. Measured on 2026-10-08 by simulation (the
-charge ran about 13% below the simulation):
+code and the instances need two extensions a year. A new or restored persistent entry
+pays the minimum of 2,073,600 ledgers (about 120 days). Computed on 2026-11-07 from the
+network settings:
 
-| Entry                                            | XLM per 180 days            |
-| ------------------------------------------------ | --------------------------- |
-| Tansu code (90 KB, about 1.55 XLM per KB)        | ~136                        |
-| Executor code                                    | ~2.4                        |
-| Live data entries (14, 6.4 KB, about 0.3 XLM/KB) | ~1.8                        |
-| Both instances                                   | ~0.2                        |
-| **Total**                                        | **~141 (about 280 a year)** |
+| Entry                | XLM per 180 days | XLM per year |
+| -------------------- | ---------------- | ------------ |
+| Tansu code (90.3 KB) | 118.5            | 240.3        |
+| Executor code        | 2.1              | 4.3          |
+| Tansu instance       | 0.16             | 0.32         |
+| Executor instance    | 0.03             | 0.05         |
+| **Total**            | **120.8**        | **245.0**    |
 
-Dormant entries (28, 8.6 KB, archived) cost nothing until a transaction touches
-them: restoring all of them costs about 1.7 XLM, paid by that transaction. Expired
-code is also restored by the next caller, for about 91 XLM, so extend it before.
+Persistent data costs 0.26 XLM per KB per 180 days, temporary data half of it.
+Restoring an archived entry costs about 0.17 XLM per KB, for 120 days. Expired code is
+restored by the next caller in the same way, for about 79 XLM, so extend it before.
 
-Extend the contract code and instance (the executor's too: its own id and wasm hash),
-then the live entries by `--key-xdr`:
+Code pays on its size once parsed, not on its WASM size. The network adds the memory
+cost of the parsed module to the WASM size, then divides the rent by 3. For Tansu this
+is 1.42 MB, and 76% of it comes from the 21,038 WASM instructions. Hence, 1,000
+instructions fewer save about 4.2 XLM per 180 days.
+
+Rent is at the network minimum while the live Soroban state is below 2 GB (1.62 GB on
+2026-11-07). Above it, rent rises linearly up to 10 times at 3 GB. A simulation adds
+15% to the rent as a margin and the unused part is refunded. The charge is therefore
+13% below what a simulation shows.
+
+Extend the contract code and instance, and the executor's too (its own id and wasm
+hash). Data entries are left to the transactions that use them:
 
 ```bash
 stellar contract extend --id "$(cat deployments/tansu-mainnet)" --network mainnet \
@@ -256,12 +274,20 @@ stellar contract extend --wasm-hash <hash> --network mainnet \
   --source-account <identity> --ledgers-to-extend 3110400
 ```
 
-Read the TTLs first with `stellar ledger entry fetch` (`liveUntilLedgerSeq`) and
-simulate with `--build-only`. Rent depends on the network's state size and can change.
-Shrinking the WASM by 10% saves about 14 XLM per period. Status on 2026-10-08, current
-ledger 64,839,838: instance expires at 66,740,745 (about 26 January 2027), code at
-66,810,899 and executor code at about the same (30 January). Extending the code,
-instance and live data to the maximum then costs about 51 XLM, the executor about 1 XLM.
+Read the TTLs first with `stellar ledger entry fetch` (`liveUntilLedgerSeq`). To see the
+cost, pipe the command with `--build-only` into `stellar tx simulate --network mainnet
+--source-account <identity>`. `--build-only` alone does not simulate.
+
+An upgrade uploads a new code entry, which pays its first 120 days (about 77 XLM for
+v4). The rent left on the old code is lost. Hence, extend the code after an upgrade and
+not before, and time the upgrade close to the old code's expiry. The old code must still
+be live when `finalize_upgrade` runs. The upgrade does not extend the instance.
+
+Status on 2026-11-07, ledger 65,351,521: instance expires at 66,740,745 (about 26
+January 2027), code at 66,810,899, the executor's code and instance at about the same
+(30 January). Extending the code to the maximum then costs about 63 XLM, the instances
+and the executor code about 1.2 XLM. Uploading v4 in late January replaces the code
+extension.
 
 Instance storage holds the pause flag, the admin set, the pending upgrade, the
 collateral asset and the executor. Persistent storage holds projects,
