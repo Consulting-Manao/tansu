@@ -8,24 +8,25 @@ import {
 } from "./helpers/testnet";
 import { connectWallet } from "./helpers/wallet";
 
-test("support a project: a donation to its first maintainer, with a message that fits its memo", async ({
+test("support a project: a donation to the maintainer picked, with a message that fits its memo", async ({
   page,
   wallet,
 }) => {
   test.setTimeout(240_000);
   const name = uniqueName("gift");
-  const [maintainer, other] = await Promise.all([
-    fundedKeypair(),
-    fundedKeypair(),
-  ]);
-  await registerProject(name, [maintainer, other]);
+  const [first, picked] = await Promise.all([fundedKeypair(), fundedKeypair()]);
+  await registerProject(name, [first, picked]);
 
   await page.goto("/");
   await connectWallet(page);
   await page.goto(`/project/?name=${name}`);
   await page.getByRole("button", { name: "Support the project" }).click();
   const dialog = page.getByRole("dialog", { name: `Support ${name}` });
-  await expect(dialog.getByText(maintainer.publicKey())).toBeVisible();
+  // The first maintainer is offered first; the donor picks another.
+  const recipient = dialog.getByLabel("Maintainer");
+  await expect(recipient).toHaveValue(first.publicKey());
+  await recipient.selectOption(picked.publicKey());
+  await expect(dialog.getByText(picked.publicKey())).toBeVisible();
   const donate = dialog.getByRole("button", { name: "Donate" });
   await dialog.getByLabel("Amount").fill("2.5");
 
@@ -41,7 +42,7 @@ test("support a project: a donation to its first maintainer, with a message that
   await expect(page.getByText("Thank you!")).toBeVisible({ timeout: 120_000 });
   expect(await read.lastPayment(wallet.publicKey())).toMatchObject({
     from: wallet.publicKey(),
-    to: maintainer.publicKey(),
+    to: picked.publicKey(),
     amount: "2.5000000",
     transaction: { memo: "Thank you for Tansu!" },
   });

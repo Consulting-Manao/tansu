@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import { StrKey } from "@stellar/stellar-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { navigate } from "astro:transitions/client";
 import { lazy, Suspense, useState } from "react";
@@ -234,19 +233,20 @@ const ProjectPage = () => {
                   Proposals
                 </p>
               </Button>
-              {/* A classic payment cannot go to a smart account (C…). */}
-              {!StrKey.isValidContract(project.maintainers[0]!) && (
-                <DonateModal name={name} to={project.maintainers[0]!}>
-                  <Button
-                    icon="/icons/heart.svg"
-                    size="xl"
-                    type="secondary"
-                    className="w-full sm:w-auto"
-                  >
-                    Support the project
-                  </Button>
-                </DonateModal>
-              )}
+              <DonateModal
+                name={name}
+                maintainers={project.maintainers}
+                handles={handles}
+              >
+                <Button
+                  icon="/icons/heart.svg"
+                  size="xl"
+                  type="secondary"
+                  className="w-full sm:w-auto"
+                >
+                  Support the project
+                </Button>
+              </DonateModal>
               {isSoftware && (
                 <>
                   <Button

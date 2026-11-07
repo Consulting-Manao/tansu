@@ -1,7 +1,8 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import { useState, type FC, type ReactNode } from "react";
 
 import Modal from "components/utils/Modal";
-import { toast } from "utils/utils";
+import { toast, truncateMiddle } from "utils/utils";
 import Button from "components/utils/Button";
 
 import { MEMO_BYTES, sendXLM } from "service/TxService";
@@ -17,14 +18,19 @@ const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
 /**
  * Support the project `name`: an XLM donation, with an optional message, to
- * `to`, its first maintainer. Projects have no account of their own yet.
+ * the maintainer the donor picks. Projects have no account of their own yet,
+ * and a classic payment cannot reach a smart account (C…), so those
+ * maintainers are not offered.
  */
-const DonateModal: FC<{ name: string; to: string; children: ReactNode }> = ({
-  name,
-  to,
-  children,
-}) => {
+const DonateModal: FC<{
+  name: string;
+  maintainers: string[];
+  handles: Record<string, string>;
+  children: ReactNode;
+}> = ({ name, maintainers, handles, children }) => {
+  const recipients = maintainers.filter((a) => !StrKey.isValidContract(a));
   const [isOpen, setIsOpen] = useState(false);
+  const [to, setTo] = useState("");
   const [amount, setAmount] = useState("10");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -39,13 +45,14 @@ const DonateModal: FC<{ name: string; to: string; children: ReactNode }> = ({
       : null;
 
   const open = () => {
+    setTo(recipients[0] ?? "");
     setAmount("10");
     setMessage("");
     setIsOpen(true);
   };
 
   const handleContribute = async () => {
-    if (amountError || messageError) return;
+    if (!to || amountError || messageError) return;
     setIsLoading(true);
     try {
       await sendXLM(to, amount, message);
@@ -77,13 +84,42 @@ const DonateModal: FC<{ name: string; to: string; children: ReactNode }> = ({
                 </h6>
                 <p className="text-sm sm:text-base text-secondary text-center sm:text-left">
                   Projects have no account of their own yet: your donation goes
-                  to the first maintainer of {name}, who receives it for the
-                  project.
-                </p>
-                <p className="text-sm text-primary font-mono break-all text-center sm:text-left">
-                  {to}
+                  to the maintainer you pick, who receives it for the project.
                 </p>
               </div>
+
+              {recipients.length ? (
+                <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-primary">
+                  Maintainer
+                  <select
+                    className="p-3 sm:p-[18px] w-full border border-[#978AA1] bg-white outline-none text-sm sm:text-base font-normal"
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                  >
+                    {recipients.map((address) => (
+                      <option key={address} value={address}>
+                        {handles[address]
+                          ? `@${handles[address]} (${truncateMiddle(address, 16)})`
+                          : truncateMiddle(address, 24)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs font-normal font-mono text-tertiary break-all">
+                    {to}
+                  </span>
+                  {recipients.length < maintainers.length && (
+                    <span className="text-xs font-normal text-tertiary">
+                      Maintainers with a smart account (C…) cannot receive a
+                      classic payment, so they are not listed.
+                    </span>
+                  )}
+                </label>
+              ) : (
+                <p className="text-sm sm:text-base text-red-500">
+                  Every maintainer of {name} has a smart account (C…), which a
+                  classic payment cannot reach.
+                </p>
+              )}
 
               <div className="flex flex-col gap-2 sm:gap-3">
                 <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-primary">
@@ -148,7 +184,7 @@ const DonateModal: FC<{ name: string; to: string; children: ReactNode }> = ({
                   className="w-full sm:w-[220px] h-[48px] sm:h-[56px]"
                   onClick={handleContribute}
                   isLoading={isLoading}
-                  disabled={!!amountError || !!messageError}
+                  disabled={!to || !!amountError || !!messageError}
                 >
                   Donate
                 </Button>
