@@ -3,6 +3,57 @@
    which painted dark Markdown panels inside the light app. */
 @import "github-markdown-css/github-markdown-light.css";
 
+/*
+ * The fonts, self-hosted from each family's original release: Google's copies
+ * drop small caps and old-style figures. Subset to Latin, every OpenType
+ * feature and variable axis kept (public/fonts/, with their licences).
+ * Bricolage Grotesque (OFL) and Source Serif 4 (OFL) are variable with an
+ * optical-size axis; Dank Mono is licensed for the web.
+ */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/fonts/bricolage-grotesque.woff2") format("woff2");
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4.woff2") format("woff2");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4-italic.woff2") format("woff2");
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dank Mono";
+  src: url("/fonts/dank-mono.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dank Mono";
+  src: url("/fonts/dank-mono-italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dank Mono";
+  src: url("/fonts/dank-mono-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
@@ -48,6 +99,166 @@
   --shadow-vote: 0px 0px 4px 4px #acff75;
   --shadow-button: 1px 3px 18px rgba(45, 15, 81, 0.08);
   --shadow-modal: 4px 8px 36px rgba(49, 18, 85, 0.12);
+}
+
+/*
+ * The design system (round 2 of the design canvas). New names beside the
+ * ones above: pages move onto them one journey at a time, and the old names
+ * go once nothing uses them. Components read these tokens only; light and
+ * dark are two sets of values for the same names, so no component knows the
+ * theme.
+ */
+@theme inline {
+  --color-ground: var(--ds-ground);
+  --color-surface: var(--ds-surface);
+  --color-sunken: var(--ds-sunken);
+  --color-raised: var(--ds-raised);
+  --color-line: var(--ds-line);
+  --color-line-strong: var(--ds-line-strong);
+  --color-ink: var(--ds-ink);
+  --color-ink-muted: var(--ds-ink-muted);
+  --color-ink-subtle: var(--ds-ink-subtle);
+  --color-action: var(--ds-action);
+  --color-action-hover: var(--ds-action-hover);
+  --color-on-action: var(--ds-on-action);
+  --color-link: var(--ds-link);
+  --color-accent: var(--ds-accent);
+  --color-accent-soft: var(--ds-accent-soft);
+  --color-accent-ink: var(--ds-accent-ink);
+  --color-on-accent: var(--ds-on-accent);
+  --color-focus: var(--ds-focus);
+  --color-success: var(--ds-success);
+  --color-success-soft: var(--ds-success-soft);
+  --color-danger: var(--ds-danger);
+  --color-danger-soft: var(--ds-danger-soft);
+  --color-warning: var(--ds-warning);
+  --color-warning-soft: var(--ds-warning-soft);
+  --color-info: var(--ds-info);
+  --color-info-soft: var(--ds-info-soft);
+  --color-vote-approve: var(--ds-vote-approve);
+  --color-vote-reject: var(--ds-vote-reject);
+  --color-vote-abstain: var(--ds-vote-abstain);
+  --color-band: var(--ds-band);
+  --color-band-ink: var(--ds-band-ink);
+  --color-band-muted: var(--ds-band-muted);
+  --color-band-line: var(--ds-band-line);
+
+  --shadow-raise: var(--ds-shadow-raise);
+  --shadow-float: var(--ds-shadow-float);
+}
+
+@theme {
+  /* Three voices: the interface and headings (font-ui), what people read
+     at length (font-prose, below), what the chain returns (font-mono) */
+  --font-ui: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-mono: "Dank Mono", ui-monospace, monospace;
+
+  /* The scale, on a 4 px baseline */
+  --text-display: 56px;
+  --text-display--line-height: 60px;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: 36px;
+  --text-title--line-height: 44px;
+  --text-title--letter-spacing: -0.02em;
+  --text-section: 24px;
+  --text-section--line-height: 32px;
+  --text-section--letter-spacing: -0.02em;
+  --text-card: 18px;
+  --text-card--line-height: 24px;
+  --text-lead: 20px;
+  --text-lead--line-height: 30px;
+  --text-prose: 17px;
+  --text-prose--line-height: 28px;
+  --text-body: 15px;
+  --text-body--line-height: 24px;
+  --text-small: 13px;
+  --text-small--line-height: 20px;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-label--letter-spacing: 0.08em;
+
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-panel: 20px;
+}
+
+/*
+ * Each token holds its light and its dark value. The theme is only
+ * color-scheme: light by default, so pages not yet moved onto these tokens
+ * stay light; the shell sets data-theme="system" (follow the device) or
+ * "dark" once it moves. Light: a quiet lavender page; dark: a deep purple
+ * night where gold carries the main action. Vote colours are graphic colours
+ * in light (3:1: bars, dots, figures of 32 px and more).
+ */
+:root {
+  color-scheme: light;
+  --ds-ground: light-dark(#f6f4f9, #0e0a16);
+  --ds-surface: light-dark(#ffffff, #161021);
+  --ds-sunken: light-dark(#f1edf7, #110c1b);
+  --ds-raised: light-dark(#ffffff, #1e1630);
+  --ds-line: light-dark(#e5dfee, #2a2140);
+  --ds-line-strong: light-dark(#cbc2d9, #403459);
+  --ds-ink: light-dark(#1a1128, #f4f0fa);
+  --ds-ink-muted: light-dark(#574f68, #b9b0cb);
+  --ds-ink-subtle: light-dark(#6b6380, #968cab);
+  --ds-action: light-dark(#311255, #ffc23d);
+  --ds-action-hover: light-dark(#4a2080, #ffd06a);
+  --ds-on-action: light-dark(#ffffff, #241500);
+  --ds-link: light-dark(#4a2080, #cdb4ff);
+  --ds-accent: light-dark(#ffb31e, #ffc23d);
+  --ds-accent-soft: light-dark(#fff4d6, rgba(255, 194, 61, 0.14));
+  --ds-accent-ink: light-dark(#6b4500, #ffd88a);
+  --ds-on-accent: light-dark(#2b1a00, #241500);
+  --ds-focus: light-dark(#311255, #ffc23d);
+  --ds-success: light-dark(#1a7f37, #5bc98a);
+  --ds-success-soft: light-dark(#e6f4ea, rgba(91, 201, 138, 0.14));
+  --ds-danger: light-dark(#c42b2b, #f2766f);
+  --ds-danger-soft: light-dark(#fcebea, rgba(242, 118, 111, 0.14));
+  --ds-warning: light-dark(#9a4d00, #f0a64a);
+  --ds-warning-soft: light-dark(#fff0dd, rgba(240, 166, 74, 0.14));
+  --ds-info: light-dark(#2453b8, #8aa8ff);
+  --ds-info-soft: light-dark(#eaf0fc, rgba(138, 168, 255, 0.14));
+  --ds-vote-approve: light-dark(#2e9e55, #4cc37e);
+  --ds-vote-reject: light-dark(#d64545, #f06a6a);
+  --ds-vote-abstain: light-dark(#c27a12, #e8a23c);
+  --ds-band: light-dark(#f3edfb, #140a24);
+  --ds-band-ink: light-dark(#1a1128, #ffffff);
+  --ds-band-muted: light-dark(#574f68, rgba(255, 255, 255, 0.76));
+  --ds-band-line: light-dark(#e3d9f1, rgba(255, 255, 255, 0.14));
+  --ds-shadow-raise:
+    0 1px 2px light-dark(rgba(26, 17, 40, 0.05), rgba(0, 0, 0, 0.4)),
+    0 1px 3px light-dark(rgba(26, 17, 40, 0.06), transparent);
+  --ds-shadow-float: 0 16px 40px
+    light-dark(rgba(26, 17, 40, 0.16), rgba(0, 0, 0, 0.55));
+}
+:root[data-theme="system"] {
+  color-scheme: light dark;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* The installed app: the status bar already sits above the page */
+@custom-variant standalone (@media (display-mode: standalone));
+
+/* Microtypography: what people read at length is set like a paper. The
+   prose face is named here only, not as a theme token, so no bare family
+   utility can skip its figures, hyphenation and wrapping. */
+@utility font-prose {
+  font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  hyphens: auto;
+  hyphenate-limit-chars: 6 3 3;
+  text-wrap: pretty;
+}
+/* Acronyms in running text: true small caps, slightly tracked */
+@utility small-caps {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+}
+/* Figures that line up or are compared */
+@utility figures-tabular {
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 @layer base {

@@ -42,6 +42,8 @@ function serviceWorker() {
             "_astro/*.{js,css,wasm}",
             "*.{svg,png,jpg,json}",
             "{icons,images}/**",
+            // Self-hosted, so the installed app keeps its type offline.
+            "fonts/*.woff2",
           ],
           // version.json must come from the network, never from the worker.
           globIgnores: [
