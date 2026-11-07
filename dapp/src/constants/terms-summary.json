@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "30 September 2026",
+  "lastUpdated": "7 November 2026",
   "introduction": "Tansu is a decentralized governance platform operated by Consulting Manao GmbH, Söding-Sankt Johann, Austria. By using our dApp, you agree to be bound by these Terms of Service.",
   "importantNotice": "The dApp runs in your browser and reads the Stellar blockchain, IPFS and git hosts directly. We keep no user database; the upload service we run puts your files on IPFS. We recommend reading our Privacy Policy alongside these Terms.",
   "sections": {
@@ -26,7 +26,7 @@
       },
       {
         "title": "Collateral System",
-        "content": "Proposals require collateral, reimbursed to the proposer upon successful execution."
+        "content": "Registering a project takes a 5 XLM deposit, which is not refunded. Proposals take a 5 XLM collateral, returned to the proposer when the proposal is executed and kept if it is revoked."
       },
       {
         "title": "No Advice",

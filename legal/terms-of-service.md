@@ -1,6 +1,6 @@
 # Terms of Service - Tansu
 
-**Last Updated: 30 September 2026**
+**Last Updated: 7 November 2026**
 
 ## 1. Introduction
 
@@ -38,7 +38,7 @@ To help you understand these Terms, we've defined key terms used throughout this
 
 **Smart Contract**: Self-executing contracts deployed on the Stellar blockchain that govern platform operations.
 
-**Registration Collateral**: A 5 XLM deposit locked on-chain when registering a project, refundable under normal use and subject to governance forfeiture for misuse.
+**Registration Collateral**: A 5 XLM deposit paid to the Tansu smart contract when registering a project. It is not refunded: it is the price of a unique on-chain project name.
 
 **Stellar Network**: The decentralized blockchain network on which Tansu operates.
 
@@ -74,7 +74,7 @@ Tansu provides a comprehensive governance platform with the following core funct
 
 **Donations**: XLM transfer functionality allowing users to donate to projects.
 
-**Collateral System**: Fixed amount set by Tansu in smart contracts, required for proposal creation. Proposal collateral is reimbursed to the proposer when the proposal is successfully executed.
+**Collateral System**: Fixed amount set by Tansu in smart contracts, required for proposal creation. Proposal collateral is returned to the proposer when the proposal is executed, whatever the outcome of the vote, and kept by the smart contract if the proposal is revoked.
 
 **Free Service**: Tansu is provided free of charge. Users are only responsible for blockchain transaction fees (gas fees) paid directly to the Stellar Network.
 
@@ -175,7 +175,7 @@ You acknowledge and accept the following risks:
 
 **Collateral Requirement**: Proposals require collateral in XLM to prevent spam and ensure serious submissions. The collateral amount is fixed and set by Tansu in the smart contract.
 
-**Collateral Reimbursement**: Proposal collateral is reimbursed to the proposer when the proposal is successfully executed.
+**Collateral Reimbursement**: Proposal collateral is returned to the proposer when the proposal is executed, whether it was approved, rejected or cancelled.
 
 **Collateral Forfeiture**: Proposal collateral may be forfeited if:
 
@@ -185,7 +185,7 @@ You acknowledge and accept the following risks:
 - The proposal is found to be fraudulent or deceptive
 - The proposal fails to execute due to technical issues
 
-**Non-Refundable Deterrent Deposit**: Collateral serves as a deterrent against malicious proposals and is generally non-refundable except upon successful execution.
+**Non-Refundable Deterrent Deposit**: Collateral serves as a deterrent against malicious proposals and is not refunded unless the proposal is executed.
 
 ### 8.2 Maintainer Authority and Revocation
 
@@ -202,7 +202,7 @@ You acknowledge and accept the following risks:
 **Revocation Process**:
 
 1. Maintainer initiates revocation through the dApp interface
-2. Collateral is forfeited to the maintainer
+2. Collateral is forfeited: it stays in the Tansu smart contract
 3. Proposal is marked as revoked
 4. Voting is terminated
 5. Proposal cannot be re-submitted
@@ -218,9 +218,9 @@ You acknowledge and accept the following risks:
 
 ### 8.3 Registration Collateral and Name Disputes
 
-**Collateral Deposit**: Project registration locks a 5 XLM collateral deposit via the Tansu smart contract.
+**Collateral Deposit**: Project registration pays a 5 XLM collateral deposit to the Tansu smart contract. The deposit is not refunded.
 
-**Misuse and Impersonation**: Governance processes may address reports of misuse, impersonation, or Terms violations, including collateral forfeiture.
+**Misuse and Impersonation**: Governance processes may address reports of misuse, impersonation, or Terms violations.
 
 **Name Uniqueness**: Project names are unique on-chain identifiers (up to 15 characters). Disputes over project identity or maintainer authority are resolved through governance and maintainer actions described in this section, not through a separate domain registrar.
 
