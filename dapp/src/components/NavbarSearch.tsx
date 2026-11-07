@@ -215,7 +215,7 @@ const NavbarSearch = () => {
                 setSearchTerm("");
                 toggleSearchVisibility();
               }}
-              className="hidden md:flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Close and clear search"
               title="Close and clear search"
             >
@@ -230,8 +230,8 @@ const NavbarSearch = () => {
           </>
         )}
 
-        {/* Mobile: Add Project button (ONLY if connected) */}
-        {isClient && !isSearchVisible && (
+        {/* Mobile: Add Project button (ONLY if connected: visitors get Join) */}
+        {isClient && isWalletConnected && !isSearchVisible && (
           <Button
             type="primary"
             order="secondary"

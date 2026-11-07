@@ -86,6 +86,8 @@ const ProposalList: React.FC = () => {
             Retry
           </Button>
         </div>
+      ) : sortedProposals.length === 0 && totalPage <= 1 ? (
+        <p className="text-base text-secondary">No proposals yet.</p>
       ) : (
         <div className="w-full flex flex-col gap-12">
           <div className="flex flex-col gap-[18px]">

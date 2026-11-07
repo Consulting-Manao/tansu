@@ -167,13 +167,13 @@ const ProjectPage = () => {
                 }
                 className="w-[220px] h-[220px] object-contain"
               />
-              <div className="flex flex-col gap-9">
+              <div className="w-full min-w-0 flex flex-col gap-9">
                 <div className="flex flex-col gap-3">
                   <p className="text-base sm:text-lg text-secondary">
                     {config.organizationName || "Not available"}
                   </p>
-                  <div className="flex gap-[18px]">
-                    <p className="text-2xl text-primary">
+                  <div className="flex flex-wrap gap-x-[18px] gap-y-2">
+                    <p className="text-2xl text-primary break-words min-w-0">
                       {config.projectFullName || name}
                     </p>
                     <div className="flex items-center gap-3">

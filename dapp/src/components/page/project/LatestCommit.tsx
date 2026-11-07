@@ -67,14 +67,14 @@ const LatestCommit = ({
   return (
     <div className="flex flex-col gap-3">
       {commitData && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-x-2">
           <p className="text-base text-tertiary">Latest Commit:</p>
-          <p className="text-base font-bold text-primary">
+          <p className="text-base font-bold text-primary break-words min-w-0">
             {commitData?.commit.message}
           </p>
         </div>
       )}
-      <div className="flex gap-[18px]">
+      <div className="flex flex-wrap items-center gap-[18px]">
         {commitData && (
           <div className="p-[8px_18px] flex items-center gap-[18px] bg-[#FFEFA8]">
             <p className="text-lg text-primary">
@@ -98,7 +98,7 @@ const LatestCommit = ({
             </div>
           </div>
         )}
-        <div className="flex gap-[18px]">
+        <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
           <div className="flex items-center gap-2">
             <div className="flex gap-[6px]">
               {latestCommitStatus == Status.Match ? (
@@ -132,7 +132,7 @@ const LatestCommit = ({
         </div>
       </div>
       {commitData && (
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-x-3">
           <p className="text-base font-semibold text-primary">
             @{commitData?.commit.author.name}
           </p>

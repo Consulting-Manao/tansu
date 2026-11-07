@@ -112,8 +112,8 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       )}
 
       {/* Title & hash */}
-      <div className="flex justify-between items-start">
-        <div className="w-[calc(100%-120px)] flex gap-2 items-start">
+      <div className="flex flex-wrap justify-between items-start gap-x-3 gap-y-1">
+        <div className="min-w-0 flex-[1_1_12rem] flex gap-2 items-start">
           <a
             ref={messageRef}
             href={commitLink || shaLink || "#"}
@@ -143,7 +143,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
           )}
         </div>
         {sha && (
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <CopyButton
               textToCopy={sha}
               size="sm"
