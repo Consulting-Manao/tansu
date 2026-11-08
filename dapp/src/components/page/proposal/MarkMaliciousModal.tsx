@@ -1,4 +1,4 @@
-import Button from "components/utils/Button";
+import { Button } from "components/ui";
 import Modal from "components/utils/Modal";
 import { useState, type FC } from "react";
 import { revokeProposal } from "@service/ProposalService";
@@ -25,15 +25,12 @@ const MarkMaliciousModal: FC<MarkMaliciousModalProps> = ({
     setIsLoading(true);
     try {
       await revokeProposal(projectName, proposalId);
-      toast.success(
-        "Proposal Revoked",
-        "The proposal has been marked as malicious.",
-      );
+      toast.success("Proposal revoked", "Its id is never reused.");
       onMarked();
     } catch (error: any) {
       toast.error(
         "Something went wrong",
-        error.message || "Failed to mark proposal as malicious.",
+        error.message || "Failed to revoke the proposal.",
       );
     } finally {
       setIsLoading(false);
@@ -42,27 +39,24 @@ const MarkMaliciousModal: FC<MarkMaliciousModalProps> = ({
 
   return (
     <Modal onClose={onClose}>
-      <div className="flex flex-col gap-6">
-        <p className="text-xl font-medium text-primary">
-          Mark Proposal as Malicious
+      <div className="flex max-w-lg flex-col gap-6">
+        <h2 className="text-card font-semibold">Revoke this proposal?</h2>
+        <p className="text-ink-muted">
+          Revoking deletes{" "}
+          <span className="font-semibold text-ink">“{proposalTitle}”</span>: its
+          id is never reused and the proposer’s collateral is not returned. This
+          cannot be undone.
         </p>
-        <p className="text-secondary">
-          Are you sure you want to mark{" "}
-          <span className="font-semibold">"{proposalTitle}"</span> as malicious?
-          This action cannot be undone. The proposal will be redacted and the
-          proposer's collateral will not be returned.
-        </p>
-        <div className="flex gap-3 justify-end">
-          <Button type="secondary" onClick={onClose} disabled={isLoading}>
+        <div className="flex justify-end gap-3">
+          <Button tone="secondary" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
-            type="tertiary"
-            className="border-red-500! text-red-500!"
+            tone="danger"
             onClick={handleMarkMalicious}
-            disabled={isLoading}
+            loading={isLoading}
           >
-            {isLoading ? "Processing..." : "Mark as Malicious"}
+            Revoke proposal
           </Button>
         </div>
       </div>

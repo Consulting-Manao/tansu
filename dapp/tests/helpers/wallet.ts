@@ -60,6 +60,6 @@ export async function connectWallet(page: Page): Promise<void> {
   await page.getByText("GHOSTSIG", { exact: true }).click();
   // Connected: a page change right away would cut the handshake short.
   await expect(
-    page.getByRole("button", { name: "Open user profile" }),
+    page.getByRole("link", { name: "Open user profile" }),
   ).toBeVisible();
 }

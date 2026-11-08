@@ -144,13 +144,13 @@ export const RepositoryFields = ({
   return (
     <div className="flex flex-col gap-[30px]">
       <label className="flex flex-col gap-3">
-        <span className="leading-4 text-base text-secondary">
+        <span className="leading-4 text-base text-ink-muted">
           Repository Provider
         </span>
         <select
           value={active}
           onChange={(e) => onChange(url, e.target.value as RepositoryProvider)}
-          className="p-[18px] border border-[#978AA1] outline-none bg-white"
+          className="p-[18px] border border-line-strong outline-none bg-surface"
         >
           {SUPPORTED_REPOSITORY_PROVIDERS.map((host) => (
             <option key={host} value={host}>
@@ -158,7 +158,7 @@ export const RepositoryFields = ({
             </option>
           ))}
         </select>
-        <span className="leading-[16px] text-base text-tertiary">
+        <span className="leading-[16px] text-base text-ink-muted">
           You can choose the provider first or paste the repository URL below
           and let the form detect it.
         </span>

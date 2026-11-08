@@ -1,13 +1,13 @@
 ---
-import ProposalPageTitle from "components/page/proposal/ProposalPageTitle.astro";
-import Container from "../../components/layout/Container.astro";
-import ProposalPage from "../../components/page/proposal/ProposalPage";
 import Layout from "../../layouts/Layout.astro";
+import PageBand from "../../components/layout/PageBand.astro";
+import ProposalHead from "../../components/page/proposal/ProposalHead";
+import ProposalPage from "../../components/page/proposal/ProposalPage";
 ---
 
 <Layout title="Tansu" page="proposal">
-  <Container>
-    <ProposalPageTitle />
-    <ProposalPage client:only="react" />
-  </Container>
+  <PageBand>
+    <ProposalHead client:only="react" />
+  </PageBand>
+  <ProposalPage client:only="react" />
 </Layout>

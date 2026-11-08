@@ -129,35 +129,35 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
       {isOpen && (
         <Modal onClose={handleClose}>
           <div className="flex flex-col gap-6 w-full">
-            <h6 className="text-xl font-medium text-primary">Sub-Projects</h6>
+            <h6 className="text-xl font-medium text-ink">Sub-Projects</h6>
 
             {error && (
               <div
                 role="alert"
-                className="p-3 bg-red-50 border border-red-200 rounded-md"
+                className="p-3 bg-danger-soft border border-danger/40 rounded-control"
               >
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-danger">{error}</p>
               </div>
             )}
 
             {!keys && !error && (
-              <p className="text-sm text-secondary">
+              <p className="text-sm text-ink-muted">
                 Reading the current sub-projects...
               </p>
             )}
 
             {keys && keys.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium text-primary">
+                <p className="text-sm font-medium text-ink">
                   Current sub-projects
                 </p>
-                <ul className="border border-gray-200 rounded-md divide-y divide-gray-100">
+                <ul className="border border-line rounded-control divide-y divide-line">
                   {keys.map((key) => (
                     <li
                       key={key}
                       className="flex items-center justify-between gap-2 px-3 py-2"
                     >
-                      <span className="text-sm text-primary truncate">
+                      <span className="text-sm text-ink truncate">
                         {label(key)}
                       </span>
                       <Button

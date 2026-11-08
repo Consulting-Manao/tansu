@@ -28,7 +28,7 @@ interface Props {
 
 type Provider = "github" | "gitlab" | "custom";
 
-const inputClass = "w-full rounded border border-zinc-300 px-3 py-2 text-sm";
+const inputClass = "w-full rounded border border-line-strong px-3 py-2 text-sm";
 
 /** How a key is told apart: its comment, else the end of its key. */
 const keyName = ({ line }: GitKey) => {
@@ -138,18 +138,16 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
   };
 
   const error = errorMsg && (
-    <p role="alert" className="text-sm text-red-500">
+    <p role="alert" className="text-sm text-danger">
       {errorMsg}
     </p>
   );
 
   if (step === "choice") {
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4">
-        <h3 className="text-base font-semibold text-primary">
-          Link Git Identity
-        </h3>
-        <p className="text-sm text-secondary">
+      <div className="flex flex-col gap-4 rounded-control border border-line-strong p-4">
+        <h3 className="text-base font-semibold text-ink">Link Git Identity</h3>
+        <p className="text-sm text-ink-muted">
           Optionally link a Git handle to your account, signed with one of its
           SSH keys. This helps prove your identity as a developer.
         </p>
@@ -165,10 +163,8 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
 
   if (step === "input") {
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4">
-        <h3 className="text-base font-semibold text-primary">
-          Link Git Identity
-        </h3>
+      <div className="flex flex-col gap-4 rounded-control border border-line-strong p-4">
+        <h3 className="text-base font-semibold text-ink">Link Git Identity</h3>
 
         <div className="flex gap-4" role="radiogroup" aria-label="Git host">
           {(
@@ -190,7 +186,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
                   setProvider(value);
                   setErrorMsg(null);
                 }}
-                className="accent-primary"
+                className="accent-action"
               />
               <span className="text-sm font-medium">{label}</span>
             </label>
@@ -250,18 +246,16 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
   if (step === "sign" && message) {
     const command = signingCommand(message, keyPath);
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4">
-        <h3 className="text-base font-semibold text-primary">
-          Sign with Git Key
-        </h3>
-        <p className="text-sm text-secondary">
+      <div className="flex flex-col gap-4 rounded-control border border-line-strong p-4">
+        <h3 className="text-base font-semibold text-ink">Sign with Git Key</h3>
+        <p className="text-sm text-ink-muted">
           You are linking{" "}
-          <span className="font-medium text-primary">{gitIdentity}</span>.
+          <span className="font-medium text-ink">{gitIdentity}</span>.
         </p>
 
         {keys.length > 1 && (
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm font-medium text-primary">
+            <legend className="mb-1 text-sm font-medium text-ink">
               The key you sign with
             </legend>
             {keys.map((listed, index) => (
@@ -278,7 +272,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
                     setSignatureInput("");
                     setErrorMsg(null);
                   }}
-                  className="accent-primary"
+                  className="accent-action"
                 />
                 <span className="font-mono break-all">{keyName(listed)}</span>
               </label>
@@ -286,7 +280,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
           </fieldset>
         )}
 
-        <label className="flex flex-col gap-1 text-sm font-medium text-primary">
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Its private key file
           <input
             type="text"
@@ -297,14 +291,14 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         </label>
 
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-secondary">
+          <p className="text-sm text-ink-muted">
             Run this in a terminal (OpenSSH, on Linux or macOS). It prints the
             signature to paste below.
           </p>
-          <div className="flex items-start gap-2 rounded bg-zinc-800 p-2">
+          <div className="flex items-start gap-2 rounded bg-ink p-2">
             <pre
               aria-label="Signing command"
-              className="flex-1 overflow-x-auto text-xs text-green-300 font-mono whitespace-pre-wrap break-all select-all"
+              className="flex-1 overflow-x-auto text-xs text-success font-mono whitespace-pre-wrap break-all select-all"
             >
               {command}
             </pre>
@@ -343,11 +337,11 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-green-200 bg-green-50 p-4">
-      <h3 className="text-base font-semibold text-green-800">
+    <div className="flex flex-col gap-2 rounded-control border border-success/40 bg-success-soft p-4">
+      <h3 className="text-base font-semibold text-success">
         Git key signature checked
       </h3>
-      <p className="text-sm text-green-700">
+      <p className="text-sm text-success">
         <span className="font-medium">{gitIdentity}</span> is linked to your
         account when you join.
       </p>

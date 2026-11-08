@@ -98,15 +98,15 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-9 w-full">
-              <h6 className="text-xl sm:text-2xl font-medium text-primary text-center sm:text-left">
+              <h6 className="text-xl sm:text-2xl font-medium text-ink text-center sm:text-left">
                 Member badges
               </h6>
               <div className="flex flex-col gap-4 sm:gap-[18px]">
-                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-primary">
+                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-ink">
                   Member address
                   <input
                     type="text"
-                    className="p-3 sm:p-[18px] border border-[#978AA1] outline-none w-full text-sm sm:text-base font-normal"
+                    className="p-3 sm:p-[18px] border border-line-strong outline-none w-full text-sm sm:text-base font-normal"
                     placeholder="Member address as G..."
                     value={memberAddress}
                     onChange={(e) => {
@@ -120,7 +120,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                 {loadError && (
                   <div
                     role="alert"
-                    className="flex flex-col gap-2 text-sm text-red-600"
+                    className="flex flex-col gap-2 text-sm text-danger"
                   >
                     <p>Could not read the member's badges: {loadError}</p>
                     <Button
@@ -133,14 +133,14 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                   </div>
                 )}
                 <div className="flex flex-col gap-2 sm:gap-3">
-                  <p className="text-sm sm:text-base font-[600] text-primary">
+                  <p className="text-sm sm:text-base font-[600] text-ink">
                     Badges
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {badgeOptions.map((opt) => (
                       <label
                         key={opt.value}
-                        className="flex gap-2 items-center text-sm sm:text-base text-primary"
+                        className="flex gap-2 items-center text-sm sm:text-base text-ink"
                       >
                         <input
                           type="checkbox"

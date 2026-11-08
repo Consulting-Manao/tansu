@@ -65,18 +65,18 @@ const OutcomeCallCheck = ({ call }: { call: OutcomeCall }) => {
   return (
     <div role="status" aria-live="polite" className="text-sm">
       {editing || check.isFetching ? (
-        <p className="text-secondary">Checking the call...</p>
+        <p className="text-ink-muted">Checking the call...</p>
       ) : check.isError ? (
-        <p className="text-red-500">✗ {check.error.message}</p>
+        <p className="text-danger">✗ {check.error.message}</p>
       ) : check.data ? (
         <>
-          <p className="text-green-800">
+          <p className="text-success">
             ✓ Runs as the proposal would execute it now, returning{" "}
             <code className="font-mono">{shown(check.data.returns)}</code>. The
             ledger can change before the vote ends.
           </p>
           {check.data.authorizedBy.length > 0 && (
-            <p className="text-amber-800">
+            <p className="text-warning">
               It needs {check.data.authorizedBy.join(", ")} to authorize it, so
               it runs only if that contract executes the proposal, as a manager
               contract does.

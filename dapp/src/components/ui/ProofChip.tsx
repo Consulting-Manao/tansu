@@ -17,9 +17,11 @@ const seals: Record<ProofTone, ReactNode> = {
 };
 
 interface ProofChipProps {
-  /** The hash on chain: a commit, a transaction. Shown short. */
+  /** The value on chain: a commit, a transaction (shown short). */
   hash: string;
   tone?: ProofTone;
+  /** Show the whole value: an identity like codeberg:ada, not a hash. */
+  full?: boolean;
   /** What was checked: "In git history", "4 of 6 maintainers". */
   children?: ReactNode;
   className?: string;
@@ -29,6 +31,7 @@ interface ProofChipProps {
 export function ProofChip({
   hash,
   tone = "verified",
+  full,
   children,
   className,
 }: ProofChipProps) {
@@ -44,7 +47,9 @@ export function ProofChip({
       <span className={tone === "verified" ? "text-accent" : undefined}>
         {seals[tone]}
       </span>
-      <code className="font-mono text-ink">{hash.slice(0, 9)}</code>
+      <code className="font-mono text-ink">
+        {full ? hash : hash.slice(0, 9)}
+      </code>
       {Children.toArray(children).map((fact, index) => (
         <Fragment key={index}>
           <span aria-hidden="true" className="h-4 w-px bg-current opacity-40" />

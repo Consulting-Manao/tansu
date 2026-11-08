@@ -52,7 +52,7 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
       />
 
       {talliesTriplet && (
-        <div className="mt-4 p-3 border border-zinc-300 rounded bg-zinc-50 text-sm md:text-base">
+        <div className="mt-4 p-3 border border-line-strong rounded bg-sunken text-sm md:text-base">
           <p className="font-semibold mb-2">Tallies</p>
 
           <div className="flex justify-between">
@@ -74,14 +74,14 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
 
       {decodedVotes.length > 0 && (
         <div className="flex flex-col gap-3">
-          <details className="border border-zinc-300 rounded max-h-48 md:max-h-60 overflow-y-auto overflow-x-auto">
+          <details className="border border-line-strong rounded max-h-48 md:max-h-60 overflow-y-auto overflow-x-auto">
             <summary className="p-2 cursor-pointer text-sm md:text-base">
               View decoded votes
             </summary>
             <div className="w-full overflow-x-auto">
               <table className="text-xs md:text-sm w-full min-w-[500px]">
                 <thead>
-                  <tr className="bg-zinc-100 text-left">
+                  <tr className="bg-sunken text-left">
                     <th className="p-2">Address</th>
                     <th>Vote</th>
                     <th>Weight</th>
@@ -93,7 +93,7 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
                   {decodedVotes.map((v) => (
                     <tr
                       key={v.address}
-                      className="odd:bg-white even:bg-zinc-50"
+                      className="odd:bg-surface even:bg-sunken"
                     >
                       <td className="p-1">
                         <AddressDisplay address={v.address} />
@@ -130,27 +130,27 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm md:text-base">Proof:</p>
             {proofOk === null ? null : proofOk ? (
-              <span aria-label="proof-ok" className="text-green-600 text-xl">
+              <span aria-label="proof-ok" className="text-success text-xl">
                 ✅
               </span>
             ) : (
-              <span aria-label="proof-failed" className="text-red-600 text-xl">
+              <span aria-label="proof-failed" className="text-danger text-xl">
                 ❌
               </span>
             )}
           </div>
           {proofOk === false && proofErrorMessage && (
-            <p className="text-sm text-red-600 max-w-prose" role="alert">
+            <p className="text-sm text-danger max-w-prose" role="alert">
               {proofErrorMessage}
             </p>
           )}
-          <p className="text-xs md:text-sm text-secondary max-w-prose">
+          <p className="text-xs md:text-sm text-ink-muted max-w-prose">
             This check verifies that the aggregated tallies and seeds correspond
             to the on-chain vote commitments (weights applied during
             verification). Use it to confirm decrypted results before executing
             the proposal.
           </p>
-          <p className="text-xs md:text-sm text-secondary max-w-prose">
+          <p className="text-xs md:text-sm text-ink-muted max-w-prose">
             Final outcomes are based on weighted vote tallies. For a proposal to
             be accepted, the tally of approve votes must be higher than the sum
             of the tallies of reject plus cancel votes. Same goes to reject a

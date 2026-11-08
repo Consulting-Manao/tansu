@@ -122,8 +122,8 @@ const AttestationCard = ({
 
   const badge = finality ? (
     <span
-      className={`flex items-center justify-center text-xs font-bold rounded-sm px-1.5 py-0.5 whitespace-nowrap ${
-        isFinal ? "bg-green-100 text-green-700" : "bg-zinc-200 text-secondary"
+      className={`flex items-center justify-center text-xs font-bold rounded-control px-1.5 py-0.5 whitespace-nowrap ${
+        isFinal ? "bg-success-soft text-success" : "bg-line text-ink-muted"
       }`}
       title={
         hasCounts
@@ -147,7 +147,7 @@ const AttestationCard = ({
           <button
             onClick={handleAttest}
             disabled={isAttesting}
-            className="text-xs font-medium px-1.5 py-0.5 rounded-sm border border-zinc-300 text-primary hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+            className="text-xs font-medium px-1.5 py-0.5 rounded-control border border-line-strong text-ink hover:bg-sunken disabled:opacity-50 whitespace-nowrap"
             title="Attest this target"
           >
             {isAttesting ? "Attesting…" : "Attest"}
@@ -163,7 +163,7 @@ const AttestationCard = ({
           <button
             onClick={handleRevoke}
             disabled={isRevoking}
-            className="text-xs font-medium px-1.5 py-0.5 rounded-sm border border-zinc-300 text-primary hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+            className="text-xs font-medium px-1.5 py-0.5 rounded-control border border-line-strong text-ink hover:bg-sunken disabled:opacity-50 whitespace-nowrap"
             title="Withdraw your attestation"
           >
             {isRevoking ? "Withdrawing…" : "Withdraw"}
@@ -182,9 +182,9 @@ const AttestationCard = ({
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 justify-between">
           <div className="flex flex-row items-center gap-1">
-            <p className="text-sm font-semibold text-primary">Code Finality</p>
+            <p className="text-sm font-semibold text-ink">Code Finality</p>
             {showThreshold && threshold !== null && (
-              <span className="text-xs text-tertiary">
+              <span className="text-xs text-ink-muted">
                 (needs {threshold}% of maintainers)
               </span>
             )}
@@ -193,7 +193,7 @@ const AttestationCard = ({
               <div className="flex items-center gap-3">
                 {badge}
                 {hasCounts && (
-                  <span className="text-xs text-tertiary">
+                  <span className="text-xs text-ink-muted">
                     {finality.attested} of {finality.total} maintainers
                   </span>
                 )}
@@ -232,21 +232,21 @@ const AttestationCard = ({
             </div>
 
             {isFinal ? (
-              <p className="text-xs text-tertiary">
+              <p className="text-xs text-ink-muted">
                 Finalized; attestations can no longer be withdrawn.
               </p>
             ) : hasAttested && !canRevoke ? (
-              <p className="text-xs text-tertiary">
+              <p className="text-xs text-ink-muted">
                 You attested this. The withdrawal window has closed, so it is
                 now permanent.
               </p>
             ) : hasAttested ? (
-              <p className="text-xs text-tertiary">
+              <p className="text-xs text-ink-muted">
                 You attested this. Withdraw within 24h to change your mind.
               </p>
             ) : (
               !isMaintainer && (
-                <p className="text-xs text-tertiary">
+                <p className="text-xs text-ink-muted">
                   Only maintainers can attest.
                 </p>
               )
@@ -256,8 +256,8 @@ const AttestationCard = ({
 
         {isLoading && (
           <div className="flex items-center gap-3 py-1" aria-busy="true">
-            <Spinner className="text-primary" />
-            <p className="text-sm text-tertiary">Loading attestations…</p>
+            <Spinner className="text-ink" />
+            <p className="text-sm text-ink-muted">Loading attestations…</p>
           </div>
         )}
       </div>
@@ -267,27 +267,27 @@ const AttestationCard = ({
         <div className="flex flex-col gap-1">
           {attestations.length > 0 ? (
             <>
-              <p className="text-sm font-semibold text-primary">
+              <p className="text-sm font-semibold text-ink">
                 Attested by ({attestations.length})
               </p>
               {attestations.map((a) => (
                 <div key={a.attester} className="flex items-center gap-2">
-                  <span className="text-sm text-primary font-mono">
+                  <span className="text-sm text-ink font-mono">
                     {truncateMiddle(a.attester, 12)}
                   </span>
                   {maintainerSet.has(a.attester) && (
-                    <span className="text-xs font-medium bg-zinc-200 text-zinc-700 px-1 rounded-sm">
+                    <span className="text-xs font-medium bg-line text-ink px-1 rounded-control">
                       maintainer
                     </span>
                   )}
                   {a.attester === connectedPublicKey && (
-                    <span className="text-xs text-tertiary">(you)</span>
+                    <span className="text-xs text-ink-muted">(you)</span>
                   )}
                 </div>
               ))}
             </>
           ) : (
-            <p className="text-sm text-tertiary">No attestations yet.</p>
+            <p className="text-sm text-ink-muted">No attestations yet.</p>
           )}
         </div>
       )}

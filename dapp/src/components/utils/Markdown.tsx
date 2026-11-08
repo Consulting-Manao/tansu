@@ -129,8 +129,8 @@ export default function Markdown({
         table: {
           props: { className: "table-auto border-collapse max-w-full" },
         },
-        th: { props: { className: "border border-gray-300 px-4 py-2" } },
-        td: { props: { className: "border border-gray-300 px-4 py-2" } },
+        th: { props: { className: "border border-line-strong px-4 py-2" } },
+        td: { props: { className: "border border-line-strong px-4 py-2" } },
       },
       renderRule(next, node) {
         const isHtml =

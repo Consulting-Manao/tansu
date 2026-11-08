@@ -4,7 +4,7 @@ import { FEATURED_PROJECTS } from "../../../constants/featuredProjects";
 import { memberQuery } from "../../../service/MemberService";
 import { projectQuery, projectsQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
-import { openModal } from "../../../utils/modals";
+import { memberUrl } from "utils/urls";
 import { Button, EmptyState, Loading, SectionTitle } from "components/ui";
 import {
   ErrorBoundary,
@@ -71,7 +71,8 @@ const ProjectList = () => {
   }, []);
 
   useEffect(() => {
-    if (member.data) openModal("profile", { address: memberAddress });
+    // A member found is their page; the search stays out of the history.
+    if (member.data) window.location.replace(memberUrl(memberAddress));
   }, [member.data, memberAddress]);
 
   const showPage = (next: number) => {

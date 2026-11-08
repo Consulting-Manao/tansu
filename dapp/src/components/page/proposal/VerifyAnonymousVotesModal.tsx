@@ -84,7 +84,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
       await removeVote(projectName, proposalId, address);
       await computeTallies(privateKey);
     } catch (error: any) {
-      toast.error("Remove Vote", error.message);
+      toast.error("Could not remove the vote", error.message);
     } finally {
       setRemoving(null);
     }
@@ -103,17 +103,17 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
 
           <div
             className={classNames(
-              "border rounded-md",
-              processingError ? "border-red-500" : "border-zinc-700",
+              "border rounded-control",
+              processingError ? "border-danger" : "border-ink",
               "p-3 sm:p-4 text-sm sm:text-base break-words",
             )}
           >
             {isProcessing ? (
-              <div className="text-primary text-center sm:text-left">
+              <div className="text-ink text-center sm:text-left">
                 Processing key file...
               </div>
             ) : (
-              <label className="cursor-pointer text-primary underline block text-center sm:text-left">
+              <label className="cursor-pointer text-ink underline block text-center sm:text-left">
                 Choose key file
                 <input
                   type="file"
@@ -126,7 +126,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
           </div>
 
           {processingError && (
-            <p className="text-red-500 text-xs sm:text-sm break-words">
+            <p className="text-danger text-xs sm:text-sm break-words">
               {processingError}
             </p>
           )}

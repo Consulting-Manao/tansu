@@ -1,5 +1,5 @@
 import { StrKey } from "@stellar/stellar-sdk";
-import Button from "components/utils/Button";
+import { Badge, Button, ButtonLink, Card, CardHeader } from "components/ui";
 import Modal from "components/utils/Modal";
 import Markdown from "components/utils/Markdown";
 import React, { useEffect, useState, useMemo } from "react";
@@ -11,7 +11,6 @@ import type {
 } from "types/proposal";
 import { parseToLosslessJson } from "utils/passToLosslessJson";
 import * as StellarXdr from "utils/stellarXdr";
-import { capitalizeFirstLetter } from "utils/utils";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { getStellarExpertUrl } from "utils/urls";
 import { winningOutcome } from "utils/proposalOutcomes";
@@ -74,72 +73,65 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
     status === "approved" || status === "rejected" || status === "cancelled";
 
   return (
-    <div className="flex flex-col gap-12">
-      <div className="flex flex-col gap-6">
-        <div className="flex justify-between items-center">
-          <p className="text-2xl font-medium text-primary">
-            Proposal Description
-          </p>
-          <Button
-            type="secondary"
-            icon="/icons/ipfs.svg"
-            onClick={() =>
-              ipfsLink &&
-              window.open(getIpfsBasicLink(ipfsLink), "_blank", "noopener")
-            }
-          >
-            View IPFS
-          </Button>
-        </div>
+    <>
+      <Card>
+        <CardHeader
+          title="Description"
+          action={
+            ipfsLink && (
+              <a
+                href={getIpfsBasicLink(ipfsLink)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-small font-semibold text-link underline-offset-2 hover:underline"
+              >
+                View on IPFS
+              </a>
+            )
+          }
+        />
         {description ? (
-          <Markdown
-            className="w-full px-4 sm:px-6 md:px-8 py-6"
-            baseUrl={ipfsLink ? getIpfsBasicLink(ipfsLink) : undefined}
-          >
+          <Markdown baseUrl={ipfsLink ? getIpfsBasicLink(ipfsLink) : undefined}>
             {description}
           </Markdown>
         ) : (
-          <p className="w-full px-4 sm:px-6 md:px-8 py-6 text-gray-500 italic">
+          <p className="text-ink-muted">
             No description available or IPFS content could not be loaded.
           </p>
         )}
-      </div>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <p className="text-2xl font-medium text-primary">Proposal Outcome</p>
-        </div>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Outcomes"
+          action={
+            <span className="text-small text-ink-muted">
+              What execution does
+            </span>
+          }
+        />
         <div className="flex flex-col gap-3">
-          {!outcome ? (
-            <p className="p-[30px] text-gray-500 italic bg-white">
-              {OUTCOME_FALLBACK_MESSAGE}
-            </p>
+          {!outcome ||
+          !OUTCOME_TYPES.some((type) =>
+            hasUsableOutcomeContent(outcome[type]),
+          ) ? (
+            <p className="text-ink-muted">{OUTCOME_FALLBACK_MESSAGE}</p>
           ) : (
             OUTCOME_TYPES.map((type) => {
               const detail = outcome[type];
-              if (hasUsableOutcomeContent(detail)) {
-                return (
-                  <OutcomeDetail
-                    key={type}
-                    type={type}
-                    detail={detail}
-                    isXdrInit={isReady}
-                    isExecuted={canHighlightOutcome && executedType === type}
-                  />
-                );
-              }
-              return (
-                <p
+              return hasUsableOutcomeContent(detail) ? (
+                <OutcomeDetail
                   key={type}
-                  className="p-[30px] text-gray-500 italic bg-white"
-                >
-                  {OUTCOME_FALLBACK_MESSAGE}
-                </p>
-              );
+                  type={type}
+                  detail={detail}
+                  isXdrInit={isReady}
+                  isExecuted={canHighlightOutcome && executedType === type}
+                />
+              ) : null;
             })
           )}
         </div>
-      </div>
-    </div>
+      </Card>
+    </>
   );
 };
 
@@ -241,30 +233,22 @@ const OutcomeDetail: React.FC<{
   const renderActionButton = () => {
     if (detail.contract) {
       return (
-        <Button
-          type="secondary"
-          icon="/icons/code.svg"
-          onClick={() =>
-            window.open(
-              getStellarExpertUrl(detail.contract!.address, "contract"),
-              "_blank",
-              "noopener",
-            )
-          }
+        <ButtonLink
+          tone="secondary"
+          size="sm"
+          href={getStellarExpertUrl(detail.contract.address, "contract")}
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          <p className="text-xl text-primary">View Contract</p>
-        </Button>
+          View contract
+        </ButtonLink>
       );
     }
 
     if (content) {
       return (
-        <Button
-          type="secondary"
-          icon="/icons/eye.svg"
-          onClick={() => setShowModal(true)}
-        >
-          <p className="text-xl text-primary">View XDR</p>
+        <Button tone="secondary" size="sm" onClick={() => setShowModal(true)}>
+          View XDR
         </Button>
       );
     }
@@ -276,38 +260,38 @@ const OutcomeDetail: React.FC<{
     if (detail.contract) {
       return (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-primary">
+          <h3 className="text-card font-semibold">
             Contract Execution Details
           </h3>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1">
+              <label className="mb-1 block text-small text-ink-muted">
                 Contract Address
               </label>
-              <p className="font-mono text-sm bg-gray-50 p-2 rounded break-all">
+              <p className="rounded-control bg-sunken p-2 font-mono text-small break-all">
                 {detail.contract.address}
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1">
+              <label className="mb-1 block text-small text-ink-muted">
                 Function Name
               </label>
-              <p className="font-mono text-sm bg-gray-50 p-2 rounded">
+              <p className="rounded-control bg-sunken p-2 font-mono text-small">
                 {detail.contract.execute_fn}
               </p>
             </div>
             {detail.contract.args && detail.contract.args.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-secondary mb-1">
+                <label className="mb-1 block text-small text-ink-muted">
                   Arguments
                 </label>
-                <div className="text-xs bg-gray-50 p-2 rounded border space-y-1">
+                <div className="space-y-1 rounded-control bg-sunken p-2 text-small">
                   {detail.contract.args.map((arg, index) => (
                     <div key={index} className="flex items-start gap-3">
-                      <span className="font-medium text-primary">
+                      <span className="font-semibold">
                         {getArgLabel(index)}:
                       </span>
-                      <span className="font-mono text-secondary break-all">
+                      <span className="font-mono break-all text-ink-muted">
                         {formatContractValue(getDisplayArgValue(arg))}
                       </span>
                     </div>
@@ -330,74 +314,52 @@ const OutcomeDetail: React.FC<{
 
     return null;
   };
-  const borderClass = isExecuted
-    ? type === "approved"
-      ? "border-green-500 bg-green-50"
+  const dot =
+    type === "approved"
+      ? "bg-vote-approve"
       : type === "rejected"
-        ? "border-red-500 bg-red-50"
-        : "border-[#FFB21E] bg-[#FFB21E] text-white"
-    : "border border-gray-200";
+        ? "bg-vote-reject"
+        : "bg-vote-abstain";
 
   return (
     <div
-      className={`p-[30px] flex flex-col gap-4 bg-white rounded-md transition-all ${borderClass}`}
+      className={`flex flex-col gap-3 rounded-control border p-4 ${
+        isExecuted ? "border-accent bg-accent-soft" : "border-line"
+      }`}
     >
-      <div className="flex items-center gap-3">
-        <p
-          className={`text-xl font-medium ${
-            type === "approved"
-              ? "text-approved"
-              : type === "rejected"
-                ? "text-rejected"
-                : "text-cancelled"
-          }`}
-        >
-          {capitalizeFirstLetter(type || "")}
-        </p>
-        {isExecuted && (
-          <span
-            className={`px-3 py-1 text-xs font-bold uppercase border-[#FFB21E] bg-[#FFB21E] text-white border`}
-          >
-            Executed Outcome
-          </span>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <span aria-hidden="true" className={`size-2 rounded-full ${dot}`} />
+        <p className="font-semibold">If {type}</p>
+        {isExecuted && <Badge tone="accent">Executed outcome</Badge>}
       </div>
-      <p className="text-base font-semibold text-primary">
-        {detail.description}
-      </p>
+      <p>{detail.description}</p>
       {detail.contract?.address?.trim() && (
         <div className="space-y-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-secondary">
-              Contract Address
-            </p>
-            <p className="font-mono text-sm text-primary break-all">
+            <p className="text-small text-ink-muted">Contract Address</p>
+            <p className="font-mono text-small break-all">
               {detail.contract.address}
             </p>
           </div>
           {detail.contract.execute_fn?.trim() ? (
             <div>
-              <p className="text-xs uppercase tracking-wide text-secondary">
-                Function Call
-              </p>
-              <p className="font-mono text-sm text-primary">
+              <p className="text-small text-ink-muted">Function Call</p>
+              <p className="font-mono text-small">
                 {detail.contract.execute_fn}()
               </p>
               {detail.contract.args && detail.contract.args.length > 0 && (
                 <div className="mt-2 space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-secondary">
-                    Parameters
-                  </p>
-                  <div className="text-xs bg-gray-50 p-2 rounded border space-y-1">
+                  <p className="text-small text-ink-muted">Parameters</p>
+                  <div className="space-y-1 rounded-control bg-sunken p-2 text-small">
                     {detail.contract.args.map((arg, index) => (
                       <div
                         key={index}
                         className="flex justify-between items-start gap-3"
                       >
-                        <span className="font-medium text-primary">
+                        <span className="font-semibold">
                           {getArgLabel(index)}
                         </span>
-                        <span className="font-mono text-secondary break-all text-right">
+                        <span className="font-mono break-all text-right text-ink-muted">
                           {formatContractValue(getDisplayArgValue(arg))}
                         </span>
                       </div>
@@ -407,18 +369,15 @@ const OutcomeDetail: React.FC<{
               )}
             </div>
           ) : (
-            <p className="text-sm text-secondary">(Function not selected)</p>
+            <p className="text-small text-ink-muted">(Function not selected)</p>
           )}
         </div>
       )}
       {detail.xdr && (
-        <div className="text-sm text-secondary">
-          <span className="inline-block w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-          XDR-based execution
-        </div>
+        <p className="text-small text-ink-muted">XDR-based execution</p>
       )}
       {renderActionButton() && (
-        <div className="flex justify-end">{renderActionButton()}</div>
+        <div className="flex">{renderActionButton()}</div>
       )}
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>

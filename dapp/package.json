@@ -67,7 +67,7 @@
     "start": "astro dev",
     "test": "bun playwright test --reporter=dot",
     "test:unit": "bunx vitest run",
-    "lint": "prettier -c . && eslint src/ --ext .ts,.tsx,.jsx && knip && bun scripts/validate-contract-errors.js",
+    "lint": "prettier -c . && eslint src/ --ext .ts,.tsx,.jsx && knip && bun scripts/validate-contract-errors.js && bun scripts/check-tokens.js",
     "validate-errors": "bun scripts/validate-contract-errors.js",
     "format": "prettier --write .",
     "audit": "bun run build:lighthouse && bunx serve dist -l 3000 & sleep 8 && bunx lighthouse http://localhost:3000 --output=json --output-path=./lighthouse-local-results.json --chrome-flags=\"--headless --disable-dev-shm-usage\" && pkill -f serve && cat lighthouse-local-results.json | jq '.categories | with_entries(.value = .value.score)'",

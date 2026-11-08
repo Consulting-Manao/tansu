@@ -16,21 +16,21 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
     if (factor <= 2) {
       return {
         level: "High Risk",
-        color: "text-red-600 bg-red-50 border-red-200",
+        color: "text-danger bg-danger-soft border-danger/40",
         description:
           "Very few contributors control most of the codebase. Consider encouraging more diverse contributions.",
       };
     } else if (factor <= 5) {
       return {
         level: "Medium Risk",
-        color: "text-yellow-600 bg-yellow-50 border-yellow-200",
+        color: "text-warning bg-warning-soft border-warning/40",
         description:
           "A small group controls most contributions. Good, but could benefit from broader participation.",
       };
     } else {
       return {
         level: "Low Risk",
-        color: "text-green-600 bg-green-50 border-green-200",
+        color: "text-success bg-success-soft border-success/40",
         description:
           "Well-distributed contributions across multiple contributors. Excellent bus factor!",
       };
@@ -40,10 +40,10 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
   const risk = getRiskLevel(ponyFactor.factor);
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200">
+    <div className="bg-surface p-6 rounded-control border border-line">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-primary">Pony Factor</h3>
+          <h3 className="text-lg font-semibold text-ink">Pony Factor</h3>
           <div
             className={`px-3 py-1 rounded-full text-xs font-medium border ${risk.color}`}
           >
@@ -52,19 +52,17 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="text-4xl font-bold text-primary">
-            {ponyFactor.factor}
-          </div>
+          <div className="text-4xl font-bold text-ink">{ponyFactor.factor}</div>
           <div className="flex-1">
-            <div className="text-sm text-secondary mb-1">
+            <div className="text-sm text-ink-muted mb-1">
               {ponyFactor.explanation}
             </div>
-            <div className="text-xs text-gray-500">{risk.description}</div>
+            <div className="text-xs text-ink-muted">{risk.description}</div>
           </div>
         </div>
 
         <div className="mt-4">
-          <div className="text-sm font-medium text-secondary mb-2">
+          <div className="text-sm font-medium text-ink-muted mb-2">
             Top Contributors (50% of commits)
           </div>
           <div className="space-y-2">
@@ -82,15 +80,15 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
                     className="flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600">
+                      <div className="w-6 h-6 bg-info-soft rounded-full flex items-center justify-center text-xs font-medium text-link">
                         {index + 1}
                       </div>
-                      <span className="text-sm text-primary">
+                      <span className="text-sm text-ink">
                         {contributor.author.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-secondary">
+                      <span className="text-xs text-ink-muted">
                         {contributor.commitCount} commits
                       </span>
                       <Bar percent={percentage} className="w-16" />
@@ -101,8 +99,8 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
           </div>
         </div>
 
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <div className="text-xs text-gray-600">
+        <div className="mt-4 p-3 bg-sunken rounded-control">
+          <div className="text-xs text-ink-muted">
             <strong>What is Pony Factor?</strong> The minimum number of
             contributors whose removal would leave the project in a critical
             state. Based on the principle that if key contributors were "hit by
@@ -111,7 +109,7 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
               href="https://ke4qqq.wordpress.com/2015/02/08/pony-factor-math/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-link hover:underline"
             >
               Learn more ↗
             </a>

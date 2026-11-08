@@ -34,17 +34,15 @@ const MonthlyActivityChart = ({
   const max = Math.max(...values, 1);
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 h-full">
+    <div className="bg-surface p-6 rounded-control border border-line h-full">
       <div className="flex flex-col gap-4 h-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h3 className="text-lg font-semibold text-primary">
-            Monthly Activity
-          </h3>
+          <h3 className="text-lg font-semibold text-ink">Monthly Activity</h3>
           <div className="flex gap-2 flex-wrap">
             <select
               value={metric}
               onChange={(e) => setMetric(e.target.value as Metric)}
-              className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-white"
+              className="px-3 py-1 text-xs border border-line-strong rounded-control bg-surface"
             >
               <option value="commits">Commits</option>
               <option value="contributors">Contributors</option>
@@ -54,7 +52,7 @@ const MonthlyActivityChart = ({
               onChange={(e) =>
                 setTimeRange(e.target.value as keyof typeof RANGES)
               }
-              className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-white"
+              className="px-3 py-1 text-xs border border-line-strong rounded-control bg-surface"
             >
               <option value="6m">Last 6 months</option>
               <option value="12m">Last 12 months</option>
@@ -63,16 +61,16 @@ const MonthlyActivityChart = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 p-4 bg-sunken rounded-control">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{total}</div>
-            <div className="text-xs text-secondary">Total {metric}</div>
+            <div className="text-2xl font-bold text-ink">{total}</div>
+            <div className="text-xs text-ink-muted">Total {metric}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">
+            <div className="text-2xl font-bold text-ink">
               {months.length ? Math.round(total / months.length) : 0}
             </div>
-            <div className="text-xs text-secondary">Monthly average</div>
+            <div className="text-xs text-ink-muted">Monthly average</div>
           </div>
         </div>
 
@@ -81,18 +79,18 @@ const MonthlyActivityChart = ({
             {months.map((month, i) => (
               <li
                 key={month}
-                className="flex items-center gap-3 text-xs text-secondary"
+                className="flex items-center gap-3 text-xs text-ink-muted"
               >
                 <span className="w-12 shrink-0">{formatMonth(month)}</span>
                 <Bar percent={(values[i]! / max) * 100} className="flex-1" />
-                <span className="w-8 shrink-0 text-right text-primary">
+                <span className="w-8 shrink-0 text-right text-ink">
                   {values[i]}
                 </span>
               </li>
             ))}
           </ul>
         ) : (
-          <div className="flex items-center justify-center min-h-[120px] text-secondary text-sm">
+          <div className="flex items-center justify-center min-h-[120px] text-ink-muted text-sm">
             No data available
           </div>
         )}

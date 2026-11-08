@@ -38,10 +38,10 @@ const VotingResultModal: React.FC<VotingResultModal> = ({
         />
         <div className="flex-grow flex flex-col gap-6 sm:gap-[30px]">
           <div className="flex flex-col gap-2 sm:gap-3 text-center sm:text-left">
-            <p className="leading-6 text-lg sm:text-xl font-medium text-primary">
+            <p className="leading-6 text-lg sm:text-xl font-medium text-ink">
               Voting Results
             </p>
-            <p className="text-sm sm:text-base text-secondary">
+            <p className="text-sm sm:text-base text-ink-muted">
               The voting period has ended. Below are the final results.
             </p>
           </div>
@@ -118,7 +118,7 @@ const Voters: FC<VotersProps> = ({
   return (
     <div className="flex flex-col gap-[18px]">
       <div className="flex flex-col gap-3">
-        <p className="leading-4 text-base text-secondary">
+        <p className="leading-4 text-base text-ink-muted">
           {onlyMaintainers ? "Maintainers" : "Community"}
         </p>
         <div className="flex">
@@ -141,9 +141,9 @@ const Voters: FC<VotersProps> = ({
           .map((voter: any, index: number) => (
             <div className="flex flex-col justify-end gap-2" key={index}>
               {voter.name && (
-                <p className="leading-6 text-xl text-primary">@{voter.name}</p>
+                <p className="leading-6 text-xl text-ink">@{voter.name}</p>
               )}
-              <p className="leading-[14px] text-sm text-secondary">
+              <p className="leading-[14px] text-sm text-ink-muted">
                 ({truncateMiddle(voter.address, 16)})
               </p>
             </div>
@@ -157,9 +157,9 @@ const Voters: FC<VotersProps> = ({
             onClick={() => setShowAll(!showAll)}
           >
             <div className="flex gap-1">
-              <div className="w-1 h-1 bg-primary" />
-              <div className="w-1 h-1 bg-primary" />
-              <div className="w-1 h-1 bg-primary" />
+              <div className="w-1 h-1 bg-action" />
+              <div className="w-1 h-1 bg-action" />
+              <div className="w-1 h-1 bg-action" />
             </div>
           </Button>
         )}
@@ -183,12 +183,10 @@ const VoteTypeSelectButton: FC<VoteTypeSelectButtonProps> = ({
 }) => {
   return (
     <button
-      className={`p-[6px_12px] ${type == currentType && "bg-[#FFBD1E]"} border border-[#FFBD1E]`}
+      className={`p-[6px_12px] ${type == currentType && "bg-accent"} border border-accent`}
       onClick={() => setCurrentType(type)}
     >
-      <p className="leading-4 text-base font-medium text-primary">
-        {label} Votes
-      </p>
+      <p className="leading-4 text-base font-medium text-ink">{label} Votes</p>
     </button>
   );
 };

@@ -37,10 +37,10 @@ const WalletFundingModal = ({
           alt="Wallet warning"
           className="w-16 h-16"
         />
-        <h3 className="text-xl font-semibold text-primary">{title}</h3>
-        <p className="text-sm sm:text-base text-secondary">{message}</p>
+        <h3 className="text-xl font-semibold text-ink">{title}</h3>
+        <p className="text-sm sm:text-base text-ink-muted">{message}</p>
 
-        <p className="text-xs text-tertiary mt-2">
+        <p className="text-xs text-ink-muted mt-2">
           You need XLM in your wallet to interact with this dApp.
         </p>
 

@@ -1,4 +1,4 @@
-import Button from "components/utils/Button";
+import { Card, CardHeader } from "components/ui";
 import Markdown from "components/utils/Markdown";
 import React, { useState } from "react";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
@@ -24,49 +24,44 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
   const hasContent = hasThread || hasSummary;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-between items-center">
-        <p className="text-2xl font-medium text-primary">Discussion</p>
-        {hasContent && ipfsCid && (
-          <Button
-            type="secondary"
-            icon="/icons/ipfs.svg"
-            onClick={() =>
-              window.open(getIpfsBasicLink(ipfsCid), "_blank", "noopener")
-            }
-          >
-            View IPFS
-          </Button>
-        )}
-      </div>
-
+    <Card>
+      <CardHeader
+        title="Discussion"
+        action={
+          hasContent &&
+          ipfsCid && (
+            <a
+              href={getIpfsBasicLink(ipfsCid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-small font-semibold text-link underline-offset-2 hover:underline"
+            >
+              View on IPFS
+            </a>
+          )
+        }
+      />
       {isLoading ? (
-        <p className="text-gray-500 italic">Loading discussion…</p>
+        <p className="text-ink-muted">Loading discussion…</p>
       ) : !hasContent ? (
-        <p className="p-[30px] text-gray-500 italic bg-white">
+        <p className="text-ink-muted">
           No discussion available for this proposal.
         </p>
       ) : (
-        <div className="flex flex-col gap-6">
-          {hasSummary && (
-            <div className="bg-white rounded-md border border-gray-200 p-[30px] flex flex-col gap-3">
-              <Markdown baseUrl={baseUrl}>{summary!}</Markdown>
-            </div>
-          )}
-
+        <div className="flex flex-col gap-4">
+          {hasSummary && <Markdown baseUrl={baseUrl}>{summary!}</Markdown>}
           {hasThread && (
             <div className="flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => setShowThread((v) => !v)}
-                className="self-start text-base font-medium text-primary underline"
+                className="self-start text-small font-semibold text-link underline-offset-2 hover:underline"
               >
                 {showThread ? "Hide full discussion" : "Show full discussion"}
               </button>
-
               {showThread && (
                 <Markdown
-                  className="bg-white rounded-md border border-gray-200 p-[30px]"
+                  className="rounded-control border border-line p-4"
                   baseUrl={baseUrl}
                 >
                   {discussion!}
@@ -76,7 +71,7 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 

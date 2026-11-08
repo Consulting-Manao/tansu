@@ -154,7 +154,7 @@ test("outcome calls land in their slots, typed, and execute", async ({
     .toBeGreaterThan(endsAt + 10);
   for (const id of [typed, filler, named]) {
     await page.goto(`/proposal/?id=${id}&name=${name}`);
-    await page.getByRole("button", { name: "Finalize Vote" }).click();
+    await page.getByRole("button", { name: "Execute proposal" }).click();
     await page.getByRole("button", { name: "Next", exact: true }).click();
     const check = registryCheck[id];
     if (check) await expect(page.getByText(check)).toBeVisible();

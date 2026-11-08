@@ -1,0 +1,13 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PageBand from "../../components/layout/PageBand.astro";
+import MemberHead from "../../components/page/member/MemberHead";
+import MemberPage from "../../components/page/member/MemberPage";
+---
+
+<Layout title="Tansu" page="member">
+  <PageBand>
+    <MemberHead client:only="react" />
+  </PageBand>
+  <MemberPage client:only="react" />
+</Layout>

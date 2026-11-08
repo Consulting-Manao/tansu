@@ -66,11 +66,11 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
         />
         <div className="flex flex-col gap-3 sm:gap-4 w-full">
           <div className="flex flex-col gap-2 sm:gap-3">
-            <p className="leading-4 text-sm sm:text-base text-secondary text-center sm:text-left">
+            <p className="leading-4 text-sm sm:text-base text-ink-muted text-center sm:text-left">
               {projectData?.organization || ""}
             </p>
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-[18px]">
-              <p className="text-xl sm:text-2xl text-primary text-center sm:text-left">
+              <p className="text-xl sm:text-2xl text-ink text-center sm:text-left">
                 {projectData?.name || ""}
               </p>
               <div className="flex items-center gap-3">
@@ -102,7 +102,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                 )}
               </div>
             </div>
-            <p className="text-sm sm:text-base text-primary text-center sm:text-left max-w-full break-words">
+            <p className="text-sm sm:text-base text-ink text-center sm:text-left max-w-full break-words">
               {projectData?.description || ""}
             </p>
           </div>
@@ -117,27 +117,27 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                     }
                     showText={true}
                     text="Clone Repository"
-                    className="w-full sm:w-auto p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9]"
+                    className="w-full sm:w-auto p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-sunken"
                   />
                 </div>
                 {releasesUrl ? (
                   <button
                     onClick={handleGoToReleases}
-                    className="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-[#F5F1F9] flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
+                    className="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-sunken flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
                   >
                     <img
                       src="/icons/link.svg"
                       className="w-4 h-4 sm:w-auto sm:h-auto"
                       alt="External link"
                     />
-                    <span className="leading-5 text-base sm:text-xl text-primary cursor-pointer">
+                    <span className="leading-5 text-base sm:text-xl text-ink cursor-pointer">
                       Go to Releases
                     </span>
                   </button>
                 ) : null}
               </div>
               <Markdown
-                className="border border-gray-200 rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4"
+                className="border border-line rounded h-auto max-h-[60vh] overflow-y-auto overflow-x-hidden p-4"
                 baseUrl={readme.data?.rawBaseUrl}
               >
                 {readmeContent || projectData?.description || ""}

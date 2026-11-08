@@ -214,7 +214,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
           checked={selectedAddresses.has(address)}
           onChange={() => handleToggleSelection(address)}
           disabled={isSubmitting}
-          className="w-4 h-4 cursor-pointer accent-primary shrink-0"
+          className="w-4 h-4 cursor-pointer accent-action shrink-0"
         />
       )}
       <div className="flex-grow">
@@ -251,11 +251,11 @@ const ConflictOfInterestModal: React.FC<Props> = ({
 
         <div className="flex flex-col gap-3">
           <div className="flex justify-between items-center">
-            <p className="leading-4 text-base font-semibold text-primary">
+            <p className="leading-4 text-base font-semibold text-ink">
               Current list
             </p>
             {canEdit && addresses.length > 0 && (
-              <label className="flex items-center gap-2 text-sm cursor-pointer text-secondary hover:text-primary transition-colors">
+              <label className="flex items-center gap-2 text-sm cursor-pointer text-ink-muted hover:text-ink transition-colors">
                 <input
                   type="checkbox"
                   checked={
@@ -264,7 +264,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
                   }
                   onChange={handleSelectAll}
                   disabled={isSubmitting}
-                  className="w-4 h-4 accent-primary cursor-pointer"
+                  className="w-4 h-4 accent-action cursor-pointer"
                 />
                 Select all
               </label>
@@ -274,7 +274,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
             <Loading />
           ) : loadError ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-red-600">{loadError}</p>
+              <p className="text-sm text-danger">{loadError}</p>
               <div>
                 <Button
                   type="tertiary"
@@ -286,7 +286,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
               </div>
             </div>
           ) : addresses.length === 0 ? (
-            <p className="text-sm text-tertiary italic">
+            <p className="text-sm text-ink-muted italic">
               No addresses have been declared.
             </p>
           ) : (
@@ -323,10 +323,10 @@ const ConflictOfInterestModal: React.FC<Props> = ({
         {pendingAddresses.length > 0 && (
           <div className="flex flex-col gap-3 mt-2 animate-in fade-in slide-in-from-top-2">
             <div className="flex justify-between items-center">
-              <p className="leading-4 text-base font-semibold text-primary">
+              <p className="leading-4 text-base font-semibold text-ink">
                 Pending to add
               </p>
-              <label className="flex items-center gap-2 text-sm cursor-pointer text-secondary hover:text-primary transition-colors">
+              <label className="flex items-center gap-2 text-sm cursor-pointer text-ink-muted hover:text-ink transition-colors">
                 <input
                   type="checkbox"
                   checked={
@@ -335,7 +335,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
                   }
                   onChange={handleSelectAllPending}
                   disabled={isSubmitting}
-                  className="w-4 h-4 accent-primary cursor-pointer"
+                  className="w-4 h-4 accent-action cursor-pointer"
                 />
                 Select all
               </label>
@@ -348,7 +348,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
                     checked={selectedPendingAddresses.has(addr)}
                     onChange={() => handleTogglePendingSelection(addr)}
                     disabled={isSubmitting}
-                    className="w-4 h-4 cursor-pointer accent-primary shrink-0"
+                    className="w-4 h-4 cursor-pointer accent-action shrink-0"
                   />
                   <div className="flex-grow">
                     <VoterInfo
@@ -391,8 +391,8 @@ const ConflictOfInterestModal: React.FC<Props> = ({
         )}
 
         {selectedAddresses.size > 0 && (
-          <div className="sticky bottom-0 bg-white border-t border-gray-100 py-4 mt-2 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] animate-in slide-in-from-bottom-2">
-            <p className="text-sm font-medium text-primary">
+          <div className="sticky bottom-0 bg-surface border-t border-line py-4 mt-2 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] animate-in slide-in-from-bottom-2">
+            <p className="text-sm font-medium text-ink">
               {selectedAddresses.size} address
               {selectedAddresses.size > 1 ? "es" : ""} selected
             </p>

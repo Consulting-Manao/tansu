@@ -41,15 +41,27 @@ const { title, page } = Astro.props;
       var global = global || window;
     </script>
     <!-- The theme before the first paint: the visitor's choice, kept in
-         this browser (light until then). -->
+         this browser (the device's until then). -->
     <script is:inline>
       try {
         var theme = localStorage.getItem("tansu-theme");
-        if (theme === "dark" || theme === "system")
+        if (theme === "dark" || theme === "light")
           document.documentElement.dataset.theme = theme;
       } catch (_) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The browser's bar takes the page's ground (--ds-ground) in each theme;
+         ThemeSwitch keeps them in step with a theme picked by hand. -->
+    <meta
+      name="theme-color"
+      content="#f6f4f9"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0e0a16"
+      media="(prefers-color-scheme: dark)"
+    />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="generator" content={Astro.generator} />
 
@@ -107,8 +119,6 @@ const { title, page } = Astro.props;
             content:
               "stellar, blockchain, open source, decentralized, governance, funding, collaboration",
           },
-          // The page's ground (--ds-ground), not a purple bar over a light app.
-          { name: "theme-color", content: "#f6f4f9" },
           { name: "application-name", content: "Tansu" },
         ],
       }}

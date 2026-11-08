@@ -1,6 +1,6 @@
 @import "tailwindcss/index.css";
-/* The light theme only: the default file follows the system's dark mode,
-   which painted dark Markdown panels inside the light app. */
+/* The light file, recoloured with the tokens below: it follows the app's
+   theme, not the system's. */
 @import "github-markdown-css/github-markdown-light.css";
 /* Status colours named at runtime (`text-${status}`): kept in the build. */
 @source inline("text-active text-rejected text-cancelled text-voted text-approved text-approve text-reject text-abstain");
@@ -62,53 +62,16 @@
   --breakpoint-lg: 976px;
   --breakpoint-xl: 1440px;
 
-  --font-firacode: "Fira Code", monospace;
-  --font-victormono: "Victor Mono", monospace;
-  --font-firamono: "Fira Mono", monospace;
-
-  --color-primary: #311255;
-  --color-secondary: #4c4354;
-  --color-tertiary: #5d4e6b;
-  --color-black: #000000;
-  --color-white: #ffffff;
-  --color-pink: #311255;
-  --color-gray: #b4b4b4;
-  --color-stone: #231f20;
-  --color-lime: #b9ff66;
-  --color-blue: #0b32f6;
-  --color-red: #ff3b30;
-  --color-yellow: #e0d911;
-  /* Status colors: 4.5:1 or more on white (WCAG AA). */
-  --color-active: #1a7f37;
-  --color-rejected: #de2020;
-  --color-cancelled: #b35c00;
-  --color-voted: #096bc7;
-  --color-approved: #1a7f37;
-  --color-approve: #1a7f37;
-  --color-reject: #de2020;
-  --color-abstain: #b35c00;
-  --color-zinc-100: #f3f3f3;
-  --color-zinc-200: #f0f0f0;
-  --color-zinc-300: #d9d9d9;
-  --color-zinc-400: #d5d5d5;
-  --color-zinc-500: #cbcbcb;
-  --color-zinc-600: #a3a3a3;
-  --color-zinc-700: #787878;
-  --color-zinc-800: #494949;
-  --color-zinc-900: #1c1c1c;
-
-  --shadow-card: 1px 2px 12px rgba(45, 15, 81, 0.06);
-  --shadow-vote: 0px 0px 4px 4px #acff75;
-  --shadow-button: 1px 3px 18px rgba(45, 15, 81, 0.08);
-  --shadow-modal: 4px 8px 36px rgba(49, 18, 85, 0.12);
+  /* Only the design system's colours exist: Tailwind's palette is gone, so a
+     class outside the tokens draws nothing (and scripts/check-tokens.js
+     fails the lint). */
+  --color-*: initial;
 }
 
 /*
- * The design system (round 2 of the design canvas). New names beside the
- * ones above: pages move onto them one journey at a time, and the old names
- * go once nothing uses them. Components read these tokens only; light and
- * dark are two sets of values for the same names, so no component knows the
- * theme.
+ * The design system (round 2 of the design canvas). Components read these
+ * tokens only; light and dark are two sets of values for the same names, so
+ * no component knows the theme.
  */
 @theme inline {
   --color-ground: var(--ds-ground);
@@ -145,6 +108,17 @@
   --color-band-muted: var(--ds-band-muted);
   --color-band-line: var(--ds-band-line);
   --color-scrim: var(--ds-scrim);
+  /* Always white: the tile behind a project's logo, drawn for a light ground */
+  --color-paper: #ffffff;
+  /* Statuses named at runtime (text-${status}), as text: 4.5:1 or more */
+  --color-active: var(--ds-success);
+  --color-approved: var(--ds-success);
+  --color-approve: var(--ds-success);
+  --color-voted: var(--ds-info);
+  --color-rejected: var(--ds-danger);
+  --color-reject: var(--ds-danger);
+  --color-cancelled: var(--ds-warning);
+  --color-abstain: var(--ds-warning);
 
   --shadow-raise: var(--ds-shadow-raise);
   --shadow-float: var(--ds-shadow-float);
@@ -190,14 +164,13 @@
 
 /*
  * Each token holds its light and its dark value. The theme is only
- * color-scheme: light by default, so pages not yet moved onto these tokens
- * stay light; the shell sets data-theme="system" (follow the device) or
- * "dark" once it moves. Light: a quiet lavender page; dark: a deep purple
+ * color-scheme: the device's by default, data-theme="light" or "dark" when
+ * the reader picked one (the top bar's switch, kept in this browser). Light: a quiet lavender page; dark: a deep purple
  * night where gold carries the main action. Vote colours are graphic colours
  * in light (3:1: bars, dots, figures of 32 px and more).
  */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --ds-ground: light-dark(#f6f4f9, #0e0a16);
   --ds-surface: light-dark(#ffffff, #161021);
   --ds-sunken: light-dark(#f1edf7, #110c1b);
@@ -239,11 +212,73 @@
   --ds-shadow-float: 0 16px 40px
     light-dark(rgba(26, 17, 40, 0.16), rgba(0, 0, 0, 0.55));
 }
-:root[data-theme="system"] {
-  color-scheme: light dark;
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
+}
+
+/* Markdown that users wrote, in the app's type, colours and theme: the
+   light file writes its colours out, so each is set again here. */
+.markdown-body {
+  color-scheme: inherit;
+  color: var(--ds-ink);
+  background-color: transparent;
+  font-family: inherit;
+}
+.markdown-body a {
+  color: var(--ds-link);
+}
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom-color: var(--ds-line);
+}
+.markdown-body h6,
+.markdown-body blockquote,
+.markdown-body .footnotes {
+  color: var(--ds-ink-muted);
+}
+.markdown-body blockquote {
+  border-left-color: var(--ds-line-strong);
+}
+.markdown-body hr {
+  background-color: var(--ds-line);
+}
+.markdown-body table tr {
+  background-color: transparent;
+  border-top-color: var(--ds-line);
+}
+.markdown-body table tr:nth-child(2n),
+.markdown-body code,
+.markdown-body tt {
+  background-color: var(--ds-sunken);
+}
+.markdown-body table th,
+.markdown-body table td {
+  border-color: var(--ds-line);
+}
+.markdown-body pre,
+.markdown-body .highlight pre,
+.markdown-body kbd {
+  background-color: var(--ds-sunken);
+  color: var(--ds-ink);
+}
+.markdown-body mark {
+  background-color: var(--ds-accent-soft);
+  color: var(--ds-ink);
+}
+
+/* The hand-drawn illustrations and the icons are ink on paper: at night,
+   chalk on slate. */
+:root[data-theme="dark"] :is(img[src^="/images/"], img[src^="/icons/"]) {
+  filter: invert(1) hue-rotate(180deg);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])
+    :is(img[src^="/images/"], img[src^="/icons/"]) {
+    filter: invert(1) hue-rotate(180deg);
+  }
 }
 
 /* The installed app: the status bar already sits above the page */
@@ -269,55 +304,10 @@
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-@layer base {
-  .font-outline {
-    -webkit-text-stroke: 2.5px black;
-    background-color: transparent;
-  }
-  .font-outline-sm {
-    -webkit-text-stroke: 1.2px black;
-    background-color: transparent;
-  }
-}
-
-.background-image {
-  position: fixed;
-  left: 90px;
-  top: 120px;
-  z-index: -1;
-  width: 738px;
-  object-fit: contain;
-}
-
-/* Adjust the background size for screens less than 1920px */
-@media (max-width: 1919px) {
-  .background-image {
-    width: calc(738 * 100vw / 1920);
-  }
-}
-
-/* custom scrollbar */
-/* For Webkit-based browsers (Chrome, Safari) */
-::-webkit-scrollbar {
-  width: 2px !important;
-}
-
-::-webkit-scrollbar:horizontal {
-  height: 2px !important;
-}
-
-::-webkit-scrollbar-track {
-  border-radius: 10px !important;
-  cursor: pointer;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #aaa !important;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: #999 !important;
+/* Thin scrollbars in the theme's colours */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-line-strong) transparent;
 }
 
 /* Custom number input */
@@ -325,31 +315,4 @@ input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-._contentEditable_uazmk_379 {
-  background-color: white;
-  min-height: 200px;
-}
-
-.rotate_image {
-  -webkit-animation: spin 4s linear infinite;
-  -moz-animation: spin 4s linear infinite;
-  animation: spin 4s linear infinite;
-}
-@-moz-keyframes spin {
-  100% {
-    -moz-transform: rotate(360deg);
-  }
-}
-@-webkit-keyframes spin {
-  100% {
-    -webkit-transform: rotate(360deg);
-  }
-}
-@keyframes spin {
-  100% {
-    -webkit-transform: rotate(360deg);
-    transform: rotate(360deg);
-  }
 }

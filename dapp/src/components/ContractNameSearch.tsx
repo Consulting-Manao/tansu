@@ -109,13 +109,13 @@ export default function ContractNameSearch({
       />
 
       {status === "loading" && (
-        <p className="mt-1 text-xs text-secondary">
+        <p className="mt-1 text-xs text-ink-muted">
           Resolving on the Stellar Registry…
         </p>
       )}
 
       {showNotRegistered && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="mt-1 text-xs text-danger">
           “{query.trim()}” is not on the Stellar Registry.{" "}
           <a
             href={STELLAR_REGISTRY_URL}
@@ -129,26 +129,26 @@ export default function ContractNameSearch({
       )}
 
       {status === "error" && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="mt-1 text-xs text-danger">
           Could not reach the Stellar Registry. Press Enter to retry, or paste
           the address manually.
         </p>
       )}
 
       {showFound && (
-        <div className="mt-2 flex flex-wrap justify-between items-center gap-2 p-2 border border-gray-300 rounded-md bg-white">
+        <div className="mt-2 flex flex-wrap justify-between items-center gap-2 p-2 border border-line-strong rounded-control bg-surface">
           <div>
-            <span className="font-medium text-primary">
+            <span className="font-medium text-ink">
               {resolved!.contractName}
             </span>
-            <span className="ml-2 text-xs text-secondary font-mono">
+            <span className="ml-2 text-xs text-ink-muted font-mono">
               {shortAddress(resolved!.contractId)}
             </span>
           </div>
           <button
             type="button"
             onClick={handleUse}
-            className="px-3 py-1 text-sm rounded-md bg-primary text-white cursor-pointer"
+            className="px-3 py-1 text-sm rounded-control bg-action text-on-action cursor-pointer"
           >
             Use this address
           </button>

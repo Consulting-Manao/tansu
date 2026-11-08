@@ -73,18 +73,16 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
 
   // The maintainer removes that vote, then revokes the proposal.
   await page.goto(`/proposal/?id=${created}&name=${name}`);
-  await page.getByRole("button", { name: "Remove Vote" }).click();
+  await page.getByRole("button", { name: "Remove a vote" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByText("Vote Removed")).toBeVisible({
     timeout: 120_000,
   });
   await expect(page.getByText("No votes yet")).toBeVisible();
+  await page.getByRole("button", { name: "Revoke proposal" }).click();
   await page
-    .getByRole("button", { name: "Mark as Malicious", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Mark as Malicious", exact: true })
-    .last()
+    .getByRole("dialog")
+    .getByRole("button", { name: "Revoke proposal" })
     .click();
   await expect(page.getByText("Proposal Revoked")).toBeVisible({
     timeout: 120_000,
@@ -101,7 +99,7 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
     .poll(() => Date.now() / 1000, { timeout: 180_000, intervals: [5_000] })
     .toBeGreaterThan(endsAt + 10);
   await page.goto(`/proposal/?id=${soon}&name=${name}`);
-  await page.getByRole("button", { name: "Finalize Vote" }).click();
+  await page.getByRole("button", { name: "Execute proposal" }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Execute Transaction" }).click();
   await expect

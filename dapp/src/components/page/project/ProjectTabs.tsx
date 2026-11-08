@@ -15,7 +15,6 @@ import {
   projectUrl,
   type ProjectTab,
 } from "utils/urls";
-import MemberProfileModal from "../dashboard/MemberProfileModal";
 import ProposalsTab from "../governance/ProposalsTab";
 import CodeTab from "./CodeTab";
 import OverviewTab from "./OverviewTab";
@@ -29,7 +28,6 @@ import PeopleTab from "./PeopleTab";
 const ProjectTabs = () => {
   const name = projectNameFromUrl();
   const [tab, setTab] = useState<ProjectTab>(projectTabFromUrl);
-  const [profile, setProfile] = useState<string>();
   const projectRead = useQuery(
     { ...projectQuery(name), enabled: !!name },
     queryClient,
@@ -74,7 +72,6 @@ const ProjectTabs = () => {
             project={project}
             config={config}
             isSoftware={isSoftware}
-            onOpenProfile={setProfile}
             onShowTab={show}
           />
         ) : (
@@ -108,7 +105,6 @@ const ProjectTabs = () => {
             name={name}
             maintainers={project.maintainers}
             handles={config.handles}
-            onOpen={setProfile}
           />
         ) : (
           waiting
@@ -117,21 +113,13 @@ const ProjectTabs = () => {
   ];
 
   return (
-    <>
-      <Tabs
-        label="Project"
-        layout="page"
-        items={items}
-        value={tab}
-        onChange={(id) => show(id as ProjectTab)}
-      />
-      {profile && (
-        <MemberProfileModal
-          address={profile}
-          onClose={() => setProfile(undefined)}
-        />
-      )}
-    </>
+    <Tabs
+      label="Project"
+      layout="page"
+      items={items}
+      value={tab}
+      onChange={(id) => show(id as ProjectTab)}
+    />
   );
 };
 

@@ -24,9 +24,11 @@ test("join with a picture and a git identity, then edit the profile", async ({
 
   await page.goto("/");
   await connectWallet(page);
-  await page.getByRole("button", { name: "Open user profile" }).click();
-  await expect(page.getByText("Member Not Registered")).toBeVisible();
-  await page.getByRole("button", { name: "Register Now" }).click();
+  await page.getByRole("link", { name: "Open user profile" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Not a member yet" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Join Tansu" }).click();
   await page.getByPlaceholder("Enter your name").fill("Ada");
   await page
     .getByPlaceholder("Tell us about yourself...")
@@ -73,14 +75,13 @@ test("join with a picture and a git identity, then edit the profile", async ({
     git_identity: "codeberg:ada",
   });
 
-  // The profile reads the new member from the chain, without a reload.
-  await page.evaluate(() => ((window as any).stayed = true));
-  await page.getByRole("button", { name: "Open user profile" }).click();
+  // The member's page reads the new member from the chain.
+  await page.getByRole("link", { name: "Open user profile" }).click();
+  await expect(page).toHaveURL(/\/member\/\?address=/);
   await expect(page.getByText("codeberg:ada")).toBeVisible();
   // Codeberg does not list keys to check: the identity is self-declared.
   await expect(page.getByText("Self-declared")).toBeVisible();
   await expect(page.getByText("Writes Soroban contracts.")).toBeVisible();
-  expect(await page.evaluate(() => (window as any).stayed)).toBe(true);
 
   // A new name: the picture and the git identity stay. The picture moves
   // through the gateway, which takes a while to serve a new file.
@@ -104,7 +105,7 @@ test("join with a picture and a git identity, then edit the profile", async ({
   const picture = await read.ipfs(member.meta, "/profile-image.png");
   expect(Buffer.from(await picture.arrayBuffer())).toEqual(PICTURE);
 
-  // Another device reads the profile from IPFS: meanwhile the dialog shows
+  // Another device reads the profile from IPFS: meanwhile the page shows
   // what the chain says, and Edit waits.
   const device = await browser.newContext();
   await mockWallet(device, wallet);
@@ -118,7 +119,7 @@ test("join with a picture and a git identity, then edit the profile", async ({
   const other = await device.newPage();
   await other.goto(new URL("/", page.url()).href);
   await connectWallet(other);
-  await other.getByRole("button", { name: "Open user profile" }).click();
+  await other.getByRole("link", { name: "Open user profile" }).click();
   await expect(other.getByText("codeberg:ada")).toBeVisible();
   await expect(other.getByText("Loading profile…")).toBeVisible();
   const edit = other.getByRole("button", { name: "Edit Profile" });

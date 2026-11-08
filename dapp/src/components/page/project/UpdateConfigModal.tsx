@@ -435,7 +435,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
           {step <= 3 && basedOn === null ? (
             <div className="flex flex-col gap-4">
               {readError ? (
-                <div role="alert" className="flex flex-col gap-2 text-red-600">
+                <div role="alert" className="flex flex-col gap-2 text-danger">
                   <p>
                     The project's current files could not be read, so the
                     configuration cannot be edited yet: {readError.message}
@@ -451,7 +451,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   </Button>
                 </div>
               ) : (
-                <p className="text-secondary">
+                <p className="text-ink-muted">
                   Loading the project's current files...
                 </p>
               )}
@@ -552,11 +552,11 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   }}
                 />
                 {timingNotice && (
-                  <p className="text-sm text-secondary">{timingNotice}</p>
+                  <p className="text-sm text-ink-muted">{timingNotice}</p>
                 )}
                 {!isSoftware && (
                   <div className="flex flex-col gap-3">
-                    <p className="text-sm font-medium text-primary">README</p>
+                    <p className="text-sm font-medium text-ink">README</p>
                     <MarkdownEditorWithImages
                       value={readmeContent}
                       onChange={setReadmeContent}
@@ -586,7 +586,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   A new tansu.toml will be generated and stored on IPFS.
                 </p>
                 {previousToml === null && (
-                  <p role="alert" className="mb-4 text-red-600">
+                  <p role="alert" className="mb-4 text-danger">
                     The current tansu.toml is not valid TOML: only the values of
                     this form will be kept.
                   </p>

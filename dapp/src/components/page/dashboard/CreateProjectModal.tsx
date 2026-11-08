@@ -305,7 +305,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   error={projectFullNameError}
                 />
                 <fieldset className="flex flex-col gap-3">
-                  <legend className="leading-4 text-base text-secondary mb-3">
+                  <legend className="leading-4 text-base text-ink-muted mb-3">
                     Project Type
                   </legend>
                   <div className="flex gap-4">
@@ -329,11 +329,11 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                           onChange={() => setProjectType(type)}
                           className="w-4 h-4"
                         />
-                        <span className="text-primary">{label}</span>
+                        <span className="text-ink">{label}</span>
                       </label>
                     ))}
                   </div>
-                  <p className="text-sm text-secondary">
+                  <p className="text-sm text-ink-muted">
                     {isSoftware
                       ? "For software projects hosted on GitHub, GitLab, Bitbucket, Codeberg, Gitea, or public Radicle repositories"
                       : "For non-software projects like creative work, documentation, or community initiatives"}
@@ -446,7 +446,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                           title="Review and Submit Your Project"
                           description="Take a moment to review your project details before submitting. You can go back and make changes if needed."
                         />
-                        <p className="text-sm text-secondary">
+                        <p className="text-sm text-ink-muted">
                           <span className="font-semibold">Note:</span> Project
                           registration requires a 5 XLM collateral deposit.
                         </p>
@@ -466,19 +466,19 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   </div>
                   <ReviewSection title="First Step" onBack={() => setStep(1)}>
                     <Label label="Project Name (On-chain)">
-                      <p className="leading-6 text-xl text-primary">
+                      <p className="leading-6 text-xl text-ink">
                         {projectName}
                       </p>
                     </Label>
                     {projectFullName && (
                       <Label label="Project Full Name">
-                        <p className="leading-6 text-xl text-primary">
+                        <p className="leading-6 text-xl text-ink">
                           {projectFullName}
                         </p>
                       </Label>
                     )}
                     <Label label="Project type">
-                      <p className="leading-6 text-xl text-primary">
+                      <p className="leading-6 text-xl text-ink">
                         {isSoftware
                           ? "Software Project"
                           : "Non-Software Project"}
@@ -486,7 +486,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                     </Label>
                     {isSoftware && (
                       <Label label={`${providerLabel} Repository URL`}>
-                        <p className="leading-6 text-xl text-primary break-all">
+                        <p className="leading-6 text-xl text-ink break-all">
                           {repositoryUrl}
                         </p>
                       </Label>
@@ -498,7 +498,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                         {maintainers.map((row, index) => (
                           <p
                             key={index}
-                            className="leading-[14px] text-sm text-secondary"
+                            className="leading-[14px] text-sm text-ink-muted"
                           >
                             {`(${row.address.slice(0, 24)}...)`}
                           </p>
@@ -508,7 +508,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   </ReviewSection>
                   <ReviewSection title="Third Step" onBack={() => setStep(3)}>
                     <Label label="Finality threshold">
-                      <p className="leading-6 text-xl text-primary">
+                      <p className="leading-6 text-xl text-ink">
                         {finalityThreshold}%
                       </p>
                     </Label>
@@ -530,10 +530,10 @@ const ReviewSection = ({
   children: React.ReactNode;
 }) => (
   <>
-    <div className="h-[1px] bg-[#ECE3F4]" />
+    <div className="h-[1px] bg-sunken" />
     <div className="flex flex-col gap-6">
       <div className="flex gap-6">
-        <p className="leading-6 text-xl font-medium text-primary">{title}</p>
+        <p className="leading-6 text-xl font-medium text-ink">{title}</p>
         <Button
           type="secondary"
           size="sm"

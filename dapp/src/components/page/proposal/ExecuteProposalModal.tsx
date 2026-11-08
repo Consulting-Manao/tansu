@@ -217,7 +217,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       await removeVote(projectName, proposalId!, address);
       await computeTallies(privateKey);
     } catch (error: any) {
-      toast.error("Remove Vote", error.message);
+      toast.error("Could not remove the vote", error.message);
     } finally {
       setRemoving(null);
     }
@@ -253,16 +253,16 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
 
               <div
                 className={classNames(
-                  "border p-3 w-full rounded-md transition-colors",
-                  processingError ? "border-red-500" : "border-zinc-700",
+                  "border p-3 w-full rounded-control transition-colors",
+                  processingError ? "border-danger" : "border-ink",
                 )}
               >
                 {isProcessing ? (
-                  <div className="text-primary text-center sm:text-left">
+                  <div className="text-ink text-center sm:text-left">
                     Processing key file...
                   </div>
                 ) : (
-                  <label className="cursor-pointer text-primary underline block text-center sm:text-left">
+                  <label className="cursor-pointer text-ink underline block text-center sm:text-left">
                     Choose key file
                     <input
                       type="file"
@@ -275,13 +275,13 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               </div>
 
               {processingError && (
-                <p className="text-red-500 text-sm text-center sm:text-left">
+                <p className="text-danger text-sm text-center sm:text-left">
                   {processingError}
                 </p>
               )}
 
               {tallies && (
-                <div className="flex flex-col gap-2 text-sm text-primary text-center sm:text-left">
+                <div className="flex flex-col gap-2 text-sm text-ink text-center sm:text-left">
                   <p>Approve: {tallies[0]}</p>
                   <p>Reject: {tallies[1]}</p>
                   <p>Abstain: {tallies[2]}</p>
@@ -401,13 +401,13 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               {registryName && callAddress && (
                 <div className="flex flex-col gap-2 text-sm break-all">
                   {registryNow?.address === callAddress && (
-                    <p className="text-secondary">
+                    <p className="text-ink-muted">
                       Stellar Registry: <code>{registryNow.name}</code> still
                       points to the contract this proposal calls.
                     </p>
                   )}
                   {registryNow && registryNow.address === null && (
-                    <p className="text-red-600" role="alert">
+                    <p className="text-danger" role="alert">
                       <code>{registryNow.name}</code> is no longer registered in
                       the Stellar Registry. This proposal still calls{" "}
                       <code>{callAddress}</code>.
@@ -415,7 +415,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                   )}
                   {registryNow?.address &&
                     registryNow.address !== callAddress && (
-                      <p className="text-red-600" role="alert">
+                      <p className="text-danger" role="alert">
                         Stellar Registry: <code>{registryNow.name}</code> now
                         points to <code>{registryNow.address}</code>. This
                         proposal calls <code>{callAddress}</code>, the contract
@@ -423,7 +423,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
                       </p>
                     )}
                   {registryFailed && (
-                    <p className="text-secondary">
+                    <p className="text-ink-muted">
                       The Stellar Registry could not be reached to check{" "}
                       <code>{registryName}</code>.
                     </p>
@@ -433,9 +433,9 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
 
               {executionXdr && (
                 <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-[18px]">
-                  <p className="leading-4 text-base text-secondary">XDR</p>
-                  <div className="p-2 sm:p-[8px_18px] bg-[#FFEFA8] flex flex-col sm:flex-row items-center gap-3 sm:gap-[18px] rounded-lg">
-                    <p className="leading-[18px] text-lg text-primary break-all sm:break-normal text-center sm:text-left">
+                  <p className="leading-4 text-base text-ink-muted">XDR</p>
+                  <div className="p-2 sm:p-[8px_18px] bg-accent-soft flex flex-col sm:flex-row items-center gap-3 sm:gap-[18px] rounded-control">
+                    <p className="leading-[18px] text-lg text-ink break-all sm:break-normal text-center sm:text-left">
                       {executionXdr.slice(0, 24) + "..."}
                     </p>
                     <CopyButton textToCopy={executionXdr} size="sm" />

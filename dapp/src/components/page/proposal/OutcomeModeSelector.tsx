@@ -12,15 +12,15 @@ const OutcomeModeSelector: React.FC<OutcomeModeSelectorProps> = ({
   disabled = false,
 }) => {
   return (
-    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+    <div className="flex gap-2 p-1 bg-sunken rounded-control">
       <button
         type="button"
         onClick={() => !disabled && onModeChange("none")}
         disabled={disabled}
-        className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+        className={`flex-1 px-3 py-2 text-sm font-medium rounded-control transition-colors ${
           mode === "none"
-            ? "bg-primary text-white shadow-sm"
-            : "text-secondary hover:text-primary hover:bg-white"
+            ? "bg-action text-on-action shadow-sm"
+            : "text-ink-muted hover:text-ink hover:bg-surface"
         } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
         <div className="flex flex-col items-center">
@@ -32,10 +32,10 @@ const OutcomeModeSelector: React.FC<OutcomeModeSelectorProps> = ({
         type="button"
         onClick={() => !disabled && onModeChange("contract")}
         disabled={disabled}
-        className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+        className={`flex-1 px-3 py-2 text-sm font-medium rounded-control transition-colors ${
           mode === "contract"
-            ? "bg-primary text-white shadow-sm"
-            : "text-secondary hover:text-primary hover:bg-white"
+            ? "bg-action text-on-action shadow-sm"
+            : "text-ink-muted hover:text-ink hover:bg-surface"
         } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
         <div className="flex flex-col items-center">
@@ -47,10 +47,10 @@ const OutcomeModeSelector: React.FC<OutcomeModeSelectorProps> = ({
         type="button"
         onClick={() => !disabled && onModeChange("xdr")}
         disabled={disabled}
-        className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+        className={`flex-1 px-3 py-2 text-sm font-medium rounded-control transition-colors ${
           mode === "xdr"
-            ? "bg-primary text-white shadow-sm"
-            : "text-secondary hover:text-primary hover:bg-white"
+            ? "bg-action text-on-action shadow-sm"
+            : "text-ink-muted hover:text-ink hover:bg-surface"
         } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
         <div className="flex flex-col items-center">

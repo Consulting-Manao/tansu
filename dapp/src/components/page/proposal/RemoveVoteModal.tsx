@@ -1,4 +1,4 @@
-import Button from "components/utils/Button";
+import { Button } from "components/ui";
 import Modal from "components/utils/Modal";
 import VoterInfo from "components/utils/VoterInfo";
 import { useState, type FC } from "react";
@@ -34,7 +34,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
     try {
       await removeVote(projectName, proposalId, voterAddress);
       toast.success(
-        "Vote Removed",
+        "Vote removed",
         `Vote from ${truncateMiddle(voterAddress, 16)} has been removed.`,
       );
       onRemoved?.();
@@ -50,15 +50,15 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
     <Modal onClose={onClose}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <p className="text-xl font-medium text-primary">Remove a Vote</p>
-          <p className="text-sm text-secondary">
+          <h2 className="text-card font-semibold">Remove a vote</h2>
+          <p className="text-small text-ink-muted">
             As a maintainer you can remove a malicious or non-compliant vote.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 max-h-64 overflow-y-auto">
           {voters.length === 0 ? (
-            <p className="text-sm text-secondary italic">No votes yet.</p>
+            <p className="text-small text-ink-muted">No votes yet.</p>
           ) : (
             voters.map((voter) => (
               <VoterInfo
@@ -66,13 +66,12 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
                 address={voter.address}
                 action={
                   <Button
-                    type="tertiary"
-                    size="xs"
-                    className="!border-red-500 !text-red-500"
+                    tone="danger-ghost"
+                    size="sm"
                     onClick={() => handleRemove(voter.address)}
-                    disabled={removing === voter.address}
+                    loading={removing === voter.address}
                   >
-                    {removing === voter.address ? "Removing…" : "Remove"}
+                    Remove
                   </Button>
                 }
               />
@@ -81,7 +80,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
         </div>
 
         <div className="flex justify-end">
-          <Button type="secondary" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
         </div>

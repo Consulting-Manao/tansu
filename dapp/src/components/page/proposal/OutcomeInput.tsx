@@ -34,7 +34,7 @@ const outcomeTemplateTags = (template: OutcomeTemplate) => (
     {getOutcomeTemplateFills(template).map((fill) => (
       <span
         key={fill}
-        className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-medium text-primary"
+        className="px-1.5 py-0.5 rounded bg-action/10 text-[10px] font-medium text-ink"
       >
         {fill}
       </span>
@@ -46,22 +46,21 @@ const outcomeTemplateTags = (template: OutcomeTemplate) => (
 const outcomeTemplatePreview = ({ contract, xdr }: OutcomeTemplate) => (
   <>
     {contract && (
-      <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
-        <p className="text-sm font-semibold text-primary mb-2">
+      <div className="border border-action rounded-control p-4 bg-sunken">
+        <p className="text-sm font-semibold text-ink mb-2">
           Contract call pre-filled
         </p>
-        <div className="space-y-1 font-mono text-sm text-secondary">
+        <div className="space-y-1 font-mono text-sm text-ink-muted">
           <p>
-            <span className="text-primary">function:</span>{" "}
-            {contract.execute_fn}
+            <span className="text-ink">function:</span> {contract.execute_fn}
           </p>
           <p>
-            <span className="text-primary">address:</span>{" "}
+            <span className="text-ink">address:</span>{" "}
             {contract.address || "(fill after applying)"}
           </p>
           {contract.args.length > 0 && (
             <p>
-              <span className="text-primary">args:</span>{" "}
+              <span className="text-ink">args:</span>{" "}
               {JSON.stringify(contract.args)}
             </p>
           )}
@@ -69,11 +68,11 @@ const outcomeTemplatePreview = ({ contract, xdr }: OutcomeTemplate) => (
       </div>
     )}
     {xdr && (
-      <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9]">
-        <p className="text-sm font-semibold text-primary mb-2">
+      <div className="border border-action rounded-control p-4 bg-sunken">
+        <p className="text-sm font-semibold text-ink mb-2">
           XDR transaction pre-filled
         </p>
-        <pre className="whitespace-pre-wrap font-mono text-sm text-secondary break-all">
+        <pre className="whitespace-pre-wrap font-mono text-sm text-ink-muted break-all">
           {xdr}
         </pre>
       </div>
@@ -154,7 +153,7 @@ const OutcomeInput = ({
         />
 
         <div className="flex flex-col gap-[18px]">
-          <p className="leading-[16px] text-base font-[600] text-primary">
+          <p className="leading-[16px] text-base font-[600] text-ink">
             Description
           </p>
           <div>
@@ -162,28 +161,28 @@ const OutcomeInput = ({
               placeholder="Write the description"
               value={description}
               onChange={(e) => update({ description: e.target.value })}
-              className={descriptionError ? "border-red-500" : ""}
+              className={descriptionError ? "border-danger" : ""}
             />
             {descriptionError && (
-              <p className="mt-1 text-sm text-red-500">{descriptionError}</p>
+              <p className="mt-1 text-sm text-danger">{descriptionError}</p>
             )}
           </div>
         </div>
 
         {mode === "xdr" && (
           <div className="flex flex-col gap-[18px]">
-            <p className="leading-[16px] text-base font-[600] text-primary">
+            <p className="leading-[16px] text-base font-[600] text-ink">
               XDR Transaction
             </p>
             <div>
               <Textarea
-                className={`min-h-[120px] font-mono text-sm ${xdrError ? "border-red-500" : ""}`}
+                className={`min-h-[120px] font-mono text-sm ${xdrError ? "border-danger" : ""}`}
                 placeholder="Paste your XDR transaction here..."
                 value={xdr}
                 onChange={(e) => update({ xdr: e.target.value })}
               />
               {xdrError && (
-                <p className="mt-1 text-sm text-red-500">{xdrError}</p>
+                <p className="mt-1 text-sm text-danger">{xdrError}</p>
               )}
             </div>
           </div>
@@ -191,14 +190,14 @@ const OutcomeInput = ({
 
         {mode === "contract" && (
           <div className="flex flex-col gap-[18px]">
-            <p className="leading-[16px] text-base font-[600] text-primary">
+            <p className="leading-[16px] text-base font-[600] text-ink">
               Contract Function
             </p>
 
             {/* Resolve a contract by its registered name via the Stellar
                 Registry (exact match, on-chain). Fills the address below. */}
             <div className="w-full flex flex-col gap-2">
-              <label className="text-sm font-medium text-primary">
+              <label className="text-sm font-medium text-ink">
                 Contract Name (Stellar Registry)
               </label>
               <ContractNameSearch
@@ -216,7 +215,7 @@ const OutcomeInput = ({
               placeholder="Enter contract address (e.g., CA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ)"
               value={call.address}
               onChange={(e) => setAddress(e.target.value.trim())}
-              className={contractError ? "border-red-500" : ""}
+              className={contractError ? "border-danger" : ""}
               error={callError?.args.length === 0 ? callError.message : null}
             />
 
@@ -232,7 +231,7 @@ const OutcomeInput = ({
             {!callError && <OutcomeCallCheck call={call} />}
 
             {contractError && (
-              <p className="mt-1 text-sm text-red-500">{contractError}</p>
+              <p className="mt-1 text-sm text-danger">{contractError}</p>
             )}
           </div>
         )}

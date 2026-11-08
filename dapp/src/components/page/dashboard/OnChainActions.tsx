@@ -3,7 +3,7 @@
 // CommitRecord component for individual rows.
 
 import { useQuery } from "@tanstack/react-query";
-import Loading from "../../utils/Loading";
+import { Loading, Notice } from "components/ui";
 import {
   activityQuery,
   type OnChainAction,
@@ -51,69 +51,55 @@ const OnChainActions: React.FC<Props> = ({ address, projectNames }) => {
   );
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-6" aria-busy="true">
-        <Loading />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (loadError) {
-    return (
-      <p className="text-sm text-red-600 py-4" role="alert">
-        {loadError}
-      </p>
-    );
+    return <Notice tone="danger">{loadError}</Notice>;
   }
 
   if (actions.length === 0) {
-    return <p className="text-sm text-secondary">No on-chain activity yet.</p>;
+    return <p className="text-ink-muted">No on-chain activity yet.</p>;
   }
 
   return (
-    <div className="flex flex-col gap-6 pl-6 max-h-96 overflow-visible">
+    <ol className="flex flex-col gap-6">
       {Object.entries(grouped)
         // Sort day groups by ISO date key descending (latest first)
         .sort(([d1], [d2]) => (d1 < d2 ? 1 : -1))
         .map(([isoDay, list]) => (
-          <div key={isoDay} className="flex flex-col gap-4">
-            <h3 className="relative">
-              <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#2D0F512E] rounded-full bg-transparent" />
-              <span className="text-lg font-medium text-primary">
-                {formatDate(`${isoDay}T00:00:00.000Z`)}
-              </span>
+          <li key={isoDay} className="flex flex-col gap-3">
+            <h3 className="text-small font-semibold text-ink-muted">
+              {formatDate(`${isoDay}T00:00:00.000Z`)}
             </h3>
-            {list
-              // Ensure items within a day are sorted by timestamp descending
-              .slice()
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .map((a) => (
-                <div key={a.txHash} className="relative">
-                  <div className="absolute -left-[21px] lg:-left-[31px] w-[2px] h-full bg-[#2D0F510D]" />
-                  {(() => {
-                    const link = proposalLink(a);
-                    const props = link
-                      ? { commitLink: link }
-                      : {
-                          shaLink: getStellarExpertUrl(a.txHash, "transaction"),
-                        };
-                    return (
+            <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-raise">
+              {list
+                // Ensure items within a day are sorted by timestamp descending
+                .slice()
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .map((a) => {
+                  const link = proposalLink(a);
+                  const props = link
+                    ? { commitLink: link }
+                    : { shaLink: getStellarExpertUrl(a.txHash, "transaction") };
+                  return (
+                    <li key={a.txHash}>
                       <CommitRecord
                         message={summaryFor(a)}
                         sha={a.txHash}
                         {...props}
-                        bgClass="bg-indigo-50"
+                        bgClass="bg-transparent"
                         projectName={a.projectName ?? null}
                         showXDR={a.raw}
-                        proposalLink={proposalLink(a) ?? null}
+                        proposalLink={link ?? null}
                       />
-                    );
-                  })()}
-                </div>
-              ))}
-          </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </li>
         ))}
-    </div>
+    </ol>
   );
 };
 

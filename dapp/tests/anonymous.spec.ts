@@ -153,7 +153,7 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   // Once the vote ends, the tally flags it again; execution waits for its
   // removal.
   await page.goto(`/proposal/?id=${id}&name=${name}`);
-  await page.getByRole("button", { name: "Finalize Vote" }).click();
+  await page.getByRole("button", { name: "Execute proposal" }).click();
   await page.getByLabel("Choose key file").setInputFiles(keyFile);
   await expect(invalid).toContainText(rogue.publicKey());
   await expect(invalid).toContainText("It does not choose exactly one option.");

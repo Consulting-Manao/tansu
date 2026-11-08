@@ -17,6 +17,8 @@ const browser = await chromium.launch();
 for (const [name, width, height, theme] of [
   ["desktop", 1440, 900, "light"],
   ["phone", 390, 844, "light"],
+  ["desktop-dark", 1440, 900, "dark"],
+  ["phone-dark", 390, 844, "dark"],
 ] as const) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.addInitScript(
@@ -32,7 +34,7 @@ for (const [name, width, height, theme] of [
       .catch(() => {});
     await page.waitForTimeout(2500);
     const file = `${out}/${path.replace(/[^a-z0-9]+/gi, "_") || "home"}-${name}.png`;
-    await page.screenshot({ path: file, fullPage: name === "desktop" });
+    await page.screenshot({ path: file, fullPage: name.startsWith("desktop") });
     console.log(file);
   }
   await page.close();

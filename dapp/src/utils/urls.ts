@@ -42,6 +42,21 @@ export function projectUrl(name: string, tab: ProjectTab = "overview"): string {
   return `/project/?name=${encodeURIComponent(name)}${query}`;
 }
 
+/** The member the page is about: `?address=` in its address. */
+export function memberAddressFromUrl(): string {
+  return new URLSearchParams(window.location.search).get("address") ?? "";
+}
+
+export function memberUrl(address: string): string {
+  return `/member/?address=${encodeURIComponent(address)}`;
+}
+
+/** The proposal the page is about: `?id=` in its address, or NaN. */
+export function proposalIdFromUrl(): number {
+  const id = new URLSearchParams(window.location.search).get("id");
+  return id === null || id === "" ? NaN : Number(id);
+}
+
 export function proposalUrl(name: string, id: number | string): string {
   return `/proposal/?id=${id}&name=${encodeURIComponent(name)}`;
 }

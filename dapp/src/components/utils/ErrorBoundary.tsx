@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div
-          className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800"
+          className="rounded-control border border-danger/40 bg-danger-soft p-6 text-danger"
           role="alert"
         >
           <h3 className="font-semibold">Something went wrong</h3>
@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </p>
           <button
             type="button"
-            className="mt-4 rounded bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700"
+            className="mt-4 rounded bg-danger px-3 py-2 text-sm text-surface"
             onClick={() => this.setState({ hasError: false, error: null })}
           >
             Try again

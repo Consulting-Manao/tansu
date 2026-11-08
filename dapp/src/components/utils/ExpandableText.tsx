@@ -16,7 +16,7 @@ export function ExpandableText({
     return (
       <div className={`relative flex flex-col items-start gap-3 ${className}`}>
         <p
-          className={`text-lg text-primary ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"} transition-all duration-300`}
+          className={`text-lg text-ink ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"} transition-all duration-300`}
         >
           {children}
         </p>
@@ -25,13 +25,13 @@ export function ExpandableText({
           size="xs"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <div className="w-1 h-1 bg-primary" />
-          <div className="w-1 h-1 bg-primary" />
-          <div className="w-1 h-1 bg-primary" />
+          <div className="w-1 h-1 bg-action" />
+          <div className="w-1 h-1 bg-action" />
+          <div className="w-1 h-1 bg-action" />
         </Button>
       </div>
     );
   }
 
-  return <p className="text-lg text-primary">-</p>;
+  return <p className="text-lg text-ink">-</p>;
 }

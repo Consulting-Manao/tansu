@@ -77,21 +77,21 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
       <div className="flex-shrink-0 p-5 pb-2 sm:p-8 sm:pb-2">
         <div className="flex flex-col gap-3">
           <h2 className="text-section font-bold text-ink">Terms of Service</h2>
-          <div className="text-base text-secondary">
+          <div className="text-base text-ink-muted">
             Please read and accept our Terms of Service to continue
           </div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-ink-muted">
             Last Updated: {s.lastUpdated}
           </div>
         </div>
-        <div className="flex gap-2 mt-4 border-b border-gray-200">
+        <div className="flex gap-2 mt-4 border-b border-line">
           <button
             type="button"
             onClick={() => setView("summary")}
             className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
               view === "summary"
-                ? "text-primary border-b-2 border-primary -mb-px"
-                : "text-zinc-600 hover:text-primary"
+                ? "text-ink border-b-2 border-action -mb-px"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             Summary
@@ -101,8 +101,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             onClick={() => setView("fullTerms")}
             className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
               view === "fullTerms"
-                ? "text-primary border-b-2 border-primary -mb-px"
-                : "text-zinc-600 hover:text-primary"
+                ? "text-ink border-b-2 border-action -mb-px"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             Terms of Service
@@ -112,8 +112,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             onClick={() => setView("privacy")}
             className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
               view === "privacy"
-                ? "text-primary border-b-2 border-primary -mb-px"
-                : "text-zinc-600 hover:text-primary"
+                ? "text-ink border-b-2 border-action -mb-px"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             Privacy Policy
@@ -127,11 +127,11 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
       >
         {view === "summary" && (
           <div className="flex flex-col gap-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-info-soft border border-info/40 rounded-control p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
                   <svg
-                    className="w-5 h-5 text-blue-600 mt-0.5"
+                    className="w-5 h-5 text-link mt-0.5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -143,92 +143,88 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-blue-800 mb-1">
+                  <h4 className="text-sm font-semibold text-link mb-1">
                     Important Notice
                   </h4>
-                  <p className="text-sm text-blue-700">{s.importantNotice}</p>
+                  <p className="text-sm text-link">{s.importantNotice}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
-              <p className="text-secondary leading-relaxed">{s.introduction}</p>
+            <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
+              <p className="text-ink-muted leading-relaxed">{s.introduction}</p>
             </div>
             {sections.keyPoints && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">🔑</span>
-                  <h2 className="text-xl font-semibold text-primary">
-                    Key Points
-                  </h2>
+                  <h2 className="text-xl font-semibold text-ink">Key Points</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.keyPoints.map((item, i) => (
-                    <div key={i} className="bg-gray-50 rounded-lg p-3">
-                      <h3 className="font-semibold text-primary mb-1">
+                    <div key={i} className="bg-sunken rounded-control p-3">
+                      <h3 className="font-semibold text-ink mb-1">
                         {item.title}
                       </h3>
-                      <p className="text-secondary text-sm">{item.content}</p>
+                      <p className="text-ink-muted text-sm">{item.content}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             {sections.importantRisks && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">⚠️</span>
-                  <h2 className="text-xl font-semibold text-primary">
+                  <h2 className="text-xl font-semibold text-ink">
                     Important Risks
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.importantRisks.map((item, i) => (
-                    <div key={i} className="bg-red-50 rounded-lg p-3">
-                      <h4 className="font-semibold text-red-800 mb-1">
+                    <div key={i} className="bg-danger-soft rounded-control p-3">
+                      <h4 className="font-semibold text-danger mb-1">
                         {item.title}
                       </h4>
-                      <p className="text-red-700 text-sm">{item.content}</p>
+                      <p className="text-danger text-sm">{item.content}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             {sections.yourResponsibilities && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">📋</span>
-                  <h2 className="text-xl font-semibold text-primary">
+                  <h2 className="text-xl font-semibold text-ink">
                     Your Responsibilities
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.yourResponsibilities.map((item, i) => (
-                    <div key={i} className="bg-blue-50 rounded-lg p-3">
-                      <p className="text-blue-700 text-sm font-medium">
-                        {item}
-                      </p>
+                    <div key={i} className="bg-info-soft rounded-control p-3">
+                      <p className="text-link text-sm font-medium">{item}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             {sections.serviceModifications && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">⚙️</span>
-                  <h2 className="text-xl font-semibold text-primary">
+                  <h2 className="text-xl font-semibold text-ink">
                     Service Modifications
                   </h2>
                 </div>
                 <div className="space-y-3">
-                  <p className="text-secondary text-sm mb-3">
+                  <p className="text-ink-muted text-sm mb-3">
                     {sections.serviceModifications.description}
                   </p>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                    <h4 className="font-semibold text-yellow-800 mb-1">
+                  <div className="bg-warning-soft border border-warning/40 rounded-control p-3">
+                    <h4 className="font-semibold text-warning mb-1">
                       Administrative Rights
                     </h4>
-                    <p className="text-yellow-700 text-sm">
+                    <p className="text-warning text-sm">
                       {sections.serviceModifications.administrativeRights}
                     </p>
                   </div>
@@ -236,56 +232,57 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
               </div>
             )}
             {sections.limitationsOfLiability && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">🛡️</span>
-                  <h2 className="text-xl font-semibold text-primary">
+                  <h2 className="text-xl font-semibold text-ink">
                     Limitations of Liability
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.limitationsOfLiability.map((item, i) => (
-                    <div key={i} className="bg-yellow-50 rounded-lg p-3">
-                      <p className="text-yellow-700 text-sm font-medium">
-                        {item}
-                      </p>
+                    <div
+                      key={i}
+                      className="bg-warning-soft rounded-control p-3"
+                    >
+                      <p className="text-warning text-sm font-medium">{item}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             {sections.contactInformation && (
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-card">
+              <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-lg">📞</span>
-                  <h2 className="text-xl font-semibold text-primary">
+                  <h2 className="text-xl font-semibold text-ink">
                     Contact Information
                   </h2>
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <h4 className="font-semibold text-primary mb-1">
+                    <h4 className="font-semibold text-ink mb-1">
                       {sections.contactInformation.company}
                     </h4>
-                    <p className="text-secondary text-sm whitespace-pre-line">
+                    <p className="text-ink-muted text-sm whitespace-pre-line">
                       {sections.contactInformation.details}
                     </p>
                   </div>
                   <div>
-                    <span className="font-semibold text-primary">Address:</span>
-                    <p className="text-secondary text-sm">
+                    <span className="font-semibold text-ink">Address:</span>
+                    <p className="text-ink-muted text-sm">
                       {sections.contactInformation.address}
                     </p>
                   </div>
                   <div>
-                    <span className="font-semibold text-primary">Email:</span>
-                    <p className="text-secondary text-sm">
+                    <span className="font-semibold text-ink">Email:</span>
+                    <p className="text-ink-muted text-sm">
                       {sections.contactInformation.email}
                     </p>
                   </div>
                   <div>
-                    <span className="font-semibold text-primary">Website:</span>
-                    <p className="text-secondary text-sm">
+                    <span className="font-semibold text-ink">Website:</span>
+                    <p className="text-ink-muted text-sm">
                       {sections.contactInformation.website}
                     </p>
                   </div>
@@ -302,18 +299,18 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
 
       <div className="flex-shrink-0 flex flex-col gap-4 border-t border-line px-5 pt-4 pb-6 sm:px-8">
         <div className="text-center sm:text-left">
-          <p className="text-sm text-secondary">
+          <p className="text-sm text-ink-muted">
             By clicking "Accept", you agree to be bound by these Terms of
             Service.
           </p>
           {!hasScrolled && (
-            <p className="text-primary text-xs mt-1">
+            <p className="text-ink text-xs mt-1">
               Please scroll down to read more before accepting
             </p>
           )}
           <a
             href="/impressum/"
-            className="text-xs text-secondary underline mt-1 inline-block"
+            className="text-xs text-ink-muted underline mt-1 inline-block"
           >
             Impressum
           </a>

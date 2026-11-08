@@ -16,9 +16,6 @@ const CreateProjectModal = lazy(
 const ProfileModal = lazy(
   () => import("components/page/dashboard/ProfileModal"),
 );
-const MemberProfileModal = lazy(
-  () => import("components/page/dashboard/MemberProfileModal"),
-);
 const TermsAcceptanceModal = lazy(
   () => import("components/utils/TermsAcceptanceModal"),
 );
@@ -47,9 +44,7 @@ const ModalHost = () => {
             fallback={
               <Modal onClose={onClose}>
                 <div role="alert" className="flex flex-col gap-4">
-                  <p className="text-primary">
-                    This dialog could not be shown.
-                  </p>
+                  <p className="text-ink">This dialog could not be shown.</p>
                   <Button type="secondary" onClick={onClose}>
                     Close
                   </Button>
@@ -71,10 +66,6 @@ function dialog(modal: Opened, onClose: () => void) {
       return <CreateProjectModal onClose={onClose} />;
     case "join":
       return <ProfileModal mode="join" onClose={onClose} />;
-    case "profile":
-      return (
-        <MemberProfileModal address={modal.props.address} onClose={onClose} />
-      );
     case "funding":
       return (
         <WalletFundingModal

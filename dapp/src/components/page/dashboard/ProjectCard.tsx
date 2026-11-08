@@ -66,7 +66,7 @@ const ProjectCard = ({
                 : "/fallback-image.jpg"
             }
             alt=""
-            className="thumbnail size-9 rounded-md object-contain"
+            className="thumbnail size-9 rounded-control object-contain"
           />
         )}
       </span>
@@ -109,7 +109,7 @@ const ProjectCard = ({
               target="_blank"
               rel="noopener noreferrer"
               aria-label={link.label}
-              className={`inline-flex size-8 items-center justify-center rounded-md hover:bg-sunken ${focusRing}`}
+              className={`inline-flex size-8 items-center justify-center rounded-control hover:bg-sunken ${focusRing}`}
             >
               <img src={link.src} alt="" className="size-4" />
             </a>

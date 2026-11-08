@@ -18,9 +18,9 @@ const InvalidBallots = ({
   return (
     <div
       role="alert"
-      className="flex flex-col gap-3 p-4 bg-red-50 border border-red-200 rounded-lg"
+      className="flex flex-col gap-3 p-4 bg-danger-soft border border-danger/40 rounded-control"
     >
-      <p className="text-sm font-semibold text-red-800">
+      <p className="text-sm font-semibold text-danger">
         These ballots cannot count. They must be removed before the proposal is
         executed.
       </p>
@@ -29,7 +29,7 @@ const InvalidBallots = ({
           key={address}
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
         >
-          <div className="text-sm text-red-800">
+          <div className="text-sm text-danger">
             <p className="font-mono break-all">{address}</p>
             <p>{reason}</p>
           </div>

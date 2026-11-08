@@ -52,18 +52,18 @@ const EnhancedContractFunctionSelector = ({
 
   if (!valid) {
     return (
-      <p className="text-sm text-red-500">
+      <p className="text-sm text-danger">
         Enter a contract address (C...) to choose its function.
       </p>
     );
   }
   if (functions.isPending) {
-    return <p className="text-sm text-secondary">Loading functions...</p>;
+    return <p className="text-sm text-ink-muted">Loading functions...</p>;
   }
   if (functions.isError) {
     return (
-      <div className="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-sm text-red-800">
+      <div className="flex flex-col gap-2 p-3 bg-danger-soft border border-danger/40 rounded-control">
+        <p className="text-sm text-danger">
           Could not read this contract's functions: {functions.error.message}
         </p>
         <Button type="secondary" size="sm" onClick={() => functions.refetch()}>
@@ -75,7 +75,7 @@ const EnhancedContractFunctionSelector = ({
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-primary">
+      <label className="block text-sm font-medium text-ink">
         Function Name
         <select
           value={call.execute_fn}
@@ -87,7 +87,7 @@ const EnhancedContractFunctionSelector = ({
               args: fn ? fn.inputs.map(() => "") : [],
             });
           }}
-          className="mt-2 w-full p-3 border border-gray-300 rounded-md font-normal"
+          className="mt-2 w-full p-3 border border-line-strong rounded-control font-normal"
         >
           <option value="">Select a function</option>
           {functions.data.map((fn) => (
@@ -130,19 +130,19 @@ const ArgInput = ({
   const label = `${input.name} (${input.type})`;
   if (input.type === "bool") {
     return (
-      <label className="block text-xs font-medium text-secondary">
+      <label className="block text-xs font-medium text-ink-muted">
         {label}
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={error ? true : undefined}
-          className={`mt-1 w-full p-3 border rounded-md ${error ? "border-red-500" : "border-gray-300"}`}
+          className={`mt-1 w-full p-3 border rounded-control ${error ? "border-danger" : "border-line-strong"}`}
         >
           <option value="">Select true/false</option>
           <option value="false">false</option>
           <option value="true">true</option>
         </select>
-        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+        {error && <p className="mt-1 text-sm text-danger">{error}</p>}
       </label>
     );
   }

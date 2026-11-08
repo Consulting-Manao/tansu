@@ -41,7 +41,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
   shaLink,
   commitLink,
   isMaintainer = false,
-  bgClass = "bg-white",
+  bgClass = "bg-surface",
   projectName = null,
   showXDR = null,
   proposalLink = null,
@@ -94,7 +94,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       {(isLatest || isMaintainer) && (
         <div className="absolute top-0.5 left-1 flex space-x-1">
           {isLatest && (
-            <span className="text-xs font-bold leading-3 bg-lime rounded-sm p-0.5">
+            <span className="text-xs font-bold leading-3 bg-accent-soft rounded-control p-0.5">
               verified commit
             </span>
           )}
@@ -105,7 +105,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       {projectName && (
         <button
           onClick={handleNavigateProject}
-          className="self-start mb-2 px-2 py-0.5 text-xs font-semibold bg-blue-600 text-white rounded-sm hover:bg-blue-700 cursor-pointer"
+          className="self-start mb-2 px-2 py-0.5 text-xs font-semibold bg-info text-surface rounded-control cursor-pointer"
         >
           {projectName}
         </button>
@@ -119,7 +119,7 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
             href={commitLink || shaLink || "#"}
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-base lg:text-xl font-medium text-primary hover:underline ${!isExpanded && "line-clamp-1"}`}
+            className={`text-base lg:text-xl font-medium text-ink hover:underline ${!isExpanded && "line-clamp-1"}`}
           >
             {firstLine}
           </a>
@@ -147,13 +147,13 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
             <CopyButton
               textToCopy={sha}
               size="sm"
-              className="hover:bg-zinc-400"
+              className="hover:bg-line-strong"
             />
             <a
               href={shaLink || commitLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm lg:text-lg text-primary underline"
+              className="text-sm lg:text-lg text-ink underline"
             >
               {sha.substring(0, 7)}
             </a>
@@ -163,14 +163,11 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       </div>
 
       {hasMoreLines && isExpanded && (
-        <div className="whitespace-pre-wrap break-all break-words text-base text-secondary">
+        <div className="whitespace-pre-wrap break-all break-words text-base text-ink-muted">
           {otherLines.join("\n")}
           {proposalLink && (
             <div className="mt-2">
-              <a
-                href={proposalLink}
-                className="text-blue-600 underline break-all"
-              >
+              <a href={proposalLink} className="text-link underline break-all">
                 View proposal ↗
               </a>
             </div>
@@ -180,23 +177,23 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
 
       {/* Author (no date – grouping done by parent) */}
       {authorName && (
-        <div className="mt-1 text-sm text-gray-600 flex items-center gap-2">
+        <div className="mt-1 text-sm text-ink-muted flex items-center gap-2">
           {authorLink ? (
             <a
               href={authorLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-2 py-0.5 bg-zinc-100 text-primary font-bold"
+              className="px-2 py-0.5 bg-sunken text-ink font-bold"
             >
               @{authorName}
             </a>
           ) : (
-            <span className="px-2 py-0.5 bg-zinc-100 text-primary font-bold">
+            <span className="px-2 py-0.5 bg-sunken text-ink font-bold">
               @{authorName}
             </span>
           )}
           {isMaintainer && (
-            <span className="text-xs font-medium bg-lime px-1 rounded-sm">
+            <span className="text-xs font-medium bg-accent-soft px-1 rounded-control">
               maintainer
             </span>
           )}
@@ -208,12 +205,12 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
         <div className="mt-2">
           <button
             onClick={() => setShowRaw(!showRaw)}
-            className="text-xs text-blue-600 underline cursor-pointer"
+            className="text-xs text-link underline cursor-pointer"
           >
             {showRaw ? "Hide raw transaction" : "Show raw transaction"}
           </button>
           {showRaw && (
-            <div className="mt-2 max-h-96 overflow-auto bg-zinc-50 p-2 rounded text-xs">
+            <div className="mt-2 max-h-96 overflow-auto bg-sunken p-2 rounded text-xs">
               {/* JsonView provides nice folding – fallback to <pre> if not available */}
               <JsonView src={showXDR as any} theme="vscode" collapsed={2} />
             </div>

@@ -100,11 +100,11 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
           onClick={() => handleDateClick(day)}
           disabled={isDisabled}
           className={`h-10 w-10 flex items-center justify-center transition-colors
-            ${isSelected ? "bg-primary text-white" : ""}
+            ${isSelected ? "bg-action text-on-action" : ""}
             ${
               isDisabled
-                ? "text-[#ccc] cursor-not-allowed"
-                : "hover:bg-[#F5F1F9] text-primary"
+                ? "text-ink-subtle cursor-not-allowed"
+                : "hover:bg-sunken text-ink"
             }`}
         >
           {day}
@@ -122,7 +122,7 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
           <div className="relative">
             <button
               onClick={() => setIsMonthSelectOpen(!isMonthSelectOpen)}
-              className="flex gap-2 leading-5 text-xl font-bold text-primary"
+              className="flex gap-2 leading-5 text-xl font-bold text-ink"
             >
               {months[currentDate.getMonth()]}
               {isMonthSelectOpen ? (
@@ -132,12 +132,12 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
               )}
             </button>
             {isMonthSelectOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white shadow-lg rounded-md py-1 z-10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 bg-surface shadow-lg rounded-control py-1 z-10 max-h-48 overflow-y-auto">
                 {months.map((month, index) => (
                   <button
                     key={month}
                     onClick={() => handleMonthSelect(index)}
-                    className="block w-full px-4 py-2 text-left text-primary hover:bg-[#F5F1F9] transition-colors"
+                    className="block w-full px-4 py-2 text-left text-ink hover:bg-sunken transition-colors"
                   >
                     {month}
                   </button>
@@ -148,7 +148,7 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
           <div className="relative">
             <button
               onClick={() => setIsYearSelectOpen(!isYearSelectOpen)}
-              className="flex gap-2 leading-5 text-xl font-bold text-primary"
+              className="flex gap-2 leading-5 text-xl font-bold text-ink"
             >
               {currentDate.getFullYear()}
               {isYearSelectOpen ? (
@@ -158,12 +158,12 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
               )}
             </button>
             {isYearSelectOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white shadow-lg rounded-md py-1 z-10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 bg-surface shadow-lg rounded-control py-1 z-10 max-h-48 overflow-y-auto">
                 {years.map((year) => (
                   <button
                     key={year}
                     onClick={() => handleYearSelect(year)}
-                    className="block w-full px-4 py-2 text-left text-primary hover:bg-[#F5F1F9] transition-colors"
+                    className="block w-full px-4 py-2 text-left text-ink hover:bg-sunken transition-colors"
                   >
                     {year}
                   </button>
@@ -179,13 +179,13 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
             <div
               key={index}
-              className="h-10 w-10 flex items-center justify-center text-sm font-medium text-secondary"
+              className="h-10 w-10 flex items-center justify-center text-sm font-medium text-ink-muted"
             >
               {day}
             </div>
           ))}
         </div>
-        <div className="h-[1px] bg-[#ECE3F4]" />
+        <div className="h-[1px] bg-sunken" />
         <div className="grid grid-cols-7 gap-x-1 gap-y-1">
           {renderCalendar()}
         </div>

@@ -42,10 +42,8 @@ export default function TemplateSelector<T extends Template>({
     <div className="template-selector mb-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="text-sm font-medium text-primary">
-            Start with a template
-          </p>
-          <p className="text-xs text-secondary">
+          <p className="text-sm font-medium text-ink">Start with a template</p>
+          <p className="text-xs text-ink-muted">
             Choose a structured format for {purpose}
           </p>
         </div>
@@ -55,19 +53,17 @@ export default function TemplateSelector<T extends Template>({
       </div>
 
       {isOpen && !previewTemplate && (
-        <div className="mt-3 p-4 border border-primary rounded-lg bg-[#F5F1F9] shadow-lg">
+        <div className="mt-3 p-4 border border-action rounded-control bg-sunken shadow-lg">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
             {templates.map((template) => (
               <div
                 key={template.id}
                 onClick={() => select(template)}
-                className="cursor-pointer p-3 border border-primary rounded-lg hover:bg-white transition-all hover:shadow-md"
+                className="cursor-pointer p-3 border border-action rounded-control hover:bg-surface transition-all hover:shadow-md"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
-                    <h4 className="font-medium text-primary">
-                      {template.name}
-                    </h4>
+                    <h4 className="font-medium text-ink">{template.name}</h4>
                   </div>
                   <Button
                     type="secondary"
@@ -76,12 +72,12 @@ export default function TemplateSelector<T extends Template>({
                       e.stopPropagation();
                       setPreviewTemplate(template);
                     }}
-                    className="hover:bg-gray-200 bg-white border border-primary/20 shadow-sm"
+                    className="hover:bg-line bg-surface border border-action/20 shadow-sm"
                   >
                     Preview
                   </Button>
                 </div>
-                <p className="text-xs text-secondary line-clamp-2">
+                <p className="text-xs text-ink-muted line-clamp-2">
                   {template.description}
                 </p>
                 {renderTags?.(template)}
@@ -95,15 +91,15 @@ export default function TemplateSelector<T extends Template>({
         <Modal onClose={() => setPreviewTemplate(null)} fullWidth>
           <div className="flex flex-col gap-6">
             <div className="text-center">
-              <h3 className="text-xl font-semibold text-primary mb-2">
+              <h3 className="text-xl font-semibold text-ink mb-2">
                 {previewTemplate.name}
               </h3>
-              <p className="text-sm text-secondary">
+              <p className="text-sm text-ink-muted">
                 {previewTemplate.description}
               </p>
             </div>
 
-            <div className="border border-primary rounded-lg p-4 bg-[#F5F1F9] overflow-auto max-h-[50vh]">
+            <div className="border border-action rounded-control p-4 bg-sunken overflow-auto max-h-[50vh]">
               <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                 {previewTemplate.content}
               </pre>
@@ -111,11 +107,11 @@ export default function TemplateSelector<T extends Template>({
 
             {renderPreview?.(previewTemplate)}
 
-            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-primary">
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-action">
               <Button
                 type="tertiary"
                 onClick={() => setPreviewTemplate(null)}
-                className="hover:border-gray-400"
+                className="hover:border-line-strong"
               >
                 Close
               </Button>

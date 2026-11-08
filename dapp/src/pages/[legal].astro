@@ -1,6 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import Container from "../components/layout/Container.astro";
+import PageBand from "../components/layout/PageBand.astro";
 import { Content as Impressum } from "../../../legal/impressum.md";
 import { Content as Privacy } from "../../../legal/privacy-policy.md";
 import { Content as Terms } from "../../../legal/terms-of-service.md";
@@ -28,198 +28,80 @@ const { title, LegalText } = Astro.props;
 ---
 
 <Layout title={`${title} - Tansu`} page={legal}>
-  <style>
-    /* Hide background image on legal pages */
-    .background-image {
-      display: none;
-    }
-
-    /* Custom scrollbar styling */
-    .legal-content::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .legal-content::-webkit-scrollbar-track {
-      background: #f1f1f1;
-      border-radius: 4px;
-    }
-
-    .legal-content::-webkit-scrollbar-thumb {
-      background: #c1c1c1;
-      border-radius: 4px;
-    }
-
-    .legal-content::-webkit-scrollbar-thumb:hover {
-      background: #a1a1a1;
-    }
-
-    /* Style the markdown content to match dApp design */
-    .legal-content {
-      font-family:
-        "Inter",
-        system-ui,
-        -apple-system,
-        sans-serif;
-      color: #374151;
-      line-height: 1.6;
-    }
-
-    /* Hide all h1 elements from markdown */
-    .legal-content :global(h1) {
-      display: none;
-    }
-
-    /* Fix the first h2 to be h1 styling */
-    .legal-content :global(h2:first-of-type) {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin-top: 0;
-      margin-bottom: 1.5rem;
-      text-align: center;
-      color: #311255;
-    }
-
-    .legal-content :global(h2) {
-      color: #311255;
-      font-size: 2.5rem;
-      font-weight: 800;
-      margin-top: 4rem;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 3px solid #e5e7eb;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-    }
-
-    .legal-content :global(h3) {
-      color: #311255;
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin-top: 2.5rem;
-      margin-bottom: 1.25rem;
-      line-height: 1.2;
-    }
-
-    .legal-content :global(h4) {
-      color: #4b5563;
-      font-size: 1.4rem;
-      font-weight: 600;
-      margin-top: 2rem;
-      margin-bottom: 1rem;
-    }
-
-    .legal-content :global(h5) {
-      color: #4b5563;
-      font-size: 1.2rem;
-      font-weight: 600;
-      margin-top: 1.5rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .legal-content :global(h6) {
-      color: #4b5563;
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-top: 1.25rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .legal-content :global(p) {
-      color: #374151;
-      line-height: 1.7;
-      margin-bottom: 1rem;
-    }
-
-    .legal-content :global(strong) {
-      color: #6b7280;
-      font-weight: 500;
-    }
-
-    .legal-content :global(ul),
-    .legal-content :global(ol) {
-      color: #374151;
-      margin-left: 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .legal-content :global(li) {
-      margin-bottom: 0.5rem;
-      line-height: 1.7;
-    }
-
-    /* Wide tables scroll inside the card. */
-    .legal-content :global(table) {
-      display: block;
-      overflow-x: auto;
-      border-collapse: collapse;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-    }
-
-    .legal-content :global(th),
-    .legal-content :global(td) {
-      border: 1px solid #d1d5db;
-      padding: 0.5rem 0.75rem;
-      text-align: left;
-      vertical-align: top;
-    }
-
-    .legal-content :global(th) {
-      color: #311255;
-      font-weight: 600;
-    }
-
-    .legal-content :global(a) {
-      color: #311255;
-      text-decoration: underline;
-      font-weight: 500;
-    }
-
-    .legal-content :global(a:hover) {
-      color: #4c4354;
-    }
-
-    /* Style the card to match dApp design */
-    .legal-card {
-      background: white;
-      border-radius: 1rem;
-      box-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.1),
-        0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      border: 1px solid #e5e7eb;
-    }
-  </style>
-
-  <Container>
-    <div class="max-w-4xl mx-auto py-8 md:py-12">
-      <div class="legal-card p-6 md:p-12">
-        <div class="text-center mb-8">
-          <h1 class="text-4xl md:text-5xl font-bold text-primary mb-4">
-            {title}
-          </h1>
-          <div class="mt-6 mb-8">
-            <a
-              href="/"
-              class="inline-flex items-center px-6 py-3 bg-primary hover:bg-secondary text-white font-semibold rounded-lg transition-colors duration-200 text-sm md:text-base"
-            >
-              ← Back to dApp
-            </a>
-          </div>
-        </div>
-
-        <div class="legal-content">
-          <LegalText />
-        </div>
-
-        <div class="text-center mt-12 pt-8 border-t border-zinc-200">
-          <a
-            href="/"
-            class="inline-flex items-center px-6 py-3 bg-primary hover:bg-secondary text-white font-semibold rounded-lg transition-colors duration-200 text-sm md:text-base"
-          >
-            ← Back to dApp
-          </a>
-        </div>
-      </div>
+  <PageBand>
+    <div class="flex max-w-[760px] flex-col gap-4">
+      <a
+        href="/"
+        class="self-start text-ui font-semibold text-band-muted no-underline hover:text-band-ink"
+      >
+        ← Tansu
+      </a>
+      <h1 class="text-section font-extrabold tracking-[-0.02em] text-band-ink sm:text-title">
+        {title}
+      </h1>
     </div>
-  </Container>
+  </PageBand>
+  <article class="legal-content font-prose text-prose mx-auto w-full max-w-[42em] px-4 py-10 sm:py-14">
+    <LegalText />
+  </article>
 </Layout>
+
+<style>
+  /* The markdown's own title is the band's. */
+  .legal-content :global(h1) {
+    display: none;
+  }
+  .legal-content :global(h2) {
+    margin: 3rem 0 1rem;
+    font-family: var(--font-ui);
+    font-size: var(--text-section);
+    line-height: var(--text-section--line-height);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .legal-content :global(h2:first-of-type) {
+    margin-top: 0;
+  }
+  .legal-content :global(h3),
+  .legal-content :global(h4),
+  .legal-content :global(h5),
+  .legal-content :global(h6) {
+    margin: 2rem 0 0.75rem;
+    font-family: var(--font-ui);
+    font-size: var(--text-card);
+    line-height: var(--text-card--line-height);
+    font-weight: 600;
+  }
+  .legal-content :global(p),
+  .legal-content :global(li) {
+    margin-bottom: 0.75rem;
+  }
+  .legal-content :global(strong) {
+    font-weight: 600;
+  }
+  .legal-content :global(ul),
+  .legal-content :global(ol) {
+    margin: 0 0 1rem 1.5rem;
+    list-style: revert;
+  }
+  /* Wide tables scroll inside the column. */
+  .legal-content :global(table) {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: var(--text-small);
+  }
+  .legal-content :global(th),
+  .legal-content :global(td) {
+    border: 1px solid var(--color-line-strong);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  .legal-content :global(a) {
+    color: var(--color-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+</style>

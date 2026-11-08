@@ -2,6 +2,7 @@
 import ConnectButton from "../ConnectButton.tsx";
 import JoinCommunityButton from "../JoinCommunityButton.tsx";
 import NavbarSearch from "../NavbarSearch.tsx";
+import ThemeSwitch from "../ThemeSwitch.tsx";
 ---
 
 <!-- The top bar sits on the band: the page heads below continue it. -->
@@ -24,7 +25,8 @@ import NavbarSearch from "../NavbarSearch.tsx";
     <div class="flex min-w-0 flex-1 items-center">
       <NavbarSearch client:load />
     </div>
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center gap-1 sm:gap-2">
+      <ThemeSwitch client:only="react" />
       <JoinCommunityButton client:only="react" />
       <ConnectButton client:only="react" />
     </div>

@@ -45,16 +45,16 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
       (now.getTime() - lastCommitDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    if (diffDays <= 30) return { status: "Active", color: "bg-green-500" };
-    if (diffDays <= 90) return { status: "Recent", color: "bg-yellow-500" };
-    return { status: "Inactive", color: "bg-gray-400" };
+    if (diffDays <= 30) return { status: "Active", color: "bg-success" };
+    if (diffDays <= 90) return { status: "Recent", color: "bg-warning" };
+    return { status: "Inactive", color: "bg-line-strong" };
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200">
+    <div className="bg-surface p-6 rounded-control border border-line">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-primary">
+          <h3 className="text-lg font-semibold text-ink">
             Contributor Activity
           </h3>
           <div className="flex gap-2">
@@ -63,7 +63,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
               onChange={(e) =>
                 setSortBy(e.target.value as "commits" | "recent")
               }
-              className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-white"
+              className="px-3 py-1 text-xs border border-line-strong rounded-control bg-surface"
             >
               <option value="commits">Sort by Commits</option>
               <option value="recent">Sort by Recent</option>
@@ -88,20 +88,20 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
                       className={`w-2 h-2 rounded-full ${activity.color}`}
                       title={activity.status}
                     />
-                    <span className="text-sm font-medium text-primary truncate">
+                    <span className="text-sm font-medium text-ink truncate">
                       {contributor.author.name}
                     </span>
                     {isMaintainer && (
-                      <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                      <span className="px-2 py-0.5 text-xs bg-success-soft text-success rounded">
                         maintainer
                       </span>
                     )}
-                    <span className="text-xs text-secondary">
+                    <span className="text-xs text-ink-muted">
                       {contributor.commitCount} commits
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-secondary">
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
                     <span>First: {formatDate(contributor.firstCommit)}</span>
                     <span>•</span>
                     <span>Last: {formatDate(contributor.lastCommit)}</span>
@@ -117,7 +117,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
         {contributors.length > 5 && (
           <button
             onClick={() => setShowAll(!showAll)}
-            className="mt-4 text-sm text-blue-600 hover:underline"
+            className="mt-4 text-sm text-link hover:underline"
           >
             {showAll
               ? "Show Less"
@@ -125,18 +125,18 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
           </button>
         )}
 
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-4 text-xs text-secondary flex-wrap">
+        <div className="mt-4 pt-4 border-t border-line">
+          <div className="flex items-center gap-4 text-xs text-ink-muted flex-wrap">
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <div className="w-2 h-2 rounded-full bg-success" />
               <span>Active (≤1 month)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-yellow-500" />
+              <div className="w-2 h-2 rounded-full bg-warning" />
               <span>Recent (≤3 months)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-gray-400" />
+              <div className="w-2 h-2 rounded-full bg-line-strong" />
               <span>Inactive (3 months)</span>
             </div>
           </div>

@@ -10,10 +10,9 @@ import {
 } from "@service/ProposalService";
 import { projectQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
-import { projectNameFromUrl } from "utils/urls";
-import Button from "components/utils/Button";
+import { projectNameFromUrl, proposalIdFromUrl } from "utils/urls";
 import { withErrorBoundary } from "components/utils/ErrorBoundary";
-import Loading from "components/utils/Loading";
+import { Loading } from "components/ui";
 import React, { useEffect, useState } from "react";
 import type { ProposalOutcome, ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
@@ -21,16 +20,16 @@ import {
   hasUserVoted,
   modifyProposalFromContract,
   modifyProposalToView,
-  toast,
 } from "utils/utils";
 import DiscussionSection from "./DiscussionSection";
 import ExecuteProposalModal from "./ExecuteProposalModal";
 import ProposalDetail from "./ProposalDetail";
-import ProposalTitle from "./ProposalTitle";
+import ProposalActions from "./ProposalActions";
+import ProposalTally from "./ProposalTally";
 import VotingModal from "./VotingModal";
 
 const ProposalPage: React.FC = () => {
-  const id = Number(new URLSearchParams(window.location.search).get("id"));
+  const id = proposalIdFromUrl();
   const projectName = projectNameFromUrl();
   const connectedAddress = useStore(connectedPublicKey);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
@@ -66,33 +65,6 @@ const ProposalPage: React.FC = () => {
     ? modifyProposalToView(appProposal, projectName)
     : null;
   const userHasVoted = hasUserVoted(appProposal?.voteStatus, connectedAddress);
-
-  const openVotingModal = () => {
-    if (proposal?.status === "active") {
-      if (connectedAddress) {
-        setIsVotingModalOpen(true);
-      } else {
-        toast.error("Connect Wallet", "Please connect your wallet first.");
-      }
-    }
-  };
-
-  const openExecuteProposalModal = () => {
-    if (proposal?.status === "voted") {
-      setIsExecuteProposalModalOpen(true);
-    } else {
-      toast.error("Execute Proposal", "Cannot execute proposal.");
-    }
-  };
-
-  useEffect(() => {
-    if (!isValidProposalId) {
-      toast.error(
-        "Something Went Wrong!",
-        "Project name or proposal id is not provided",
-      );
-    }
-  }, [id, projectName, isValidProposalId]);
 
   useEffect(() => {
     const proposalData = proposalRead.data;
@@ -148,64 +120,56 @@ const ProposalPage: React.FC = () => {
     };
   }, [proposalRead.data]);
 
+  // The head says when there is no such proposal or it could not be read.
+  if (proposalRead.isLoading) return <Loading />;
+  if (!proposal) return null;
+
   return (
-    <>
-      {proposalRead.isLoading ? (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Loading />
-        </div>
-      ) : proposalRead.isError && !proposalRead.data ? (
-        <div className="flex flex-col items-start gap-3">
-          <p>Could not load the proposal: {proposalRead.error.message}</p>
-          <Button size="sm" onClick={() => proposalRead.refetch()}>
-            Retry
-          </Button>
-        </div>
-      ) : proposal ? (
-        <div className="bg-[#FFFFFFB8] px-4 sm:px-6 md:px-[72px] py-6 sm:py-8 md:py-12 flex flex-col gap-6 sm:gap-8 md:gap-12">
-          <ProposalTitle
-            proposal={proposal}
-            maintainers={projectMaintainers}
-            submitVote={() => openVotingModal()}
-            executeProposal={() => openExecuteProposalModal()}
-          />
-          <ProposalDetail
-            ipfsLink={proposal?.ipfsLink || null}
-            description={description}
-            outcome={outcome}
-            voteStatus={proposal.voteStatus}
-            status={proposal.status}
-          />
-          <DiscussionSection
-            discussion={discussion}
-            summary={discussionSummary}
-            isLoading={isDiscussionLoading}
-            ipfsCid={discussionCid}
-          />
-          {isVotingModalOpen && (
-            <VotingModal
-              projectName={projectName}
-              proposalId={id}
-              proposalTitle={proposal?.title}
-              isVoted={userHasVoted}
-              onClose={() => setIsVotingModalOpen(false)}
-            />
-          )}
-          {isExecuteProposalModalOpen && (
-            <ExecuteProposalModal
-              projectName={projectName}
-              proposalId={id}
-              proposal={appProposal || undefined}
-              outcome={outcome}
-              voteStatus={proposal?.voteStatus}
-              onClose={() => setIsExecuteProposalModalOpen(false)}
-            />
-          )}
-        </div>
-      ) : (
-        <div>Proposal not found</div>
+    <div className="mx-auto grid w-full max-w-[1120px] gap-6 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-10">
+      <div className="flex min-w-0 flex-col gap-6">
+        <ProposalTally proposal={proposal} maintainers={projectMaintainers} />
+        <ProposalDetail
+          ipfsLink={proposal.ipfsLink || null}
+          description={description}
+          outcome={outcome}
+          voteStatus={proposal.voteStatus}
+          status={proposal.status}
+        />
+        <DiscussionSection
+          discussion={discussion}
+          summary={discussionSummary}
+          isLoading={isDiscussionLoading}
+          ipfsCid={discussionCid}
+        />
+      </div>
+      <div className="lg:order-none order-first">
+        <ProposalActions
+          proposal={proposal}
+          maintainers={projectMaintainers}
+          onVote={() => setIsVotingModalOpen(true)}
+          onExecute={() => setIsExecuteProposalModalOpen(true)}
+        />
+      </div>
+      {isVotingModalOpen && (
+        <VotingModal
+          projectName={projectName}
+          proposalId={id}
+          proposalTitle={proposal.title}
+          isVoted={userHasVoted}
+          onClose={() => setIsVotingModalOpen(false)}
+        />
       )}
-    </>
+      {isExecuteProposalModalOpen && (
+        <ExecuteProposalModal
+          projectName={projectName}
+          proposalId={id}
+          proposal={appProposal || undefined}
+          outcome={outcome}
+          voteStatus={proposal.voteStatus}
+          onClose={() => setIsExecuteProposalModalOpen(false)}
+        />
+      )}
+    </div>
   );
 };
 

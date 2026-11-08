@@ -12,10 +12,11 @@ type Theme = "system" | "light" | "dark";
  * tests/kit.spec.ts and, later, of the design system's previews.
  */
 export default function Previews() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("system");
   const pick = (next: Theme) => {
     setTheme(next);
-    document.documentElement.dataset.theme = next;
+    if (next === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = next;
   };
   return (
     <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-12 px-4 py-10 sm:px-10">

@@ -36,8 +36,8 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
           description="This exports the decrypted ballot rows as a CSV file."
         />
 
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 sm:p-5 text-sm sm:text-base text-primary">
-          <p className="font-medium text-red-700">Privacy warning</p>
+        <div className="rounded-control border border-danger/40 bg-danger-soft p-4 sm:p-5 text-sm sm:text-base text-ink">
+          <p className="font-medium text-danger">Privacy warning</p>
           <p className="mt-2 leading-6">
             Decoded votes reveal who voted for what. If this file is shared
             online, forwarded, or leaked, the voter privacy assumption is lost.
@@ -48,7 +48,7 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 text-sm text-secondary">
+        <div className="flex flex-col gap-2 text-sm text-ink-muted">
           <p>Rows to export: {decodedVotes.length}</p>
         </div>
 

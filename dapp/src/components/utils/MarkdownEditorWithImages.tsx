@@ -88,12 +88,12 @@ const MarkdownEditorWithImages = ({
         {...(placeholder !== undefined && { placeholder })}
         baseUrl={imageBaseUrl}
       />
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-md">
-        <p className="text-sm text-secondary flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-sunken rounded-control">
+        <p className="text-sm text-ink-muted flex-1">
           Optionally attach images and insert them into your Markdown. Supported
           formats: PNG, JPG, JPEG, SVG, GIF (max 5MB each).
         </p>
-        <label className="cursor-pointer bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium whitespace-nowrap">
+        <label className="cursor-pointer bg-action text-on-action px-4 py-2 rounded-control hover:bg-action-hover transition-colors text-sm font-medium whitespace-nowrap">
           Add Image
           <input
             type="file"
@@ -103,17 +103,17 @@ const MarkdownEditorWithImages = ({
           />
         </label>
       </div>
-      {imageError && <p className="text-red-500 text-sm">{imageError}</p>}
+      {imageError && <p className="text-danger text-sm">{imageError}</p>}
       {imageFiles.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-primary">
+          <p className="text-sm font-medium text-ink">
             Attached Images ({imageFiles.length})
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {imageFiles.map((img, idx) => (
               <div
                 key={idx}
-                className="border border-gray-200 p-3 flex flex-col gap-3 rounded-lg bg-white"
+                className="border border-line p-3 flex flex-col gap-3 rounded-control bg-surface"
               >
                 <img
                   src={img.localUrl}
@@ -123,7 +123,7 @@ const MarkdownEditorWithImages = ({
                 <div className="flex justify-between items-center gap-2">
                   <button
                     type="button"
-                    className="text-blue-600 hover:text-blue-800 underline text-xs"
+                    className="text-link hover:text-link underline text-xs"
                     onClick={() =>
                       onChange(
                         `${value}${value && !value.endsWith("\n") ? "\n\n" : ""}![](${img.localUrl})\n`,
@@ -134,7 +134,7 @@ const MarkdownEditorWithImages = ({
                   </button>
                   <button
                     type="button"
-                    className="text-red-600 hover:text-red-800 underline text-xs"
+                    className="text-danger hover:text-danger underline text-xs"
                     onClick={() => {
                       URL.revokeObjectURL(img.localUrl);
                       onImageFilesChange(

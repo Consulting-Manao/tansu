@@ -55,14 +55,12 @@ const OverviewTab = ({
   project,
   config,
   isSoftware,
-  onOpenProfile,
   onShowTab,
 }: {
   project: Project;
   config: ConfigData;
   /** Undefined while the tansu.toml, which sets the type, is read. */
   isSoftware: boolean | undefined;
-  onOpenProfile: (address: string) => void;
   onShowTab: (tab: "code" | "proposals" | "people") => void;
 }) => {
   const isOrganization = (project.sub_projects?.length ?? 0) > 0;
@@ -115,11 +113,7 @@ const OverviewTab = ({
           <ul className="-mx-2 flex flex-col">
             {maintainers.slice(0, MAINTAINERS_SHOWN).map((address) => (
               <li key={address}>
-                <Person
-                  address={address}
-                  handle={config.handles[address]}
-                  onOpen={onOpenProfile}
-                />
+                <Person address={address} handle={config.handles[address]} />
               </li>
             ))}
           </ul>

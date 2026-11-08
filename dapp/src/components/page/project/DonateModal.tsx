@@ -79,20 +79,20 @@ const DonateModal: FC<{
             />
             <div className="flex-grow flex flex-col gap-4 sm:gap-6 w-full">
               <div className="flex flex-col gap-2 sm:gap-3">
-                <h6 className="text-xl sm:text-2xl font-medium text-primary text-center sm:text-left">
+                <h6 className="text-xl sm:text-2xl font-medium text-ink text-center sm:text-left">
                   Support {name}
                 </h6>
-                <p className="text-sm sm:text-base text-secondary text-center sm:text-left">
+                <p className="text-sm sm:text-base text-ink-muted text-center sm:text-left">
                   Projects have no account of their own yet: your donation goes
                   to the maintainer you pick, who receives it for the project.
                 </p>
               </div>
 
               {recipients.length ? (
-                <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-primary">
+                <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-ink">
                   Maintainer
                   <select
-                    className="p-3 sm:p-[18px] w-full border border-[#978AA1] bg-white outline-none text-sm sm:text-base font-normal"
+                    className="p-3 sm:p-[18px] w-full border border-line-strong bg-surface outline-none text-sm sm:text-base font-normal"
                     value={to}
                     onChange={(e) => setTo(e.target.value)}
                   >
@@ -104,27 +104,27 @@ const DonateModal: FC<{
                       </option>
                     ))}
                   </select>
-                  <span className="text-xs font-normal font-mono text-tertiary break-all">
+                  <span className="text-xs font-normal font-mono text-ink-muted break-all">
                     {to}
                   </span>
                   {recipients.length < maintainers.length && (
-                    <span className="text-xs font-normal text-tertiary">
+                    <span className="text-xs font-normal text-ink-muted">
                       Maintainers with a smart account (C…) cannot receive a
                       classic payment, so they are not listed.
                     </span>
                   )}
                 </label>
               ) : (
-                <p className="text-sm sm:text-base text-red-500">
+                <p className="text-sm sm:text-base text-danger">
                   Every maintainer of {name} has a smart account (C…), which a
                   classic payment cannot reach.
                 </p>
               )}
 
               <div className="flex flex-col gap-2 sm:gap-3">
-                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-primary">
+                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-ink">
                   Amount
-                  <span className="w-full flex-grow flex border border-[#978AA1] font-normal">
+                  <span className="w-full flex-grow flex border border-line-strong font-normal">
                     <input
                       className="flex-grow p-3 sm:p-[18px] outline-none text-sm sm:text-base"
                       inputMode="decimal"
@@ -133,7 +133,7 @@ const DonateModal: FC<{
                       aria-invalid={!!amountError}
                       onChange={(e) => setAmount(e.target.value.trim())}
                     />
-                    <span className="px-2 sm:px-[18px] flex items-center text-base sm:text-xl text-primary">
+                    <span className="px-2 sm:px-[18px] flex items-center text-base sm:text-xl text-ink">
                       XLM
                     </span>
                   </span>
@@ -144,10 +144,10 @@ const DonateModal: FC<{
                       key={value}
                       type="button"
                       aria-pressed={amount === value}
-                      className={`py-2 sm:py-[11px] flex justify-center items-center leading-5 text-base sm:text-xl border border-[#FFB21E] ${
+                      className={`py-2 sm:py-[11px] flex justify-center items-center leading-5 text-base sm:text-xl border border-accent ${
                         amount === value
-                          ? "bg-[#FFB21E] text-white"
-                          : "text-primary"
+                          ? "bg-accent text-on-accent"
+                          : "text-ink"
                       }`}
                       onClick={() => setAmount(value)}
                     >
@@ -156,16 +156,16 @@ const DonateModal: FC<{
                   ))}
                 </div>
                 <p
-                  className={`text-xs sm:text-base ${amountError ? "text-red-500" : "text-tertiary"}`}
+                  className={`text-xs sm:text-base ${amountError ? "text-danger" : "text-ink-muted"}`}
                 >
                   {amountError ?? "Minimum amount: 1 XLM"}
                 </p>
               </div>
 
-              <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-primary">
+              <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-ink">
                 Message (optional)
                 <textarea
-                  className="p-3 sm:p-[18px] w-full border border-[#978AA1] outline-none text-sm sm:text-base font-normal"
+                  className="p-3 sm:p-[18px] w-full border border-line-strong outline-none text-sm sm:text-base font-normal"
                   placeholder="Write your message here"
                   value={message}
                   aria-invalid={!!messageError}
@@ -173,7 +173,7 @@ const DonateModal: FC<{
                   rows={2}
                 />
                 <span
-                  className={`text-xs font-normal ${messageError ? "text-red-500" : "text-tertiary"}`}
+                  className={`text-xs font-normal ${messageError ? "text-danger" : "text-ink-muted"}`}
                 >
                   {messageError ?? `${messageBytes}/${MEMO_BYTES} bytes`}
                 </span>

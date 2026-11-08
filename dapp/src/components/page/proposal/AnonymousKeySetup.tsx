@@ -125,7 +125,7 @@ export const AnonymousKeySetup = ({
   setup: AnonymousKeySetupState;
 }) => (
   <div className="space-y-3">
-    <label className="flex items-center gap-3 text-sm font-medium text-secondary">
+    <label className="flex items-center gap-3 text-sm font-medium text-ink-muted">
       <input
         type="checkbox"
         checked={setup.enabled}
@@ -136,8 +136,8 @@ export const AnonymousKeySetup = ({
     </label>
 
     {setup.enabled && setup.keys && (
-      <div className="flex flex-col gap-3 p-3 bg-green-50 border border-green-200 rounded-md">
-        <p className="text-sm text-green-800">
+      <div className="flex flex-col gap-3 p-3 bg-success-soft border border-success/40 rounded-control">
+        <p className="text-sm text-success">
           Only this key file can reveal the anonymous votes when the proposal is
           executed. Download it, keep it safe, then select it to confirm you
           saved it.
@@ -146,7 +146,7 @@ export const AnonymousKeySetup = ({
           <Button type="secondary" size="sm" onClick={setup.download}>
             Download key file
           </Button>
-          <label className="text-sm text-green-800">
+          <label className="text-sm text-success">
             Select the saved key file
             <input
               type="file"
@@ -157,25 +157,25 @@ export const AnonymousKeySetup = ({
           </label>
         </div>
         {setup.saved && (
-          <p className="text-sm font-medium text-green-800">Key file saved.</p>
+          <p className="text-sm font-medium text-success">Key file saved.</p>
         )}
       </div>
     )}
 
     {setup.enabled && setup.existing && !setup.replacing && (
-      <div className="flex flex-col gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+      <div className="flex flex-col gap-2 p-3 bg-success-soft border border-success/40 rounded-control">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-green-800">Already configured.</span>
+          <span className="text-sm text-success">Already configured.</span>
           <button
             type="button"
-            className="text-blue-500 hover:text-blue-700 underline text-sm"
+            className="text-link hover:text-link underline text-sm"
             onClick={() => setup.setConfirmReplace(true)}
           >
             Reset Keys
           </button>
         </div>
         {setup.confirmReplace && (
-          <div className="flex flex-col gap-2 text-sm text-red-800">
+          <div className="flex flex-col gap-2 text-sm text-danger">
             <p>
               Votes already cast on open anonymous proposals can only be
               revealed with the current key file: keep it until they are

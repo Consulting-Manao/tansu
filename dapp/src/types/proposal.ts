@@ -44,12 +44,6 @@ export enum VoteType {
   CANCEL = "abstain",
 }
 
-export enum VoteResultType {
-  APPROVE = "approved",
-  REJECT = "rejected",
-  CANCEL = "cancelled",
-}
-
 export interface VoteStatus {
   approve: VoteData;
   reject: VoteData;

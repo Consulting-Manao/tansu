@@ -21,17 +21,17 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
 
   return (
     <div
-      className={`border border-gray-300 rounded-lg overflow-hidden ${className}`}
+      className={`border border-line-strong rounded-control overflow-hidden ${className}`}
     >
       {/* Tab Headers */}
-      <div className="flex border-b border-gray-300 bg-gray-50">
+      <div className="flex border-b border-line-strong bg-sunken">
         <button
           type="button"
           onClick={() => setActiveTab("edit")}
           className={`px-4 py-2 text-sm font-medium ${
             activeTab === "edit"
-              ? "bg-white border-b-2 border-primary text-primary"
-              : "text-gray-600 hover:text-gray-800"
+              ? "bg-surface border-b-2 border-action text-ink"
+              : "text-ink-muted hover:text-ink"
           }`}
         >
           Edit
@@ -41,8 +41,8 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
           onClick={() => setActiveTab("preview")}
           className={`px-4 py-2 text-sm font-medium ${
             activeTab === "preview"
-              ? "bg-white border-b-2 border-primary text-primary"
-              : "text-gray-600 hover:text-gray-800"
+              ? "bg-surface border-b-2 border-action text-ink"
+              : "text-ink-muted hover:text-ink"
           }`}
         >
           Preview
@@ -67,7 +67,7 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
             {value}
           </Markdown>
         ) : (
-          <p className="p-4 min-h-[200px] text-gray-500 italic">
+          <p className="p-4 min-h-[200px] text-ink-muted italic">
             Nothing to preview...
           </p>
         )}
@@ -75,7 +75,7 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
 
       {/* Help Text */}
       {activeTab === "edit" && (
-        <div className="px-4 py-2 bg-gray-50 border-t border-gray-300 text-xs text-gray-600">
+        <div className="px-4 py-2 bg-sunken border-t border-line-strong text-xs text-ink-muted">
           <p>
             <strong>Supported:</strong> **bold** *italic* # headings - lists |
             tables | ![images](url) [links](url) &gt; quotes `code` ```code

@@ -126,7 +126,7 @@ const ProjectHead = () => {
         <span
           className={cx(
             "flex size-14 shrink-0 items-center justify-center rounded-card shadow-float sm:size-24 sm:rounded-panel",
-            logo ? "bg-white" : "bg-surface",
+            logo ? "bg-paper" : "bg-surface",
           )}
         >
           {logo ? (

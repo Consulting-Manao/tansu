@@ -52,7 +52,7 @@ const CopyButton = ({
   return (
     <button
       type="button"
-      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-md p-1 text-ink-muted transition-colors hover:bg-sunken hover:text-ink ${focusRing} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-control p-1 text-ink-muted transition-colors hover:bg-sunken hover:text-ink ${focusRing} ${className}`}
       onClick={handleCopy}
       aria-label={isCopied ? "Copied" : "Copy to clipboard"}
       title={isCopied ? "Copied" : "Copy to clipboard"}
