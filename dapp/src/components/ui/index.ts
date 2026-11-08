@@ -23,7 +23,9 @@ export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { Loading, Skeleton } from "./Loading";
 export { Notice, type NoticeTone } from "./Notice";
+export { ProofChip, type ProofTone } from "./ProofChip";
 export { RadioGroup, type RadioOption } from "./RadioGroup";
+export { ResultBar, voteShares } from "./ResultBar";
 export { SectionTitle } from "./SectionTitle";
 export { SegmentedControl, type Segment } from "./SegmentedControl";
 export { Select } from "./Select";
@@ -31,6 +33,7 @@ export { Spinner } from "./Spinner";
 export { Stepper } from "./Stepper";
 export { Tabs, type TabItem } from "./Tabs";
 export { Textarea } from "./Textarea";
+export { Timeline, type TimelineStep } from "./Timeline";
 export {
   dismissToast,
   toast,

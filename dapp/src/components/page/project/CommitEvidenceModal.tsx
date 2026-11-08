@@ -284,14 +284,7 @@ const CommitEvidenceModal = ({
   return (
     <>
       {/* Trigger button */}
-      <Button
-        id="commit-evidence-button"
-        icon="/icons/git.svg"
-        size="xl"
-        type="secondary"
-        className="w-full sm:w-auto"
-        onClick={handleOpen}
-      >
+      <Button id="commit-evidence-button" type="secondary" onClick={handleOpen}>
         Code Finality
       </Button>
 

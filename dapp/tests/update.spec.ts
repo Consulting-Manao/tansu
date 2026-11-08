@@ -65,7 +65,7 @@ test("a new deploy is offered, and taken on Reload in every tab", async ({
     );
     await expect(tab.getByText("A new version is ready")).toBeVisible();
   }
-  await page.goto("/governance/?name=demo");
+  await page.goto("/project/?name=demo&tab=proposals");
   await page.goto("/");
   expect(await bundle()).toBe(deployed);
 

@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Card, CardHeader, Notice, SegmentedControl, Tabs } from "..";
+import {
+  Card,
+  CardHeader,
+  Notice,
+  ProofChip,
+  SegmentedControl,
+  Tabs,
+  Timeline,
+} from "..";
 import { Row, Section } from "./Section";
 
 export function Structure() {
@@ -51,6 +59,31 @@ export function Structure() {
             },
           ]}
         />
+      </Section>
+      <Section title="Timeline">
+        <Timeline
+          label="Proposal"
+          steps={[
+            { label: "Submitted", detail: "5 Nov 2026", state: "done" },
+            { label: "Voting", detail: "Ends 9 Nov, 23:59", state: "now" },
+            { label: "Execute", detail: "From 10 Nov, 23:59", state: "todo" },
+            { label: "Executed", state: "todo" },
+          ]}
+        />
+      </Section>
+      <Section title="Proof">
+        <Row>
+          <ProofChip hash="8610365f9a1c">
+            In git history
+            <>4 of 6 maintainers</>
+          </ProofChip>
+          <ProofChip hash="8610365f9a1c" tone="pending">
+            Checking the repository
+          </ProofChip>
+          <ProofChip hash="8610365f9a1c" tone="failed">
+            Not in git history
+          </ProofChip>
+        </Row>
       </Section>
       <Section title="Cards and notices">
         <div className="grid gap-6 sm:grid-cols-2">

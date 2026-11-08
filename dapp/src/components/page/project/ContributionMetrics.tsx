@@ -5,7 +5,7 @@ import { queryClient } from "../../../service/queryClient";
 import PonyFactorCard from "./PonyFactorCard";
 import ContributorActivityChart from "./ContributorActivityChart";
 import MonthlyActivityChart from "./MonthlyActivityChart";
-import Loading from "components/utils/Loading";
+import { Loading, Notice, SectionTitle } from "components/ui";
 
 interface ContributionMetricsProps {
   repoUrl: string;
@@ -38,26 +38,16 @@ const ContributionMetrics = ({
   const maintainers = maintainerHandles.map((name) => name.toLowerCase());
 
   const frame = (body: ReactNode, note?: string) => (
-    <div
-      ref={section}
-      className="px-[16px] lg:px-[72px] py-12 flex flex-col gap-6"
-    >
-      <div className="flex flex-col gap-[18px]">
-        <p className="leading-6 text-2xl font-medium text-primary">
-          Contribution Metrics
-        </p>
-        {note && <p className="text-sm text-secondary">{note}</p>}
-        <div className="border-t border-[#EEEEEE]" />
-      </div>
+    <section ref={section} className="flex flex-col gap-6">
+      <SectionTitle>Contribution Metrics</SectionTitle>
+      {note && <p className="-mt-3 text-small text-ink-muted">{note}</p>}
       {body}
-    </div>
+    </section>
   );
 
   if (metricsRead.isError) {
     return frame(
-      <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-600">Failed to load contribution metrics</p>
-      </div>,
+      <Notice tone="danger">Failed to load contribution metrics</Notice>,
     );
   }
   if (!metrics) {
@@ -71,32 +61,22 @@ const ContributionMetrics = ({
   return frame(
     <>
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="text-2xl font-bold text-primary">
-            {metrics.totalCommits}
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          [metrics.totalCommits, "Total Commits"],
+          [metrics.totalContributors, "Total Contributors"],
+          [metrics.activeContributors, "Active (3 months)"],
+          [metrics.repositoryTimespan.totalDays, "Days Active"],
+        ].map(([value, label]) => (
+          <div
+            key={label}
+            className="flex flex-col-reverse gap-1 rounded-card border border-line bg-surface p-4 shadow-raise sm:p-6"
+          >
+            <dt className="text-small text-ink-muted">{label}</dt>
+            <dd className="figures-tabular text-section font-bold">{value}</dd>
           </div>
-          <div className="text-sm text-secondary">Total Commits</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="text-2xl font-bold text-primary">
-            {metrics.totalContributors}
-          </div>
-          <div className="text-sm text-secondary">Total Contributors</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="text-2xl font-bold text-primary">
-            {metrics.activeContributors}
-          </div>
-          <div className="text-sm text-secondary">Active (3 months)</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="text-2xl font-bold text-primary">
-            {metrics.repositoryTimespan.totalDays}
-          </div>
-          <div className="text-sm text-secondary">Days Active</div>
-        </div>
-      </div>
+        ))}
+      </dl>
 
       <PonyFactorCard
         ponyFactor={metrics.ponyFactor}

@@ -52,14 +52,16 @@ test.describe("browsing without a wallet", () => {
     await page.getByRole("link", { name: new RegExp(project) }).click();
     await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${project}`));
     await expect(page.getByText("E2E Labs").first()).toBeVisible();
-    // The metrics are read once their section is in view.
+    // The code tab reads the metrics once their section is in view.
+    await page.getByRole("tab", { name: "Code" }).click();
     await page.getByText("Contribution Metrics").scrollIntoViewIfNeeded();
     await expect(
       page.getByRole("heading", { name: "Pony Factor" }),
     ).toBeVisible({ timeout: 60_000 });
 
     // Its proposals, then one of them, read from IPFS.
-    await page.getByRole("button", { name: "Proposals" }).click();
+    await page.getByRole("tab", { name: "Proposals" }).click();
+    await expect(page).toHaveURL(/tab=proposals/);
     await page.getByRole("link", { name: /Adopt a code of conduct/ }).click();
     await expect(page.getByText("Set up by the e2e flows.")).toBeVisible();
   });

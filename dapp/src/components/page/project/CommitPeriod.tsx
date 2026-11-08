@@ -1,3 +1,6 @@
+import { Button } from "components/ui";
+import { formatDate } from "utils/formatTimeFunctions";
+
 /** The period a page of the commit history covers, and the way to others. */
 const CommitPeriod = ({
   startDate,
@@ -9,33 +12,27 @@ const CommitPeriod = ({
   endDate: string | undefined;
   currentPage: number;
   onPageChange: (page: number) => void;
-}) => {
-  return (
-    <>
-      <div className="flex justify-between">
-        <div className="px-[18px] flex items-center gap-[18px]">
-          <button
-            type="button"
-            aria-label="Newer commits"
-            disabled={currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}
-          >
-            <img alt="" src="/icons/arrow-left.svg" />
-          </button>
-          <p className="leading-5 text-base lg:text-lg text-primary">
-            {startDate} - {endDate}
-          </p>
-          <button
-            type="button"
-            aria-label="Older commits"
-            onClick={() => onPageChange(currentPage + 1)}
-          >
-            <img alt="" src="/icons/arrow-right.svg" />
-          </button>
-        </div>
-      </div>
-    </>
-  );
-};
+}) => (
+  <nav
+    aria-label="Commit history pages"
+    className="flex items-center justify-center gap-3"
+  >
+    <Button
+      tone="ghost"
+      disabled={currentPage <= 1}
+      onClick={() => onPageChange(currentPage - 1)}
+    >
+      Newer
+    </Button>
+    {startDate && endDate && (
+      <span className="figures-tabular text-ui text-ink-muted">
+        {formatDate(startDate)} – {formatDate(endDate)}
+      </span>
+    )}
+    <Button tone="ghost" onClick={() => onPageChange(currentPage + 1)}>
+      Older
+    </Button>
+  </nav>
+);
 
 export default CommitPeriod;

@@ -50,7 +50,7 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   ).toBeDisabled();
 
   // A new proposal, stored on IPFS; its proposer abstains by default.
-  await page.goto(`/governance/?name=${name}`);
+  await page.goto(`/project/?name=${name}&tab=proposals`);
   await page.getByRole("button", { name: "Submit Proposal" }).click();
   await page.getByPlaceholder("Write the name").fill("Fund a security audit");
   await page

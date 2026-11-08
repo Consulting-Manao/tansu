@@ -403,16 +403,15 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
 
   return (
     <>
-      <button
-        className="inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 min-w-0 flex-1 sm:flex-initial rounded-lg border border-zinc-200 bg-white text-primary text-sm font-medium shadow-[var(--shadow-card)] hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer text-left whitespace-nowrap"
+      <Button
+        type="secondary"
         onClick={() => {
           setStep(1);
           setOpen(true);
         }}
       >
-        <img src="/icons/gear.svg" className="w-5 h-5 flex-shrink-0" alt="" />
-        <span>Update config</span>
-      </button>
+        Update config
+      </Button>
 
       {open && (
         <FlowProgressModal

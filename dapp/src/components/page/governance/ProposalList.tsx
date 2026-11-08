@@ -6,7 +6,7 @@ import {
 } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { projectNameFromUrl } from "utils/urls";
-import Loading from "components/utils/Loading";
+import { Button, EmptyState, Loading, Notice } from "components/ui";
 import { useEffect, useMemo, useState } from "react";
 import {
   modifyProposalFromContract,
@@ -15,7 +15,6 @@ import {
 } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 import { useStore } from "@nanostores/react";
-import Button from "../../utils/Button";
 import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
@@ -80,17 +79,28 @@ const ProposalList: React.FC = () => {
       {isLoading ? (
         <Loading />
       ) : countRead.isError ? (
-        <div className="flex flex-col items-start gap-3">
-          <p>Could not load the proposals: {countRead.error.message}</p>
-          <Button size="sm" onClick={() => countRead.refetch()}>
-            Retry
-          </Button>
-        </div>
+        <Notice tone="danger">
+          <div className="flex flex-col items-start gap-3">
+            <p>Could not load the proposals: {countRead.error.message}</p>
+            <Button
+              size="sm"
+              tone="secondary"
+              onClick={() => countRead.refetch()}
+            >
+              Retry
+            </Button>
+          </div>
+        </Notice>
       ) : sortedProposals.length === 0 && totalPage <= 1 ? (
-        <p className="text-base text-secondary">No proposals yet.</p>
+        <EmptyState
+          image="/images/box-with-coin-outside.svg"
+          title="No proposals yet"
+        >
+          A maintainer’s proposal shows here, and its vote runs here.
+        </EmptyState>
       ) : (
-        <div className="w-full flex flex-col gap-12">
-          <div className="flex flex-col gap-[18px]">
+        <div className="flex w-full flex-col gap-8">
+          <div className="flex flex-col gap-4">
             {sortedProposals.map((proposal) => (
               <ProposalCard
                 key={proposal.id}

@@ -64,24 +64,24 @@ const ConnectedVoterSummary: React.FC = () => {
   const isLoading = countRead.isPending || areProposalsLoading;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 bg-[#F5F1F9]">
-      <p className="font-mono text-sm text-primary">
+    <div className="flex flex-col gap-3 rounded-card bg-sunken p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <p className="font-mono text-small text-ink">
         {truncateMiddle(connectedAddress, 24)}
       </p>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-secondary">
+      <div className="figures-tabular flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink-muted">
         {isLoading ? (
           <span>Loading voter info…</span>
         ) : (
           <>
             <span>
-              Voted <span className="text-primary font-medium">{voted}</span>
+              Voted <span className="font-semibold text-ink">{voted}</span>
             </span>
             <span>
-              To vote <span className="text-primary font-medium">{toVote}</span>
+              To vote <span className="font-semibold text-ink">{toVote}</span>
             </span>
             <span>
               Voting power{" "}
-              <span className="text-primary font-medium">
+              <span className="font-semibold text-ink">
                 {votingPower.toLocaleString()}
               </span>
             </span>

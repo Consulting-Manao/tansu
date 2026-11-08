@@ -1,60 +1,55 @@
 import { useStore } from "@nanostores/react";
-import Button from "components/utils/Button";
+import { Button } from "components/ui";
+import { focusRing } from "components/ui/style";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
-import { hasUserVoted, truncateMiddle } from "utils/utils";
-import ProposalStatusSection from "../proposal/ProposalStatusSection";
 import { proposalUrl } from "utils/urls";
+import { hasUserVoted, truncateMiddle } from "utils/utils";
+import ProposalStatusBadge from "./ProposalStatusBadge";
 
 interface Props {
   proposal: ProposalView;
   onVoteClick?: () => void;
 }
 
+/** A proposal in the list: its title links to it; Vote opens the ballot. */
 const ProposalCard: React.FC<Props> = ({ proposal, onVoteClick }) => {
   const connectedAddress = useStore(connectedPublicKey);
-  const projectName =
-    new URLSearchParams(window.location.search).get("name") || "";
   const userHasVoted = hasUserVoted(proposal.voteStatus, connectedAddress);
 
   return (
-    <a
-      href={proposalUrl(projectName, proposal.id)}
-      className="p-[30px] flex flex-col gap-6 bg-white cursor-pointer"
-    >
-      <div className="flex flex-col gap-3">
-        <div className="flex justify-between">
-          <p className="text-xl font-medium text-primary">{proposal.title}</p>
-          <div className="flex gap-[18px] text-xl">
-            <span className="text-tertiary">ID:</span>
-            <span className="text-primary">{proposal.id}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-secondary">
-          <span>Proposer:</span>
-          <span className="font-mono">
-            {truncateMiddle(proposal.proposer, 16)}
-          </span>
-        </div>
+    <article className="relative flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-raise hover:border-line-strong sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <a
+          href={proposalUrl(proposal.projectName, proposal.id)}
+          className={`text-card font-semibold text-ink no-underline after:absolute after:inset-0 after:rounded-card ${focusRing}`}
+        >
+          {proposal.title}
+        </a>
+        <span className="figures-tabular shrink-0 font-mono text-small text-ink-muted">
+          #{proposal.id}
+        </span>
       </div>
-      <div className="flex justify-between items-center">
-        <ProposalStatusSection proposal={proposal} />
+      <p className="text-small text-ink-muted">
+        Proposed by{" "}
+        <span className="font-mono">
+          {truncateMiddle(proposal.proposer, 16)}
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ProposalStatusBadge proposal={proposal} />
         {proposal.status == "active" && (
           <Button
-            size="md"
-            type={userHasVoted ? "secondary" : "primary"}
-            icon={userHasVoted ? "" : "/icons/vote.svg"}
+            className="relative z-10"
+            tone={userHasVoted ? "secondary" : "primary"}
             disabled={userHasVoted}
-            onClick={(e) => {
-              e.preventDefault();
-              if (!userHasVoted) onVoteClick?.();
-            }}
+            onClick={() => onVoteClick?.()}
           >
-            {userHasVoted ? "Already Voted" : "Vote"}
+            {userHasVoted ? "Already voted" : "Vote"}
           </Button>
         )}
       </div>
-    </a>
+    </article>
   );
 };
 

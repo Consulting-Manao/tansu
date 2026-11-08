@@ -1,11 +1,13 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import Container from "../../components/layout/Container.astro";
-import ProjectPage from "../../components/page/project/ProjectPage";
+import PageBand from "../../components/layout/PageBand.astro";
+import ProjectHead from "../../components/page/project/ProjectHead";
+import ProjectTabs from "../../components/page/project/ProjectTabs";
 ---
 
 <Layout title="Tansu" page="project">
-  <Container>
-    <ProjectPage client:only="react" />
-  </Container>
+  <PageBand>
+    <ProjectHead client:only="react" />
+  </PageBand>
+  <ProjectTabs client:only="react" />
 </Layout>

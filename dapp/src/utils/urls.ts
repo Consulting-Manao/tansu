@@ -27,12 +27,19 @@ export function projectNameFromUrl(): string {
   return new URLSearchParams(window.location.search).get("name") ?? "";
 }
 
-export function projectUrl(name: string): string {
-  return `/project/?name=${encodeURIComponent(name)}`;
+/** The project page's tabs; the first is the page without `?tab=`. */
+const PROJECT_TABS = ["overview", "code", "proposals", "people"] as const;
+export type ProjectTab = (typeof PROJECT_TABS)[number];
+
+/** The tab the project page shows: `?tab=` in its address. */
+export function projectTabFromUrl(): ProjectTab {
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return PROJECT_TABS.find((known) => known === tab) ?? "overview";
 }
 
-export function governanceUrl(name: string): string {
-  return `/governance/?name=${encodeURIComponent(name)}`;
+export function projectUrl(name: string, tab: ProjectTab = "overview"): string {
+  const query = tab === "overview" ? "" : `&tab=${tab}`;
+  return `/project/?name=${encodeURIComponent(name)}${query}`;
 }
 
 export function proposalUrl(name: string, id: number | string): string {

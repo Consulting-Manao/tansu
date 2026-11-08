@@ -6,7 +6,7 @@ export interface TabItem {
   id: string;
   label: ReactNode;
   /** A count beside the label: open proposals, people. */
-  count?: number;
+  count?: number | undefined;
   panel: ReactNode;
 }
 
@@ -16,10 +16,23 @@ interface TabsProps {
   items: TabItem[];
   value: string;
   onChange: (id: string) => void;
+  /**
+   * Page: the tab bar runs the page's full width on the surface and the
+   * panel sits in the page's column, as under a page head.
+   */
+  layout?: "inline" | "page" | undefined;
 }
 
+const column = "mx-auto w-full max-w-[1120px] px-4 sm:px-6 lg:px-10";
+
 /** Tabs and the selected panel. Arrows, Home and End move between tabs. */
-export function Tabs({ label, items, value, onChange }: TabsProps) {
+export function Tabs({
+  label,
+  items,
+  value,
+  onChange,
+  layout = "inline",
+}: TabsProps) {
   const base = useId();
   const list = useRef<HTMLDivElement>(null);
   const at = Math.max(
@@ -44,53 +57,68 @@ export function Tabs({ label, items, value, onChange }: TabsProps) {
     list.current?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
   };
 
+  const isPage = layout === "page";
+  const tablist = (
+    <div
+      ref={list}
+      role="tablist"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      className={cx(
+        "flex gap-5 overflow-x-auto [scrollbar-width:none] sm:gap-8",
+        isPage ? column : "border-b border-line",
+      )}
+    >
+      {items.map((item, index) => (
+        <button
+          key={item.id}
+          type="button"
+          role="tab"
+          id={`${base}-tab-${item.id}`}
+          aria-selected={index === at}
+          aria-controls={`${base}-panel-${item.id}`}
+          tabIndex={index === at ? 0 : -1}
+          onClick={() => onChange(item.id)}
+          className={cx(
+            "relative shrink-0 py-4 text-body font-semibold whitespace-nowrap",
+            index === at ? "text-ink" : "text-ink-muted hover:text-ink",
+            focusRing,
+          )}
+        >
+          {item.label}
+          {item.count !== undefined && (
+            <span className="figures-tabular ml-2 rounded-full bg-sunken px-2 py-0.5 text-xs text-ink-muted">
+              {item.count}
+            </span>
+          )}
+          {/* The slant: a gold parallelogram marks the current tab. */}
+          {index === at && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0.5 -bottom-px h-1 -skew-x-24 bg-accent"
+            />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div>
-      <div
-        ref={list}
-        role="tablist"
-        aria-label={label}
-        onKeyDown={onKeyDown}
-        className="flex gap-5 overflow-x-auto border-b border-line [scrollbar-width:none] sm:gap-8"
-      >
-        {items.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`${base}-tab-${item.id}`}
-            aria-selected={index === at}
-            aria-controls={`${base}-panel-${item.id}`}
-            tabIndex={index === at ? 0 : -1}
-            onClick={() => onChange(item.id)}
-            className={cx(
-              "relative shrink-0 py-4 text-body font-semibold whitespace-nowrap",
-              index === at ? "text-ink" : "text-ink-muted hover:text-ink",
-              focusRing,
-            )}
-          >
-            {item.label}
-            {item.count !== undefined && (
-              <span className="figures-tabular ml-2 rounded-full bg-sunken px-2 py-0.5 text-xs text-ink-muted">
-                {item.count}
-              </span>
-            )}
-            {/* The slant: a gold parallelogram marks the current tab. */}
-            {index === at && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-0.5 -bottom-px h-1 -skew-x-24 bg-accent"
-              />
-            )}
-          </button>
-        ))}
-      </div>
+      {isPage ? (
+        <div className="border-b border-line bg-surface">{tablist}</div>
+      ) : (
+        tablist
+      )}
       <div
         role="tabpanel"
         id={`${base}-panel-${active.id}`}
         aria-labelledby={`${base}-tab-${active.id}`}
         tabIndex={0}
-        className="pt-6 focus-visible:outline-none"
+        className={cx(
+          "focus-visible:outline-none",
+          isPage ? `${column} py-8 sm:py-10` : "pt-6",
+        )}
       >
         {active.panel}
       </div>

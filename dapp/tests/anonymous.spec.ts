@@ -41,7 +41,7 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
 
   // The first anonymous proposal sets up the project's key: the author must
   // save the key file and select it back before anything is signed.
-  await page.goto(`/governance/?name=${name}`);
+  await page.goto(`/project/?name=${name}&tab=proposals`);
   await page.getByRole("button", { name: "Submit Proposal" }).click();
   await page
     .getByPlaceholder("Write the name")
@@ -70,7 +70,7 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   expect((await read.anonymousConfig(name)).public_key).toBe(publicKey);
 
   // The key is read fresh: the next author is not offered a new one.
-  await page.goto(`/governance/?name=${name}`);
+  await page.goto(`/project/?name=${name}&tab=proposals`);
   await page.getByRole("button", { name: "Submit Proposal" }).click();
   await page.getByLabel("Enable anonymous voting").check();
   await expect(page.getByText("Already configured.")).toBeVisible();

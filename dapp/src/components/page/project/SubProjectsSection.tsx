@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { Buffer } from "buffer";
 import { projectByKeyQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
+import { Card, CardHeader } from "components/ui";
 import type { Project } from "../../../../packages/tansu";
 import OnChainProjectCard from "../dashboard/OnChainProjectCard";
 
@@ -17,31 +18,24 @@ const SubProjectsSection = ({ project }: { project: Project }) => {
   );
 
   return (
-    <div className="px-[16px] lg:px-[72px] py-12 bg-white">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-[18px]">
-          <p className="leading-6 text-2xl font-medium text-primary">
-            Sub-Projects
-          </p>
-          <div className="border-t border-[#EEEEEE]" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subProjects.map(({ data, isSuccess, isError }, index) =>
-            data ? (
-              <OnChainProjectCard key={data.name} project={data} />
-            ) : (
-              <p key={index} className="text-secondary">
-                {isSuccess
-                  ? "Unknown project"
-                  : isError
-                    ? "This sub-project could not be read."
-                    : "Loading sub-project..."}
-              </p>
-            ),
-          )}
-        </div>
+    <Card>
+      <CardHeader title="Sub-projects" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {subProjects.map(({ data, isSuccess, isError }, index) =>
+          data ? (
+            <OnChainProjectCard key={data.name} project={data} />
+          ) : (
+            <p key={index} className="text-ink-muted">
+              {isSuccess
+                ? "Unknown project"
+                : isError
+                  ? "This sub-project could not be read."
+                  : "Loading sub-project…"}
+            </p>
+          ),
+        )}
       </div>
-    </div>
+    </Card>
   );
 };
 

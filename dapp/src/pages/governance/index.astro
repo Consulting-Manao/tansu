@@ -1,13 +1,23 @@
 ---
-import GovernanceHeader from "components/page/governance/GovernanceHeader";
-import Container from "../../components/layout/Container.astro";
-import GovernancePage from "../../components/page/governance/GovernancePage.astro";
-import Layout from "../../layouts/Layout.astro";
+/*
+ * A project's proposals are a tab of its page now: old links land there.
+ * The page stays precached, so the redirect works offline too.
+ */
 ---
 
-<Layout title="Tansu" page="governance">
-  <Container>
-    <GovernanceHeader client:only="react" />
-    <GovernancePage />
-  </Container>
-</Layout>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Tansu</title>
+    <script is:inline>
+      const params = new URLSearchParams(location.search);
+      params.set("tab", "proposals");
+      location.replace(`/project/?${params}`);
+    </script>
+  </head>
+  <body>
+    <a href="/">Tansu</a>
+  </body>
+</html>

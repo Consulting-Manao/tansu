@@ -1,0 +1,162 @@
+/*
+ * A project's history on the logo's 30-degree grid: the home page's art,
+ * and the quiet ground of the page heads (grid and faint lanes only). The
+ * SVGs come from a generator; these rules colour them for both themes and,
+ * with history-art--draw, draw them once on arrival.
+ */
+.history-art {
+  --art-grid: light-dark(rgba(102, 0, 165, 0.26), rgba(255, 255, 255, 0.15));
+  --art-ghost: light-dark(rgba(102, 0, 165, 0.16), rgba(205, 180, 255, 0.16));
+  --art-a: light-dark(#c48bf5, #4b1d86);
+  --art-b: light-dark(#6600a5, #af44f2);
+  --art-c: light-dark(#ffb31e, #ffc23d);
+  --art-node: light-dark(#ffffff, #140a24);
+  --art-ring: light-dark(#6600a5, #cdb4ff);
+  --art-branch: light-dark(rgba(102, 0, 165, 0.42), rgba(205, 180, 255, 0.45));
+  --art-glow: light-dark(0.22, 0.75);
+  --draw: 1600ms;
+}
+/* The art's marks */
+.history-art .art-stop-a {
+  stop-color: var(--art-a);
+}
+.history-art .art-stop-b {
+  stop-color: var(--art-b);
+}
+.history-art .art-stop-c {
+  stop-color: var(--art-c);
+}
+.history-art .art-dot {
+  fill: var(--art-grid);
+}
+.history-art :is(.art-line, .art-glow, .art-branch, .art-ghost) {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.history-art .art-line {
+  stroke-width: 5;
+}
+.history-art .art-glow {
+  stroke-width: 12;
+  opacity: var(--art-glow);
+}
+.history-art .art-branch {
+  stroke: var(--art-branch);
+  stroke-width: 2.5;
+}
+.history-art .art-ghost {
+  stroke: var(--art-ghost);
+  stroke-width: 2;
+}
+.history-art .art-ghost-node {
+  fill: var(--art-node);
+  stroke: var(--art-ghost);
+  stroke-width: 2;
+}
+.history-art .art-node {
+  fill: var(--art-node);
+  stroke: var(--art-ring);
+  stroke-width: 3;
+}
+.history-art .art-node--merge {
+  fill: var(--art-ring);
+  stroke: var(--art-node);
+}
+.history-art .art-avatar circle {
+  fill: #ffd61e;
+  stroke: var(--art-node);
+  stroke-width: 3;
+}
+.history-art .art-seal__shape {
+  fill: #ffc23d;
+}
+.history-art .art-seal__tick {
+  fill: none;
+  stroke: #2b1a00;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.history-art .art-halo {
+  fill: rgba(255, 194, 61, 0.22);
+}
+.history-art .art-halo--2 {
+  fill: rgba(255, 194, 61, 0.1);
+}
+.history-art :is(.art-pop, .art-seal__badge, .art-halo) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Arrival: the history draws itself, each commit lights as the line
+     reaches it, then the latest commit's check stamps in. */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ring {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .history-art--draw :is(.art-line, .art-glow) {
+    stroke-dasharray: 1;
+    animation: draw var(--draw) cubic-bezier(0.45, 0, 0.2, 1) both;
+  }
+  .history-art--draw .art-branch {
+    stroke-dasharray: 1;
+    animation: draw calc((var(--t1) - var(--t0)) * var(--draw))
+      calc(var(--t0) * var(--draw)) linear both;
+  }
+  .history-art--draw .art-pop {
+    animation: pop 320ms calc(var(--t) * var(--draw))
+      cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .history-art--draw .art-seal__badge {
+    animation: stamp 420ms var(--draw) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .history-art--draw .art-halo {
+    animation: ring 700ms calc(var(--draw) + 120ms)
+      cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .history-art--draw .art-ghosts {
+    animation: appear 900ms ease-out both;
+  }
+}

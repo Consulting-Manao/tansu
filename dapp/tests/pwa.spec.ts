@@ -21,8 +21,10 @@ test("the app opens offline once installed", async ({ page, context }) => {
   const fonts = cached.filter((url) => /\/fonts\/.+\.woff2($|\?)/.test(url));
   expect(fonts).toHaveLength(6);
 
+  // Offline, an old proposals link still lands on the project's tab.
   await context.setOffline(true);
   await page.goto("/governance/?name=demo");
+  await expect(page).toHaveURL(/\/project\/\?name=demo&tab=proposals/);
   await expect(page.getByRole("heading", { name: "Proposals" })).toBeVisible();
 });
 

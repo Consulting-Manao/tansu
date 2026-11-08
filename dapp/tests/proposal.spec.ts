@@ -47,7 +47,7 @@ test("outcome calls land in their slots, typed, and execute", async ({
 
   await page.goto("/");
   await connectWallet(page);
-  await page.goto(`/governance/?name=${name}`);
+  await page.goto(`/project/?name=${name}&tab=proposals`);
   await page.getByRole("button", { name: "Submit Proposal" }).click();
   await page.getByPlaceholder("Write the name").fill("Pay the auditor");
   await page
