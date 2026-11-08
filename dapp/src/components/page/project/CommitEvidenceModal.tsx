@@ -24,8 +24,6 @@ const CommitEvidenceModal = ({
   config: ConfigData;
 }) => {
   const [open, setOpen] = useState(false);
-  // Changing the hash starts a new upload form.
-  const [formKey, setFormKey] = useState(0);
   const projectName = project.name;
   const commit = useCommitHash(
     projectName,
@@ -67,11 +65,7 @@ const CommitEvidenceModal = ({
               </div>
             </div>
 
-            <CommitHashSection
-              commit={commit}
-              isMaintainer={isMaintainer}
-              onHashChange={() => setFormKey((key) => key + 1)}
-            />
+            <CommitHashSection commit={commit} isMaintainer={isMaintainer} />
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -100,7 +94,6 @@ const CommitEvidenceModal = ({
 
             {isMaintainer && (
               <AddEvidenceForm
-                key={formKey}
                 projectName={projectName}
                 commitHash={commit.hash}
               />

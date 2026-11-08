@@ -47,21 +47,7 @@ const EvidenceList = ({
       </div>
     );
   }
-  if (error) {
-    return (
-      <p className="text-ui text-danger" role="alert">
-        {error}
-      </p>
-    );
-  }
-  if (!evidence.length) {
-    return (
-      <p className="text-ui text-ink-muted py-2">
-        No evidence attached to this commit.
-      </p>
-    );
-  }
-  return EVIDENCE_KINDS.map(({ tag, label }) => {
+  const groups = EVIDENCE_KINDS.map(({ tag, label }) => {
     const items = evidence
       .filter((item) => item.kind === tag)
       .sort((a, b) => Number(a.created_at) - Number(b.created_at));
@@ -143,6 +129,21 @@ const EvidenceList = ({
       </div>
     );
   });
+  return (
+    <>
+      {error && (
+        <p className="text-ui text-danger" role="alert">
+          {error}
+        </p>
+      )}
+      {!error && !evidence.length && (
+        <p className="text-ui text-ink-muted py-2">
+          No evidence attached to this commit.
+        </p>
+      )}
+      {groups}
+    </>
+  );
 };
 
 export default EvidenceList;

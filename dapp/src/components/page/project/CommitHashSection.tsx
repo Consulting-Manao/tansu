@@ -5,11 +5,9 @@ import type { CommitHashState } from "./useCommitHash";
 const CommitHashSection = ({
   commit,
   isMaintainer,
-  onHashChange,
 }: {
   commit: CommitHashState;
   isMaintainer: boolean;
-  onHashChange: () => void;
 }) => {
   const { hash, commit: info, editing } = commit;
   return (
@@ -23,10 +21,7 @@ const CommitHashSection = ({
             className="flex-1 bg-transparent text-body sm:text-lead text-ink outline-none border-none font-mono"
             placeholder="Enter commit hash"
             value={hash}
-            onChange={(e) => {
-              commit.setHash(e.target.value);
-              onHashChange();
-            }}
+            onChange={(e) => commit.setHash(e.target.value)}
           />
         ) : (
           <p className="flex-1 text-body sm:text-lead text-ink break-all font-mono">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setEvidence, type EvidenceKindTag } from "@service/EvidenceService";
 import { Button, CopyButton, Select, Spinner } from "components/ui";
 import { toast } from "utils/utils";
@@ -21,6 +21,8 @@ const AddEvidenceForm = ({
   const [inputKey, setInputKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadedCid, setUploadedCid] = useState<string | null>(null);
+  // The banner belongs to the commit it was added to.
+  useEffect(() => setUploadedCid(null), [commitHash]);
 
   const add = async () => {
     if (!file) return;
