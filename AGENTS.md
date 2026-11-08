@@ -52,6 +52,7 @@ bunx vitest run tests/unit/utils/errorHandler.test.ts # single unit test
 bun run lint               # prettier -c + eslint + knip (unused files, exports, deps) + validate-contract-errors
 bun run format
 bun run check              # astro check
+bun run art                # regenerate the hero and band art (scripts/history-art.py, Python 3)
 ```
 
 Vitest resolves path aliases `@service`, `types`, `utils`, `contracts`, `schemas`, `components` to `src/*`, and reads `.env.example` rather than your local `.env`. TypeScript stays on 6.0 (typescript-eslint and `astro check` do not support newer versions yet). `bun scripts/validate-contract-errors.js` keeps the dApp's contract-error mapping in sync with the Rust contract errors — run it (it's part of `lint`) after touching `contracts/tansu/src/errors.rs`.

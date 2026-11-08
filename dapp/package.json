@@ -76,6 +76,7 @@
     "netlify:link:production": "netlify link --id 12f7130e-323b-42d5-b2cb-69df80676a79",
     "netlify:build": "netlify build",
     "netlify:deploy": "netlify deploy --prod",
+    "art": "python3 scripts/history-art.py",
     "icons": "rsvg-convert -w 192 assets/icon.svg -o public/icon-192.png && rsvg-convert -w 512 assets/icon.svg -o public/icon-512.png && rsvg-convert -w 512 assets/icon-maskable.svg -o public/icon-maskable-512.png && rsvg-convert -w 180 assets/icon-maskable.svg -o public/apple-touch-icon.png"
   },
   "type": "module",

@@ -67,6 +67,8 @@ The worker waits: a new deploy is offered by the "A new version is ready" card (
 
 Links to a project and its tabs, a proposal and a member come from `projectUrl(name, tab)`, `proposalUrl` and `memberUrl` in `src/utils/urls.ts`; `/governance/` only redirects old links to a project's Proposals tab. Their trailing slash is the URL Netlify serves without a redirect and the one the precache matches.
 
+Art: `bun run art` writes the home hero's and the page bands' history art into `src/assets/art/` (`scripts/history-art.py`, Python 3, no packages); `src/styles/history-art.css` colours it for both themes.
+
 Icons: `bun run icons` renders `assets/icon.svg` and `assets/icon-maskable.svg` into the PNGs in `public/` (needs `rsvg-convert`).
 
 ## Data and caching
