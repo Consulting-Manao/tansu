@@ -19,7 +19,7 @@ const AddressDisplay: FC<AddressDisplayProps> = ({ address }) => {
   return (
     <div className="mt-1 bg-sunken p-2 rounded flex items-center gap-2 w-full">
       <div className="flex-grow text-center">
-        <p className="text-sm font-mono text-ink overflow-hidden">
+        <p className="text-ui font-mono text-ink overflow-hidden">
           {truncateMiddle(address, 16)}
         </p>
       </div>

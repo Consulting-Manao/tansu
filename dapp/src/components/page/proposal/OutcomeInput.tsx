@@ -32,7 +32,7 @@ const outcomeTemplateTags = (template: OutcomeTemplate) => (
     {getOutcomeTemplateFills(template).map((fill) => (
       <span
         key={fill}
-        className="px-1.5 py-0.5 rounded bg-action/10 text-[10px] font-medium text-ink"
+        className="px-1.5 py-0.5 rounded bg-action/10 text-label font-medium text-ink"
       >
         {fill}
       </span>
@@ -45,10 +45,10 @@ const outcomeTemplatePreview = ({ contract, xdr }: OutcomeTemplate) => (
   <>
     {contract && (
       <div className="border border-action rounded-control p-4 bg-sunken">
-        <p className="text-sm font-semibold text-ink mb-2">
+        <p className="text-ui font-semibold text-ink mb-2">
           Contract call pre-filled
         </p>
-        <div className="space-y-1 font-mono text-sm text-ink-muted">
+        <div className="space-y-1 font-mono text-ui text-ink-muted">
           <p>
             <span className="text-ink">function:</span> {contract.execute_fn}
           </p>
@@ -67,10 +67,10 @@ const outcomeTemplatePreview = ({ contract, xdr }: OutcomeTemplate) => (
     )}
     {xdr && (
       <div className="border border-action rounded-control p-4 bg-sunken">
-        <p className="text-sm font-semibold text-ink mb-2">
+        <p className="text-ui font-semibold text-ink mb-2">
           XDR transaction pre-filled
         </p>
-        <pre className="whitespace-pre-wrap font-mono text-sm text-ink-muted break-all">
+        <pre className="whitespace-pre-wrap font-mono text-ui text-ink-muted break-all">
           {xdr}
         </pre>
       </div>
@@ -106,13 +106,13 @@ const OutcomeInput = ({
   return (
     <section
       aria-labelledby={headingId}
-      className="w-full flex flex-col items-start gap-[18px]"
+      className="w-full flex flex-col items-start gap-4"
     >
-      <h3 id={headingId} className={`text-xl font-medium text-${type}`}>
+      <h3 id={headingId} className={`text-lead font-medium text-${type}`}>
         {capitalizeFirstLetter(type)} Outcome
       </h3>
 
-      <div className="w-full flex flex-col gap-[18px]">
+      <div className="w-full flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <OutcomeModeSelector
             mode={mode}
@@ -150,8 +150,8 @@ const OutcomeInput = ({
           }
         />
 
-        <div className="flex flex-col gap-[18px]">
-          <p className="leading-[16px] text-base font-[600] text-ink">
+        <div className="flex flex-col gap-4">
+          <p className="leading-4 text-body font-semibold text-ink">
             Description
           </p>
           <div>
@@ -162,40 +162,40 @@ const OutcomeInput = ({
               className={descriptionError ? "border-danger" : ""}
             />
             {descriptionError && (
-              <p className="mt-1 text-sm text-danger">{descriptionError}</p>
+              <p className="mt-1 text-ui text-danger">{descriptionError}</p>
             )}
           </div>
         </div>
 
         {mode === "xdr" && (
-          <div className="flex flex-col gap-[18px]">
-            <p className="leading-[16px] text-base font-[600] text-ink">
+          <div className="flex flex-col gap-4">
+            <p className="leading-4 text-body font-semibold text-ink">
               XDR Transaction
             </p>
             <div>
               <Textarea
-                className={`min-h-[120px] font-mono text-sm ${xdrError ? "border-danger" : ""}`}
+                className={`min-h-30 font-mono text-ui ${xdrError ? "border-danger" : ""}`}
                 placeholder="Paste your XDR transaction here..."
                 value={xdr}
                 onChange={(e) => update({ xdr: e.target.value })}
               />
               {xdrError && (
-                <p className="mt-1 text-sm text-danger">{xdrError}</p>
+                <p className="mt-1 text-ui text-danger">{xdrError}</p>
               )}
             </div>
           </div>
         )}
 
         {mode === "contract" && (
-          <div className="flex flex-col gap-[18px]">
-            <p className="leading-[16px] text-base font-[600] text-ink">
+          <div className="flex flex-col gap-4">
+            <p className="leading-4 text-body font-semibold text-ink">
               Contract Function
             </p>
 
             {/* Resolve a contract by its registered name via the Stellar
                 Registry (exact match, on-chain). Fills the address below. */}
             <div className="w-full flex flex-col gap-2">
-              <label className="text-sm font-medium text-ink">
+              <label className="text-ui font-medium text-ink">
                 Contract Name (Stellar Registry)
               </label>
               <ContractNameSearch
@@ -229,7 +229,7 @@ const OutcomeInput = ({
             {!callError && <OutcomeCallCheck call={call} />}
 
             {contractError && (
-              <p className="mt-1 text-sm text-danger">{contractError}</p>
+              <p className="mt-1 text-ui text-danger">{contractError}</p>
             )}
           </div>
         )}

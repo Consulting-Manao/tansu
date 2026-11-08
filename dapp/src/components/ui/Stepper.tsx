@@ -29,7 +29,7 @@ export function Stepper({ steps, current }: StepperProps) {
           >
             <span
               className={cx(
-                "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                "flex size-6 shrink-0 items-center justify-center rounded-full text-label font-bold",
                 index < current && "bg-success-soft text-success",
                 index === current && "bg-accent-soft text-accent-ink",
                 index > current && "border border-line-strong",

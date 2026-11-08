@@ -59,17 +59,17 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
     <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-6">
         <img
-          className="w-[90px] h-[90px] sm:w-[110px] sm:h-[110px] lg:w-[150px] lg:h-[150px] object-contain"
+          className="w-22 h-22 sm:w-27 sm:h-27 lg:w-37 lg:h-37 object-contain"
           alt="Project thumbnail"
           src={projectData?.logoImageLink || "/fallback-image.jpg"}
         />
         <div className="flex flex-col gap-3 sm:gap-4 w-full">
           <div className="flex flex-col gap-2 sm:gap-3">
-            <p className="leading-4 text-sm sm:text-base text-ink-muted text-center sm:text-left">
+            <p className="leading-4 text-ui sm:text-body text-ink-muted text-center sm:text-left">
               {projectData?.organization || ""}
             </p>
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-[18px]">
-              <p className="text-xl sm:text-2xl text-ink text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-4">
+              <p className="text-lead sm:text-section text-ink text-center sm:text-left">
                 {projectData?.name || ""}
               </p>
               <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                 )}
               </div>
             </div>
-            <p className="text-sm sm:text-base text-ink text-center sm:text-left max-w-full break-words">
+            <p className="text-ui sm:text-body text-ink text-center sm:text-left max-w-full break-words">
               {projectData?.description || ""}
             </p>
           </div>
@@ -116,7 +116,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                     }
                     showText={true}
                     text="Clone Repository"
-                    className="w-full sm:w-auto p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-sunken"
+                    className="w-full sm:w-auto p-2 sm:py-2 sm:px-7 lg:py-4 lg:px-7 bg-sunken"
                   />
                 </div>
                 {releasesUrl ? (

@@ -40,7 +40,7 @@ const VotingResult: FC<Props> = ({
 
   const getCardClass = (type: VoteType) => {
     const base =
-      "flex flex-col gap-[18px] min-w-[120px] p-3 rounded-control transition-colors";
+      "flex flex-col gap-4 min-w-30 p-3 rounded-control transition-colors";
 
     if (!isWinner(type)) return base;
 
@@ -59,7 +59,7 @@ const VotingResult: FC<Props> = ({
       <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {voteResult && (
           <div className="flex flex-col gap-4.5">
-            <p className="leading-4 text-base text-ink-muted">Final Outcome</p>
+            <p className="leading-4 text-body text-ink-muted">Final Outcome</p>
             <div className="flex items-center gap-2">
               <VoteTypeCheckbox
                 size="sm"
@@ -67,7 +67,7 @@ const VotingResult: FC<Props> = ({
                 currentVoteType={voteResult}
               />
               <p
-                className={`leading-5 text-lg md:text-xl font-medium text-${voteResult}`}
+                className={`leading-5 text-card md:text-lead font-medium text-${voteResult}`}
               >
                 {votedTypeLabelMap[voteResult]}
               </p>
@@ -75,11 +75,11 @@ const VotingResult: FC<Props> = ({
           </div>
         )}
         {withDetail && (
-          <div className="flex flex-col gap-[18px]">
-            <p className="leading-4 text-base text-ink-muted">
+          <div className="flex flex-col gap-4">
+            <p className="leading-4 text-body text-ink-muted">
               Total Votes Cast
             </p>
-            <p className="leading-6 text-lg md:text-xl text-ink">
+            <p className="leading-6 text-card md:text-lead text-ink">
               {totalVotesOverride !== undefined
                 ? totalVotesOverride
                 : countsOverride
@@ -100,10 +100,10 @@ const VotingResult: FC<Props> = ({
           {/* APPROVE */}
           <div className={getCardClass(VoteType.APPROVE)}>
             <div className="flex items-center justify-between">
-              <p className="leading-4 text-base text-approved">Approved</p>
+              <p className="leading-4 text-body text-approved">Approved</p>
             </div>
 
-            <p className="leading-6 text-lg md:text-xl text-ink">
+            <p className="leading-6 text-card md:text-lead text-ink">
               {countsOverride
                 ? countsOverride.approve
                 : voteStatus?.approve.score}{" "}
@@ -114,10 +114,10 @@ const VotingResult: FC<Props> = ({
           {/* CANCEL */}
           <div className={getCardClass(VoteType.CANCEL)}>
             <div className="flex items-center justify-between">
-              <p className="leading-4 text-base text-cancelled">Cancelled</p>
+              <p className="leading-4 text-body text-cancelled">Cancelled</p>
             </div>
 
-            <p className="leading-6 text-lg md:text-xl text-ink">
+            <p className="leading-6 text-card md:text-lead text-ink">
               {countsOverride
                 ? countsOverride.abstain
                 : voteStatus?.abstain.score}{" "}
@@ -128,10 +128,10 @@ const VotingResult: FC<Props> = ({
           {/* REJECT */}
           <div className={getCardClass(VoteType.REJECT)}>
             <div className="flex items-center justify-between">
-              <p className="leading-4 text-base text-rejected">Rejected</p>
+              <p className="leading-4 text-body text-rejected">Rejected</p>
             </div>
 
-            <p className="leading-6 text-lg md:text-xl text-ink">
+            <p className="leading-6 text-card md:text-lead text-ink">
               {countsOverride
                 ? countsOverride.reject
                 : voteStatus?.reject.score}{" "}

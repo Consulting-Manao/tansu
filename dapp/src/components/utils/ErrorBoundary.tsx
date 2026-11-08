@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
           role="alert"
         >
           <h3 className="font-semibold">Something went wrong</h3>
-          <p className="mt-2 text-sm">
+          <p className="mt-2 text-ui">
             {this.state.error.message || "An unexpected error occurred."}
           </p>
           <Button

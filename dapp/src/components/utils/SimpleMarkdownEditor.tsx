@@ -37,24 +37,24 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
       </div>
 
       {/* Content */}
-      <div className="min-h-[200px]">
+      <div className="min-h-50">
         {activeTab === "edit" ? (
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full min-h-[200px] p-4 border-none outline-none resize-y font-mono text-sm"
+            className="w-full min-h-50 p-4 border-none outline-none resize-y font-mono text-ui"
             style={{
               fontFamily:
                 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             }}
           />
         ) : value.trim() ? (
-          <Markdown className="p-4 min-h-[200px]" baseUrl={baseUrl}>
+          <Markdown className="p-4 min-h-50" baseUrl={baseUrl}>
             {value}
           </Markdown>
         ) : (
-          <p className="p-4 min-h-[200px] text-ink-muted italic">
+          <p className="p-4 min-h-50 text-ink-muted italic">
             Nothing to preview...
           </p>
         )}
@@ -62,7 +62,7 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
 
       {/* Help Text */}
       {activeTab === "edit" && (
-        <div className="px-4 py-2 bg-sunken border-t border-line-strong text-xs text-ink-muted">
+        <div className="px-4 py-2 bg-sunken border-t border-line-strong text-label text-ink-muted">
           <p>
             <strong>Supported:</strong> **bold** *italic* # headings - lists |
             tables | ![images](url) [links](url) &gt; quotes `code` ```code

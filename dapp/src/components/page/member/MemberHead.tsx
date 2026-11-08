@@ -44,7 +44,7 @@ const MemberHead = () => {
     ? "Loading profile…"
     : profile?.name || "Anonymous";
   const head = (avatar: ReactNode, title: string, children: ReactNode) => (
-    <div className="flex max-w-[760px] flex-col gap-4 sm:gap-5">
+    <div className="flex max-w-190 flex-col gap-4 sm:gap-5">
       <div className="flex items-center gap-4 sm:gap-6">
         {avatar}
         <h1 className="min-w-0 text-section font-extrabold tracking-[-0.02em] break-words text-band-ink sm:text-title">

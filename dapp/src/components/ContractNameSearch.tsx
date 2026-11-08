@@ -109,13 +109,13 @@ export default function ContractNameSearch({
       />
 
       {status === "loading" && (
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1 text-label text-ink-muted">
           Resolving on the Stellar Registry…
         </p>
       )}
 
       {showNotRegistered && (
-        <p className="mt-1 text-xs text-danger">
+        <p className="mt-1 text-label text-danger">
           “{query.trim()}” is not on the Stellar Registry.{" "}
           <a
             href={STELLAR_REGISTRY_URL}
@@ -129,7 +129,7 @@ export default function ContractNameSearch({
       )}
 
       {status === "error" && (
-        <p className="mt-1 text-xs text-danger">
+        <p className="mt-1 text-label text-danger">
           Could not reach the Stellar Registry. Press Enter to retry, or paste
           the address manually.
         </p>
@@ -141,7 +141,7 @@ export default function ContractNameSearch({
             <span className="font-medium text-ink">
               {resolved!.contractName}
             </span>
-            <span className="ml-2 text-xs text-ink-muted font-mono">
+            <span className="ml-2 text-label text-ink-muted font-mono">
               {shortAddress(resolved!.contractId)}
             </span>
           </div>

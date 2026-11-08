@@ -51,18 +51,18 @@ const EnhancedContractFunctionSelector = ({
 
   if (!valid) {
     return (
-      <p className="text-sm text-danger">
+      <p className="text-ui text-danger">
         Enter a contract address (C...) to choose its function.
       </p>
     );
   }
   if (functions.isPending) {
-    return <p className="text-sm text-ink-muted">Loading functions...</p>;
+    return <p className="text-ui text-ink-muted">Loading functions...</p>;
   }
   if (functions.isError) {
     return (
       <div className="flex flex-col gap-2 p-3 bg-danger-soft border border-danger/40 rounded-control">
-        <p className="text-sm text-danger">
+        <p className="text-ui text-danger">
           Could not read this contract's functions: {functions.error.message}
         </p>
         <Button tone="secondary" size="sm" onClick={() => functions.refetch()}>
@@ -74,7 +74,7 @@ const EnhancedContractFunctionSelector = ({
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-ink">
+      <label className="block text-ui font-medium text-ink">
         Function Name
         <select
           value={call.execute_fn}
@@ -129,7 +129,7 @@ const ArgInput = ({
   const label = `${input.name} (${input.type})`;
   if (input.type === "bool") {
     return (
-      <label className="block text-xs font-medium text-ink-muted">
+      <label className="block text-label font-medium text-ink-muted">
         {label}
         <select
           value={value}
@@ -141,7 +141,7 @@ const ArgInput = ({
           <option value="false">false</option>
           <option value="true">true</option>
         </select>
-        {error && <p className="mt-1 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-1 text-ui text-danger">{error}</p>}
       </label>
     );
   }
@@ -161,7 +161,7 @@ const ArgInput = ({
               : "Value"
       }
       error={error}
-      className="font-mono text-sm"
+      className="font-mono text-ui"
     />
   );
 };

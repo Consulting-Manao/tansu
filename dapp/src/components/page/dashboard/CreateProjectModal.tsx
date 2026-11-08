@@ -217,7 +217,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   const footer = (next: () => void) => (
-    <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
+    <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4">
       <Button tone="secondary" onClick={onClose} className="w-full sm:w-auto">
         Cancel
       </Button>
@@ -230,10 +230,10 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
   const stepLayout = (image: string, body: React.ReactNode) => (
     <div
       key={step}
-      className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]"
+      className="flex flex-col md:flex-row items-center gap-6 md:gap-4"
     >
-      <img alt="" className="flex-none w-[140px] md:w-[260px]" src={image} />
-      <div className="flex flex-col gap-6 md:gap-[42px] w-full">{body}</div>
+      <img alt="" className="flex-none w-35 md:w-65" src={image} />
+      <div className="flex flex-col gap-6 md:gap-10 w-full">{body}</div>
     </div>
   );
 
@@ -263,7 +263,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
         ? stepLayout(
             "/images/megaphone.svg",
             <>
-              <div className="flex flex-col gap-4 md:gap-[30px]">
+              <div className="flex flex-col gap-4 md:gap-7">
                 <div className="flex flex-col gap-3 md:gap-5">
                   <StepBar step={step} totalSteps={5} />
                   <Title
@@ -301,7 +301,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   error={projectFullNameError}
                 />
                 <fieldset className="flex flex-col gap-3">
-                  <legend className="leading-4 text-base text-ink-muted mb-3">
+                  <legend className="leading-4 text-body text-ink-muted mb-3">
                     Project Type
                   </legend>
                   <div className="flex gap-4">
@@ -329,7 +329,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                       </label>
                     ))}
                   </div>
-                  <p className="text-sm text-ink-muted">
+                  <p className="text-ui text-ink-muted">
                     {isSoftware
                       ? "For software projects hosted on GitHub, GitLab, Bitbucket, Codeberg, Gitea, or public Radicle repositories"
                       : "For non-software projects like creative work, documentation, or community initiatives"}
@@ -355,7 +355,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
           ? stepLayout(
               "/images/team.svg",
               <>
-                <div className="flex flex-col gap-4 md:gap-[30px]">
+                <div className="flex flex-col gap-4 md:gap-7">
                   <div className="flex flex-col gap-3 md:gap-5">
                     <StepBar step={step} totalSteps={5} />
                     <Title
@@ -380,7 +380,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
             ? stepLayout(
                 "/images/arrow.svg",
                 <>
-                  <div className="flex flex-col gap-4 md:gap-[30px]">
+                  <div className="flex flex-col gap-4 md:gap-7">
                     <div className="flex flex-col gap-3 md:gap-5">
                       <StepBar step={step} totalSteps={5} />
                       <Title
@@ -428,26 +428,26 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                 </>,
               )
             : step == 4 && (
-                <div key={step} className="flex flex-col gap-[30px]">
-                  <div className="flex items-center gap-[18px]">
+                <div key={step} className="flex flex-col gap-7">
+                  <div className="flex items-center gap-4">
                     <img
                       alt=""
-                      className="flex-none w-[360px]"
+                      className="flex-none w-90"
                       src="/images/note.svg"
                     />
-                    <div className="flex-grow flex flex-col gap-[30px]">
+                    <div className="flex-grow flex flex-col gap-7">
                       <div className="flex flex-col gap-5">
                         <StepBar step={step} totalSteps={5} />
                         <Title
                           title="Review and Submit Your Project"
                           description="Take a moment to review your project details before submitting. You can go back and make changes if needed."
                         />
-                        <p className="text-sm text-ink-muted">
+                        <p className="text-ui text-ink-muted">
                           <span className="font-semibold">Note:</span> Project
                           registration requires a 5 XLM collateral deposit.
                         </p>
                       </div>
-                      <div className="flex gap-[18px]">
+                      <div className="flex gap-4">
                         <Button
                           loading={isLoading}
                           onClick={handleRegisterProject}
@@ -462,19 +462,19 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   </div>
                   <ReviewSection title="First Step" onBack={() => setStep(1)}>
                     <Label label="Project Name (On-chain)">
-                      <p className="leading-6 text-xl text-ink">
+                      <p className="leading-6 text-lead text-ink">
                         {projectName}
                       </p>
                     </Label>
                     {projectFullName && (
                       <Label label="Project Full Name">
-                        <p className="leading-6 text-xl text-ink">
+                        <p className="leading-6 text-lead text-ink">
                           {projectFullName}
                         </p>
                       </Label>
                     )}
                     <Label label="Project type">
-                      <p className="leading-6 text-xl text-ink">
+                      <p className="leading-6 text-lead text-ink">
                         {isSoftware
                           ? "Software Project"
                           : "Non-Software Project"}
@@ -482,7 +482,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                     </Label>
                     {isSoftware && (
                       <Label label={`${providerLabel} Repository URL`}>
-                        <p className="leading-6 text-xl text-ink break-all">
+                        <p className="leading-6 text-lead text-ink break-all">
                           {repositoryUrl}
                         </p>
                       </Label>
@@ -490,11 +490,11 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   </ReviewSection>
                   <ReviewSection title="Second Step" onBack={() => setStep(2)}>
                     <Label label="Maintainers">
-                      <div className="grid grid-cols-3 gap-x-9 gap-y-[18px]">
+                      <div className="grid grid-cols-3 gap-x-9 gap-y-4">
                         {maintainers.map((row, index) => (
                           <p
                             key={index}
-                            className="leading-[14px] text-sm text-ink-muted"
+                            className="leading-3 text-ui text-ink-muted"
                           >
                             {`(${row.address.slice(0, 24)}...)`}
                           </p>
@@ -504,7 +504,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                   </ReviewSection>
                   <ReviewSection title="Third Step" onBack={() => setStep(3)}>
                     <Label label="Finality threshold">
-                      <p className="leading-6 text-xl text-ink">
+                      <p className="leading-6 text-lead text-ink">
                         {finalityThreshold}%
                       </p>
                     </Label>
@@ -526,14 +526,14 @@ const ReviewSection = ({
   children: React.ReactNode;
 }) => (
   <>
-    <div className="h-[1px] bg-sunken" />
+    <div className="h-px bg-sunken" />
     <div className="flex flex-col gap-6">
       <div className="flex gap-6">
-        <p className="leading-6 text-xl font-medium text-ink">{title}</p>
+        <p className="leading-6 text-lead font-medium text-ink">{title}</p>
         <Button
           tone="secondary"
           size="sm"
-          className="p-[2px_10px]"
+          className="py-0.5 px-2"
           onClick={onBack}
         >
           Back to the {title}

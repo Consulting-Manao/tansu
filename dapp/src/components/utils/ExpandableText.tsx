@@ -16,7 +16,7 @@ export function ExpandableText({
     return (
       <div className={`relative flex flex-col items-start gap-3 ${className}`}>
         <p
-          className={`text-lg text-ink ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"} transition-all duration-300`}
+          className={`text-card text-ink ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"} transition-all duration-300`}
         >
           {children}
         </p>
@@ -33,5 +33,5 @@ export function ExpandableText({
     );
   }
 
-  return <p className="text-lg text-ink">-</p>;
+  return <p className="text-card text-ink">-</p>;
 }

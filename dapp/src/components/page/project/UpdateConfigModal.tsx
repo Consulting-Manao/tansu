@@ -392,8 +392,8 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
   };
 
   const stepLayout = (image: string, body: React.ReactNode) => (
-    <div className="flex flex-col md:flex-row items-center gap-6 md:gap-[18px]">
-      <img alt="" className="flex-none md:w-1/3 w-[180px]" src={image} />
+    <div className="flex flex-col md:flex-row items-center gap-6 md:gap-4">
+      <img alt="" className="flex-none md:w-1/3 w-45" src={image} />
       <div className="flex flex-col gap-4 w-full md:w-2/3">{body}</div>
     </div>
   );
@@ -549,11 +549,11 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   }}
                 />
                 {timingNotice && (
-                  <p className="text-sm text-ink-muted">{timingNotice}</p>
+                  <p className="text-ui text-ink-muted">{timingNotice}</p>
                 )}
                 {!isSoftware && (
                   <div className="flex flex-col gap-3">
-                    <p className="text-sm font-medium text-ink">README</p>
+                    <p className="text-ui font-medium text-ink">README</p>
                     <MarkdownEditorWithImages
                       value={readmeContent}
                       onChange={setReadmeContent}

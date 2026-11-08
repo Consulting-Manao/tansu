@@ -55,7 +55,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
     <div className="bg-surface p-6 rounded-control border border-line">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-ink">
+          <h3 className="text-card font-semibold text-ink">
             Contributor Activity
           </h3>
           <div className="flex gap-2">
@@ -64,7 +64,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
               onChange={(e) =>
                 setSortBy(e.target.value as "commits" | "recent")
               }
-              className="px-3 py-1 text-xs border border-line-strong rounded-control bg-surface"
+              className="px-3 py-1 text-label border border-line-strong rounded-control bg-surface"
             >
               <option value="commits">Sort by Commits</option>
               <option value="recent">Sort by Recent</option>
@@ -89,20 +89,20 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
                       className={`w-2 h-2 rounded-full ${activity.color}`}
                       title={activity.status}
                     />
-                    <span className="text-sm font-medium text-ink truncate">
+                    <span className="text-ui font-medium text-ink truncate">
                       {contributor.author.name}
                     </span>
                     {isMaintainer && (
-                      <span className="px-2 py-0.5 text-xs bg-success-soft text-success rounded">
+                      <span className="px-2 py-0.5 text-label bg-success-soft text-success rounded">
                         maintainer
                       </span>
                     )}
-                    <span className="text-xs text-ink-muted">
+                    <span className="text-label text-ink-muted">
                       {contributor.commitCount} commits
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                  <div className="flex items-center gap-2 text-label text-ink-muted">
                     <span>First: {formatDate(contributor.firstCommit)}</span>
                     <span>•</span>
                     <span>Last: {formatDate(contributor.lastCommit)}</span>
@@ -124,7 +124,7 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
         )}
 
         <div className="mt-4 pt-4 border-t border-line">
-          <div className="flex items-center gap-4 text-xs text-ink-muted flex-wrap">
+          <div className="flex items-center gap-4 text-label text-ink-muted flex-wrap">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-success" />
               <span>Active (≤1 month)</span>

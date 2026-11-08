@@ -47,7 +47,7 @@ const BackLink = () => (
 );
 
 const Head = ({ children }: { children: ReactNode }) => (
-  <div className="flex max-w-[760px] flex-col gap-4 sm:gap-6">
+  <div className="flex max-w-190 flex-col gap-4 sm:gap-6">
     <BackLink />
     {children}
   </div>

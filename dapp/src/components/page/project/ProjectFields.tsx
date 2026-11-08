@@ -65,12 +65,9 @@ export const MaintainerRows = ({
   const set = (i: number, change: Partial<MaintainerRow>) =>
     onChange(rows.map((row, j) => (j === i ? { ...row, ...change } : row)));
   return (
-    <div className="flex flex-col gap-[18px]">
+    <div className="flex flex-col gap-4">
       {rows.map((row, i) => (
-        <div
-          key={i}
-          className="flex flex-col md:flex-row md:items-end gap-[18px]"
-        >
+        <div key={i} className="flex flex-col md:flex-row md:items-end gap-4">
           <Input
             className="flex-1"
             label={i === 0 ? "Maintainer Address" : undefined}
@@ -141,15 +138,15 @@ export const RepositoryFields = ({
   const active = activeProvider(url, provider);
   const label = getRepositoryProviderLabel(active);
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="flex flex-col gap-7">
       <label className="flex flex-col gap-3">
-        <span className="leading-4 text-base text-ink-muted">
+        <span className="leading-4 text-body text-ink-muted">
           Repository Provider
         </span>
         <select
           value={active}
           onChange={(e) => onChange(url, e.target.value as RepositoryProvider)}
-          className="p-[18px] border border-line-strong outline-none bg-surface"
+          className="p-4 border border-line-strong outline-none bg-surface"
         >
           {SUPPORTED_REPOSITORY_PROVIDERS.map((host) => (
             <option key={host} value={host}>
@@ -157,7 +154,7 @@ export const RepositoryFields = ({
             </option>
           ))}
         </select>
-        <span className="leading-[16px] text-base text-ink-muted">
+        <span className="leading-4 text-body text-ink-muted">
           You can choose the provider first or paste the repository URL below
           and let the form detect it.
         </span>

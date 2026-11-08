@@ -77,10 +77,10 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
       <div className="flex-shrink-0 p-5 pb-2 sm:p-8 sm:pb-2">
         <div className="flex flex-col gap-3">
           <h2 className="text-section font-bold text-ink">Terms of Service</h2>
-          <div className="text-base text-ink-muted">
+          <div className="text-body text-ink-muted">
             Please read and accept our Terms of Service to continue
           </div>
-          <div className="text-sm text-ink-muted">
+          <div className="text-ui text-ink-muted">
             Last Updated: {s.lastUpdated}
           </div>
         </div>
@@ -120,10 +120,10 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-link mb-1">
+                  <h4 className="text-ui font-semibold text-link mb-1">
                     Important Notice
                   </h4>
-                  <p className="text-sm text-link">{s.importantNotice}</p>
+                  <p className="text-ui text-link">{s.importantNotice}</p>
                 </div>
               </div>
             </div>
@@ -133,8 +133,10 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.keyPoints && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">🔑</span>
-                  <h2 className="text-xl font-semibold text-ink">Key Points</h2>
+                  <span className="text-card">🔑</span>
+                  <h2 className="text-lead font-semibold text-ink">
+                    Key Points
+                  </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.keyPoints.map((item, i) => (
@@ -142,7 +144,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                       <h3 className="font-semibold text-ink mb-1">
                         {item.title}
                       </h3>
-                      <p className="text-ink-muted text-sm">{item.content}</p>
+                      <p className="text-ink-muted text-ui">{item.content}</p>
                     </div>
                   ))}
                 </div>
@@ -151,8 +153,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.importantRisks && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">⚠️</span>
-                  <h2 className="text-xl font-semibold text-ink">
+                  <span className="text-card">⚠️</span>
+                  <h2 className="text-lead font-semibold text-ink">
                     Important Risks
                   </h2>
                 </div>
@@ -162,7 +164,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                       <h4 className="font-semibold text-danger mb-1">
                         {item.title}
                       </h4>
-                      <p className="text-danger text-sm">{item.content}</p>
+                      <p className="text-danger text-ui">{item.content}</p>
                     </div>
                   ))}
                 </div>
@@ -171,15 +173,15 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.yourResponsibilities && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">📋</span>
-                  <h2 className="text-xl font-semibold text-ink">
+                  <span className="text-card">📋</span>
+                  <h2 className="text-lead font-semibold text-ink">
                     Your Responsibilities
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {sections.yourResponsibilities.map((item, i) => (
                     <div key={i} className="bg-info-soft rounded-control p-3">
-                      <p className="text-link text-sm font-medium">{item}</p>
+                      <p className="text-link text-ui font-medium">{item}</p>
                     </div>
                   ))}
                 </div>
@@ -188,20 +190,20 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.serviceModifications && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">⚙️</span>
-                  <h2 className="text-xl font-semibold text-ink">
+                  <span className="text-card">⚙️</span>
+                  <h2 className="text-lead font-semibold text-ink">
                     Service Modifications
                   </h2>
                 </div>
                 <div className="space-y-3">
-                  <p className="text-ink-muted text-sm mb-3">
+                  <p className="text-ink-muted text-ui mb-3">
                     {sections.serviceModifications.description}
                   </p>
                   <div className="bg-warning-soft border border-warning/40 rounded-control p-3">
                     <h4 className="font-semibold text-warning mb-1">
                       Administrative Rights
                     </h4>
-                    <p className="text-warning text-sm">
+                    <p className="text-warning text-ui">
                       {sections.serviceModifications.administrativeRights}
                     </p>
                   </div>
@@ -211,8 +213,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.limitationsOfLiability && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">🛡️</span>
-                  <h2 className="text-xl font-semibold text-ink">
+                  <span className="text-card">🛡️</span>
+                  <h2 className="text-lead font-semibold text-ink">
                     Limitations of Liability
                   </h2>
                 </div>
@@ -222,7 +224,7 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                       key={i}
                       className="bg-warning-soft rounded-control p-3"
                     >
-                      <p className="text-warning text-sm font-medium">{item}</p>
+                      <p className="text-warning text-ui font-medium">{item}</p>
                     </div>
                   ))}
                 </div>
@@ -231,8 +233,8 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             {sections.contactInformation && (
               <div className="bg-surface p-6 rounded-control border border-line shadow-raise">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">📞</span>
-                  <h2 className="text-xl font-semibold text-ink">
+                  <span className="text-card">📞</span>
+                  <h2 className="text-lead font-semibold text-ink">
                     Contact Information
                   </h2>
                 </div>
@@ -241,25 +243,25 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
                     <h4 className="font-semibold text-ink mb-1">
                       {sections.contactInformation.company}
                     </h4>
-                    <p className="text-ink-muted text-sm whitespace-pre-line">
+                    <p className="text-ink-muted text-ui whitespace-pre-line">
                       {sections.contactInformation.details}
                     </p>
                   </div>
                   <div>
                     <span className="font-semibold text-ink">Address:</span>
-                    <p className="text-ink-muted text-sm">
+                    <p className="text-ink-muted text-ui">
                       {sections.contactInformation.address}
                     </p>
                   </div>
                   <div>
                     <span className="font-semibold text-ink">Email:</span>
-                    <p className="text-ink-muted text-sm">
+                    <p className="text-ink-muted text-ui">
                       {sections.contactInformation.email}
                     </p>
                   </div>
                   <div>
                     <span className="font-semibold text-ink">Website:</span>
-                    <p className="text-ink-muted text-sm">
+                    <p className="text-ink-muted text-ui">
                       {sections.contactInformation.website}
                     </p>
                   </div>
@@ -276,18 +278,18 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
 
       <div className="flex-shrink-0 flex flex-col gap-4 border-t border-line px-5 pt-4 pb-6 sm:px-8">
         <div className="text-center sm:text-left">
-          <p className="text-sm text-ink-muted">
+          <p className="text-ui text-ink-muted">
             By clicking "Accept", you agree to be bound by these Terms of
             Service.
           </p>
           {!hasScrolled && (
-            <p className="text-ink text-xs mt-1">
+            <p className="text-ink text-label mt-1">
               Please scroll down to read more before accepting
             </p>
           )}
           <a
             href="/impressum/"
-            className="text-xs text-ink-muted underline mt-1 inline-block"
+            className="text-label text-ink-muted underline mt-1 inline-block"
           >
             Impressum
           </a>

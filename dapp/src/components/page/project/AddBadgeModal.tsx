@@ -90,22 +90,22 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
       </Button>
       {isOpen && (
         <Dialog size="auto" onClose={handleClose}>
-          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-4">
             <img
               alt=""
               src="/images/scan.svg"
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-9 w-full">
-              <h6 className="text-xl sm:text-2xl font-medium text-ink text-center sm:text-left">
+              <h6 className="text-lead sm:text-section font-medium text-ink text-center sm:text-left">
                 Member badges
               </h6>
-              <div className="flex flex-col gap-4 sm:gap-[18px]">
-                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-ink">
+              <div className="flex flex-col gap-4 sm:gap-4">
+                <label className="flex flex-col gap-2 sm:gap-3 text-ui sm:text-body font-semibold text-ink">
                   Member address
                   <input
                     type="text"
-                    className="p-3 sm:p-[18px] border border-line-strong outline-none w-full text-sm sm:text-base font-normal"
+                    className="p-3 sm:p-4 border border-line-strong outline-none w-full text-ui sm:text-body font-normal"
                     placeholder="Member address as G..."
                     value={memberAddress}
                     onChange={(e) => {
@@ -119,7 +119,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                 {loadError && (
                   <div
                     role="alert"
-                    className="flex flex-col gap-2 text-sm text-danger"
+                    className="flex flex-col gap-2 text-ui text-danger"
                   >
                     <p>Could not read the member's badges: {loadError}</p>
                     <Button
@@ -132,14 +132,14 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                   </div>
                 )}
                 <div className="flex flex-col gap-2 sm:gap-3">
-                  <p className="text-sm sm:text-base font-[600] text-ink">
+                  <p className="text-ui sm:text-body font-semibold text-ink">
                     Badges
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {badgeOptions.map((opt) => (
                       <label
                         key={opt.value}
-                        className="flex gap-2 items-center text-sm sm:text-base text-ink"
+                        className="flex gap-2 items-center text-ui sm:text-body text-ink"
                       >
                         <input
                           type="checkbox"

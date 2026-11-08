@@ -121,7 +121,7 @@ const AttestationCard = ({
 
   const badge = finality ? (
     <span
-      className={`flex items-center justify-center text-xs font-bold rounded-control px-1.5 py-0.5 whitespace-nowrap ${
+      className={`flex items-center justify-center text-label font-bold rounded-control px-1.5 py-0.5 whitespace-nowrap ${
         isFinal ? "bg-success-soft text-success" : "bg-line text-ink-muted"
       }`}
       title={
@@ -183,9 +183,9 @@ const AttestationCard = ({
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 justify-between">
           <div className="flex flex-row items-center gap-1">
-            <p className="text-sm font-semibold text-ink">Code Finality</p>
+            <p className="text-ui font-semibold text-ink">Code Finality</p>
             {showThreshold && threshold !== null && (
-              <span className="text-xs text-ink-muted">
+              <span className="text-label text-ink-muted">
                 (needs {threshold}% of maintainers)
               </span>
             )}
@@ -194,7 +194,7 @@ const AttestationCard = ({
               <div className="flex items-center gap-3">
                 {badge}
                 {hasCounts && (
-                  <span className="text-xs text-ink-muted">
+                  <span className="text-label text-ink-muted">
                     {finality.attested} of {finality.total} maintainers
                   </span>
                 )}
@@ -233,21 +233,21 @@ const AttestationCard = ({
             </div>
 
             {isFinal ? (
-              <p className="text-xs text-ink-muted">
+              <p className="text-label text-ink-muted">
                 Finalized; attestations can no longer be withdrawn.
               </p>
             ) : hasAttested && !canRevoke ? (
-              <p className="text-xs text-ink-muted">
+              <p className="text-label text-ink-muted">
                 You attested this. The withdrawal window has closed, so it is
                 now permanent.
               </p>
             ) : hasAttested ? (
-              <p className="text-xs text-ink-muted">
+              <p className="text-label text-ink-muted">
                 You attested this. Withdraw within 24h to change your mind.
               </p>
             ) : (
               !isMaintainer && (
-                <p className="text-xs text-ink-muted">
+                <p className="text-label text-ink-muted">
                   Only maintainers can attest.
                 </p>
               )
@@ -258,7 +258,7 @@ const AttestationCard = ({
         {isLoading && (
           <div className="flex items-center gap-3 py-1" aria-busy="true">
             <Spinner label="Loading…" className="text-ink" />
-            <p className="text-sm text-ink-muted">Loading attestations…</p>
+            <p className="text-ui text-ink-muted">Loading attestations…</p>
           </div>
         )}
       </div>
@@ -268,27 +268,27 @@ const AttestationCard = ({
         <div className="flex flex-col gap-1">
           {attestations.length > 0 ? (
             <>
-              <p className="text-sm font-semibold text-ink">
+              <p className="text-ui font-semibold text-ink">
                 Attested by ({attestations.length})
               </p>
               {attestations.map((a) => (
                 <div key={a.attester} className="flex items-center gap-2">
-                  <span className="text-sm text-ink font-mono">
+                  <span className="text-ui text-ink font-mono">
                     {truncateMiddle(a.attester, 12)}
                   </span>
                   {maintainerSet.has(a.attester) && (
-                    <span className="text-xs font-medium bg-line text-ink px-1 rounded-control">
+                    <span className="text-label font-medium bg-line text-ink px-1 rounded-control">
                       maintainer
                     </span>
                   )}
                   {a.attester === connectedPublicKey && (
-                    <span className="text-xs text-ink-muted">(you)</span>
+                    <span className="text-label text-ink-muted">(you)</span>
                   )}
                 </div>
               ))}
             </>
           ) : (
-            <p className="text-sm text-ink-muted">No attestations yet.</p>
+            <p className="text-ui text-ink-muted">No attestations yet.</p>
           )}
         </div>
       )}

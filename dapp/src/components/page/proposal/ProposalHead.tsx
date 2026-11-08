@@ -134,7 +134,7 @@ const ProposalHead = () => {
 
   return head(
     <>
-      <div className="flex max-w-[760px] flex-col gap-3">
+      <div className="flex max-w-190 flex-col gap-3">
         <div className="flex flex-wrap gap-2">
           <Badge tone="accent">Proposal #{proposal.id}</Badge>
           <Badge>
@@ -152,7 +152,7 @@ const ProposalHead = () => {
           </a>
         </p>
       </div>
-      <div className="mt-2 max-w-[880px]">
+      <div className="mt-2 max-w-220">
         <Timeline label="Proposal" steps={steps(proposal, delay)} />
       </div>
     </>,

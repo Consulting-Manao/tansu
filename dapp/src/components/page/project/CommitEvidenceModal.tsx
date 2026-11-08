@@ -287,19 +287,19 @@ const CommitEvidenceModal = ({
 
       {isOpen && (
         <Dialog size="auto" onClose={handleClose}>
-          <div className="flex flex-col gap-6 sm:gap-9 min-w-[320px] sm:min-w-[480px] md:min-w-[600px]">
+          <div className="flex flex-col gap-6 sm:gap-9 min-w-80 sm:min-w-120 md:min-w-150">
             {/* ── Header ──────────────────────────────────────────────── */}
-            <div className="flex items-start gap-4 sm:gap-[18px]">
+            <div className="flex items-start gap-4 sm:gap-4">
               <img
                 src="/images/scan.svg"
                 className="w-16 h-16 sm:w-auto sm:h-auto flex-shrink-0"
                 alt=""
               />
               <div className="flex-grow">
-                <h6 className="text-xl sm:text-2xl font-medium text-ink">
+                <h6 className="text-lead sm:text-section font-medium text-ink">
                   Code Finality
                 </h6>
-                <p className="text-sm text-ink-muted mt-1">
+                <p className="text-ui text-ink-muted mt-1">
                   Review evidence (SBOM, CVE, Attestation) linked to the commit
                   hash. Maintainers can add new evidence or update the hash
                   on-chain.
@@ -309,18 +309,18 @@ const CommitEvidenceModal = ({
 
             {/* ── Commit Hash ─────────────────────────────────────────── */}
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold text-ink">Commit Hash</p>
-              <div className="p-2 sm:p-[12px_18px] flex items-center gap-2 sm:gap-[18px] bg-accent-soft w-full">
+              <p className="text-ui font-semibold text-ink">Commit Hash</p>
+              <div className="p-2 sm:py-3 sm:px-4 flex items-center gap-2 sm:gap-4 bg-accent-soft w-full">
                 {isMaintainer && isEditing ? (
                   <input
                     type="text"
-                    className="flex-1 bg-transparent text-base sm:text-xl text-ink outline-none border-none font-mono"
+                    className="flex-1 bg-transparent text-body sm:text-lead text-ink outline-none border-none font-mono"
                     placeholder="Enter commit hash"
                     value={commitHashValue}
                     onChange={handleHashChange}
                   />
                 ) : (
-                  <p className="flex-1 text-base sm:text-xl text-ink break-all font-mono">
+                  <p className="flex-1 text-body sm:text-lead text-ink break-all font-mono">
                     {commitHashValue
                       ? isMaintainer
                         ? commitHashValue
@@ -369,16 +369,16 @@ const CommitEvidenceModal = ({
                 <div className="flex flex-wrap gap-x-6 gap-y-2 mt-1">
                   {commitData.date && (
                     <div className="flex gap-2">
-                      <p className="text-sm text-ink-muted">Date:</p>
-                      <p className="text-sm text-ink font-medium">
+                      <p className="text-ui text-ink-muted">Date:</p>
+                      <p className="text-ui text-ink font-medium">
                         {commitData.date}
                       </p>
                     </div>
                   )}
                   {commitData.author && (
                     <div className="flex gap-2">
-                      <p className="text-sm text-ink-muted">Author:</p>
-                      <p className="text-sm text-ink font-medium">
+                      <p className="text-ui text-ink-muted">Author:</p>
+                      <p className="text-ui text-ink font-medium">
                         @{commitData.author}
                       </p>
                     </div>
@@ -404,7 +404,7 @@ const CommitEvidenceModal = ({
 
               {/* Note for empty hash */}
               {!commitHashValue.trim() && (
-                <p className="text-sm text-warning">
+                <p className="text-ui text-warning">
                   No commit hash found on-chain. Enter a hash manually to view
                   or attach evidence.
                 </p>
@@ -414,8 +414,8 @@ const CommitEvidenceModal = ({
             {/* ── Evidence Section ────────────────────────────────────── */}
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-ink">Evidence</p>
-                <span className="text-xs text-ink-muted">(append-only)</span>
+                <p className="text-ui font-semibold text-ink">Evidence</p>
+                <span className="text-label text-ink-muted">(append-only)</span>
               </div>
 
               {commitHashValue.trim() && (
@@ -435,13 +435,13 @@ const CommitEvidenceModal = ({
               {isEvidenceLoading && (
                 <div className="flex items-center gap-3 py-4" aria-busy="true">
                   <Spinner label="Loading…" className="text-ink" />
-                  <p className="text-sm text-ink-muted">Loading evidence…</p>
+                  <p className="text-ui text-ink-muted">Loading evidence…</p>
                 </div>
               )}
 
               {/* Error state */}
               {evidenceError && !isEvidenceLoading && (
-                <p className="text-sm text-danger" role="alert">
+                <p className="text-ui text-danger" role="alert">
                   {evidenceError}
                 </p>
               )}
@@ -450,7 +450,7 @@ const CommitEvidenceModal = ({
               {!isEvidenceLoading &&
                 !evidenceError &&
                 evidence.length === 0 && (
-                  <p className="text-sm text-ink-muted py-2">
+                  <p className="text-ui text-ink-muted py-2">
                     No evidence attached to this commit.
                   </p>
                 )}
@@ -462,10 +462,10 @@ const CommitEvidenceModal = ({
                     group.items.length > 0 && (
                       <div key={group.tag} className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-ink">
+                          <p className="text-ui font-semibold text-ink">
                             {group.label}
                           </p>
-                          <span className="text-xs text-ink-muted">
+                          <span className="text-label text-ink-muted">
                             ({group.items.length})
                           </span>
                         </div>
@@ -488,14 +488,14 @@ const CommitEvidenceModal = ({
                               return (
                                 <div
                                   key={`${item.kind}-${item.cid}`}
-                                  className={`flex flex-col gap-1 py-1.5 px-3 rounded text-sm ${
+                                  className={`flex flex-col gap-1 py-1.5 px-3 rounded text-ui ${
                                     isLatest
                                       ? "bg-accent-soft border border-warning/40"
                                       : "bg-sunken"
                                   }`}
                                 >
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
-                                    <code className="text-xs text-ink-muted break-all font-mono leading-relaxed sm:flex-1 sm:min-w-0">
+                                    <code className="text-label text-ink-muted break-all font-mono leading-relaxed sm:flex-1 sm:min-w-0">
                                       {item.cid}
                                     </code>
                                     <div className="flex items-center gap-1 sm:gap-2 sm:flex-shrink-0 justify-end sm:justify-start">
@@ -504,12 +504,12 @@ const CommitEvidenceModal = ({
                                         size="sm"
                                       />
                                       {createdAt && (
-                                        <span className="text-xs text-ink-muted whitespace-nowrap">
+                                        <span className="text-label text-ink-muted whitespace-nowrap">
                                           {createdAt}
                                         </span>
                                       )}
                                       {isLatest && (
-                                        <span className="text-[10px] font-semibold uppercase text-warning bg-warning-soft px-1.5 py-0.5 rounded">
+                                        <span className="text-label font-semibold uppercase text-warning bg-warning-soft px-1.5 py-0.5 rounded">
                                           Latest
                                         </span>
                                       )}
@@ -546,7 +546,7 @@ const CommitEvidenceModal = ({
                                           View IPFS
                                         </Button>
                                       ) : (
-                                        <span className="text-xs text-danger">
+                                        <span className="text-label text-danger">
                                           Invalid CID
                                         </span>
                                       )}
@@ -564,20 +564,20 @@ const CommitEvidenceModal = ({
             {/* ── Add Evidence (maintainers only) ─────────────────────── */}
             {isMaintainer && (
               <div className="flex flex-col gap-4 border-t border-line pt-4">
-                <p className="text-sm font-semibold text-ink">Add Evidence</p>
+                <p className="text-ui font-semibold text-ink">Add Evidence</p>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   {/* Kind selector */}
                   <div className="flex flex-col gap-1.5 flex-1">
                     <label
                       htmlFor="evidence-kind"
-                      className="text-xs text-ink-muted font-medium"
+                      className="text-label text-ink-muted font-medium"
                     >
                       Kind
                     </label>
                     <select
                       id="evidence-kind"
-                      className="p-2 border border-line-strong outline-none text-sm bg-surface"
+                      className="p-2 border border-line-strong outline-none text-ui bg-surface"
                       value={selectedKind}
                       onChange={handleKindChange}
                       disabled={isUploading}
@@ -594,16 +594,16 @@ const CommitEvidenceModal = ({
                   <div className="flex flex-col gap-1.5 flex-1">
                     <label
                       htmlFor="evidence-file-input"
-                      className="text-xs text-ink-muted font-medium"
+                      className="text-label text-ink-muted font-medium"
                     >
                       File
                     </label>
                     <input
                       id="evidence-file-input"
                       type="file"
-                      className="block w-full text-sm text-ink-muted
+                      className="block w-full text-ui text-ink-muted
                         file:mr-3 file:py-1.5 file:px-3
-                        file:border-0 file:text-sm file:font-medium
+                        file:border-0 file:text-ui file:font-medium
                         file:bg-action file:text-on-action
                         hover:file:opacity-90 file:cursor-pointer
                         file:transition-opacity"
@@ -646,11 +646,11 @@ const CommitEvidenceModal = ({
                       </svg>
                     </div>
                     <div className="flex flex-col gap-1 flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-success">
+                      <p className="text-ui font-semibold text-success">
                         Evidence uploaded successfully
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <code className="text-xs sm:text-sm font-mono text-success bg-success-soft px-2 py-1 rounded break-all">
+                        <code className="text-label sm:text-ui font-mono text-success bg-success-soft px-2 py-1 rounded break-all">
                           {lastUploadedCid}
                         </code>
                         <CopyButton textToCopy={lastUploadedCid} size="sm" />
@@ -660,7 +660,7 @@ const CommitEvidenceModal = ({
                 )}
 
                 {isUploading && (
-                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                  <div className="flex items-center gap-2 text-label text-ink-muted">
                     <Spinner label="Loading…" className="text-ink" />
                     Uploading to IPFS and recording on-chain…
                   </div>

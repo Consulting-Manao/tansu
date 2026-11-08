@@ -36,7 +36,7 @@ export function Timeline({
             <span
               aria-hidden="true"
               className={cx(
-                "absolute top-5 bottom-[-1rem] left-[9px] w-0.5 sm:top-[9px] sm:right-0 sm:bottom-auto sm:left-5 sm:h-0.5 sm:w-auto",
+                "absolute top-5 bottom-[-1rem] left-2 w-0.5 sm:top-2 sm:right-0 sm:bottom-auto sm:left-5 sm:h-0.5 sm:w-auto",
                 step.state === "done" ? "bg-link" : "bg-line-strong",
               )}
             />

@@ -26,7 +26,7 @@ const tones: Record<ButtonTone, string> = {
 const sizes: Record<ButtonSize, string> = {
   sm: "h-9 gap-1.5 px-3 text-small sm:h-8",
   md: "h-11 gap-2 px-4 text-body sm:h-10",
-  lg: "h-12 gap-2 px-5 text-base",
+  lg: "h-12 gap-2 px-5 text-body",
 };
 
 interface Look {

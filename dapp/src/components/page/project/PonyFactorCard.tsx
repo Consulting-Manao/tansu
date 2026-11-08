@@ -43,26 +43,28 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
     <div className="bg-surface p-6 rounded-control border border-line">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-ink">Pony Factor</h3>
+          <h3 className="text-card font-semibold text-ink">Pony Factor</h3>
           <div
-            className={`px-3 py-1 rounded-full text-xs font-medium border ${risk.color}`}
+            className={`px-3 py-1 rounded-full text-label font-medium border ${risk.color}`}
           >
             {risk.level}
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="text-4xl font-bold text-ink">{ponyFactor.factor}</div>
+          <div className="text-title font-bold text-ink">
+            {ponyFactor.factor}
+          </div>
           <div className="flex-1">
-            <div className="text-sm text-ink-muted mb-1">
+            <div className="text-ui text-ink-muted mb-1">
               {ponyFactor.explanation}
             </div>
-            <div className="text-xs text-ink-muted">{risk.description}</div>
+            <div className="text-label text-ink-muted">{risk.description}</div>
           </div>
         </div>
 
         <div className="mt-4">
-          <div className="text-sm font-medium text-ink-muted mb-2">
+          <div className="text-ui font-medium text-ink-muted mb-2">
             Top Contributors (50% of commits)
           </div>
           <div className="space-y-2">
@@ -80,15 +82,15 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
                     className="flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-info-soft rounded-full flex items-center justify-center text-xs font-medium text-link">
+                      <div className="w-6 h-6 bg-info-soft rounded-full flex items-center justify-center text-label font-medium text-link">
                         {index + 1}
                       </div>
-                      <span className="text-sm text-ink">
+                      <span className="text-ui text-ink">
                         {contributor.author.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-ink-muted">
+                      <span className="text-label text-ink-muted">
                         {contributor.commitCount} commits
                       </span>
                       <Bar percent={percentage} className="w-16" />
@@ -100,7 +102,7 @@ const PonyFactorCard: React.FC<PonyFactorCardProps> = ({
         </div>
 
         <div className="mt-4 p-3 bg-sunken rounded-control">
-          <div className="text-xs text-ink-muted">
+          <div className="text-label text-ink-muted">
             <strong>What is Pony Factor?</strong> The minimum number of
             contributors whose removal would leave the project in a critical
             state. Based on the principle that if key contributors were "hit by

@@ -29,13 +29,13 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
 
   return (
     <Dialog size="auto" onClose={onClose}>
-      <div className="flex flex-col gap-6 sm:gap-[30px] max-w-2xl">
+      <div className="flex flex-col gap-6 sm:gap-7 max-w-2xl">
         <Title
           title="Export decoded votes"
           description="This exports the decrypted ballot rows as a CSV file."
         />
 
-        <div className="rounded-control border border-danger/40 bg-danger-soft p-4 sm:p-5 text-sm sm:text-base text-ink">
+        <div className="rounded-control border border-danger/40 bg-danger-soft p-4 sm:p-5 text-ui sm:text-body text-ink">
           <p className="font-medium text-danger">Privacy warning</p>
           <p className="mt-2 leading-6">
             Decoded votes reveal who voted for what. If this file is shared
@@ -47,11 +47,11 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 text-sm text-ink-muted">
+        <div className="flex flex-col gap-2 text-ui text-ink-muted">
           <p>Rows to export: {decodedVotes.length}</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px]">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
           <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>

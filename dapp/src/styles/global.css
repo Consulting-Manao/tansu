@@ -131,6 +131,9 @@
   --font-mono: "Dank Mono", ui-monospace, monospace;
 
   /* The scale, on a 4 px baseline */
+  /* Only the design system's sizes exist: Tailwind's text-xs to text-9xl
+     are gone (scripts/check-tokens.js fails on them). */
+  --text-*: initial;
   --text-display: 56px;
   --text-display--line-height: 60px;
   --text-display--letter-spacing: -0.03em;

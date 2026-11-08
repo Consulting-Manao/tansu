@@ -74,7 +74,7 @@ const DonateModal: FC<{
           onClose={() => setIsOpen(false)}
           closable={!isLoading}
         >
-          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-4">
             <img
               src="/images/heart.svg"
               alt=""
@@ -82,20 +82,20 @@ const DonateModal: FC<{
             />
             <div className="flex-grow flex flex-col gap-4 sm:gap-6 w-full">
               <div className="flex flex-col gap-2 sm:gap-3">
-                <h6 className="text-xl sm:text-2xl font-medium text-ink text-center sm:text-left">
+                <h6 className="text-lead sm:text-section font-medium text-ink text-center sm:text-left">
                   Support {name}
                 </h6>
-                <p className="text-sm sm:text-base text-ink-muted text-center sm:text-left">
+                <p className="text-ui sm:text-body text-ink-muted text-center sm:text-left">
                   Projects have no account of their own yet: your donation goes
                   to the maintainer you pick, who receives it for the project.
                 </p>
               </div>
 
               {recipients.length ? (
-                <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-ink">
+                <label className="flex flex-col gap-2 text-ui sm:text-body font-semibold text-ink">
                   Maintainer
                   <select
-                    className="p-3 sm:p-[18px] w-full border border-line-strong bg-surface outline-none text-sm sm:text-base font-normal"
+                    className="p-3 sm:p-4 w-full border border-line-strong bg-surface outline-none text-ui sm:text-body font-normal"
                     value={to}
                     onChange={(e) => setTo(e.target.value)}
                   >
@@ -107,36 +107,36 @@ const DonateModal: FC<{
                       </option>
                     ))}
                   </select>
-                  <span className="text-xs font-normal font-mono text-ink-muted break-all">
+                  <span className="text-label font-normal font-mono text-ink-muted break-all">
                     {to}
                   </span>
                   {recipients.length < maintainers.length && (
-                    <span className="text-xs font-normal text-ink-muted">
+                    <span className="text-label font-normal text-ink-muted">
                       Maintainers with a smart account (C…) cannot receive a
                       classic payment, so they are not listed.
                     </span>
                   )}
                 </label>
               ) : (
-                <p className="text-sm sm:text-base text-danger">
+                <p className="text-ui sm:text-body text-danger">
                   Every maintainer of {name} has a smart account (C…), which a
                   classic payment cannot reach.
                 </p>
               )}
 
               <div className="flex flex-col gap-2 sm:gap-3">
-                <label className="flex flex-col gap-2 sm:gap-3 text-sm sm:text-base font-[600] text-ink">
+                <label className="flex flex-col gap-2 sm:gap-3 text-ui sm:text-body font-semibold text-ink">
                   Amount
                   <span className="w-full flex-grow flex border border-line-strong font-normal">
                     <input
-                      className="flex-grow p-3 sm:p-[18px] outline-none text-sm sm:text-base"
+                      className="flex-grow p-3 sm:p-4 outline-none text-ui sm:text-body"
                       inputMode="decimal"
                       placeholder="Enter the amount"
                       value={amount}
                       aria-invalid={!!amountError}
                       onChange={(e) => setAmount(e.target.value.trim())}
                     />
-                    <span className="px-2 sm:px-[18px] flex items-center text-base sm:text-xl text-ink">
+                    <span className="px-2 sm:px-4 flex items-center text-body sm:text-lead text-ink">
                       XLM
                     </span>
                   </span>
@@ -152,16 +152,16 @@ const DonateModal: FC<{
                   }))}
                 />
                 <p
-                  className={`text-xs sm:text-base ${amountError ? "text-danger" : "text-ink-muted"}`}
+                  className={`text-label sm:text-body ${amountError ? "text-danger" : "text-ink-muted"}`}
                 >
                   {amountError ?? "Minimum amount: 1 XLM"}
                 </p>
               </div>
 
-              <label className="flex flex-col gap-2 text-sm sm:text-base font-[600] text-ink">
+              <label className="flex flex-col gap-2 text-ui sm:text-body font-semibold text-ink">
                 Message (optional)
                 <textarea
-                  className="p-3 sm:p-[18px] w-full border border-line-strong outline-none text-sm sm:text-base font-normal"
+                  className="p-3 sm:p-4 w-full border border-line-strong outline-none text-ui sm:text-body font-normal"
                   placeholder="Write your message here"
                   value={message}
                   aria-invalid={!!messageError}
@@ -169,7 +169,7 @@ const DonateModal: FC<{
                   rows={2}
                 />
                 <span
-                  className={`text-xs font-normal ${messageError ? "text-danger" : "text-ink-muted"}`}
+                  className={`text-label font-normal ${messageError ? "text-danger" : "text-ink-muted"}`}
                 >
                   {messageError ?? `${messageBytes}/${MEMO_BYTES} bytes`}
                 </span>
@@ -177,7 +177,7 @@ const DonateModal: FC<{
 
               <div className="flex justify-end w-full">
                 <Button
-                  className="w-full sm:w-[220px] h-[48px] sm:h-[56px]"
+                  className="w-full sm:w-55 h-12 sm:h-14"
                   onClick={handleContribute}
                   loading={isLoading}
                   disabled={!to || !!amountError || !!messageError}

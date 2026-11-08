@@ -181,15 +181,15 @@ const VotingModal: React.FC<VotersModalProps> = ({
       <Dialog size="auto" onClose={onClose}>
         <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto">
           <div className="flex flex-col gap-2 border-b pb-4">
-            <h2 className="text-2xl font-bold text-ink">Vote Receipt</h2>
-            <p className="text-sm text-ink-muted">
+            <h2 className="text-section font-bold text-ink">Vote Receipt</h2>
+            <p className="text-ui text-ink-muted">
               {voteReceipt.isPublicVoting
                 ? "Your vote was public. You can check the transaction hash on a Stellar explorer to verify it is on-chain."
                 : "Your vote was anonymous. Keep this receipt safe. You can verify your commitment on-chain using the transaction hash. At the end of the vote, the tally can be checked by verifying all commitments against the encrypted votes."}
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 bg-sunken p-4 rounded-control overflow-x-auto text-sm">
+          <div className="flex flex-col gap-4 bg-sunken p-4 rounded-control overflow-x-auto text-ui">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <span className="font-semibold">Project:</span>{" "}
@@ -218,7 +218,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                 <span className="font-semibold block mb-1">
                   Transaction Hash:
                 </span>
-                <code className="bg-surface px-2 py-1 rounded border break-all text-xs">
+                <code className="bg-surface px-2 py-1 rounded border break-all text-label">
                   {voteReceipt.transactionHash}
                 </code>
               </div>
@@ -228,7 +228,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
               <>
                 <div className="mt-2">
                   <span className="font-semibold block mb-1">Public Key:</span>
-                  <code className="bg-surface px-2 py-1 rounded border break-all text-xs">
+                  <code className="bg-surface px-2 py-1 rounded border break-all text-label">
                     {voteReceipt.publicKey}
                   </code>
                 </div>
@@ -241,7 +241,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                     {voteReceipt.votes?.map((v, i) => (
                       <code
                         key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-xs"
+                        className="bg-surface px-2 py-1 rounded border break-all text-label"
                       >
                         {v}
                       </code>
@@ -257,7 +257,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                     {voteReceipt.seeds?.map((s, i) => (
                       <code
                         key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-xs"
+                        className="bg-surface px-2 py-1 rounded border break-all text-label"
                       >
                         {s}
                       </code>
@@ -271,7 +271,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
                     {voteReceipt.commitments?.map((c, i) => (
                       <code
                         key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-xs"
+                        className="bg-surface px-2 py-1 rounded border break-all text-label"
                       >
                         {c}
                       </code>
@@ -304,7 +304,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-9">
         <img
           src="/images/box-with-coin-outside.svg"
-          className="w-40 sm:w-60 md:w-80 lg:w-[360px] h-auto"
+          className="w-40 sm:w-60 md:w-80 lg:w-90 h-auto"
           alt=""
         />
         <div className="flex-grow flex flex-col gap-6 sm:gap-9 w-full">
@@ -343,7 +343,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
           )}
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-ink">
+              <label className="text-ui font-semibold text-ink">
                 Voting Power: {votingPowerLabel}
               </label>
               <input
@@ -366,11 +366,11 @@ const VotingModal: React.FC<VotersModalProps> = ({
                 }}
               />
               {isInsufficientVotingPower ? (
-                <p className="text-xs text-danger">
+                <p className="text-label text-danger">
                   {insufficientPowerMessage}
                 </p>
               ) : (
-                <p className="text-xs text-ink-muted">
+                <p className="text-label text-ink-muted">
                   {isTokenVoting
                     ? "Slide to adjust how many tokens to use as vote weight"
                     : "Slide to adjust your voting power"}
@@ -391,10 +391,10 @@ const VotingModal: React.FC<VotersModalProps> = ({
                 Vote
               </Button>
             </div>
-            <p className="text-sm sm:text-base text-ink-muted text-right">
+            <p className="text-ui sm:text-body text-ink-muted text-right">
               Once submitted, your vote cannot be changed.
             </p>
-            <p className="px-3 py-1 text-sm sm:text-base bg-sunken text-ink">
+            <p className="px-3 py-1 text-ui sm:text-body bg-sunken text-ink">
               {isTokenVoting ? (
                 <>
                   ℹ️ Token-based voting uses your current balance as the max

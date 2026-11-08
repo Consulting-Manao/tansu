@@ -91,7 +91,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   return (
     <Dialog size="auto" onClose={onClose}>
       {step === 1 ? (
-        <div className="flex flex-col gap-6 sm:gap-[30px]">
+        <div className="flex flex-col gap-6 sm:gap-7">
           <StepBar step={1} totalSteps={2} />
 
           <Title
@@ -103,7 +103,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
             className={classNames(
               "border rounded-control",
               processingError ? "border-danger" : "border-ink",
-              "p-3 sm:p-4 text-sm sm:text-base break-words",
+              "p-3 sm:p-4 text-ui sm:text-body break-words",
             )}
           >
             {isProcessing ? (
@@ -124,13 +124,13 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
           </div>
 
           {processingError && (
-            <p className="text-danger text-xs sm:text-sm break-words">
+            <p className="text-danger text-label sm:text-ui break-words">
               {processingError}
             </p>
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-6 sm:gap-[30px]">
+        <div className="flex flex-col gap-6 sm:gap-7">
           <StepBar step={2} totalSteps={2} />
 
           <Title

@@ -338,7 +338,7 @@ const CreateProposalModal = ({
 
               {/* Voting type: Badge based (default) or Token based */}
               <div className="flex flex-col gap-2 sm:gap-3 max-w-2xl">
-                <label className="text-sm font-semibold text-ink">
+                <label className="text-ui font-semibold text-ink">
                   Voting type
                 </label>
                 <select
@@ -360,7 +360,7 @@ const CreateProposalModal = ({
                       onChange={(e) => setTokenContract(e.target.value)}
                     />
                     {tokenContract && (
-                      <span className="text-sm text-link">
+                      <span className="text-ui text-link">
                         Voting weight is capped by each voter's token balance.
                       </span>
                     )}
@@ -394,8 +394,8 @@ const CreateProposalModal = ({
               }}
             />
             <div className="flex items-center justify-between">
-              <p className="text-lg font-semibold text-ink">Description</p>
-              <span className="text-sm text-ink-muted">
+              <p className="text-card font-semibold text-ink">Description</p>
+              <span className="text-ui text-ink-muted">
                 Supports Markdown formatting
               </span>
             </div>
@@ -412,12 +412,12 @@ const CreateProposalModal = ({
               placeholder="Input your proposal description here..."
             />
             {descriptionError && (
-              <p className="text-danger text-sm">{descriptionError}</p>
+              <p className="text-danger text-ui">{descriptionError}</p>
             )}
           </div>
 
           {/* Footer Buttons */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px] mt-6">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-6">
             <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -570,7 +570,7 @@ const CreateProposalModal = ({
 
               {/* Voting Duration Controls */}
               <div className="flex flex-col gap-4 sm:gap-6">
-                <p className="leading-4 text-base font-semibold text-ink">
+                <p className="leading-4 text-body font-semibold text-ink">
                   Select End Day
                 </p>
 
@@ -580,7 +580,7 @@ const CreateProposalModal = ({
                     onDateChange={(day) => setSelectedDate(endOfDay(day))}
                   />
 
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 text-sm sm:text-base">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 text-ui sm:text-body">
                     <p className="leading-4 text-ink-muted">
                       Minimum duration:
                     </p>
@@ -650,7 +650,7 @@ const CreateProposalModal = ({
                 description="Take a moment to review your proposal before submitting. You can go back and make changes if needed."
               />
               {/* Note to the user */}
-              <p className="px-3 py-1 text-sm sm:text-base bg-sunken text-ink">
+              <p className="px-3 py-1 text-ui sm:text-body bg-sunken text-ink">
                 ℹ️ Creating a proposal requires 5 XLM collateral. This
                 collateral is refunded when the proposal is executed.
               </p>
@@ -678,20 +678,20 @@ const CreateProposalModal = ({
             {/* First Step */}
             <div className="flex flex-col gap-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-lg sm:text-xl font-medium text-ink">
+                <p className="text-card sm:text-lead font-medium text-ink">
                   First Step
                 </p>
                 <Button
                   tone="secondary"
                   size="sm"
-                  className="px-3 py-1 text-sm sm:text-base"
+                  className="px-3 py-1 text-ui sm:text-body"
                   onClick={() => setStep(1)}
                 >
                   Back to the First Step
                 </Button>
               </div>
               <Label label="Proposal name">
-                <p className="text-lg sm:text-xl text-ink break-words">
+                <p className="text-card sm:text-lead text-ink break-words">
                   {proposalName}
                 </p>
               </Label>
@@ -701,18 +701,18 @@ const CreateProposalModal = ({
               </Label>
             </div>
 
-            <div className="h-[1px] bg-sunken" />
+            <div className="h-px bg-sunken" />
 
             {/* Second Step */}
             <div className="flex flex-col gap-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-lg sm:text-xl font-medium text-ink">
+                <p className="text-card sm:text-lead font-medium text-ink">
                   Second Step
                 </p>
                 <Button
                   tone="secondary"
                   size="sm"
-                  className="px-3 py-1 text-sm sm:text-base"
+                  className="px-3 py-1 text-ui sm:text-body"
                   onClick={() => setStep(2)}
                 >
                   Back to the Second Step
@@ -726,7 +726,7 @@ const CreateProposalModal = ({
                 if (!stored.length) {
                   return (
                     <Label label="Contract Calls">
-                      <p className="text-base sm:text-lg text-ink-muted">
+                      <p className="text-body sm:text-card text-ink-muted">
                         None
                       </p>
                     </Label>
@@ -735,7 +735,7 @@ const CreateProposalModal = ({
                 return stored.map(([kind, node]) => (
                   <div key={kind} className="flex flex-col gap-4">
                     <p
-                      className={`text-lg sm:text-xl font-medium text-${kind}`}
+                      className={`text-card sm:text-lead font-medium text-${kind}`}
                     >
                       {capitalizeFirstLetter(kind)} Outcome
                     </p>
@@ -744,17 +744,17 @@ const CreateProposalModal = ({
                     </Label>
                     {node.execution?.type === "xdr" && (
                       <Label label="XDR Transaction">
-                        <p className="text-base sm:text-lg text-ink break-all font-mono">
+                        <p className="text-body sm:text-card text-ink break-all font-mono">
                           {node.execution.xdr}
                         </p>
                       </Label>
                     )}
                     {node.execution?.contract && (
                       <Label label="Contract Call">
-                        <p className="text-base sm:text-lg text-ink break-all font-mono">
+                        <p className="text-body sm:text-card text-ink break-all font-mono">
                           {node.execution.contract.address}
                         </p>
-                        <p className="text-base sm:text-lg text-ink font-mono break-all">
+                        <p className="text-body sm:text-card text-ink font-mono break-all">
                           {node.execution.contract.execute_fn}(
                           {node.execution.contract.args.join(", ")})
                         </p>
@@ -762,7 +762,7 @@ const CreateProposalModal = ({
                     )}
                     {!node.execution && (
                       <Label label="Action">
-                        <p className="text-base sm:text-lg text-ink-muted">
+                        <p className="text-body sm:text-card text-ink-muted">
                           No automated action - description only
                         </p>
                       </Label>
@@ -772,25 +772,25 @@ const CreateProposalModal = ({
               })()}
             </div>
 
-            <div className="h-[1px] bg-sunken" />
+            <div className="h-px bg-sunken" />
 
             {/* Third Step */}
             <div className="flex flex-col gap-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-lg sm:text-xl font-medium text-ink">
+                <p className="text-card sm:text-lead font-medium text-ink">
                   Third Step
                 </p>
                 <Button
                   tone="secondary"
                   size="sm"
-                  className="px-3 py-1 text-sm sm:text-base"
+                  className="px-3 py-1 text-ui sm:text-body"
                   onClick={() => setStep(3)}
                 >
                   Back to the Third Step
                 </Button>
               </div>
               <Label label="Voting End Day">
-                <p className="text-base sm:text-lg text-ink">
+                <p className="text-body sm:text-card text-ink">
                   {formatDate(selectedDate.toISOString())}
                 </p>
               </Label>
@@ -830,7 +830,7 @@ const CreateProposalModal = ({
                 description="Sign the setup transaction. This enables anonymous voting for this project."
               />
 
-              <p className="text-sm sm:text-base text-ink-muted">
+              <p className="text-ui sm:text-body text-ink-muted">
                 Your key file is saved. Sign the setup transaction to use its
                 key for this project's anonymous votes.
               </p>

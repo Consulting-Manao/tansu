@@ -26,7 +26,7 @@ const Attestation = ({
   return shown ? (
     <AttestationCard {...card} />
   ) : (
-    <LinkButton className="text-xs" onClick={() => setShown(true)}>
+    <LinkButton className="text-label" onClick={() => setShown(true)}>
       Attestations
     </LinkButton>
   );

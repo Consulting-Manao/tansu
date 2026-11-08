@@ -63,7 +63,7 @@ const OutcomeCallCheck = ({ call }: { call: OutcomeCall }) => {
   const editing = settled !== call;
   if (!ready) return null;
   return (
-    <div role="status" aria-live="polite" className="text-sm">
+    <div role="status" aria-live="polite" className="text-ui">
       {editing || check.isFetching ? (
         <p className="text-ink-muted">Checking the call...</p>
       ) : check.isError ? (

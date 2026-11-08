@@ -19,7 +19,7 @@ export default function Previews() {
     else document.documentElement.dataset.theme = next;
   };
   return (
-    <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-12 px-4 py-10 sm:px-10">
+    <main className="mx-auto flex w-full max-w-280 flex-col gap-12 px-4 py-10 sm:px-10">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-label font-mono text-accent-ink uppercase">

@@ -23,7 +23,7 @@ interface TabsProps {
   layout?: "inline" | "page" | undefined;
 }
 
-const column = "mx-auto w-full max-w-[1120px] px-4 sm:px-6 lg:px-10";
+const column = "mx-auto w-full max-w-280 px-4 sm:px-6 lg:px-10";
 
 /** Tabs and the selected panel. Arrows, Home and End move between tabs. */
 export function Tabs({
@@ -87,7 +87,7 @@ export function Tabs({
         >
           {item.label}
           {item.count !== undefined && (
-            <span className="figures-tabular ml-2 rounded-full bg-sunken px-2 py-0.5 text-xs text-ink-muted">
+            <span className="figures-tabular ml-2 rounded-full bg-sunken px-2 py-0.5 text-label text-ink-muted">
               {item.count}
             </span>
           )}

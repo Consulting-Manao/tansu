@@ -127,26 +127,26 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
       {isOpen && (
         <Dialog size="auto" onClose={handleClose}>
           <div className="flex flex-col gap-6 w-full">
-            <h6 className="text-xl font-medium text-ink">Sub-Projects</h6>
+            <h6 className="text-lead font-medium text-ink">Sub-Projects</h6>
 
             {error && (
               <div
                 role="alert"
                 className="p-3 bg-danger-soft border border-danger/40 rounded-control"
               >
-                <p className="text-sm text-danger">{error}</p>
+                <p className="text-ui text-danger">{error}</p>
               </div>
             )}
 
             {!keys && !error && (
-              <p className="text-sm text-ink-muted">
+              <p className="text-ui text-ink-muted">
                 Reading the current sub-projects...
               </p>
             )}
 
             {keys && keys.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium text-ink">
+                <p className="text-ui font-medium text-ink">
                   Current sub-projects
                 </p>
                 <ul className="border border-line rounded-control divide-y divide-line">
@@ -155,7 +155,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
                       key={key}
                       className="flex items-center justify-between gap-2 px-3 py-2"
                     >
-                      <span className="text-sm text-ink truncate">
+                      <span className="text-ui text-ink truncate">
                         {label(key)}
                       </span>
                       <Button
@@ -166,7 +166,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
                           )
                         }
                         disabled={isLoading}
-                        className="shrink-0 text-xs py-1 px-2"
+                        className="shrink-0 text-label py-1 px-2"
                         aria-label={`Remove ${label(key)}`}
                       >
                         Remove

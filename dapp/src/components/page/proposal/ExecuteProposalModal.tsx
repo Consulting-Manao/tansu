@@ -227,14 +227,14 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       {/* ───────────────────────── step 1 ───────────────────────── */}
       {step === 1 && isAnonymous ? (
         <div className="flex flex-col gap-10 px-4 sm:px-6 md:px-8">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-4">
             <img
               src="/images/scan.svg"
               alt="Anonymous voting setup"
               className="w-16 sm:w-20 md:w-24 mx-auto sm:mx-0"
             />
 
-            <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] w-full">
+            <div className="flex-grow flex flex-col gap-6 sm:gap-7 w-full">
               <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Provide the anonymous voting key-file"
@@ -272,13 +272,13 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               </div>
 
               {processingError && (
-                <p className="text-danger text-sm text-center sm:text-left">
+                <p className="text-danger text-ui text-center sm:text-left">
                   {processingError}
                 </p>
               )}
 
               {tallies && (
-                <div className="flex flex-col gap-2 text-sm text-ink text-center sm:text-left">
+                <div className="flex flex-col gap-2 text-ui text-ink text-center sm:text-left">
                   <p>Approve: {tallies[0]}</p>
                   <p>Reject: {tallies[1]}</p>
                   <p>Abstain: {tallies[2]}</p>
@@ -287,7 +287,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-center sm:justify-end gap-3 sm:gap-[18px]">
+          <div className="flex justify-center sm:justify-end gap-3 sm:gap-4">
             <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -296,14 +296,14 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
       ) : step === 2 && isAnonymous ? (
         /* ────────────── step 2 (anonymous) – decrypted tallies ───────────── */
         <div className="flex flex-col gap-10 px-4 sm:px-6 md:px-8">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-4">
             <img
               src="/images/box-with-coin-inside.svg"
               alt="Decrypted tallies"
               className="w-16 sm:w-20 md:w-24 mx-auto sm:mx-0"
             />
 
-            <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] w-full">
+            <div className="flex-grow flex flex-col gap-6 sm:gap-7 w-full">
               <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Decrypted tallies"
@@ -329,7 +329,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-center sm:justify-end gap-3 sm:gap-[18px]">
+          <div className="flex justify-center sm:justify-end gap-3 sm:gap-4">
             <Button tone="secondary" onClick={() => setStep(step - 1)}>
               Back
             </Button>
@@ -342,14 +342,14 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
         </div>
       ) : step === 1 ? (
-        <div className="flex flex-col gap-10 sm:gap-[42px]">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-[18px]">
+        <div className="flex flex-col gap-10 sm:gap-10">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-4">
             <img
               src="/images/lock-in-box.svg"
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
               alt="Lock in box"
             />
-            <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
+            <div className="flex-grow flex flex-col gap-6 sm:gap-7 text-center sm:text-left">
               <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Finalizing the Vote"
@@ -359,7 +359,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-4">
             <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -380,14 +380,14 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
         </div>
       ) : step === (isAnonymous ? 3 : 2) ? (
-        <div className="flex flex-col gap-10 sm:gap-[42px]">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-[18px]">
+        <div className="flex flex-col gap-10 sm:gap-10">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-4">
             <img
               src="/images/scan.svg"
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
               alt="Scan"
             />
-            <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
+            <div className="flex-grow flex flex-col gap-6 sm:gap-7 text-center sm:text-left">
               <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Finalize the Vote Execution"
@@ -396,7 +396,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               <VotingResult voteStatus={displayVoteStatus} />
 
               {registryName && callAddress && (
-                <div className="flex flex-col gap-2 text-sm break-all">
+                <div className="flex flex-col gap-2 text-ui break-all">
                   {registryNow?.address === callAddress && (
                     <p className="text-ink-muted">
                       Stellar Registry: <code>{registryNow.name}</code> still
@@ -429,10 +429,10 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               )}
 
               {executionXdr && (
-                <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-[18px]">
-                  <p className="leading-4 text-base text-ink-muted">XDR</p>
-                  <div className="p-2 sm:p-[8px_18px] bg-accent-soft flex flex-col sm:flex-row items-center gap-3 sm:gap-[18px] rounded-control">
-                    <p className="leading-[18px] text-lg text-ink break-all sm:break-normal text-center sm:text-left">
+                <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-4">
+                  <p className="leading-4 text-body text-ink-muted">XDR</p>
+                  <div className="p-2 sm:py-2 sm:px-4 bg-accent-soft flex flex-col sm:flex-row items-center gap-3 sm:gap-4 rounded-control">
+                    <p className="leading-4 text-card text-ink break-all sm:break-normal text-center sm:text-left">
                       {executionXdr.slice(0, 24) + "..."}
                     </p>
                     <CopyButton textToCopy={executionXdr} size="sm" />
@@ -442,7 +442,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-4">
             <Button tone="secondary" onClick={() => setStep(step - 1)}>
               Back
             </Button>
@@ -465,14 +465,14 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-10 sm:gap-[42px]">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-[18px]">
+        <div className="flex flex-col gap-10 sm:gap-10">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-4">
             <img
               src="/images/flower.svg"
               className="w-16 h-16 sm:w-auto sm:h-auto mx-auto sm:mx-0"
               alt="Success Icon"
             />
-            <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
+            <div className="flex-grow flex flex-col gap-6 sm:gap-7 text-center sm:text-left">
               <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Your Vote Is Officially Executed!"
@@ -482,7 +482,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
+          <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-4">
             <Button tone="secondary" onClick={onClose}>
               Close
             </Button>

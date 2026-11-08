@@ -41,8 +41,8 @@ export default function TemplateSelector<T extends Template>({
     <div className="template-selector mb-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="text-sm font-medium text-ink">Start with a template</p>
-          <p className="text-xs text-ink-muted">
+          <p className="text-ui font-medium text-ink">Start with a template</p>
+          <p className="text-label text-ink-muted">
             Choose a structured format for {purpose}
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function TemplateSelector<T extends Template>({
                     Preview
                   </Button>
                 </div>
-                <p className="text-xs text-ink-muted line-clamp-2">
+                <p className="text-label text-ink-muted line-clamp-2">
                   {template.description}
                 </p>
                 {renderTags?.(template)}
@@ -90,16 +90,16 @@ export default function TemplateSelector<T extends Template>({
         <Dialog onClose={() => setPreviewTemplate(null)} size="lg">
           <div className="flex flex-col gap-6">
             <div className="text-center">
-              <h3 className="text-xl font-semibold text-ink mb-2">
+              <h3 className="text-lead font-semibold text-ink mb-2">
                 {previewTemplate.name}
               </h3>
-              <p className="text-sm text-ink-muted">
+              <p className="text-ui text-ink-muted">
                 {previewTemplate.description}
               </p>
             </div>
 
             <div className="border border-action rounded-control p-4 bg-sunken overflow-auto max-h-[50vh]">
-              <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+              <pre className="whitespace-pre-wrap font-mono text-ui leading-relaxed">
                 {previewTemplate.content}
               </pre>
             </div>

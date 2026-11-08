@@ -31,7 +31,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        "figures-tabular inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-xs font-semibold leading-none whitespace-nowrap",
+        "figures-tabular inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-label font-semibold leading-none whitespace-nowrap",
         tones[tone],
         className,
       )}
