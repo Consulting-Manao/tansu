@@ -108,13 +108,13 @@ Rules the dApp code keeps:
 
 ### Design document (dApp)
 
-The dApp's design document is a Claude Design canvas, [Tansu dApp Design](https://claude.ai/artifact/LmHAnNnAdmqJB9EYKArw4p) (private to the owner until shared from its Share menu). It draws every page, dialog and step from the code with the shipped strings, says where each flow starts (`map-entries`) and how a write lands (`map-writes`). Its canvas pages are Map, Shared, one per e2e journey in `dapp/tests/` (`browse`, `member`, `project`, `governance`, `proposal`, `anonymous`, `donate`, `pwa · update`), and Ideas for prototypes. Its look is `project/tansu.css`: the `@theme` of `src/styles/global.css` one to one, the shared pieces of `components/utils/`, and the list of uploaded images. `Navbar`, `Footer` and `ProjectCard` are canvas components the page artboards import. The Main artboard and the readme note name the commit it was drawn from.
+The dApp's design document is a Claude Design canvas, [Tansu dApp Design](https://claude.ai/artifact/LmHAnNnAdmqJB9EYKArw4p) (private to the owner until shared from its Share menu). It draws every page, dialog and step from the code with the shipped strings, says where each flow starts (`map-entries`) and how a write lands (`map-writes`). Its canvas pages are Map, Shared, one per e2e journey in `dapp/tests/` (`browse`, `member`, `project`, `governance`, `proposal`, `anonymous`, `donate`, `pwa · update`), and Ideas for prototypes. Its look: the pages draw with `project/r2.css` and `ideas-base.css`, the classes the kit of `components/ui/` was built from; the dialogs with `project/tansu.css`, the tokens of `src/styles/global.css` one to one and the pieces of `components/utils/` as they render on the kit, plus the list of uploaded images. `Navbar`, `Footer`, `ProjectCard` and `ProjectBand` (the project page's head and tabs) are canvas components the pages import, each with a `theme` prop; each page also has a `-dark` and a `-phones` artboard that import it. The Main artboard and the readme note name the commit it was drawn from.
 
 When you touch the dApp:
 
 - A change to a file in the table below updates its artboard in the same piece of work: copy, a state, a step, a field, a button. A new page, dialog or step gets an artboard (or a frame in its journey's strip), a `map-entries` row when it is a new way in, and a step in its e2e journey.
 - Artboards carry the shipped strings verbatim; data the dApp reads is a `{placeholder}`. A quirk the screens show as they are goes in an orange sticky beside the artboard; fixing it removes the sticky.
-- A change to `global.css` `@theme` or to `Button`, `Input`, `Label`, `Title`, `Modal`, `Step`, `ProgressStep`, `FlowProgressModal` updates `tansu.css` and the `shared-*` artboards.
+- A change to `global.css` `@theme`, to a piece of `components/ui/` or to `Button`, `Input`, `Label`, `Title`, `Modal`, `Step`, `FlowProgressModal` updates `tansu.css` and the `shared-*` artboards.
 - New UI is drawn first: on the Ideas page, with `tansu.css`, and the owner agrees to it before code is written. Once built, its artboard moves to its journey page, in place of the old one.
 - Once the change is committed, write that commit's hash on the Main artboard and the readme note. To find drift, `git diff --stat <that hash>..HEAD -- dapp/src dapp/tests legal`, then this table.
 - Edit the canvas with the Artifact tool: read `project/canvas.json` and the artboards you change, edit only those and publish them to the canvas (its Design type's `SKILL.md` has the format). An image not yet on the canvas is uploaded from `dapp/public/` first. Without the Artifact tool, name the artboards that need the change in your summary.
@@ -123,14 +123,16 @@ When you touch the dApp:
 |---|---|---|
 | Map | `Main` | the pages, `layouts/Layout.astro`, `utils/urls.ts` |
 | Map | `map-entries` | every way into a dialog: `components/ModalHost.tsx`, `utils/modals.ts`, the islands' buttons |
-| Map | `map-writes` | `service/TxService.ts`, `components/utils/ProgressStep.tsx`, `FlowProgressModal.tsx` |
-| Shared | `shared-kit` | `components/utils/` (Button, Input, Label, Title, Step, Loading, Spinner, CopyButton, ErrorBoundary), `utils/toastHelper.tsx`, the `ModalHost` fallback |
-| Shared | `shared-chrome`, `Navbar`, `Footer` | `components/layout/Navbar.astro`, `Footer.astro`, `UpdatePrompt.astro`, `components/NavbarSearch.tsx`, `ConnectButton.tsx`, `JoinCommunityButton.tsx` |
-| Shared | `shared-tx` | `components/utils/FlowProgressModal.tsx`, `ProgressStep.tsx`, `Step.tsx` |
+| Map | `map-writes` | `service/TxService.ts`, `components/ui/FlowDialog.tsx`, `Stepper.tsx`, `components/utils/FlowProgressModal.tsx` |
+| Shared | `shared-kit` | `components/ui/` (the kit: Button, Field and inputs, Badge, ProofChip, Card, Notice, EmptyState, SectionTitle, SegmentedControl, Tabs, Timeline, ResultBar, Loading, toast), `components/utils/` on top of it |
+| Shared | `shared-chrome`, `Navbar`, `Footer` | `components/layout/Navbar.astro`, `Footer.astro`, `UpdatePrompt.astro`, `components/NavbarSearch.tsx`, `ThemeSwitch.tsx`, `ConnectButton.tsx`, `JoinCommunityButton.tsx` |
+| Shared | `shared-tx` | `components/ui/FlowDialog.tsx`, `Stepper.tsx`, `ToastHost.tsx`, `components/utils/FlowProgressModal.tsx`, `Step.tsx` |
 | Shared | `ProjectCard` | `components/page/dashboard/ProjectCard.tsx`, `OnChainProjectCard.tsx` |
 | browse | `browse-home`, `browse-search` | `pages/index.astro`, `components/page/dashboard/ProjectList.tsx`, `constants/featuredProjects.ts` |
 | browse | `browse-terms` | `components/utils/TermsAcceptanceModal.tsx`, `constants/terms-summary.json` |
-| browse | `browse-project` | `pages/project/index.astro`, `components/layout/PageBand.astro`, `components/page/project/ProjectHead.tsx`, `ProjectTabs.tsx`, `OverviewTab.tsx`, `CodeTab.tsx`, `PeopleTab.tsx`, `LatestCommit.tsx`, `ContributionMetrics.tsx`, `PonyFactorCard.tsx`, `ContributorActivityChart.tsx`, `MonthlyActivityChart.tsx`, `CommitHistory.tsx`, `CommitPeriod.tsx`, `SubProjectsSection.tsx`, `components/CommitRecord.tsx` |
+| browse | `browse-project`, `ProjectBand` | `pages/project/index.astro`, `components/layout/PageBand.astro`, `components/page/project/ProjectHead.tsx`, `ProjectTabs.tsx`, `OverviewTab.tsx`, `LatestCommit.tsx`, `SubProjectsSection.tsx` |
+| browse | `browse-project-code` | `components/page/project/CodeTab.tsx`, `CommitHistory.tsx`, `CommitPeriod.tsx`, `components/CommitRecord.tsx`, `ContributionMetrics.tsx`, `PonyFactorCard.tsx`, `ContributorActivityChart.tsx`, `MonthlyActivityChart.tsx` |
+| browse | `browse-project-people` | `components/page/project/PeopleTab.tsx` |
 | browse | `browse-project-modals` | `components/page/project/ReadMoreModal.tsx` |
 | browse | `browse-governance` | the project page's Proposals tab: `components/page/governance/` (`ProposalsTab`, `RecentProposals` on the Overview) |
 | browse | `browse-proposal` | `pages/proposal/index.astro`, `components/page/proposal/ProposalHead.tsx` (timeline), `ProposalPage.tsx`, `ProposalTally.tsx`, `ProposalActions.tsx` (your vote, maintainer tools), `ProposalDetail.tsx`, `DiscussionSection.tsx` |
