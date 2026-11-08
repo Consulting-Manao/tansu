@@ -1,7 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loading, Notice, SectionTitle } from "components/ui";
+import { LinkButton, Loading, Notice, SectionTitle } from "components/ui";
 import { commitHistoryQuery } from "../../../service/RepositoryMetadataService.ts";
 import { commitQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
@@ -26,13 +26,9 @@ const Attestation = ({
   return shown ? (
     <AttestationCard {...card} />
   ) : (
-    <button
-      type="button"
-      className="text-xs font-semibold text-link underline-offset-2 hover:underline"
-      onClick={() => setShown(true)}
-    >
+    <LinkButton className="text-xs" onClick={() => setShown(true)}>
       Attestations
-    </button>
+    </LinkButton>
   );
 };
 

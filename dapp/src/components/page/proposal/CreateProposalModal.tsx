@@ -1,12 +1,7 @@
 import { useStore } from "@nanostores/react";
-import Button from "components/utils/Button";
 import { DatePicker } from "components/utils/DatePicker";
 import { ExpandableText } from "components/utils/ExpandableText";
-import Input from "components/utils/Input";
-import Label from "components/utils/Label";
 import FlowProgressModal from "components/utils/FlowProgressModal";
-import Step from "components/utils/Step";
-import Title from "components/utils/Title";
 import { useEffect, useRef, useState } from "react";
 import { formatDate } from "utils/formatTimeFunctions";
 import { connectedPublicKey } from "utils/store";
@@ -36,8 +31,8 @@ import MarkdownEditorWithImages, {
   type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
 import { navigate } from "astro:transitions/client";
-import Loading from "components/utils/Loading";
 import { proposalUrl } from "utils/urls";
+import { Button, Input, Label, Loading, StepBar, Title } from "components/ui";
 
 /** The last moment of `day`: the vote runs through the day picked. */
 function endOfDay(day: Date): Date {
@@ -332,7 +327,7 @@ const CreateProposalModal = ({
             </div>
             <div className="flex-grow space-y-6 lg:space-y-8">
               <div className="text-center lg:text-left">
-                <Step step={step} totalSteps={4} />
+                <StepBar step={step} totalSteps={4} />
                 <Title
                   title="Basic Information"
                   description="Enter the title and description for your proposal to begin."
@@ -423,7 +418,7 @@ const CreateProposalModal = ({
 
           {/* Footer Buttons */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px] mt-6">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button
@@ -465,7 +460,7 @@ const CreateProposalModal = ({
                 className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
               />
               <div className="flex-grow flex flex-col justify-center gap-6 text-center sm:text-left">
-                <Step step={step} totalSteps={4} />
+                <StepBar step={step} totalSteps={4} />
                 <Title
                   title="Outcome Details"
                   description="Provide descriptions and XDRs for approved, rejected, and canceled outcomes."
@@ -496,7 +491,7 @@ const CreateProposalModal = ({
                 ) : (
                   <div key={kind} className="flex justify-center">
                     <Button
-                      type="secondary"
+                      tone="secondary"
                       onClick={() =>
                         setOutcomes((all) => ({
                           ...all,
@@ -515,7 +510,7 @@ const CreateProposalModal = ({
           {/* Navigation buttons */}
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
             <Button
-              type="secondary"
+              tone="secondary"
               onClick={() => setStep(step - 1)}
               className="w-full sm:w-auto"
             >
@@ -523,7 +518,7 @@ const CreateProposalModal = ({
             </Button>
 
             <Button
-              isLoading={checkingOutcomes}
+              loading={checkingOutcomes}
               onClick={async () => {
                 try {
                   if (
@@ -567,7 +562,7 @@ const CreateProposalModal = ({
             />
 
             <div className="flex-grow flex flex-col justify-center gap-6 sm:gap-8 text-center sm:text-left">
-              <Step step={step} totalSteps={4} />
+              <StepBar step={step} totalSteps={4} />
               <Title
                 title="Voting Duration"
                 description="Enter the number of days for the voting period."
@@ -599,7 +594,7 @@ const CreateProposalModal = ({
           {/* Buttons */}
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
             <Button
-              type="secondary"
+              tone="secondary"
               onClick={() => setStep(step - 1)}
               className="w-full sm:w-auto"
             >
@@ -649,7 +644,7 @@ const CreateProposalModal = ({
             />
 
             <div className="flex-grow flex flex-col justify-center gap-6 sm:gap-8 text-center sm:text-left">
-              <Step step={step} totalSteps={4} />
+              <StepBar step={step} totalSteps={4} />
               <Title
                 title="Review and Submit Your Proposal"
                 description="Take a moment to review your proposal before submitting. You can go back and make changes if needed."
@@ -662,7 +657,7 @@ const CreateProposalModal = ({
               {/* Buttons for small screens */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
                 <Button
-                  type="secondary"
+                  tone="secondary"
                   onClick={() => setStep(step - 1)}
                   className="w-full sm:w-auto"
                 >
@@ -687,7 +682,7 @@ const CreateProposalModal = ({
                   First Step
                 </p>
                 <Button
-                  type="secondary"
+                  tone="secondary"
                   size="sm"
                   className="px-3 py-1 text-sm sm:text-base"
                   onClick={() => setStep(1)}
@@ -715,7 +710,7 @@ const CreateProposalModal = ({
                   Second Step
                 </p>
                 <Button
-                  type="secondary"
+                  tone="secondary"
                   size="sm"
                   className="px-3 py-1 text-sm sm:text-base"
                   onClick={() => setStep(2)}
@@ -786,7 +781,7 @@ const CreateProposalModal = ({
                   Third Step
                 </p>
                 <Button
-                  type="secondary"
+                  tone="secondary"
                   size="sm"
                   className="px-3 py-1 text-sm sm:text-base"
                   onClick={() => setStep(3)}
@@ -805,7 +800,7 @@ const CreateProposalModal = ({
           {/* Bottom Buttons (repeated for desktop) */}
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
             <Button
-              type="secondary"
+              tone="secondary"
               onClick={() => setStep(step - 1)}
               className="w-full sm:w-auto"
             >
@@ -829,7 +824,7 @@ const CreateProposalModal = ({
             />
 
             <div className="flex-grow flex flex-col gap-4 sm:gap-6 text-center sm:text-left">
-              <Step step={1} totalSteps={5} />
+              <StepBar step={1} totalSteps={5} />
               <Title
                 title="Configure anonymous voting"
                 description="Sign the setup transaction. This enables anonymous voting for this project."

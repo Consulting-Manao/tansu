@@ -3,9 +3,6 @@
  * registering a project and updating it: its repository, its maintainers
  * with their handles, its organization and finality threshold.
  */
-import Button from "components/utils/Button";
-import Input from "components/utils/Input";
-import Textarea from "components/utils/Textarea";
 import {
   MAX_FINALITY_THRESHOLD_PERCENT,
   MIN_FINALITY_THRESHOLD_PERCENT,
@@ -26,6 +23,7 @@ import {
 } from "utils/tansuToml";
 import { validateMaintainerAddress } from "utils/validations";
 import { MAX_GOVERNANCE_PERIOD } from "@service/ProposalService";
+import { Button, IconButton, Input, Textarea } from "components/ui";
 
 /** A maintainer: their address, and their handle on the repository host. */
 export interface MaintainerRow {
@@ -96,21 +94,22 @@ export const MaintainerRows = ({
             }
           />
           {rows.length > 1 && (
-            <button
-              type="button"
-              aria-label={`Remove maintainer ${i + 1}`}
-              className="self-center min-w-6 min-h-6"
+            <IconButton
+              label={`Remove maintainer ${i + 1}`}
+              className="self-center"
               onClick={() => onChange(rows.filter((_, j) => j !== i))}
             >
               <img alt="" src="/icons/remove.svg" />
-            </button>
+            </IconButton>
           )}
         </div>
       ))}
       <div className="flex justify-end">
         <Button
-          type="tertiary"
-          icon="/icons/plus.svg"
+          tone="secondary"
+          icon={
+            <img src="/icons/plus.svg" alt="" className="size-5 shrink-0" />
+          }
           onClick={() => onChange([...rows, { address: "", handle: "" }])}
         >
           Add Maintainer
@@ -173,7 +172,7 @@ export const RepositoryFields = ({
             getRepositoryProvider(e.target.value) || active,
           )
         }
-        description={
+        hint={
           active === "radicle"
             ? "Paste the full Radicle node URL when possible, e.g. https://radicle.network/nodes/iris.radicle.network/rad:z3gqc.... If only rad:... is provided, Tansu will use the default seed."
             : `Supported formats are HTTPS or SSH URLs for ${label}.`
@@ -253,7 +252,7 @@ export const ThresholdField = ({
     max={MAX_FINALITY_THRESHOLD_PERCENT}
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    description={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}; it can be changed later in the project config.`}
+    hint={`Percent of maintainers who must attest a commit for it to be final. Between ${MIN_FINALITY_THRESHOLD_PERCENT} and ${MAX_FINALITY_THRESHOLD_PERCENT}; it can be changed later in the project config.`}
     error={error}
   />
 );
@@ -289,7 +288,7 @@ export const GovernanceFields = ({
       max={MAX_GOVERNANCE_HOURS}
       value={votingPeriod}
       onChange={(e) => onChange("votingPeriod", e.target.value)}
-      description="The shortest vote a new proposal can have."
+      hint="The shortest vote a new proposal can have."
       error={errors.votingPeriod}
     />
     <Input
@@ -299,7 +298,7 @@ export const GovernanceFields = ({
       max={MAX_GOVERNANCE_HOURS}
       value={executeDelay}
       onChange={(e) => onChange("executeDelay", e.target.value)}
-      description="How long after its vote ends a proposal can be executed."
+      hint="How long after its vote ends a proposal can be executed."
       error={errors.executeDelay}
     />
   </>

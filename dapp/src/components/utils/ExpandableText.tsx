@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Button from "./Button";
+import { Button } from "components/ui";
 
 interface ExpandableTextProps {
   children?: string | null;
@@ -21,8 +21,8 @@ export function ExpandableText({
           {children}
         </p>
         <Button
-          type="secondary"
-          size="xs"
+          tone="secondary"
+          size="sm"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="w-1 h-1 bg-action" />

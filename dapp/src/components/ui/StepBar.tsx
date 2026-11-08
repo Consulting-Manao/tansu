@@ -1,12 +1,10 @@
-import type { FC } from "react";
-
 interface Props {
   step: number;
   totalSteps: number;
 }
 
 /** Where a form wizard stands: "Step 2 of 5" and its bar. */
-const Step: FC<Props> = ({ step, totalSteps }) => (
+export const StepBar = ({ step, totalSteps }: Props) => (
   <div className="flex flex-col gap-2">
     <p className="text-ui text-ink-muted">
       Step {step} of {totalSteps}
@@ -19,5 +17,3 @@ const Step: FC<Props> = ({ step, totalSteps }) => (
     </div>
   </div>
 );
-
-export default Step;

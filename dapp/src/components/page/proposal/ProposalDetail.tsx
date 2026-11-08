@@ -1,6 +1,12 @@
 import { StrKey } from "@stellar/stellar-sdk";
-import { Badge, Button, ButtonLink, Card, CardHeader } from "components/ui";
-import Modal from "components/utils/Modal";
+import {
+  Badge,
+  Button,
+  ButtonLink,
+  Card,
+  CardHeader,
+  Dialog,
+} from "components/ui";
 import Markdown from "components/utils/Markdown";
 import React, { useEffect, useState, useMemo } from "react";
 import JsonView from "react18-json-view";
@@ -380,9 +386,9 @@ const OutcomeDetail: React.FC<{
         <div className="flex">{renderActionButton()}</div>
       )}
       {showModal && (
-        <Modal onClose={() => setShowModal(false)}>
+        <Dialog size="auto" onClose={() => setShowModal(false)}>
           {renderModalContent()}
-        </Modal>
+        </Dialog>
       )}
     </div>
   );

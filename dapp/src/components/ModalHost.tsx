@@ -1,7 +1,5 @@
 import { useStore } from "@nanostores/react";
-import Button from "components/utils/Button";
 import { ErrorBoundary } from "components/utils/ErrorBoundary";
-import Modal from "components/utils/Modal";
 import { lazy, Suspense, useEffect } from "react";
 import {
   closeAllModals,
@@ -9,6 +7,7 @@ import {
   openedModals,
   type Opened,
 } from "utils/modals";
+import { Button, Dialog } from "components/ui";
 
 const CreateProjectModal = lazy(
   () => import("components/page/dashboard/CreateProjectModal"),
@@ -42,14 +41,14 @@ const ModalHost = () => {
           <ErrorBoundary
             key={modal.name}
             fallback={
-              <Modal onClose={onClose}>
+              <Dialog size="auto" onClose={onClose}>
                 <div role="alert" className="flex flex-col gap-4">
                   <p className="text-ink">This dialog could not be shown.</p>
-                  <Button type="secondary" onClick={onClose}>
+                  <Button tone="secondary" onClick={onClose}>
                     Close
                   </Button>
                 </div>
-              </Modal>
+              </Dialog>
             }
           >
             {dialog(modal, onClose)}

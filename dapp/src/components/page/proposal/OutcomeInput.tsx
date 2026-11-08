@@ -1,7 +1,4 @@
 import { useId } from "react";
-import Button from "components/utils/Button";
-import Textarea from "components/utils/Textarea";
-import Input from "components/utils/Input";
 import OutcomeCallCheck from "./OutcomeCallCheck";
 import OutcomeModeSelector from "./OutcomeModeSelector";
 import TemplateSelector from "./TemplateSelector";
@@ -15,6 +12,7 @@ import {
   type OutcomeTemplate,
   type OutcomeType,
 } from "constants/outcomeTemplates";
+import { Button, Input, Textarea } from "components/ui";
 
 interface OutcomeInputProps {
   type: OutcomeType;
@@ -120,7 +118,7 @@ const OutcomeInput = ({
             mode={mode}
             onModeChange={(next) => update({ mode: next })}
           />
-          <Button type="secondary" size="sm" onClick={onRemove}>
+          <Button tone="secondary" size="sm" onClick={onRemove}>
             Remove
           </Button>
         </div>

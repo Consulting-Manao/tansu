@@ -1,11 +1,10 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { badgesQuery, setBadges } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
-import Button from "components/utils/Button";
-import Modal from "components/utils/Modal";
 import { Badge, type Badges } from "../../../../packages/tansu";
 import { useRef, useState } from "react";
 import { toast } from "utils/utils";
+import { Button, Dialog } from "components/ui";
 
 const badgeOptions: { label: string; value: Badge }[] = [
   { label: "Developer", value: Badge.Developer },
@@ -86,11 +85,11 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
 
   return (
     <>
-      <Button type="secondary" onClick={() => setIsOpen(true)}>
+      <Button tone="secondary" onClick={() => setIsOpen(true)}>
         Add badge
       </Button>
       {isOpen && (
-        <Modal onClose={handleClose}>
+        <Dialog size="auto" onClose={handleClose}>
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
             <img
               alt=""
@@ -124,7 +123,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                   >
                     <p>Could not read the member's badges: {loadError}</p>
                     <Button
-                      type="secondary"
+                      tone="secondary"
                       size="sm"
                       onClick={() => loadBadges(memberAddress)}
                     >
@@ -157,7 +156,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
                 <div className="flex justify-end mt-2 sm:mt-0">
                   <Button
                     onClick={handleSave}
-                    isLoading={isLoading}
+                    loading={isLoading}
                     disabled={isLoading || loadedFor !== memberAddress}
                     className="w-full sm:w-auto"
                   >
@@ -167,7 +166,7 @@ const AddBadgeModal = ({ projectName }: { projectName: string }) => {
               </div>
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </>
   );

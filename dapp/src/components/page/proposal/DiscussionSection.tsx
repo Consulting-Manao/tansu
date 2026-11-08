@@ -1,4 +1,4 @@
-import { Card, CardHeader } from "components/ui";
+import { Card, CardHeader, LinkButton } from "components/ui";
 import Markdown from "components/utils/Markdown";
 import React, { useState } from "react";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
@@ -52,13 +52,12 @@ const DiscussionSection: React.FC<DiscussionSectionProps> = ({
           {hasSummary && <Markdown baseUrl={baseUrl}>{summary!}</Markdown>}
           {hasThread && (
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
+              <LinkButton
+                className="self-start"
                 onClick={() => setShowThread((v) => !v)}
-                className="self-start text-small font-semibold text-link underline-offset-2 hover:underline"
               >
                 {showThread ? "Hide full discussion" : "Show full discussion"}
-              </button>
+              </LinkButton>
               {showThread && (
                 <Markdown
                   className="rounded-control border border-line p-4"

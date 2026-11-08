@@ -1,16 +1,13 @@
-import Button from "components/utils/Button";
-import Modal, { type ModalProps } from "components/utils/Modal";
-import Title from "components/utils/Title";
 import { voteTypeDescriptionMap, voteTypeLabelMap } from "constants/constants";
 import { useState, useEffect } from "react";
 import { VoteType } from "types/proposal";
-import VoteTypeCheckbox from "./VoteTypeCheckbox";
 import { loadedPublicKey } from "../../../service/walletService";
 import { getVotingPower, vote } from "../../../service/ProposalService";
 import { errorMessage } from "../../../utils/contractErrors";
 import { toast } from "../../../utils/utils";
+import { Button, Dialog, RadioGroup, Title } from "components/ui";
 
-interface VotersModalProps extends ModalProps {
+interface VotersModalProps {
   projectName: string;
   proposalId: number | undefined;
   proposalTitle: string | undefined;
@@ -181,7 +178,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
 
   if (voteReceipt) {
     return (
-      <Modal onClose={onClose}>
+      <Dialog size="auto" onClose={onClose}>
         <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto">
           <div className="flex flex-col gap-2 border-b pb-4">
             <h2 className="text-2xl font-bold text-ink">Vote Receipt</h2>
@@ -286,24 +283,24 @@ const VotingModal: React.FC<VotersModalProps> = ({
           </div>
 
           <div className="flex justify-end gap-3 mt-4">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Close
             </Button>
             <Button
               onClick={downloadReceipt}
-              isLoading={isDownloading}
+              loading={isDownloading}
               disabled={isDownloading}
             >
               Download PDF
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
     );
   }
 
   return (
-    <Modal onClose={close}>
+    <Dialog size="auto" onClose={close}>
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-9">
         <img
           src="/images/box-with-coin-outside.svg"
@@ -320,42 +317,25 @@ const VotingModal: React.FC<VotersModalProps> = ({
               </div>
             }
           />
-          <div
-            role="radiogroup"
-            aria-label="Your vote"
-            className="flex flex-col gap-6 sm:gap-9"
-          >
-            {[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
-              (voteType) => (
-                <button
-                  key={voteType}
-                  type="button"
-                  role="radio"
-                  aria-checked={selectedOption === voteType}
-                  className="flex gap-3 cursor-pointer text-left"
-                  onClick={() => {
-                    setSelectedOption(voteType);
-                    setVoteError(null);
-                  }}
-                >
-                  <VoteTypeCheckbox
-                    voteType={voteType}
-                    currentVoteType={selectedOption}
-                  />
-                  <span className="flex flex-col justify-center gap-2">
-                    <span
-                      className={`leading-5 text-lg sm:text-xl font-medium text-${voteType}`}
-                    >
-                      {voteTypeLabelMap[voteType]}
-                    </span>
-                    <span className="leading-4 text-sm sm:text-base font-semibold text-ink">
-                      {voteTypeDescriptionMap[voteType]}
-                    </span>
+          <RadioGroup
+            legend="Your vote"
+            value={selectedOption ?? undefined}
+            onChange={(voteType) => {
+              setSelectedOption(voteType);
+              setVoteError(null);
+            }}
+            options={[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
+              (voteType) => ({
+                value: voteType,
+                label: (
+                  <span className={`font-semibold text-${voteType}`}>
+                    {voteTypeLabelMap[voteType]}
                   </span>
-                </button>
-              ),
+                ),
+                description: voteTypeDescriptionMap[voteType],
+              }),
             )}
-          </div>
+          />
           {voteError && (
             <div className="bg-danger-soft border border-danger/40 text-danger px-4 py-2 rounded">
               {voteError}
@@ -400,11 +380,11 @@ const VotingModal: React.FC<VotersModalProps> = ({
           </div>
           <div className="flex flex-col items-end gap-4">
             <div className="flex gap-3">
-              <Button type="secondary" onClick={close} disabled={isLoading}>
+              <Button tone="secondary" onClick={close} disabled={isLoading}>
                 Close
               </Button>
               <Button
-                isLoading={isLoading}
+                loading={isLoading}
                 disabled={isInsufficientVotingPower}
                 onClick={() => !isLoading && handleVote()}
               >
@@ -428,7 +408,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
           </div>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

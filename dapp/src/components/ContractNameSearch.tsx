@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import Input from "components/utils/Input";
 import {
   getContractByName,
   STELLAR_REGISTRY_URL,
   type RegistryContract,
 } from "@service/StellarRegistryService";
+import { Button, Input } from "components/ui";
 
 interface ContractNameSearchProps {
   /** Called with the resolved contract when the user picks a result. */
@@ -145,13 +145,9 @@ export default function ContractNameSearch({
               {shortAddress(resolved!.contractId)}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleUse}
-            className="px-3 py-1 text-sm rounded-control bg-action text-on-action cursor-pointer"
-          >
+          <Button size="sm" onClick={handleUse}>
             Use this address
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -13,8 +13,7 @@ import { queryClient } from "@service/queryClient";
 import type { AttestationTarget } from "../../../../packages/tansu";
 import { isAttestationRevocable } from "constants/attestation";
 import { truncateMiddle, toast } from "utils/utils";
-import Button from "components/utils/Button";
-import Spinner from "components/utils/Spinner";
+import { Button, Spinner } from "components/ui";
 
 interface AttestationCardProps {
   projectName: string | null | undefined;
@@ -144,14 +143,15 @@ const AttestationCard = ({
       return (
         <div className="flex items-center gap-1">
           {badge}
-          <button
+          <Button
+            tone="secondary"
+            size="sm"
             onClick={handleAttest}
-            disabled={isAttesting}
-            className="text-xs font-medium px-1.5 py-0.5 rounded-control border border-line-strong text-ink hover:bg-sunken disabled:opacity-50 whitespace-nowrap"
+            loading={isAttesting}
             title="Attest this target"
           >
-            {isAttesting ? "Attesting…" : "Attest"}
-          </button>
+            Attest
+          </Button>
         </div>
       );
     }
@@ -160,14 +160,15 @@ const AttestationCard = ({
       return (
         <div className="flex items-center gap-1">
           {badge}
-          <button
+          <Button
+            tone="secondary"
+            size="sm"
             onClick={handleRevoke}
-            disabled={isRevoking}
-            className="text-xs font-medium px-1.5 py-0.5 rounded-control border border-line-strong text-ink hover:bg-sunken disabled:opacity-50 whitespace-nowrap"
+            loading={isRevoking}
             title="Withdraw your attestation"
           >
-            {isRevoking ? "Withdrawing…" : "Withdraw"}
-          </button>
+            Withdraw
+          </Button>
         </div>
       );
     }
@@ -205,10 +206,10 @@ const AttestationCard = ({
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleAttest}
-                isLoading={isAttesting}
+                loading={isAttesting}
                 disabled={isAttesting || !canAttest}
                 size="sm"
-                type="secondary"
+                tone="secondary"
               >
                 {isFinal
                   ? "Finalized"
@@ -221,10 +222,10 @@ const AttestationCard = ({
               {canRevoke && (
                 <Button
                   onClick={handleRevoke}
-                  isLoading={isRevoking}
+                  loading={isRevoking}
                   disabled={isRevoking}
                   size="sm"
-                  type="secondary"
+                  tone="secondary"
                 >
                   {isRevoking ? "Withdrawing…" : "Withdraw"}
                 </Button>
@@ -256,7 +257,7 @@ const AttestationCard = ({
 
         {isLoading && (
           <div className="flex items-center gap-3 py-1" aria-busy="true">
-            <Spinner className="text-ink" />
+            <Spinner label="Loading…" className="text-ink" />
             <p className="text-sm text-ink-muted">Loading attestations…</p>
           </div>
         )}

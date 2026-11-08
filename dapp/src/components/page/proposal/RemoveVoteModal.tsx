@@ -1,5 +1,4 @@
-import { Button } from "components/ui";
-import Modal from "components/utils/Modal";
+import { Button, Dialog } from "components/ui";
 import VoterInfo from "components/utils/VoterInfo";
 import { useState, type FC } from "react";
 import type { VoteStatus } from "types/proposal";
@@ -47,7 +46,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <h2 className="text-card font-semibold">Remove a vote</h2>
@@ -85,7 +84,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

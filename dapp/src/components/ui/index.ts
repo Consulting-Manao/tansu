@@ -16,13 +16,17 @@ export {
 } from "./Button";
 export { Card, CardHeader } from "./Card";
 export { Checkbox } from "./Checkbox";
+export { CopyButton } from "./CopyButton";
 export { Dialog, type DialogSize } from "./Dialog";
 export { EmptyState } from "./EmptyState";
 export { FlowDialog, type FlowState } from "./FlowDialog";
 export { IconButton } from "./IconButton";
 export { Input } from "./Input";
+export { Label } from "./Label";
+export { LinkButton } from "./LinkButton";
 export { Loading, Skeleton } from "./Loading";
 export { Notice, type NoticeTone } from "./Notice";
+export { Pagination } from "./Pagination";
 export { ProofChip, type ProofTone } from "./ProofChip";
 export { RadioGroup, type RadioOption } from "./RadioGroup";
 export { ResultBar, voteShares } from "./ResultBar";
@@ -30,10 +34,12 @@ export { SectionTitle } from "./SectionTitle";
 export { SegmentedControl, type Segment } from "./SegmentedControl";
 export { Select } from "./Select";
 export { Spinner } from "./Spinner";
+export { StepBar } from "./StepBar";
 export { Stepper } from "./Stepper";
 export { Tabs, type TabItem } from "./Tabs";
 export { Textarea } from "./Textarea";
 export { Timeline, type TimelineStep } from "./Timeline";
+export { Title } from "./Title";
 export {
   dismissToast,
   toast,

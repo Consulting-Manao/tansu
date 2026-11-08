@@ -2,7 +2,8 @@ import cx from "classnames";
 import type { ReactNode } from "react";
 
 export interface FieldText {
-  label: ReactNode;
+  /** The visible label; without one, give the control an aria-label. */
+  label?: ReactNode;
   /** Help under the control; an error takes its place. */
   hint?: ReactNode;
   error?: ReactNode;
@@ -24,9 +25,11 @@ interface FieldProps extends FieldText {
 export function Field({ id, label, hint, error, children }: FieldProps) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <label htmlFor={id} className="text-ui font-semibold text-ink">
-        {label}
-      </label>
+      {label && (
+        <label htmlFor={id} className="text-ui font-semibold text-ink">
+          {label}
+        </label>
+      )}
       {children}
       {(error || hint) && (
         <p

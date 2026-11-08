@@ -1,5 +1,4 @@
-import Modal from "components/utils/Modal";
-import Button from "components/utils/Button";
+import { Button, Dialog } from "components/ui";
 
 interface WalletFundingModalProps {
   isOpen: boolean;
@@ -30,7 +29,7 @@ const WalletFundingModal = ({
       )} XLM required for transactions.`;
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col items-center text-center gap-4 sm:gap-6 p-4 sm:p-6">
         <img
           src="/images/wrong.svg"
@@ -47,14 +46,14 @@ const WalletFundingModal = ({
         <div className="w-full mt-3 flex justify-center">
           <Button
             onClick={onClose}
-            variant="secondary"
+            tone="secondary"
             className="w-full sm:w-auto"
           >
             Close
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

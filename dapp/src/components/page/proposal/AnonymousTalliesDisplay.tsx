@@ -2,9 +2,9 @@ import { useState } from "react";
 import VotingResult from "./VotingResult";
 import type { VoteStatus } from "types/proposal";
 import AddressDisplay from "./AddressDisplay";
-import Button from "components/utils/Button";
 import ExportDecodedVotesModal from "./ExportDecodedVotesModal";
 import type { DecodedVote } from "utils/anonymousVoting";
+import { Button } from "components/ui";
 
 interface Props {
   voteStatus: VoteStatus | undefined;
@@ -114,11 +114,7 @@ const AnonymousTalliesDisplay: React.FC<Props> = ({
           </details>
 
           <div className="flex flex-col items-center justify-between gap-3 flex-wrap mt-3">
-            <Button
-              type="primary"
-              size="sm"
-              onClick={() => setShowExportModal(true)}
-            >
+            <Button size="sm" onClick={() => setShowExportModal(true)}>
               Export decoded votes
             </Button>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { focusRing } from "components/ui/style";
+import { focusRing } from "./style";
 
 interface CopyButtonProps {
   textToCopy: string;
@@ -12,7 +12,7 @@ interface CopyButtonProps {
 /**
  * A reusable copy button component that shows a green check mark when clicked
  */
-const CopyButton = ({
+export const CopyButton = ({
   textToCopy,
   className = "",
   size = "md",
@@ -80,5 +80,3 @@ const CopyButton = ({
     </button>
   );
 };
-
-export default CopyButton;

@@ -91,6 +91,23 @@ export default [
     },
   },
   {
+    // Controls come from the kit (components/ui): Button, IconButton,
+    // LinkButton, SegmentedControl, Tabs, RadioGroup... A new kind of
+    // control is added there, with its preview on /kit/.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/components/ui/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXOpeningElement[name.name='button']",
+          message:
+            "Use a button from components/ui (Button, IconButton, LinkButton, SegmentedControl, ...).",
+        },
+      ],
+    },
+  },
+  {
     // The kit stays small: a piece that grows past this splits.
     files: ["src/components/ui/**/*.{ts,tsx}"],
     rules: {

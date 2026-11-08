@@ -1,4 +1,5 @@
 import { type ChangeEvent } from "react";
+import { LinkButton } from "components/ui";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 
 export type AttachedImage = {
@@ -121,9 +122,7 @@ const MarkdownEditorWithImages = ({
                   className="w-full h-20 object-contain rounded"
                 />
                 <div className="flex justify-between items-center gap-2">
-                  <button
-                    type="button"
-                    className="text-link hover:text-link underline text-xs"
+                  <LinkButton
                     onClick={() =>
                       onChange(
                         `${value}${value && !value.endsWith("\n") ? "\n\n" : ""}![](${img.localUrl})\n`,
@@ -131,10 +130,9 @@ const MarkdownEditorWithImages = ({
                     }
                   >
                     Insert
-                  </button>
-                  <button
-                    type="button"
-                    className="text-danger hover:text-danger underline text-xs"
+                  </LinkButton>
+                  <LinkButton
+                    className="text-danger"
                     onClick={() => {
                       URL.revokeObjectURL(img.localUrl);
                       onImageFilesChange(
@@ -154,7 +152,7 @@ const MarkdownEditorWithImages = ({
                     }}
                   >
                     Remove
-                  </button>
+                  </LinkButton>
                 </div>
               </div>
             ))}

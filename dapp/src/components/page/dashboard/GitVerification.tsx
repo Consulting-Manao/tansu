@@ -1,8 +1,6 @@
 import { Buffer } from "buffer";
 import { useState, type FC } from "react";
 import { fetchGitKeys, type GitKey } from "@service/MemberService";
-import Button from "components/utils/Button";
-import CopyButton from "components/utils/CopyButton";
 import {
   buildMessage,
   extractSignatureBytes,
@@ -10,6 +8,7 @@ import {
   signingCommand,
   verifyGitSignature,
 } from "utils/sshSignature";
+import { Button, CopyButton } from "components/ui";
 
 export interface GitIdentityData {
   gitIdentity: string; // "<provider>:<username>"
@@ -153,7 +152,7 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         </p>
         <div className="flex gap-3">
           <Button onClick={() => setStep("input")}>Link Git Handle</Button>
-          <Button type="secondary" onClick={onSkip}>
+          <Button tone="secondary" onClick={onSkip}>
             Skip
           </Button>
         </div>
@@ -232,10 +231,10 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         {error}
 
         <div className="flex justify-end gap-3">
-          <Button type="secondary" onClick={onSkip}>
+          <Button tone="secondary" onClick={onSkip}>
             Skip
           </Button>
-          <Button isLoading={isBusy} disabled={isBusy} onClick={findKeys}>
+          <Button loading={isBusy} disabled={isBusy} onClick={findKeys}>
             {provider === "custom" ? "Next" : "Fetch Keys"}
           </Button>
         </div>
@@ -321,11 +320,11 @@ const GitVerification: FC<Props> = ({ signingAccount, onVerified, onSkip }) => {
         {error}
 
         <div className="flex justify-end gap-3">
-          <Button type="secondary" onClick={() => setStep("input")}>
+          <Button tone="secondary" onClick={() => setStep("input")}>
             Back
           </Button>
           <Button
-            isLoading={isBusy}
+            loading={isBusy}
             onClick={verifySignature}
             disabled={isBusy || !signatureInput.trim()}
           >

@@ -1,17 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { FC } from "react";
-import Modal from "components/utils/Modal";
 import { repoReadmeQuery } from "../../../service/RepositoryMetadataService";
 import { queryClient } from "../../../service/queryClient";
 import Markdown from "components/utils/Markdown";
 
-import CopyButton from "components/utils/CopyButton";
 import {
   getRepositoryCloneCommand,
   getRepositoryIconInfo,
   getRepositoryReleasesUrl,
 } from "../../../utils/editLinkFunctions";
+import { Button, CopyButton, Dialog } from "components/ui";
 
 interface ReadMoreModalProps {
   isOpen: boolean;
@@ -57,7 +56,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col items-center sm:items-start gap-4 sm:gap-6">
         <img
           className="w-[90px] h-[90px] sm:w-[110px] sm:h-[110px] lg:w-[150px] lg:h-[150px] object-contain"
@@ -121,19 +120,9 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
                   />
                 </div>
                 {releasesUrl ? (
-                  <button
-                    onClick={handleGoToReleases}
-                    className="p-2 sm:p-[9px_30px] lg:p-[18px_30px] bg-sunken flex items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto"
-                  >
-                    <img
-                      src="/icons/link.svg"
-                      className="w-4 h-4 sm:w-auto sm:h-auto"
-                      alt="External link"
-                    />
-                    <span className="leading-5 text-base sm:text-xl text-ink cursor-pointer">
-                      Go to Releases
-                    </span>
-                  </button>
+                  <Button tone="secondary" onClick={handleGoToReleases}>
+                    Go to Releases
+                  </Button>
                 ) : null}
               </div>
               <Markdown
@@ -146,7 +135,7 @@ const ReadMoreModal: FC<ReadMoreModalProps> = ({
           </div>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

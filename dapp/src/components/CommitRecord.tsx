@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { navigate } from "astro:transitions/client";
 import JsonView from "react18-json-view";
-import CopyButton from "components/utils/CopyButton";
 import { projectUrl } from "utils/urls";
+import { CopyButton, IconButton, LinkButton } from "components/ui";
 
 interface CommitRecordProps {
   /** Main title line – for on-chain rows this is a concise summary */
@@ -77,16 +76,6 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
     return () => window.removeEventListener("resize", checkOverflow);
   }, [message]);
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  const handleNavigateProject = () => {
-    if (projectName) navigate(projectUrl(projectName));
-  };
-
-  // ---------------------------------------------------------------------------
-
   return (
     <div
       className={`relative p-[15px] lg:p-[30px] flex flex-col gap-3 ${bgClass}`}
@@ -103,12 +92,12 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
 
       {/* Project pill */}
       {projectName && (
-        <button
-          onClick={handleNavigateProject}
-          className="self-start mb-2 px-2 py-0.5 text-xs font-semibold bg-info text-surface rounded-control cursor-pointer"
+        <a
+          href={projectUrl(projectName)}
+          className="self-start mb-2 px-2 py-0.5 text-xs font-semibold bg-info text-surface rounded-control no-underline"
         >
           {projectName}
-        </button>
+        </a>
       )}
 
       {/* Title & hash */}
@@ -124,22 +113,26 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
             {firstLine}
           </a>
           {hasMoreLines && (
-            <button
-              type="button"
-              aria-label={isExpanded ? "Show less" : "Show the full message"}
+            <IconButton
+              label={isExpanded ? "Show less" : "Show the full message"}
               aria-expanded={isExpanded}
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-0.5 min-w-6 min-h-6 flex shrink-0 items-center justify-center"
+              className="size-7 sm:size-7"
             >
-              <img
-                alt=""
-                src={
-                  isExpanded
-                    ? "/icons/chevron-up.svg"
-                    : "/icons/chevron-down.svg"
-                }
-              />
-            </button>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className={isExpanded ? "rotate-180" : undefined}
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </IconButton>
           )}
         </div>
         {sha && (
@@ -203,12 +196,9 @@ const CommitRecord: React.FC<CommitRecordProps> = ({
       {/* Raw toggle */}
       {!!showXDR && (
         <div className="mt-2">
-          <button
-            onClick={() => setShowRaw(!showRaw)}
-            className="text-xs text-link underline cursor-pointer"
-          >
+          <LinkButton onClick={() => setShowRaw(!showRaw)}>
             {showRaw ? "Hide raw transaction" : "Show raw transaction"}
-          </button>
+          </LinkButton>
           {showRaw && (
             <div className="mt-2 max-h-96 overflow-auto bg-sunken p-2 rounded text-xs">
               {/* JsonView provides nice folding – fallback to <pre> if not available */}

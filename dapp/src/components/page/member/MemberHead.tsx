@@ -1,8 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { disconnect } from "@service/walletService";
-import { Button, ProofChip, Skeleton } from "components/ui";
-import CopyButton from "components/utils/CopyButton";
+import { Button, CopyButton, ProofChip, Skeleton } from "components/ui";
 import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { clearIpfsMisses } from "utils/ipfsMissCache";

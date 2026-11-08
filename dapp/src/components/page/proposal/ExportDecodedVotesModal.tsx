@@ -1,10 +1,9 @@
-import Button from "components/utils/Button";
-import Modal, { type ModalProps } from "components/utils/Modal";
-import Title from "components/utils/Title";
 import { buildDecodedVotesCsv } from "utils/anonymousVotingCsv";
 import type { DecodedVote } from "utils/anonymousVoting";
+import { Button, Dialog, Title } from "components/ui";
 
-interface Props extends ModalProps {
+interface Props {
+  onClose: () => void;
   decodedVotes: DecodedVote[];
   fileNameBase: string;
 }
@@ -29,7 +28,7 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col gap-6 sm:gap-[30px] max-w-2xl">
         <Title
           title="Export decoded votes"
@@ -53,13 +52,13 @@ const ExportDecodedVotesModal: React.FC<Props> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px]">
-          <Button type="secondary" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={handleExport}>Export CSV</Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

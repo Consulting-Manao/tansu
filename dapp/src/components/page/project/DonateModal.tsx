@@ -1,12 +1,11 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { useState, type FC, type ReactNode } from "react";
 
-import Modal from "components/utils/Modal";
 import { toast, truncateMiddle } from "utils/utils";
-import Button from "components/utils/Button";
 
 import { MEMO_BYTES, sendXLM } from "service/TxService";
 import { errorMessage } from "utils/contractErrors";
+import { Button, Dialog, SegmentedControl } from "components/ui";
 
 const AMOUNTS = ["10", "100", "1000"];
 
@@ -70,7 +69,11 @@ const DonateModal: FC<{
       <div onClick={open}>{children}</div>
 
       {isOpen && (
-        <Modal onClose={() => setIsOpen(false)} closable={!isLoading}>
+        <Dialog
+          size="auto"
+          onClose={() => setIsOpen(false)}
+          closable={!isLoading}
+        >
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
             <img
               src="/images/heart.svg"
@@ -138,23 +141,16 @@ const DonateModal: FC<{
                     </span>
                   </span>
                 </label>
-                <div className="w-full grid grid-cols-3 text-sm sm:text-base">
-                  {AMOUNTS.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={amount === value}
-                      className={`py-2 sm:py-[11px] flex justify-center items-center leading-5 text-base sm:text-xl border border-accent ${
-                        amount === value
-                          ? "bg-accent text-on-accent"
-                          : "text-ink"
-                      }`}
-                      onClick={() => setAmount(value)}
-                    >
-                      {value} XLM
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  label="Suggested donations"
+                  block
+                  value={AMOUNTS.includes(amount) ? amount : ""}
+                  onChange={setAmount}
+                  segments={AMOUNTS.map((value) => ({
+                    value,
+                    label: `${value} XLM`,
+                  }))}
+                />
                 <p
                   className={`text-xs sm:text-base ${amountError ? "text-danger" : "text-ink-muted"}`}
                 >
@@ -183,7 +179,7 @@ const DonateModal: FC<{
                 <Button
                   className="w-full sm:w-[220px] h-[48px] sm:h-[56px]"
                   onClick={handleContribute}
-                  isLoading={isLoading}
+                  loading={isLoading}
                   disabled={!to || !!amountError || !!messageError}
                 >
                   Donate
@@ -191,7 +187,7 @@ const DonateModal: FC<{
               </div>
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </>
   );

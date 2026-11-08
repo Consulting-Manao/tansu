@@ -1,11 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { navigate } from "astro:transitions/client";
-import Button from "components/utils/Button";
-import Modal, { type ModalProps } from "components/utils/Modal";
-import Step from "components/utils/Step";
-import Title from "components/utils/Title";
-import CopyButton from "components/utils/CopyButton";
 import { useMemo, useState, useEffect } from "react";
 import type { Proposal, ProposalOutcome, VoteStatus } from "types/proposal";
 import { toast } from "utils/utils";
@@ -25,8 +20,10 @@ import { proposalUrl } from "utils/urls";
 import { isNoCall } from "@service/ContractIntrospectionService";
 import { getContractByName } from "@service/StellarRegistryService";
 import { OUTCOMES, winningOutcome } from "utils/proposalOutcomes";
+import { Button, CopyButton, Dialog, StepBar, Title } from "components/ui";
 
-interface ExecuteProposalModalProps extends ModalProps {
+interface ExecuteProposalModalProps {
+  onClose: () => void;
   projectName: string;
   proposalId: number | undefined;
   proposal: Proposal | undefined; // Add proposal data
@@ -226,7 +223,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const totalSteps = isAnonymous ? 4 : 3;
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       {/* ───────────────────────── step 1 ───────────────────────── */}
       {step === 1 && isAnonymous ? (
         <div className="flex flex-col gap-10 px-4 sm:px-6 md:px-8">
@@ -238,7 +235,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             />
 
             <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] w-full">
-              <Step step={step} totalSteps={totalSteps} />
+              <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Provide the anonymous voting key-file"
                 description={
@@ -291,7 +288,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
 
           <div className="flex justify-center sm:justify-end gap-3 sm:gap-[18px]">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
           </div>
@@ -307,7 +304,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             />
 
             <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] w-full">
-              <Step step={step} totalSteps={totalSteps} />
+              <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Decrypted tallies"
                 description="Below are the tallies computed from decrypted votes."
@@ -333,7 +330,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
 
           <div className="flex justify-center sm:justify-end gap-3 sm:gap-[18px]">
-            <Button type="secondary" onClick={() => setStep(step - 1)}>
+            <Button tone="secondary" onClick={() => setStep(step - 1)}>
               Back
             </Button>
             <Button
@@ -353,7 +350,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               alt="Lock in box"
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
-              <Step step={step} totalSteps={totalSteps} />
+              <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Finalizing the Vote"
                 description="The voting period has ended. Now, we need to count the votes and determine the final outcome."
@@ -363,7 +360,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button
@@ -391,7 +388,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               alt="Scan"
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
-              <Step step={step} totalSteps={totalSteps} />
+              <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Finalize the Vote Execution"
                 description="Review the transaction details before execution."
@@ -446,11 +443,11 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
-            <Button type="secondary" onClick={() => setStep(step - 1)}>
+            <Button tone="secondary" onClick={() => setStep(step - 1)}>
               Back
             </Button>
             <Button
-              isLoading={isExecuting}
+              loading={isExecuting}
               disabled={isExecuting}
               onClick={async () => {
                 if (!isMaintainer) {
@@ -476,7 +473,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
               alt="Success Icon"
             />
             <div className="flex-grow flex flex-col gap-6 sm:gap-[30px] text-center sm:text-left">
-              <Step step={step} totalSteps={totalSteps} />
+              <StepBar step={step} totalSteps={totalSteps} />
               <Title
                 title="Your Vote Is Officially Executed!"
                 description="Congratulations! You've successfully executed your vote, and the final status has been updated."
@@ -486,10 +483,19 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-4 sm:gap-[18px]">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Close
             </Button>
-            <Button type="secondary" icon="/icons/share.svg">
+            <Button
+              tone="secondary"
+              icon={
+                <img
+                  src="/icons/share.svg"
+                  alt=""
+                  className="size-5 shrink-0"
+                />
+              }
+            >
               Share
             </Button>
             <Button
@@ -503,7 +509,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           </div>
         </div>
       )}
-    </Modal>
+    </Dialog>
   );
 };
 

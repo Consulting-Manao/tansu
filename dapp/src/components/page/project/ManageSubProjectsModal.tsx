@@ -1,9 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { Buffer } from "buffer";
 import { useState } from "react";
-import Button from "components/utils/Button";
-import Input from "components/utils/Input";
-import Modal from "components/utils/Modal";
 import { toast } from "utils/utils";
 import { projectKeyHex } from "utils/projectKey";
 import {
@@ -13,6 +10,7 @@ import {
 } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import type { Project } from "../../../../packages/tansu";
+import { Button, Dialog, Input } from "components/ui";
 
 /** The contract's limit. */
 const MAX_SUB_PROJECTS = 10;
@@ -122,12 +120,12 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
 
   return (
     <>
-      <Button type="secondary" onClick={handleOpen}>
+      <Button tone="secondary" onClick={handleOpen}>
         Sub-projects
       </Button>
 
       {isOpen && (
-        <Modal onClose={handleClose}>
+        <Dialog size="auto" onClose={handleClose}>
           <div className="flex flex-col gap-6 w-full">
             <h6 className="text-xl font-medium text-ink">Sub-Projects</h6>
 
@@ -161,7 +159,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
                         {label(key)}
                       </span>
                       <Button
-                        type="secondary"
+                        tone="secondary"
                         onClick={() =>
                           setKeys(
                             (list) => list && list.filter((k) => k !== key),
@@ -196,7 +194,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
               <Button
                 onClick={handleAddProject}
                 disabled={!keys || isLoading || isChecking}
-                isLoading={isChecking}
+                loading={isChecking}
               >
                 Add
               </Button>
@@ -205,7 +203,7 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
             <div className="flex justify-end gap-3">
               <Button
                 onClick={handleClose}
-                type="secondary"
+                tone="secondary"
                 disabled={isLoading}
               >
                 Cancel
@@ -213,13 +211,13 @@ const ManageSubProjectsModal = ({ project }: { project: Project }) => {
               <Button
                 onClick={handleSubmit}
                 disabled={!keys || isLoading || isChecking}
-                isLoading={isLoading}
+                loading={isLoading}
               >
                 Save Changes
               </Button>
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </>
   );

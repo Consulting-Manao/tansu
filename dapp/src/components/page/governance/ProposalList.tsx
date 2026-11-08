@@ -6,7 +6,7 @@ import {
 } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { projectNameFromUrl } from "utils/urls";
-import { Button, EmptyState, Loading, Notice } from "components/ui";
+import { Button, EmptyState, Loading, Notice, Pagination } from "components/ui";
 import { useEffect, useMemo, useState } from "react";
 import {
   modifyProposalFromContract,
@@ -15,7 +15,6 @@ import {
 } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 import { useStore } from "@nanostores/react";
-import Pagination from "../../utils/Pagination";
 import VotingModal from "../proposal/VotingModal";
 import ProposalCard from "./ProposalCard";
 

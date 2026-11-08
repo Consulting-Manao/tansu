@@ -1,9 +1,9 @@
 import { anonymousConfigQuery } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
-import Button from "components/utils/Button";
 import { useRef, useState } from "react";
 import { generateRSAKeyPair } from "utils/crypto";
 import { toast } from "utils/utils";
+import { Button, LinkButton } from "components/ui";
 
 type Keys = { publicKey: string; privateKey: string };
 
@@ -143,7 +143,7 @@ export const AnonymousKeySetup = ({
           saved it.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="secondary" size="sm" onClick={setup.download}>
+          <Button tone="secondary" size="sm" onClick={setup.download}>
             Download key file
           </Button>
           <label className="text-sm text-success">
@@ -166,13 +166,9 @@ export const AnonymousKeySetup = ({
       <div className="flex flex-col gap-2 p-3 bg-success-soft border border-success/40 rounded-control">
         <div className="flex items-center justify-between">
           <span className="text-sm text-success">Already configured.</span>
-          <button
-            type="button"
-            className="text-link hover:text-link underline text-sm"
-            onClick={() => setup.setConfirmReplace(true)}
-          >
+          <LinkButton onClick={() => setup.setConfirmReplace(true)}>
             Reset Keys
-          </button>
+          </LinkButton>
         </div>
         {setup.confirmReplace && (
           <div className="flex flex-col gap-2 text-sm text-danger">
@@ -181,7 +177,7 @@ export const AnonymousKeySetup = ({
               revealed with the current key file: keep it until they are
               executed.
             </p>
-            <Button type="secondary" size="sm" onClick={setup.replace}>
+            <Button tone="secondary" size="sm" onClick={setup.replace}>
               Replace the key
             </Button>
           </div>

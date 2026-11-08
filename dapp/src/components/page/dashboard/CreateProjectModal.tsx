@@ -3,12 +3,7 @@ import { queryClient } from "@service/queryClient";
 import { useStore } from "@nanostores/react";
 import { connectedPublicKey, walletInitialized } from "utils/store";
 import { navigate } from "astro:transitions/client";
-import Button from "components/utils/Button.tsx";
-import Input from "components/utils/Input.tsx";
-import Label from "components/utils/Label.tsx";
-import FlowProgressModal from "components/utils/FlowProgressModal.tsx";
-import Step from "components/utils/Step.tsx";
-import Title from "components/utils/Title.tsx";
+import FlowProgressModal from "components/utils/FlowProgressModal";
 import { useState, type FC, useEffect, useRef } from "react";
 import { toast } from "utils/utils";
 import {
@@ -45,6 +40,7 @@ import {
   ThresholdField,
   type MaintainerRow,
 } from "components/page/project/ProjectFields";
+import { Button, Input, Label, StepBar, Title } from "components/ui";
 
 /** Register a project: its name, repository, team and organization. */
 const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -222,10 +218,10 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const footer = (next: () => void) => (
     <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-[18px]">
-      <Button type="secondary" onClick={onClose} className="w-full sm:w-auto">
+      <Button tone="secondary" onClick={onClose} className="w-full sm:w-auto">
         Cancel
       </Button>
-      <Button isLoading={isLoading} onClick={next} className="w-full sm:w-auto">
+      <Button loading={isLoading} onClick={next} className="w-full sm:w-auto">
         Next
       </Button>
     </div>
@@ -269,7 +265,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
             <>
               <div className="flex flex-col gap-4 md:gap-[30px]">
                 <div className="flex flex-col gap-3 md:gap-5">
-                  <Step step={step} totalSteps={5} />
+                  <StepBar step={step} totalSteps={5} />
                   <Title
                     title="Welcome to Your New Project!"
                     description={
@@ -287,7 +283,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                     setProjectName(e.target.value.replace(/[^a-zA-Z0-9]/g, ""));
                     setProjectNameError(null);
                   }}
-                  description="Project name must be 4-30 alphanumeric characters (a-z, A-Z, 0-9). This will be your unique on-chain identifier."
+                  hint="Project name must be 4-30 alphanumeric characters (a-z, A-Z, 0-9). This will be your unique on-chain identifier."
                   error={projectNameError}
                 />
                 <Input
@@ -301,7 +297,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                     );
                     setProjectFullNameError(null);
                   }}
-                  description="Human-readable name shown in the UI (up to 100 ASCII characters)."
+                  hint="Human-readable name shown in the UI (up to 100 ASCII characters)."
                   error={projectFullNameError}
                 />
                 <fieldset className="flex flex-col gap-3">
@@ -361,7 +357,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
               <>
                 <div className="flex flex-col gap-4 md:gap-[30px]">
                   <div className="flex flex-col gap-3 md:gap-5">
-                    <Step step={step} totalSteps={5} />
+                    <StepBar step={step} totalSteps={5} />
                     <Title
                       title="Build Your Team"
                       description={
@@ -386,7 +382,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                 <>
                   <div className="flex flex-col gap-4 md:gap-[30px]">
                     <div className="flex flex-col gap-3 md:gap-5">
-                      <Step step={step} totalSteps={5} />
+                      <StepBar step={step} totalSteps={5} />
                       <Title
                         title={
                           isSoftware
@@ -441,7 +437,7 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                     />
                     <div className="flex-grow flex flex-col gap-[30px]">
                       <div className="flex flex-col gap-5">
-                        <Step step={step} totalSteps={5} />
+                        <StepBar step={step} totalSteps={5} />
                         <Title
                           title="Review and Submit Your Project"
                           description="Take a moment to review your project details before submitting. You can go back and make changes if needed."
@@ -453,12 +449,12 @@ const CreateProjectModal: FC<{ onClose: () => void }> = ({ onClose }) => {
                       </div>
                       <div className="flex gap-[18px]">
                         <Button
-                          isLoading={isLoading}
+                          loading={isLoading}
                           onClick={handleRegisterProject}
                         >
                           Register Project
                         </Button>
-                        <Button type="secondary" onClick={onClose}>
+                        <Button tone="secondary" onClick={onClose}>
                           Cancel
                         </Button>
                       </div>
@@ -535,7 +531,7 @@ const ReviewSection = ({
       <div className="flex gap-6">
         <p className="leading-6 text-xl font-medium text-ink">{title}</p>
         <Button
-          type="secondary"
+          tone="secondary"
           size="sm"
           className="p-[2px_10px]"
           onClick={onBack}

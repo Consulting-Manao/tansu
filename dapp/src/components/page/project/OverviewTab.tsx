@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@service/queryClient";
-import { Card, CardHeader } from "components/ui";
-import CopyButton from "components/utils/CopyButton";
+import { Card, CardHeader, CopyButton, LinkButton } from "components/ui";
 import Markdown from "components/utils/Markdown";
 import type { Project } from "../../../../packages/tansu";
 import type { ConfigData } from "types/projectConfig";
@@ -14,22 +13,6 @@ import { Person } from "./PeopleTab";
 import SubProjectsSection from "./SubProjectsSection";
 
 const MAINTAINERS_SHOWN = 3;
-
-const TextButton = ({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: string;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="text-small font-semibold text-link underline-offset-2 hover:underline"
-  >
-    {children}
-  </button>
-);
 
 /** A project without code shows its README, from its directory on IPFS. */
 const Readme = ({ project }: { project: Project }) => {
@@ -74,9 +57,9 @@ const OverviewTab = ({
             <CardHeader
               title="Latest commit"
               action={
-                <TextButton onClick={() => onShowTab("code")}>
+                <LinkButton onClick={() => onShowTab("code")}>
                   History
-                </TextButton>
+                </LinkButton>
               }
             />
             <LatestCommit project={project} config={config} />
@@ -85,9 +68,9 @@ const OverviewTab = ({
         <RecentProposals
           name={project.name}
           action={
-            <TextButton onClick={() => onShowTab("proposals")}>
+            <LinkButton onClick={() => onShowTab("proposals")}>
               All proposals
-            </TextButton>
+            </LinkButton>
           }
         />
         {isSoftware === false && (
@@ -104,9 +87,9 @@ const OverviewTab = ({
             title="Maintainers"
             action={
               maintainers.length > MAINTAINERS_SHOWN && (
-                <TextButton onClick={() => onShowTab("people")}>
+                <LinkButton onClick={() => onShowTab("people")}>
                   {`View all ${maintainers.length}`}
-                </TextButton>
+                </LinkButton>
               )
             }
           />

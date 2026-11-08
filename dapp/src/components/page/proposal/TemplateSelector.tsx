@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
-import Modal from "../../../components/utils/Modal";
-import Button from "../../../components/utils/Button";
+import { Button, Dialog } from "components/ui";
 
 interface Template {
   id: string;
@@ -47,7 +46,7 @@ export default function TemplateSelector<T extends Template>({
             Choose a structured format for {purpose}
           </p>
         </div>
-        <Button type="tertiary" size="sm" onClick={() => setIsOpen(!isOpen)}>
+        <Button tone="secondary" size="sm" onClick={() => setIsOpen(!isOpen)}>
           {isOpen ? "Hide Templates" : "Browse Templates"}
         </Button>
       </div>
@@ -66,8 +65,8 @@ export default function TemplateSelector<T extends Template>({
                     <h4 className="font-medium text-ink">{template.name}</h4>
                   </div>
                   <Button
-                    type="secondary"
-                    size="xs"
+                    tone="secondary"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       setPreviewTemplate(template);
@@ -88,7 +87,7 @@ export default function TemplateSelector<T extends Template>({
       )}
 
       {previewTemplate && (
-        <Modal onClose={() => setPreviewTemplate(null)} fullWidth>
+        <Dialog onClose={() => setPreviewTemplate(null)} size="lg">
           <div className="flex flex-col gap-6">
             <div className="text-center">
               <h3 className="text-xl font-semibold text-ink mb-2">
@@ -109,7 +108,7 @@ export default function TemplateSelector<T extends Template>({
 
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-action">
               <Button
-                type="tertiary"
+                tone="secondary"
                 onClick={() => setPreviewTemplate(null)}
                 className="hover:border-line-strong"
               >
@@ -120,7 +119,7 @@ export default function TemplateSelector<T extends Template>({
               </Button>
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );

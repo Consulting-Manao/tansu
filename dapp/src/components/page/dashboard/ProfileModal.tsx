@@ -6,14 +6,13 @@ import {
   type ProfileData,
 } from "@service/MemberService";
 import { connect } from "@service/walletService";
-import Button from "components/utils/Button";
 import FlowProgressModal from "components/utils/FlowProgressModal";
-import Input from "components/utils/Input";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import { connectedPublicKey } from "utils/store";
 import { fetchFromIpfs, getIpfsUrl } from "utils/ipfsFunctions";
 import { validateUrl } from "utils/validations";
 import GitVerification, { type GitIdentityData } from "./GitVerification";
+import { Button, Input } from "components/ui";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -250,7 +249,7 @@ const ProfileModal: FC<{
                       alt="Profile preview"
                       className="w-24 h-24 object-cover rounded-full border-2 border-action"
                     />
-                    <Button type="secondary" onClick={removeImage}>
+                    <Button tone="secondary" onClick={removeImage}>
                       Remove Image
                     </Button>
                   </div>
@@ -336,7 +335,7 @@ const ProfileModal: FC<{
             ) : (
               <div className="pt-2">
                 <Button
-                  type="secondary"
+                  tone="secondary"
                   onClick={async () => {
                     // The signature binds the member's address.
                     if (!publicKey) {
@@ -355,10 +354,10 @@ const ProfileModal: FC<{
             ))}
 
           <div className="flex justify-end gap-[18px]">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button isLoading={isLoading || isUploading} onClick={handleSubmit}>
+            <Button loading={isLoading || isUploading} onClick={handleSubmit}>
               {isJoining ? "Join" : "Save Changes"}
             </Button>
           </div>

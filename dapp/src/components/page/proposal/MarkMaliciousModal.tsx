@@ -1,5 +1,4 @@
-import { Button } from "components/ui";
-import Modal from "components/utils/Modal";
+import { Button, Dialog } from "components/ui";
 import { useState, type FC } from "react";
 import { revokeProposal } from "@service/ProposalService";
 import { toast } from "utils/utils";
@@ -38,7 +37,7 @@ const MarkMaliciousModal: FC<MarkMaliciousModalProps> = ({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex max-w-lg flex-col gap-6">
         <h2 className="text-card font-semibold">Revoke this proposal?</h2>
         <p className="text-ink-muted">
@@ -60,7 +59,7 @@ const MarkMaliciousModal: FC<MarkMaliciousModalProps> = ({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

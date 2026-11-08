@@ -1,6 +1,12 @@
 import { useStore } from "@nanostores/react";
 import { useState } from "react";
-import { Card, CardHeader, ResultBar, voteShares } from "components/ui";
+import {
+  Card,
+  CardHeader,
+  LinkButton,
+  ResultBar,
+  voteShares,
+} from "components/ui";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import VerifyAnonymousVotesModal from "./VerifyAnonymousVotesModal";
@@ -17,9 +23,6 @@ const EyeIcon = () => (
     <circle cx="12" cy="12" r="3" fill="currentColor" />
   </svg>
 );
-
-const linkButton =
-  "inline-flex items-center gap-1.5 text-small font-semibold text-link underline-offset-2 hover:underline";
 
 /**
  * The vote so far, by weight, and who voted: a public vote's voters once
@@ -45,26 +48,19 @@ const ProposalTally = ({
 
   const action = !proposal.publicVoting ? (
     isMaintainer ? (
-      <button
-        type="button"
-        className={linkButton}
+      <LinkButton
         aria-label="Reveal the anonymous votes"
         onClick={() => setShown("reveal")}
       >
         <EyeIcon />
         Reveal
-      </button>
+      </LinkButton>
     ) : undefined
   ) : voters > 0 && !isRunning ? (
-    <button
-      type="button"
-      className={linkButton}
-      title="Show the voters"
-      onClick={() => setShown("voters")}
-    >
+    <LinkButton title="Show the voters" onClick={() => setShown("voters")}>
       <EyeIcon />
       {voters === 1 ? "1 voter" : `${voters} voters`}
-    </button>
+    </LinkButton>
   ) : voters > 0 ? (
     <span className="text-small text-ink-muted">
       {voters === 1 ? "1 voter" : `${voters} voters`}

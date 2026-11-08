@@ -1,9 +1,4 @@
-import Button from "components/utils/Button";
-import Input from "components/utils/Input";
 import VoterInfo from "components/utils/VoterInfo";
-import Loading from "components/utils/Loading";
-import Modal, { type ModalProps } from "components/utils/Modal";
-import Title from "components/utils/Title";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { conflictsQuery } from "@service/ProposalService";
@@ -11,8 +6,10 @@ import { queryClient } from "@service/queryClient";
 import { changeConflictOfInterest } from "@service/ProposalService";
 import { toast } from "utils/utils";
 import { validateStellarPrincipal } from "utils/validations";
+import { Button, Dialog, Input, Loading, Title } from "components/ui";
 
-interface Props extends ModalProps {
+interface Props {
+  onClose: () => void;
   projectName: string;
   proposalId: number;
   maintainers: string[];
@@ -223,8 +220,8 @@ const ConflictOfInterestModal: React.FC<Props> = ({
           action={
             canEdit ? (
               <Button
-                type="tertiary"
-                size="xs"
+                tone="secondary"
+                size="sm"
                 onClick={() => handleRemove(address)}
                 disabled={isSubmitting}
               >
@@ -242,7 +239,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
     : "Only maintainers can edit this list. Addresses on this list cannot vote on this proposal.";
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col gap-6 w-full sm:w-[520px] relative">
         <Title
           title="Conflict of Interest"
@@ -277,8 +274,8 @@ const ConflictOfInterestModal: React.FC<Props> = ({
               <p className="text-sm text-danger">{loadError}</p>
               <div>
                 <Button
-                  type="tertiary"
-                  size="xs"
+                  tone="secondary"
+                  size="sm"
                   onClick={() => conflicts.refetch()}
                 >
                   Retry
@@ -355,8 +352,8 @@ const ConflictOfInterestModal: React.FC<Props> = ({
                       address={addr}
                       action={
                         <Button
-                          type="tertiary"
-                          size="xs"
+                          tone="secondary"
+                          size="sm"
                           onClick={() => handleRemovePending(addr)}
                           disabled={isSubmitting}
                         >
@@ -371,7 +368,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
             <div className="flex justify-end items-center gap-3 mt-2">
               {selectedPendingAddresses.size > 0 && (
                 <Button
-                  type="tertiary"
+                  tone="secondary"
                   size="sm"
                   onClick={handleBulkRemovePending}
                   disabled={isSubmitting}
@@ -381,7 +378,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
               )}
               <Button
                 onClick={handleApplyChanges}
-                isLoading={isSubmitting}
+                loading={isSubmitting}
                 disabled={isSubmitting || pendingAddresses.length === 0}
               >
                 Apply Changes
@@ -398,7 +395,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
             </p>
             <div className="flex gap-2">
               <Button
-                type="tertiary"
+                tone="secondary"
                 size="sm"
                 onClick={() => setSelectedAddresses(new Set())}
                 disabled={isSubmitting}
@@ -408,7 +405,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
               <Button
                 size="sm"
                 onClick={handleBulkRemove}
-                isLoading={isSubmitting}
+                loading={isSubmitting}
                 disabled={isSubmitting}
               >
                 Remove Selected
@@ -417,7 +414,7 @@ const ConflictOfInterestModal: React.FC<Props> = ({
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

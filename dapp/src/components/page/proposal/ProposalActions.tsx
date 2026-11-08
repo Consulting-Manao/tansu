@@ -5,7 +5,7 @@ import { votingPowerQuery } from "@service/MemberService";
 import { executeDelayQuery } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { connect } from "@service/walletService";
-import { Button, Card } from "components/ui";
+import { Button, Card, LinkButton } from "components/ui";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { hasUserVoted } from "utils/utils";
@@ -104,13 +104,12 @@ const ProposalActions = ({
               {Number(power).toLocaleString()}. A vote cannot be changed.
             </p>
           )}
-          <button
-            type="button"
+          <LinkButton
+            className="self-start"
             onClick={() => setShown("conflict")}
-            className="self-start text-small font-semibold text-link underline-offset-2 hover:underline"
           >
             Conflict of interest
-          </button>
+          </LinkButton>
         </Card>
       )}
       {isMaintainer && isPending && (

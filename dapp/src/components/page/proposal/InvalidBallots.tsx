@@ -1,5 +1,5 @@
-import Button from "components/utils/Button";
 import type { InvalidBallot } from "utils/anonymousVoting";
+import { Button } from "components/ui";
 
 /**
  * Anonymous ballots the tally cannot count. The proposal executes once a
@@ -35,9 +35,9 @@ const InvalidBallots = ({
           </div>
           {onRemove && (
             <Button
-              type="secondary"
+              tone="secondary"
               size="sm"
-              isLoading={removing === address}
+              loading={removing === address}
               disabled={!!removing}
               onClick={() => onRemove(address)}
             >

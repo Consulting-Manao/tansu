@@ -17,6 +17,7 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   /** Stretch over the container's width (phones). */
   block?: boolean;
+  disabled?: boolean;
 }
 
 /** A few views of the same thing: filters, a sort, a mode. */
@@ -26,6 +27,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   block,
+  disabled,
 }: SegmentedControlProps<T>) {
   return (
     <div
@@ -41,9 +43,10 @@ export function SegmentedControl<T extends string>({
           key={segment.value}
           type="button"
           aria-pressed={segment.value === value}
+          disabled={disabled}
           onClick={() => onChange(segment.value)}
           className={cx(
-            "h-9 rounded-md px-3.5 text-ui font-medium whitespace-nowrap transition-colors sm:h-8",
+            "h-9 rounded-md px-3.5 text-ui font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:h-8",
             block && "flex-1",
             segment.value === value
               ? "bg-raised text-ink shadow-raise"

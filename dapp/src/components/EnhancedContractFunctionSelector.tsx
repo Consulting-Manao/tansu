@@ -1,13 +1,12 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { useQuery } from "@tanstack/react-query";
-import Button from "components/utils/Button";
-import Input from "components/utils/Input";
 import {
   getContractFunctions,
   type ContractFunctionInput,
 } from "@service/ContractIntrospectionService";
 import { queryClient } from "@service/queryClient";
 import type { OutcomeCall } from "utils/proposalOutcomes";
+import { Button, Input } from "components/ui";
 
 const INTEGER_TYPES = new Set([
   "u32",
@@ -66,7 +65,7 @@ const EnhancedContractFunctionSelector = ({
         <p className="text-sm text-danger">
           Could not read this contract's functions: {functions.error.message}
         </p>
-        <Button type="secondary" size="sm" onClick={() => functions.refetch()}>
+        <Button tone="secondary" size="sm" onClick={() => functions.refetch()}>
           Retry
         </Button>
       </div>

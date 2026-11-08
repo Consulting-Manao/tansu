@@ -1,5 +1,3 @@
-import Button from "components/utils/Button";
-import Modal, { type ModalProps } from "components/utils/Modal";
 import { votedTypeLabelMap } from "constants/constants";
 import { useEffect, useMemo, useState, type FC } from "react";
 import type { VoteStatus } from "types/proposal";
@@ -10,8 +8,10 @@ import { useQuery } from "@tanstack/react-query";
 import { projectQuery, useProjectConfig } from "@service/ProjectService";
 import { queryClient } from "@service/queryClient";
 import type { ConfigData } from "types/projectConfig";
+import { Button, Dialog, SegmentedControl } from "components/ui";
 
-interface VotingResultModal extends ModalProps {
+interface VotingResultModal {
+  onClose: () => void;
   projectName: string;
   voteStatus?: VoteStatus;
   status?: string;
@@ -29,7 +29,7 @@ const VotingResultModal: React.FC<VotingResultModal> = ({
   const { data: project } = useQuery(projectQuery(projectName), queryClient);
   const { config } = useProjectConfig(project);
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-[18px]">
         <img
           src="/images/heart-arrow-target.svg"
@@ -71,7 +71,7 @@ const VotingResultModal: React.FC<VotingResultModal> = ({
           </div>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 
@@ -121,19 +121,17 @@ const Voters: FC<VotersProps> = ({
         <p className="leading-4 text-base text-ink-muted">
           {onlyMaintainers ? "Maintainers" : "Community"}
         </p>
-        <div className="flex">
-          {[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
-            (type, index) => (
-              <VoteTypeSelectButton
-                key={index}
-                label={votedTypeLabelMap[type]}
-                type={type}
-                currentType={currentType}
-                setCurrentType={setCurrentType}
-              />
-            ),
+        <SegmentedControl
+          label="Votes"
+          value={currentType}
+          onChange={setCurrentType}
+          segments={[VoteType.APPROVE, VoteType.REJECT, VoteType.CANCEL].map(
+            (type) => ({
+              value: type,
+              label: `${votedTypeLabelMap[type]} Votes`,
+            }),
           )}
-        </div>
+        />
       </div>
       <div className="grid grid-cols-2 gap-x-9 gap-y-[18px]">
         {voters
@@ -152,8 +150,8 @@ const Voters: FC<VotersProps> = ({
       <div className="flex">
         {voters && voters.length > 4 && (
           <Button
-            type="secondary"
-            size="xs"
+            tone="secondary"
+            size="sm"
             onClick={() => setShowAll(!showAll)}
           >
             <div className="flex gap-1">
@@ -165,28 +163,5 @@ const Voters: FC<VotersProps> = ({
         )}
       </div>
     </div>
-  );
-};
-
-interface VoteTypeSelectButtonProps {
-  label: string;
-  type: VoteType;
-  currentType: VoteType;
-  setCurrentType: (type: VoteType) => void;
-}
-
-const VoteTypeSelectButton: FC<VoteTypeSelectButtonProps> = ({
-  label,
-  type,
-  currentType,
-  setCurrentType,
-}) => {
-  return (
-    <button
-      className={`p-[6px_12px] ${type == currentType && "bg-accent"} border border-accent`}
-      onClick={() => setCurrentType(type)}
-    >
-      <p className="leading-4 text-base font-medium text-ink">{label} Votes</p>
-    </button>
   );
 };

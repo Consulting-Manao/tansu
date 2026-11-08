@@ -2,10 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { parse } from "smol-toml";
 import FlowProgressModal from "components/utils/FlowProgressModal";
-import Button from "components/utils/Button";
-import Input from "components/utils/Input";
-import Step from "components/utils/Step";
-import Title from "components/utils/Title";
 import MarkdownEditorWithImages, {
   embedImages,
   type AttachedImage,
@@ -55,6 +51,7 @@ import {
   validateGovernanceHours,
   type MaintainerRow,
 } from "./ProjectFields";
+import { Button, Input, StepBar, Title } from "components/ui";
 
 /**
  * The images a README shows from its directory, as files for the new one; a
@@ -404,7 +401,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
   return (
     <>
       <Button
-        type="secondary"
+        tone="secondary"
         onClick={() => {
           setStep(1);
           setOpen(true);
@@ -441,7 +438,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                     configuration cannot be edited yet: {readError.message}
                   </p>
                   <Button
-                    type="secondary"
+                    tone="secondary"
                     size="sm"
                     onClick={() =>
                       reads.forEach((read) => read.isError && read.refetch())
@@ -460,7 +457,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
             stepLayout(
               "/images/team.svg",
               <>
-                <Step step={1} totalSteps={3} />
+                <StepBar step={1} totalSteps={3} />
                 <Title
                   title={
                     isSoftware ? "Repository and Maintainers" : "Maintainers"
@@ -497,7 +494,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
             stepLayout(
               "/images/arrow.svg",
               <>
-                <Step step={2} totalSteps={3} />
+                <StepBar step={2} totalSteps={3} />
                 <Title
                   title="Project details"
                   description={
@@ -509,7 +506,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                 <Input
                   label="Project Name (read-only)"
                   value={project.name}
-                  description="Project name used for the project (cannot be modified)"
+                  hint="Project name used for the project (cannot be modified)"
                   disabled
                 />
                 <Input
@@ -523,7 +520,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                     );
                     setProjectFullNameError(null);
                   }}
-                  description="Human-readable name shown in the UI (up to 100 ASCII characters)."
+                  hint="Human-readable name shown in the UI (up to 100 ASCII characters)."
                   error={projectFullNameError}
                 />
                 <OrganizationFields
@@ -570,7 +567,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   </div>
                 )}
                 <div className="flex justify-between mt-4">
-                  <Button type="secondary" onClick={() => setStep(1)}>
+                  <Button tone="secondary" onClick={() => setStep(1)}>
                     Back
                   </Button>
                   <Button onClick={nextFromDetails}>Next</Button>
@@ -580,7 +577,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
           ) : (
             step === 3 && (
               <div>
-                <Step step={3} totalSteps={3} />
+                <StepBar step={3} totalSteps={3} />
                 <Title title="Review" description="Confirm and update" />
                 <p className="mb-4">
                   A new tansu.toml will be generated and stored on IPFS.
@@ -592,10 +589,10 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   </p>
                 )}
                 <div className="flex justify-between">
-                  <Button type="secondary" onClick={() => setStep(2)}>
+                  <Button tone="secondary" onClick={() => setStep(2)}>
                     Back
                   </Button>
-                  <Button isLoading={isLoading} onClick={handleSubmit}>
+                  <Button loading={isLoading} onClick={handleSubmit}>
                     Update Config
                   </Button>
                 </div>

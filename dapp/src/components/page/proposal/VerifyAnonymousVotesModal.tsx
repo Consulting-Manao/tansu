@@ -1,7 +1,3 @@
-import Modal, { type ModalProps } from "components/utils/Modal";
-import Title from "components/utils/Title";
-import Step from "components/utils/Step";
-import Button from "components/utils/Button";
 import AnonymousTalliesDisplay from "./AnonymousTalliesDisplay";
 import InvalidBallots from "./InvalidBallots";
 import { useState } from "react";
@@ -14,8 +10,10 @@ import type { VoteStatus } from "types/proposal";
 import { removeVote } from "@service/ProposalService";
 import { toast } from "utils/utils";
 import classNames from "classnames";
+import { Button, Dialog, StepBar, Title } from "components/ui";
 
-interface Props extends ModalProps {
+interface Props {
+  onClose: () => void;
   projectName: string;
   proposalId: number;
 }
@@ -91,10 +89,10 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Dialog size="auto" onClose={onClose}>
       {step === 1 ? (
         <div className="flex flex-col gap-6 sm:gap-[30px]">
-          <Step step={1} totalSteps={2} />
+          <StepBar step={1} totalSteps={2} />
 
           <Title
             title="Upload anonymous key file"
@@ -133,7 +131,7 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
         </div>
       ) : (
         <div className="flex flex-col gap-6 sm:gap-[30px]">
-          <Step step={2} totalSteps={2} />
+          <StepBar step={2} totalSteps={2} />
 
           <Title
             title="Decrypted tallies"
@@ -159,13 +157,13 @@ const VerifyAnonymousVotesModal: React.FC<Props> = ({
           />
 
           <div className="flex justify-center sm:justify-end">
-            <Button type="secondary" onClick={onClose}>
+            <Button tone="secondary" onClick={onClose}>
               Close
             </Button>
           </div>
         </div>
       )}
-    </Modal>
+    </Dialog>
   );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Dialog } from "components/ui";
+import { Button, Dialog, SegmentedControl } from "components/ui";
 import Markdown from "./Markdown";
 import termsSummary from "../../constants/terms-summary.json";
 import privacy from "../../../../legal/privacy-policy.md?raw";
@@ -84,40 +84,17 @@ const TermsAcceptanceModal: React.FC<TermsAcceptanceModalProps> = ({
             Last Updated: {s.lastUpdated}
           </div>
         </div>
-        <div className="flex gap-2 mt-4 border-b border-line">
-          <button
-            type="button"
-            onClick={() => setView("summary")}
-            className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
-              view === "summary"
-                ? "text-ink border-b-2 border-action -mb-px"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Summary
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("fullTerms")}
-            className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
-              view === "fullTerms"
-                ? "text-ink border-b-2 border-action -mb-px"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Terms of Service
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("privacy")}
-            className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
-              view === "privacy"
-                ? "text-ink border-b-2 border-action -mb-px"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Privacy Policy
-          </button>
+        <div className="mt-4">
+          <SegmentedControl
+            label="Terms"
+            value={view}
+            onChange={setView}
+            segments={[
+              { value: "summary", label: "Summary" },
+              { value: "fullTerms", label: "Terms of Service" },
+              { value: "privacy", label: "Privacy Policy" },
+            ]}
+          />
         </div>
       </div>
 

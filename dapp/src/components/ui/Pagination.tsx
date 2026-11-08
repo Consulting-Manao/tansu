@@ -1,5 +1,5 @@
 import cx from "classnames";
-import { focusRing } from "components/ui/style";
+import { focusRing } from "./style";
 
 interface PaginationProps {
   totalPage: number;
@@ -28,11 +28,11 @@ const cell =
   "figures-tabular inline-flex size-10 items-center justify-center rounded-control text-ui font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Pages of a list: the arrows and a window of 15 page numbers. */
-const Pagination: React.FC<PaginationProps> = ({
+export const Pagination = ({
   totalPage,
   currentPage,
   onPageChange,
-}) => {
+}: PaginationProps) => {
   const pageWindowSize = 15;
   const halfWindow = Math.floor(pageWindowSize / 2);
   const startPage = Math.max(
@@ -84,5 +84,3 @@ const Pagination: React.FC<PaginationProps> = ({
     </nav>
   );
 };
-
-export default Pagination;

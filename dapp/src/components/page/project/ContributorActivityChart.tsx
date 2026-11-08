@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Bar from "components/utils/Bar";
 import type { ContributorActivity } from "../../../types/contributionMetrics";
+import { LinkButton } from "components/ui";
 
 interface ContributorActivityChartProps {
   contributors: ContributorActivity[];
@@ -115,14 +116,11 @@ const ContributorActivityChart: React.FC<ContributorActivityChartProps> = ({
         </div>
 
         {contributors.length > 5 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="mt-4 text-sm text-link hover:underline"
-          >
+          <LinkButton className="mt-4" onClick={() => setShowAll(!showAll)}>
             {showAll
               ? "Show Less"
               : `Show All ${contributors.length} Contributors`}
-          </button>
+          </LinkButton>
         )}
 
         <div className="mt-4 pt-4 border-t border-line">

@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import CopyButton from "components/utils/CopyButton";
 import { getStellarExpertUrl } from "../../../utils/urls";
 import { truncateMiddle } from "../../../utils/utils";
+import { CopyButton } from "components/ui";
 
 interface AddressDisplayProps {
   address: string;

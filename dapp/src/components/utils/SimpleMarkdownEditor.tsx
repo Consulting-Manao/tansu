@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Markdown from "./Markdown";
+import { SegmentedControl } from "components/ui";
 
 interface SimpleMarkdownEditorProps {
   value: string;
@@ -23,30 +24,16 @@ const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
     <div
       className={`border border-line-strong rounded-control overflow-hidden ${className}`}
     >
-      {/* Tab Headers */}
-      <div className="flex border-b border-line-strong bg-sunken">
-        <button
-          type="button"
-          onClick={() => setActiveTab("edit")}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === "edit"
-              ? "bg-surface border-b-2 border-action text-ink"
-              : "text-ink-muted hover:text-ink"
-          }`}
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("preview")}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === "preview"
-              ? "bg-surface border-b-2 border-action text-ink"
-              : "text-ink-muted hover:text-ink"
-          }`}
-        >
-          Preview
-        </button>
+      <div className="border-b border-line-strong bg-sunken p-1.5">
+        <SegmentedControl
+          label="Editor"
+          value={activeTab}
+          onChange={setActiveTab}
+          segments={[
+            { value: "edit", label: "Edit" },
+            { value: "preview", label: "Preview" },
+          ]}
+        />
       </div>
 
       {/* Content */}

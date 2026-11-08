@@ -26,13 +26,10 @@ import { getIpfsUrl } from "utils/ipfsFunctions";
 import { formatDate } from "utils/formatTimeFunctions";
 import { connectedPublicKey as connectedPublicKeyStore } from "utils/store";
 import { toast } from "utils/utils";
-import Button from "components/utils/Button";
-import CopyButton from "components/utils/CopyButton";
-import Modal from "components/utils/Modal";
 import AttestationCard from "./AttestationCard";
 import { evidenceTarget } from "@service/AttestationService";
 import { useEffect, useState, useCallback, useRef } from "react";
-import Spinner from "components/utils/Spinner";
+import { Button, CopyButton, Dialog, IconButton, Spinner } from "components/ui";
 
 const EVIDENCE_KINDS: { tag: EvidenceKindTag; label: string }[] = [
   { tag: "Sbom", label: "SBOM" },
@@ -284,12 +281,12 @@ const CommitEvidenceModal = ({
   return (
     <>
       {/* Trigger button */}
-      <Button id="commit-evidence-button" type="secondary" onClick={handleOpen}>
+      <Button id="commit-evidence-button" tone="secondary" onClick={handleOpen}>
         Code Finality
       </Button>
 
       {isOpen && (
-        <Modal onClose={handleClose}>
+        <Dialog size="auto" onClose={handleClose}>
           <div className="flex flex-col gap-6 sm:gap-9 min-w-[320px] sm:min-w-[480px] md:min-w-[600px]">
             {/* ── Header ──────────────────────────────────────────────── */}
             <div className="flex items-start gap-4 sm:gap-[18px]">
@@ -349,15 +346,11 @@ const CommitEvidenceModal = ({
                     </a>
                   )}
                   {isMaintainer && (
-                    <button
-                      type="button"
+                    <IconButton
                       onClick={
                         isEditing ? handleCancelEditing : handleStartEditing
                       }
-                      className="p-2 hover:bg-sunken rounded transition-colors duration-200"
-                      aria-label={
-                        isEditing ? "Cancel editing" : "Edit commit hash"
-                      }
+                      label={isEditing ? "Cancel editing" : "Edit commit hash"}
                     >
                       <img
                         src={
@@ -366,7 +359,7 @@ const CommitEvidenceModal = ({
                         className="w-4 h-4"
                         alt=""
                       />
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               </div>
@@ -398,10 +391,10 @@ const CommitEvidenceModal = ({
                 <div className="flex justify-end mt-1">
                   <Button
                     onClick={handleUpdateHash}
-                    isLoading={isUpdatingHash}
+                    loading={isUpdatingHash}
                     disabled={isUpdatingHash || !commitHashValue.trim()}
                     size="sm"
-                    type="secondary"
+                    tone="secondary"
                     className="w-full sm:w-auto"
                   >
                     {isUpdatingHash ? "Saving…" : "Save Hash to Chain"}
@@ -441,7 +434,7 @@ const CommitEvidenceModal = ({
               {/* Loading state */}
               {isEvidenceLoading && (
                 <div className="flex items-center gap-3 py-4" aria-busy="true">
-                  <Spinner className="text-ink" />
+                  <Spinner label="Loading…" className="text-ink" />
                   <p className="text-sm text-ink-muted">Loading evidence…</p>
                 </div>
               )}
@@ -533,8 +526,14 @@ const CommitEvidenceModal = ({
                                       />
                                       {ipfsUrl ? (
                                         <Button
-                                          type="secondary"
-                                          icon="/icons/ipfs.svg"
+                                          tone="secondary"
+                                          icon={
+                                            <img
+                                              src="/icons/ipfs.svg"
+                                              alt=""
+                                              className="size-5 shrink-0"
+                                            />
+                                          }
                                           onClick={() =>
                                             window.open(
                                               ipfsUrl,
@@ -618,7 +617,7 @@ const CommitEvidenceModal = ({
                 <div className="flex justify-end">
                   <Button
                     onClick={handleAddEvidence}
-                    isLoading={isUploading}
+                    loading={isUploading}
                     disabled={
                       isUploading || !selectedFile || !commitHashValue.trim()
                     }
@@ -662,14 +661,14 @@ const CommitEvidenceModal = ({
 
                 {isUploading && (
                   <div className="flex items-center gap-2 text-xs text-ink-muted">
-                    <Spinner className="text-ink" />
+                    <Spinner label="Loading…" className="text-ink" />
                     Uploading to IPFS and recording on-chain…
                   </div>
                 )}
               </div>
             )}
           </div>
-        </Modal>
+        </Dialog>
       )}
     </>
   );
