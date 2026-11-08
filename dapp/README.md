@@ -65,7 +65,7 @@ See the [contributing guide](../CONTRIBUTING.md) for details about IPFS.
 
 The worker waits: a new deploy is offered by the "A new version is ready" card (`src/components/layout/UpdatePrompt.astro`, logic in `src/utils/serviceWorker.ts`), and a tab keeps its version until the user presses Reload. The app looks for a new `sw.js` every hour and whenever the tab comes back, since page changes through the ClientRouter never do. The service worker only registers in production builds: `bun dev` has none.
 
-Links to a project, its proposals and a proposal come from `projectUrl`, `governanceUrl` and `proposalUrl` in `src/utils/urls.ts`. Their trailing slash is the URL Netlify serves without a redirect and the one the precache matches.
+Links to a project and its tabs, a proposal and a member come from `projectUrl(name, tab)`, `proposalUrl` and `memberUrl` in `src/utils/urls.ts`; `/governance/` only redirects old links to a project's Proposals tab. Their trailing slash is the URL Netlify serves without a redirect and the one the precache matches.
 
 Icons: `bun run icons` renders `assets/icon.svg` and `assets/icon-maskable.svg` into the PNGs in `public/` (needs `rsvg-convert`).
 
@@ -73,7 +73,7 @@ Icons: `bun run icons` renders `assets/icon.svg` and `assets/icon-maskable.svg` 
 
 Every read is a [TanStack Query](https://tanstack.com/query) query, built by a factory next to its service: the contract (`projectQuery` in `src/service/ProjectService.ts`, `memberQuery` in `MemberService.ts`, `proposalQuery` in `ProposalService.ts`, ...), IPFS files (`ipfsQuery` in `src/utils/ipfsFunctions.ts`), git hosts (`commitHistoryQuery` in `RepositoryMetadataService.ts`, `contributionMetricsQuery`) and Horizon (`activityQuery` in `OnChainActivityService.ts`). `useProjectConfig` turns a project's `tansu.toml` into its display config. Islands are separate React roots, so there is no provider: components call `useQuery(options, queryClient)` with the one client in `src/service/queryClient.ts`, and other code calls `queryClient.query(options)`.
 
-There is no copy of the current project: a page reads its name from the address (`projectNameFromUrl`) and asks the queries, which the project, governance and proposal pages share.
+There is no copy of the current project: a page reads its name from the address (`projectNameFromUrl`) and asks the queries, which the project and proposal pages and their islands share.
 
 - **Keys** start with the domain, then the project key in hex, an address or a URL: `["project", key]`, `["proposal", key, id]`, `["member", address]`, `["ipfs", cid, path]`, `["repo", url, ...]`, `["activity", address]`. A write refreshes what it changed by prefix: `invalidateAfter(write, ...keys)` refetches them once the write settles, even if it failed, since it may have landed. The text files a project flow uploads go straight into their `ipfs` query: content under a CID never changes, and a gateway may not serve it yet.
 - **Freshness** follows how often the data changes: 10 minutes for projects, badges and members, 5 for commits and evidence, 1 for proposals, attestations and on-chain activity, 60 for the anonymous voting setup and git hosts. IPFS files never go stale.
@@ -83,7 +83,7 @@ There is no copy of the current project: a page reads its name from the address 
 
 **Writes** live next to the reads, in the same domain services (`registerProject`, `vote`, `setEvidence`, ...), and all land through `sendTransaction` in `src/service/TxService.ts`. It signs once with the connected wallet, uploads the call's IPFS content (the signed envelope authorizes the upload, or the transaction hash when the wallet submitted it itself, as Nido does), confirms the transaction, returns its result as the binding types it, and refetches the queries the call changed. A call is built from the signer's account with `tansuFor(address)`; a smart account's is built from an existing account, since its wallet relays it.
 
-App-wide modals open with `openModal(name, props)` from `src/utils/modals.ts` and show in `ModalHost`, one at a time, closing on page change. A search is an address: `/?search=`, with `&member=true` for a member.
+App-wide modals open with `openModal(name, props)` from `src/utils/modals.ts` and show in `ModalHost`: a new one opens on top of those open, and a page change closes them all. A success is a toast (`toast` from `src/components/ui`, shown by `ToastHost`). A search is an address: `/?search=`, with `&member=true` for a member.
 
 The wallet is one address: `connectedPublicKey` in `src/utils/store.ts`, restored from the last visit. `ConnectButton` follows the wallet when the user switches accounts in it, and the wallets kit only loads when a wallet is needed.
 
@@ -112,13 +112,14 @@ bun run test        # Playwright flows: tests/*.spec.ts
 
 CI runs all four. Unit tests read `.env.example`, not your local `.env`, so they behave the same on every machine.
 
-The Playwright flows build the app and use it as a person would, against fakes in `tests/helpers/`:
+The Playwright journeys build the app and use it as a person would, against **testnet**: the Tansu contract, Soroban RPC, Horizon, the IPFS upload worker and the git hosts are real. Only the wallet UI is faked. In `tests/helpers/`:
 
-- `chain.ts`: an in-memory Tansu contract behind a Soroban RPC;
-- `web.ts`: the IPFS gateway, Horizon, the upload worker and GitHub;
-- `wallet.ts`: a GHOSTSIG wallet that signs with a test key.
+- `testnet.ts`: sets up what a journey starts from through the contract bindings (`registerProject`, `createProposal`, …), uploads through the real worker (`land()`) and reads the chain back (`read.*`);
+- `wallet.ts`: a GHOSTSIG wallet that signs with a friendbot-funded key;
+- `app.ts`: the fixtures (the wallet, the Terms accepted) and the rule that any page error fails the test;
+- `serve.ts` and `env.ts`: serve `dist/` on port 4321, the origin the testnet upload worker accepts.
 
-The build points at hosts that never resolve (`env.ts`), so a request no fake answers fails instead of reaching a network. Each test starts from `world()` in `app.ts` and fails on any page error.
+A journey that writes fails when the testnet upload worker or Filebase is down: check them before the code. `tests/kit.spec.ts` checks the kit page, with no wallet and no network.
 
 TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newer versions yet.
 
@@ -134,9 +135,9 @@ TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newe
 
 ### Key Components
 
-- **FlowProgressModal**: Standardized flow component for all user journeys
+- **UI kit**: `src/components/ui/` (every piece, on the design-system tokens of `src/styles/global.css`; `/kit/` shows them in light and dark); every write runs in its `FlowDialog`
 - **Contract Services**: Type-safe contract interaction layer
-- **Data**: TanStack Query for every read, kept in IndexedDB; nanostores for the wallet
+- **Data**: TanStack Query for every read, kept in IndexedDB; nanostores for the wallet, the open dialogs and the toasts
 - **Wallet Integration**: Stellar Wallets Kit for secure wallet connections
 - **IPFS Services**: Decentralized content storage and retrieval
 - **Markdown**: one `Markdown` component renders what users wrote; raw HTML is limited to formatting tags
