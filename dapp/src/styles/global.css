@@ -171,6 +171,9 @@
   --text-prose--line-height: 28px;
   --text-body: 15px;
   --text-body--line-height: 24px;
+  /* Labels, tabs and segments: the interface's small voice */
+  --text-ui: 14px;
+  --text-ui--line-height: 20px;
   --text-small: 13px;
   --text-small--line-height: 20px;
   --text-label: 12px;
@@ -272,11 +275,14 @@
   }
 }
 
-body {
-  max-width: 1920px;
-  margin: 0 auto 0 auto;
-  padding: 0;
-  background: linear-gradient(180deg, #fbfbfb 0%, #e2e2e2 100%);
+/* In a layer, so a page that sets its own ground with a utility wins. */
+@layer base {
+  body {
+    max-width: 1920px;
+    margin: 0 auto 0 auto;
+    padding: 0;
+    background: linear-gradient(180deg, #fbfbfb 0%, #e2e2e2 100%);
+  }
 }
 
 .background-image {

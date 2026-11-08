@@ -8,6 +8,9 @@
         // Imported with import() from a script in Layout.astro, which knip
         // does not follow.
         "src/components/utils/TermsAcceptanceModal.tsx",
+        // The UI kit's public API: pages adopt it piece by piece, and the
+        // design system is built from it.
+        "src/components/ui/index.ts",
         "scripts/*.{js,ts}",
       ],
       "project": [

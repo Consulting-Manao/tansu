@@ -91,6 +91,16 @@ export default [
     },
   },
   {
+    // The kit stays small: a piece that grows past this splits.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 150, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
     ignores: [
       "node_modules/",
       "dist/",

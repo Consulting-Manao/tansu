@@ -1,0 +1,21 @@
+---
+/*
+ * The UI kit, every piece in its states, in light and dark: the target of
+ * tests/kit.spec.ts. Not part of the app's navigation, and not indexed.
+ */
+import "../styles/global.css";
+import Previews from "../components/ui/previews";
+---
+
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <title>Tansu · kit</title>
+  </head>
+  <body class="min-h-screen bg-ground bg-none font-ui text-body text-ink antialiased">
+    <Previews client:load />
+  </body>
+</html>
