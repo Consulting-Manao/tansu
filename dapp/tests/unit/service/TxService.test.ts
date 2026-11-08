@@ -141,7 +141,7 @@ describe("sendTransaction", () => {
       signedTxXdr: envelope,
     });
     expect(order).toEqual(["upload", "send", "confirm"]);
-    expect(onProgress.mock.calls).toEqual([[8], [9]]);
+    expect(onProgress.mock.calls).toEqual([["upload"], ["send"]]);
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["proposals", "ab"] });
   });
 

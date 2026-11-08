@@ -1,42 +1,21 @@
-/**
- * Commit Evidence Modal
- *
- * Replaces the old LastHashModal. Displays the latest (or manually specified)
- * commit hash along with its on-chain evidence (SBOM, CVE, Attestation)
- * grouped by kind. Maintainers can add new evidence via file upload → IPFS
- * → on-chain set_evidence, and update the commit hash on-chain.
- *
- * Evidence is append-only: no edit or remove functionality.
- */
-
 import { useStore } from "@nanostores/react";
-import { useQueries } from "@tanstack/react-query";
-import {
-  repoCommitQuery,
-  repoHeadQuery,
-} from "@service/RepositoryMetadataService";
-import { commitHash, commitQuery } from "@service/ProjectService";
-import { evidenceQuery, setEvidence } from "@service/EvidenceService";
-import { queryClient } from "@service/queryClient";
-import type { EvidenceKindTag } from "@service/EvidenceService";
-import type { Project } from "../../../../packages/tansu";
+import { useState } from "react";
+import { Button, Dialog } from "components/ui";
 import type { ConfigData } from "types/projectConfig";
-import { isValidCommitHash } from "utils/contentHashes";
-import { getIpfsUrl } from "utils/ipfsFunctions";
-import { formatDate } from "utils/formatTimeFunctions";
 import { connectedPublicKey as connectedPublicKeyStore } from "utils/store";
-import { toast } from "utils/utils";
+import type { Project } from "../../../../packages/tansu";
+import AddEvidenceForm from "./AddEvidenceForm";
 import AttestationCard from "./AttestationCard";
-import { evidenceTarget } from "@service/AttestationService";
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Button, CopyButton, Dialog, IconButton, Spinner } from "components/ui";
+import CommitHashSection from "./CommitHashSection";
+import EvidenceList from "./EvidenceList";
+import { useCommitHash } from "./useCommitHash";
 
-const EVIDENCE_KINDS: { tag: EvidenceKindTag; label: string }[] = [
-  { tag: "Sbom", label: "SBOM" },
-  { tag: "Cve", label: "CVE" },
-  { tag: "Attestation", label: "Attestation" },
-];
-
+/**
+ * Code finality: the commit on chain (or one a maintainer enters), its
+ * attestations, and its evidence (SBOM, CVE, attestation files on IPFS), by
+ * kind. Maintainers add evidence and save the hash on chain. Evidence is
+ * append-only: nothing is edited or removed.
+ */
 const CommitEvidenceModal = ({
   project,
   config,
@@ -44,251 +23,32 @@ const CommitEvidenceModal = ({
   project: Project;
   config: ConfigData;
 }) => {
-  // Modal state
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Commit hash state
-  const [commitHashValue, setCommitHashValue] = useState("");
-  const [commitData, setCommitData] = useState<{
-    sha: string;
-    html_url: string;
-    date: string;
-    author: string;
-  } | null>(null);
-  const [isUpdatingHash, setIsUpdatingHash] = useState(false);
-
-  // Add-evidence state
-  const [selectedKind, setSelectedKind] = useState<EvidenceKindTag>("Sbom");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [lastUploadedCid, setLastUploadedCid] = useState<string | null>(null);
-
-  // Derived
+  const [open, setOpen] = useState(false);
+  // Changing the hash starts a new upload form.
+  const [formKey, setFormKey] = useState(0);
   const projectName = project.name;
-  const repositoryUrl = config.officials.githubLink || project.config.url;
-
+  const commit = useCommitHash(
+    projectName,
+    config.officials.githubLink || project.config.url,
+    open,
+  );
   const connectedPublicKey = useStore(connectedPublicKeyStore);
   const isMaintainer =
     !!connectedPublicKey && project.maintainers.includes(connectedPublicKey);
 
-  // The commit's evidence, one history per kind; a write refetches it.
-  const evidenceReads = useQueries(
-    {
-      queries: EVIDENCE_KINDS.map(({ tag }) => ({
-        ...evidenceQuery(projectName, commitHashValue, tag),
-        enabled: isOpen && isValidCommitHash(commitHashValue),
-      })),
-    },
-    queryClient,
-  );
-  const evidence = evidenceReads.flatMap(({ data }) => data ?? []);
-  const isEvidenceLoading = evidenceReads.some(({ isLoading }) => isLoading);
-  const evidenceError =
-    evidenceReads.find(({ error }) => error)?.error?.message ?? null;
-
-  // Track whether hash was manually changed by the user
-  const [, setHashManuallyChanged] = useState(false);
-
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
-  const onChainHashRef = useRef("");
-
-  // ── Data loading ────────────────────────────────────────────────────
-
-  const loadCommitData = useCallback(async () => {
-    if (!projectName) return;
-
-    // Get the latest commit hash from on-chain
-    const latestSha = await queryClient
-      .query(commitQuery(projectName))
-      .catch(() => null);
-    if (!latestSha) {
-      setCommitHashValue("");
-      setCommitData(null);
-      return;
-    }
-    setCommitHashValue(latestSha);
-    onChainHashRef.current = latestSha;
-    setHashManuallyChanged(false);
-    setIsEditing(false);
-
-    // Try to enrich with GitHub metadata
-    if (!repositoryUrl) return;
-    try {
-      const latestCommit = await queryClient.query(
-        repoCommitQuery(repositoryUrl, latestSha),
-      );
-      if (latestCommit) {
-        setCommitData({
-          sha: latestCommit.sha,
-          html_url: latestCommit.html_url || "",
-          date: formatDate(latestCommit.commit.committer.date),
-          author: latestCommit.commit.author.name,
-        });
-      }
-    } catch {
-      // Fall back to showing just the hash
-      setCommitData(null);
-    }
-  }, [projectName, repositoryUrl]);
-
-  // Reload everything when the modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    loadCommitData();
-  }, [isOpen, loadCommitData]);
-
-  // ── Evidence grouped by kind ────────────────────────────────────────
-
-  const evidenceByKind = EVIDENCE_KINDS.map((kindInfo) => ({
-    ...kindInfo,
-    items: evidence.filter((e) => e.kind === kindInfo.tag),
-  }));
-
-  // ── Add evidence handler ────────────────────────────────────────────
-
-  const handleAddEvidence = async () => {
-    if (!projectName) {
-      toast.error("Add Evidence", "No project selected.");
-      return;
-    }
-    if (!commitHashValue.trim()) {
-      toast.error("Add Evidence", "No commit hash specified.");
-      return;
-    }
-    if (!selectedFile) {
-      toast.error("Add Evidence", "Please select a file to upload.");
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const cid = await setEvidence(
-        projectName,
-        commitHashValue,
-        selectedKind,
-        selectedFile,
-      );
-
-      setLastUploadedCid(cid);
-
-      toast.success(
-        "Evidence Added",
-        `Evidence (${selectedKind}) uploaded and recorded on-chain. CID: ${cid}`,
-      );
-
-      // Reset upload form
-      setSelectedFile(null);
-      setSelectedKind("Sbom");
-      // Reset file input value
-      const fileInput = document.getElementById(
-        "evidence-file-input",
-      ) as HTMLInputElement | null;
-      if (fileInput) fileInput.value = "";
-    } catch (err: any) {
-      toast.error(
-        "Add Evidence",
-        err?.message || "Failed to upload evidence. Please try again.",
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // ── Update hash on-chain handler ────────────────────────────────────
-
-  const handleUpdateHash = async () => {
-    if (!commitHashValue.trim()) {
-      toast.error("Update Hash", "Please enter a commit hash.");
-      return;
-    }
-
-    setIsUpdatingHash(true);
-    try {
-      await commitHash(projectName, commitHashValue);
-
-      toast.success(
-        "Hash Updated",
-        "Commit hash has been updated on-chain. Evidence will reload.",
-      );
-
-      setHashManuallyChanged(false);
-      setIsEditing(false);
-      onChainHashRef.current = commitHashValue;
-    } catch (err: any) {
-      toast.error(
-        "Update Hash",
-        err?.message || "Failed to update commit hash.",
-      );
-    } finally {
-      setIsUpdatingHash(false);
-    }
-  };
-
-  // ── Handlers ────────────────────────────────────────────────────────
-
-  const handleClose = () => {
-    setIsOpen(false);
-    setLastUploadedCid(null);
-    setSelectedFile(null);
-    setHashManuallyChanged(false);
-    setIsEditing(false);
-  };
-
-  const handleOpen = () => {
-    setIsOpen(true);
-  };
-
-  const handleHashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCommitHashValue(e.target.value);
-    setLastUploadedCid(null);
-    setHashManuallyChanged(true);
-  };
-
-  const handleStartEditing = async () => {
-    setIsEditing(true);
-    if (repositoryUrl) {
-      try {
-        const latestHash = await queryClient.query(
-          repoHeadQuery(repositoryUrl),
-        );
-        if (latestHash) {
-          setCommitHashValue(latestHash);
-          setHashManuallyChanged(true);
-        }
-      } catch {
-        // Keep current hash if fetch fails
-      }
-    }
-  };
-
-  const handleCancelEditing = () => {
-    setIsEditing(false);
-    setCommitHashValue(onChainHashRef.current);
-    setHashManuallyChanged(false);
-  };
-
-  const handleKindChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedKind(e.target.value as EvidenceKindTag);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(e.target.files?.[0] || null);
-  };
-
-  // ── Render ──────────────────────────────────────────────────────────
-
   return (
     <>
-      {/* Trigger button */}
-      <Button id="commit-evidence-button" tone="secondary" onClick={handleOpen}>
+      <Button
+        id="commit-evidence-button"
+        tone="secondary"
+        onClick={() => setOpen(true)}
+      >
         Code Finality
       </Button>
 
-      {isOpen && (
-        <Dialog size="auto" onClose={handleClose}>
+      {open && (
+        <Dialog size="auto" onClose={() => setOpen(false)}>
           <div className="flex flex-col gap-6 sm:gap-9 min-w-80 sm:min-w-120 md:min-w-150">
-            {/* ── Header ──────────────────────────────────────────────── */}
             <div className="flex items-start gap-4 sm:gap-4">
               <img
                 src="/images/scan.svg"
@@ -307,122 +67,22 @@ const CommitEvidenceModal = ({
               </div>
             </div>
 
-            {/* ── Commit Hash ─────────────────────────────────────────── */}
-            <div className="flex flex-col gap-3">
-              <p className="text-ui font-semibold text-ink">Commit Hash</p>
-              <div className="p-2 sm:py-3 sm:px-4 flex items-center gap-2 sm:gap-4 bg-accent-soft w-full">
-                {isMaintainer && isEditing ? (
-                  <input
-                    type="text"
-                    className="flex-1 bg-transparent text-body sm:text-lead text-ink outline-none border-none font-mono"
-                    placeholder="Enter commit hash"
-                    value={commitHashValue}
-                    onChange={handleHashChange}
-                  />
-                ) : (
-                  <p className="flex-1 text-body sm:text-lead text-ink break-all font-mono">
-                    {commitHashValue
-                      ? isMaintainer
-                        ? commitHashValue
-                        : `${commitHashValue.slice(0, 24)}…`
-                      : "No hash available"}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                  <CopyButton textToCopy={commitHashValue} size="sm" />
-                  {commitData?.html_url && (
-                    <a
-                      className="p-2 hover:bg-sunken rounded"
-                      href={commitData.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Open commit in new tab"
-                    >
-                      <img
-                        src="/icons/link.svg"
-                        className="w-4 h-4"
-                        alt="Open link"
-                      />
-                    </a>
-                  )}
-                  {isMaintainer && (
-                    <IconButton
-                      onClick={
-                        isEditing ? handleCancelEditing : handleStartEditing
-                      }
-                      label={isEditing ? "Cancel editing" : "Edit commit hash"}
-                    >
-                      <img
-                        src={
-                          isEditing ? "/icons/cancel.svg" : "/icons/edit.svg"
-                        }
-                        className="w-4 h-4"
-                        alt=""
-                      />
-                    </IconButton>
-                  )}
-                </div>
-              </div>
+            <CommitHashSection
+              commit={commit}
+              isMaintainer={isMaintainer}
+              onHashChange={() => setFormKey((key) => key + 1)}
+            />
 
-              {/* Commit metadata (date + author) */}
-              {commitData && (
-                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-1">
-                  {commitData.date && (
-                    <div className="flex gap-2">
-                      <p className="text-ui text-ink-muted">Date:</p>
-                      <p className="text-ui text-ink font-medium">
-                        {commitData.date}
-                      </p>
-                    </div>
-                  )}
-                  {commitData.author && (
-                    <div className="flex gap-2">
-                      <p className="text-ui text-ink-muted">Author:</p>
-                      <p className="text-ui text-ink font-medium">
-                        @{commitData.author}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Update hash button (maintainers only) */}
-              {isMaintainer && (
-                <div className="flex justify-end mt-1">
-                  <Button
-                    onClick={handleUpdateHash}
-                    loading={isUpdatingHash}
-                    disabled={isUpdatingHash || !commitHashValue.trim()}
-                    size="sm"
-                    tone="secondary"
-                    className="w-full sm:w-auto"
-                  >
-                    {isUpdatingHash ? "Saving…" : "Save Hash to Chain"}
-                  </Button>
-                </div>
-              )}
-
-              {/* Note for empty hash */}
-              {!commitHashValue.trim() && (
-                <p className="text-ui text-warning">
-                  No commit hash found on-chain. Enter a hash manually to view
-                  or attach evidence.
-                </p>
-              )}
-            </div>
-
-            {/* ── Evidence Section ────────────────────────────────────── */}
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <p className="text-ui font-semibold text-ink">Evidence</p>
                 <span className="text-label text-ink-muted">(append-only)</span>
               </div>
-
-              {commitHashValue.trim() && (
+              {commit.hash.trim() && (
                 <div className="py-2 border-t border-line">
                   <AttestationCard
                     projectName={projectName}
-                    commitHash={commitHashValue}
+                    commitHash={commit.hash}
                     maintainers={project.maintainers}
                     connectedPublicKey={connectedPublicKey}
                     isMaintainer={isMaintainer}
@@ -430,242 +90,20 @@ const CommitEvidenceModal = ({
                   />
                 </div>
               )}
-
-              {/* Loading state */}
-              {isEvidenceLoading && (
-                <div className="flex items-center gap-3 py-4" aria-busy="true">
-                  <Spinner label="Loading…" className="text-ink" />
-                  <p className="text-ui text-ink-muted">Loading evidence…</p>
-                </div>
-              )}
-
-              {/* Error state */}
-              {evidenceError && !isEvidenceLoading && (
-                <p className="text-ui text-danger" role="alert">
-                  {evidenceError}
-                </p>
-              )}
-
-              {/* Empty state */}
-              {!isEvidenceLoading &&
-                !evidenceError &&
-                evidence.length === 0 && (
-                  <p className="text-ui text-ink-muted py-2">
-                    No evidence attached to this commit.
-                  </p>
-                )}
-
-              {/* Evidence grouped by kind */}
-              {!isEvidenceLoading &&
-                evidenceByKind.map(
-                  (group) =>
-                    group.items.length > 0 && (
-                      <div key={group.tag} className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-ui font-semibold text-ink">
-                            {group.label}
-                          </p>
-                          <span className="text-label text-ink-muted">
-                            ({group.items.length})
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1.5 pl-6">
-                          {group.items
-                            .slice() // copy to avoid mutating state
-                            .sort(
-                              (a, b) =>
-                                Number(a.created_at) - Number(b.created_at),
-                            )
-                            .map((item, idx, sorted) => {
-                              const ipfsUrl = getIpfsUrl(item.cid);
-                              const ts = Number(item.created_at);
-                              const createdAt =
-                                ts > 0
-                                  ? new Date(ts * 1000).toLocaleDateString()
-                                  : "";
-                              const isLatest =
-                                idx === sorted.length - 1 && sorted.length > 1;
-                              return (
-                                <div
-                                  key={`${item.kind}-${item.cid}`}
-                                  className={`flex flex-col gap-1 py-1.5 px-3 rounded text-ui ${
-                                    isLatest
-                                      ? "bg-accent-soft border border-warning/40"
-                                      : "bg-sunken"
-                                  }`}
-                                >
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
-                                    <code className="text-label text-ink-muted break-all font-mono leading-relaxed sm:flex-1 sm:min-w-0">
-                                      {item.cid}
-                                    </code>
-                                    <div className="flex items-center gap-1 sm:gap-2 sm:flex-shrink-0 justify-end sm:justify-start">
-                                      <CopyButton
-                                        textToCopy={item.cid}
-                                        size="sm"
-                                      />
-                                      {createdAt && (
-                                        <span className="text-label text-ink-muted whitespace-nowrap">
-                                          {createdAt}
-                                        </span>
-                                      )}
-                                      {isLatest && (
-                                        <span className="text-label font-semibold uppercase text-warning bg-warning-soft px-1.5 py-0.5 rounded">
-                                          Latest
-                                        </span>
-                                      )}
-                                      <AttestationCard
-                                        projectName={projectName}
-                                        commitHash={commitHashValue}
-                                        target={evidenceTarget(
-                                          item.kind,
-                                          item.cid,
-                                        )}
-                                        connectedPublicKey={connectedPublicKey}
-                                        isMaintainer={isMaintainer}
-                                        variant="compact"
-                                      />
-                                      {ipfsUrl ? (
-                                        <Button
-                                          tone="secondary"
-                                          icon={
-                                            <img
-                                              src="/icons/ipfs.svg"
-                                              alt=""
-                                              className="size-5 shrink-0"
-                                            />
-                                          }
-                                          onClick={() =>
-                                            window.open(
-                                              ipfsUrl,
-                                              "_blank",
-                                              "noopener",
-                                            )
-                                          }
-                                          size="sm"
-                                        >
-                                          View IPFS
-                                        </Button>
-                                      ) : (
-                                        <span className="text-label text-danger">
-                                          Invalid CID
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    ),
-                )}
+              <EvidenceList
+                projectName={projectName}
+                commitHash={commit.hash}
+                connectedPublicKey={connectedPublicKey}
+                isMaintainer={isMaintainer}
+              />
             </div>
 
-            {/* ── Add Evidence (maintainers only) ─────────────────────── */}
             {isMaintainer && (
-              <div className="flex flex-col gap-4 border-t border-line pt-4">
-                <p className="text-ui font-semibold text-ink">Add Evidence</p>
-
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                  {/* Kind selector */}
-                  <div className="flex flex-col gap-1.5 flex-1">
-                    <label
-                      htmlFor="evidence-kind"
-                      className="text-label text-ink-muted font-medium"
-                    >
-                      Kind
-                    </label>
-                    <select
-                      id="evidence-kind"
-                      className="p-2 border border-line-strong outline-none text-ui bg-surface"
-                      value={selectedKind}
-                      onChange={handleKindChange}
-                      disabled={isUploading}
-                    >
-                      {EVIDENCE_KINDS.map((k) => (
-                        <option key={k.tag} value={k.tag}>
-                          {k.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* File picker */}
-                  <div className="flex flex-col gap-1.5 flex-1">
-                    <label
-                      htmlFor="evidence-file-input"
-                      className="text-label text-ink-muted font-medium"
-                    >
-                      File
-                    </label>
-                    <input
-                      id="evidence-file-input"
-                      type="file"
-                      className="block w-full text-ui text-ink-muted
-                        file:mr-3 file:py-1.5 file:px-3
-                        file:border-0 file:text-ui file:font-medium
-                        file:bg-action file:text-on-action
-                        hover:file:opacity-90 file:cursor-pointer
-                        file:transition-opacity"
-                      onChange={handleFileChange}
-                      disabled={isUploading}
-                    />
-                  </div>
-                </div>
-
-                {/* Upload button */}
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleAddEvidence}
-                    loading={isUploading}
-                    disabled={
-                      isUploading || !selectedFile || !commitHashValue.trim()
-                    }
-                    className="w-full sm:w-auto"
-                  >
-                    {isUploading ? "Uploading…" : "Add Evidence"}
-                  </Button>
-                </div>
-
-                {/* Success banner – shown after a CID is uploaded */}
-                {lastUploadedCid && !isUploading && (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-success-soft border-2 border-success/40 rounded-control">
-                    <div className="w-8 h-8 rounded-full bg-success flex items-center justify-center flex-shrink-0">
-                      <svg
-                        className="w-5 h-5 text-surface"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col gap-1 flex-1 min-w-0">
-                      <p className="text-ui font-semibold text-success">
-                        Evidence uploaded successfully
-                      </p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <code className="text-label sm:text-ui font-mono text-success bg-success-soft px-2 py-1 rounded break-all">
-                          {lastUploadedCid}
-                        </code>
-                        <CopyButton textToCopy={lastUploadedCid} size="sm" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {isUploading && (
-                  <div className="flex items-center gap-2 text-label text-ink-muted">
-                    <Spinner label="Loading…" className="text-ink" />
-                    Uploading to IPFS and recording on-chain…
-                  </div>
-                )}
-              </div>
+              <AddEvidenceForm
+                key={formKey}
+                projectName={projectName}
+                commitHash={commit.hash}
+              />
             )}
           </div>
         </Dialog>

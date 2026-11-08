@@ -6,13 +6,12 @@ import {
   type ProfileData,
 } from "@service/MemberService";
 import { connect } from "@service/walletService";
-import FlowProgressModal from "components/utils/FlowProgressModal";
 import SimpleMarkdownEditor from "components/utils/SimpleMarkdownEditor";
 import { connectedPublicKey } from "utils/store";
 import { fetchFromIpfs, getIpfsUrl } from "utils/ipfsFunctions";
 import { validateUrl } from "utils/validations";
 import GitVerification, { type GitIdentityData } from "./GitVerification";
-import { Button, Input } from "components/ui";
+import { Button, FlowDialog, flowSteps, Input, useFlow } from "components/ui";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -51,11 +50,7 @@ const ProfileModal: FC<{
   const [showGitSection, setShowGitSection] = useState(false);
   const gitDataRef = useRef<GitIdentityData | null>(null);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSuccessful, setIsSuccessful] = useState(false);
-  const [step, setStep] = useState(1);
-  const [error, setError] = useState<string | null>(null);
+  const flow = useFlow();
 
   const pickImage = (file: File | undefined) => {
     setImageError(null);
@@ -128,57 +123,45 @@ const ProfileModal: FC<{
     }
 
     try {
-      setIsLoading(true);
+      flow.stage("prepare");
       const files = await profileFiles();
-      setIsUploading(files.length > 0);
-      setStep(6);
       if (isJoining) {
         await joinCommunity({
           memberAddress,
           profileFiles: files,
           gitIdentity: gitDataRef.current ?? undefined,
-          onProgress: setStep,
+          onProgress: flow.stage,
         });
       } else {
         await updateMember({
           memberAddress,
           profileFiles: files,
-          onProgress: setStep,
+          onProgress: flow.stage,
         });
       }
-      setIsSuccessful(true);
-      setStep(0);
-    } catch (err: any) {
-      setError(err?.message || "Something went wrong");
-      setStep(0);
-    } finally {
-      setIsLoading(false);
-      setIsUploading(false);
+      flow.done();
+    } catch (err) {
+      flow.fail(err);
     }
   };
 
   return (
-    <FlowProgressModal
-      isOpen={true}
+    <FlowDialog
+      state={flow.state}
       onClose={onClose}
-      onSuccess={onClose}
-      step={step}
-      setStep={setStep}
-      isLoading={isLoading}
-      setIsLoading={setIsLoading}
-      isUploading={isUploading}
-      setIsUploading={setIsUploading}
-      isSuccessful={isSuccessful}
-      setIsSuccessful={setIsSuccessful}
-      error={error}
-      setError={setError}
-      signLabel={isJoining ? "membership" : "profile update"}
-      successTitle={isJoining ? "Welcome aboard!" : "Profile updated!"}
-      successMessage={
+      steps={flowSteps(isJoining ? "membership" : "profile update")}
+      success={
         isJoining
-          ? "You've successfully joined the community."
-          : "Your profile has been successfully updated."
+          ? {
+              title: "Welcome aboard!",
+              description: "You've successfully joined the community.",
+            }
+          : {
+              title: "Profile updated!",
+              description: "Your profile has been successfully updated.",
+            }
       }
+      size="auto"
     >
       <div className="flex flex-col md:flex-row items-center gap-6 md:gap-4">
         <img alt="" className="flex-none w-50 md:w-90" src="/images/team.svg" />
@@ -355,13 +338,13 @@ const ProfileModal: FC<{
             <Button tone="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={isLoading || isUploading} onClick={handleSubmit}>
+            <Button onClick={handleSubmit}>
               {isJoining ? "Join" : "Save Changes"}
             </Button>
           </div>
         </div>
       </div>
-    </FlowProgressModal>
+    </FlowDialog>
   );
 };
 

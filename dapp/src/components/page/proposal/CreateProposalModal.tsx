@@ -1,61 +1,25 @@
 import { useStore } from "@nanostores/react";
-import { DatePicker } from "components/utils/DatePicker";
-import { ExpandableText } from "components/utils/ExpandableText";
-import FlowProgressModal from "components/utils/FlowProgressModal";
-import { useEffect, useRef, useState } from "react";
-import { formatDate } from "utils/formatTimeFunctions";
-import { connectedPublicKey } from "utils/store";
-import { capitalizeFirstLetter, toast } from "utils/utils";
-import { getIpfsBasicLink } from "utils/ipfsFunctions";
-import { validateProposalName, validateTextContent } from "utils/validations";
-import OutcomeInput from "./OutcomeInput";
-import {
-  NO_CALL,
-  OutcomeCallError,
-  prepareOutcomeCall,
-} from "@service/ContractIntrospectionService";
-import {
-  OUTCOMES,
-  emptyOutcome,
-  type Outcome,
-  outcomeSlots,
-  storedOutcomes,
-  type OutcomeDrafts,
-} from "utils/proposalOutcomes";
-import TemplateSelector from "./TemplateSelector";
-import { AnonymousKeySetup, useAnonymousKeySetup } from "./AnonymousKeySetup";
-import { PROPOSAL_TEMPLATES } from "constants/proposalTemplates";
-import { createProposal, setupAnonymousVoting } from "@service/ProposalService";
-import MarkdownEditorWithImages, {
-  embedImages,
-  type AttachedImage,
-} from "components/utils/MarkdownEditorWithImages";
 import { navigate } from "astro:transitions/client";
+import { useState } from "react";
+import { createProposal, setupAnonymousVoting } from "@service/ProposalService";
+import { Button, FlowDialog, flowSteps, Title, useFlow } from "components/ui";
+import { connectedPublicKey } from "utils/store";
 import { proposalUrl } from "utils/urls";
-import { Button, Input, Label, Loading, StepBar, Title } from "components/ui";
-
-/** The last moment of `day`: the vote runs through the day picked. */
-function endOfDay(day: Date): Date {
-  const end = new Date(day);
-  end.setHours(23, 59, 59, 0);
-  return end;
-}
-
-/** Two days from now, to comfortably exceed the 24 h minimum. */
-function defaultEndDay(): Date {
-  const day = new Date();
-  day.setDate(day.getDate() + 2);
-  return endOfDay(day);
-}
+import ProposalBasicsStep from "./ProposalBasicsStep";
+import ProposalOutcomesStep from "./ProposalOutcomesStep";
+import ProposalReviewStep from "./ProposalReviewStep";
+import ProposalScheduleStep from "./ProposalScheduleStep";
+import { useProposalDraft } from "./useProposalDraft";
 
 /**
- * The proposal wizard. It stays mounted while closed, so a draft survives
- * closing it.
+ * The proposal wizard: basics, outcomes, the vote's end, the review; then,
+ * for a project's first anonymous vote, its key's setup. It stays mounted
+ * while closed, so a draft survives closing it.
  */
 const CreateProposalModal = ({
   projectName,
   maintainers,
-  open: showModal,
+  open,
   onClose,
 }: {
   projectName: string;
@@ -65,819 +29,133 @@ const CreateProposalModal = ({
 }) => {
   const connectedAddress = useStore(connectedPublicKey);
   const [step, setStep] = useState(1);
-  const [proposalName, setProposalName] = useState("");
-  const [mdText, setMdText] = useState("");
-
-  // Local image handling for Markdown content
-  const [imageFiles, setImageFiles] = useState<AttachedImage[]>([]);
-  const [imageError, setImageError] = useState<string | null>(null);
-
-  // Keep a ref to the latest attached images so we can revoke their object URLs
-  // only when the component truly unmounts — NOT on modal close. Revoking on
-  // close (while the description markdown still references the blob: URLs) is
-  // what made images appear broken after reopening the modal (issue #177).
-  const imageFilesRef = useRef<AttachedImage[]>([]);
-  useEffect(() => {
-    imageFilesRef.current = imageFiles;
-  }, [imageFiles]);
-  useEffect(() => {
-    return () => {
-      imageFilesRef.current.forEach((img) => URL.revokeObjectURL(img.localUrl));
-    };
-  }, []);
-
-  // The outcomes the author added, by kind; a removed one is absent.
-  const [outcomes, setOutcomes] = useState<OutcomeDrafts>({});
-  // Default to 2 days in the future to comfortably exceed the 24h minimum
-  const [selectedDate, setSelectedDate] = useState(defaultEndDay);
   const [proposalId, setProposalId] = useState<number | null>(null);
-  const [_ipfsLink, setIpfsLink] = useState("");
-  const anonymous = useAnonymousKeySetup(projectName);
-  const [votingType, setVotingType] = useState<"badge" | "token">("badge");
-  const [tokenContract, setTokenContract] = useState<string>("");
-  const [preparedFiles, setPreparedFiles] = useState<File[] | null>(null);
-  const [proposalNameError, setProposalNameError] = useState<string | null>(
-    null,
-  );
-  const [descriptionError, setDescriptionError] = useState<string | null>(null);
-  // Flow state management
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSuccessful, setIsSuccessful] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Outcome calls that failed their check on Next, with what to highlight.
-  const [outcomeErrors, setOutcomeErrors] = useState<
-    Partial<Record<Outcome, { message: string; args: number[] }>>
-  >({});
-  const [checkingOutcomes, setCheckingOutcomes] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
+  const draft = useProposalDraft(projectName);
+  const { anonymous } = draft;
+  const flow = useFlow();
 
-  /**
-   * Run every outcome call as `execute` will, marking the ones that fail;
-   * throws the first failure. Creating the proposal checks them again.
-   */
-  const validateOutcomeCalls = async () => {
-    const slots = outcomeSlots(outcomes) ?? [];
-    const failures = await Promise.all(
-      OUTCOMES.map(async (kind, i) => {
-        const call = slots[i];
-        if (!call) return undefined;
-        try {
-          await prepareOutcomeCall(call);
-          return undefined;
-        } catch (err) {
-          return { kind, err };
-        }
-      }),
-    );
-    const failed = failures.filter((f) => f !== undefined);
-    setOutcomeErrors(
-      Object.fromEntries(
-        failed.map(({ kind, err }) => [
-          kind,
-          {
-            message: (err as Error).message,
-            args: err instanceof OutcomeCallError ? err.args : [],
-          },
-        ]),
-      ),
-    );
-    if (failed[0]) {
-      throw new Error(
-        `Invalid ${failed[0].kind} outcome: ${(failed[0].err as Error).message}`,
-      );
-    }
-  };
-
-  const validateTokenContractForVoting = () => {
-    if (votingType !== "token") return;
-    const trimmed = tokenContract.trim();
-    if (!trimmed) {
-      throw new Error(
-        "Token contract address is required for token-based voting",
-      );
-    }
-    if (!/^C[A-Z0-9]{55}$/.test(trimmed)) {
-      throw new Error(
-        "Invalid token contract address. Use the Soroban contract ID (starts with C).",
-      );
-    }
-  };
-
-  const checkSubmitAvailability = () => {
-    if (!connectedAddress) throw new Error("Please connect your wallet first");
-    if (!maintainers.includes(connectedAddress))
-      throw new Error("Only maintainers can submit proposals");
-    validateTokenContractForVoting();
-  };
-
-  const prepareProposalFiles = (): File[] => {
-    const proposalOutcome = storedOutcomes(outcomes);
-
-    const outcomeBlob = new Blob([JSON.stringify(proposalOutcome)], {
-      type: "application/json",
-    });
-
-    const description = embedImages(mdText, imageFiles);
-    return [
-      new File([outcomeBlob], "outcomes.json"),
-      ...description.files,
-      new File([description.text], "proposal.md"),
-    ];
-  };
-
-  const startProposalCreation = async (files: File[]) => {
+  const create = async () => {
+    flow.stage("prepare");
     try {
-      validateTokenContractForVoting();
-      setIsLoading(true);
-      setStep(6);
-
-      // Voting end timestamp — clamp to [25h, 30d] from now
-      let targetTs = selectedDate.getTime();
-      if (isNaN(targetTs) || targetTs <= 0 || !isFinite(targetTs)) {
-        throw new Error(`Invalid voting end date: ${selectedDate}`);
-      }
-      const min25hMs = Date.now() + 25 * 60 * 60 * 1000;
-      const max30dMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      targetTs = Math.max(min25hMs, Math.min(max30dMs, targetTs));
-      const votingEndsAt = Math.floor(targetTs / 1000);
-
-      // Each call in its outcome's slot, typed and dry-run as the executor
-      // makes it; a gap gets a call that changes nothing.
-      const slots = outcomeSlots(outcomes);
-      const outcomeContracts =
-        slots &&
-        (await Promise.all(
-          slots.map((call) => (call ? prepareOutcomeCall(call) : NO_CALL)),
-        ));
-
-      const { id, cid } = await createProposal({
-        projectName: projectName!,
-        proposalName,
-        proposalFiles: files,
-        votingEndsAt,
-        publicVoting: !anonymous.enabled,
-        outcomeContracts,
-        ...(votingType === "token"
-          ? { tokenContract: tokenContract.trim() }
-          : {}),
-        onProgress: setStep,
+      const { id } = await createProposal({
+        projectName,
+        proposalFiles: draft.files(),
+        ...(await draft.submission()),
+        onProgress: flow.stage,
       });
-
       setProposalId(id);
-      setIpfsLink(getIpfsBasicLink(cid));
-      resetDraft();
-      setIsSuccessful(true);
-    } catch (err: any) {
-      console.error(err.message);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-      setIsUploading(false);
+      draft.reset();
+      flow.done();
+    } catch (err) {
+      flow.fail(err);
     }
   };
 
-  const handleRegisterProposal = async () => {
+  const register = () => {
+    if (!connectedAddress) return flow.fail("Please connect your wallet first");
+    if (!maintainers.includes(connectedAddress))
+      return flow.fail("Only maintainers can submit proposals");
+    if (anonymous.needsSetup) return setStep(5);
+    return create();
+  };
+
+  const setUpKey = async () => {
+    setSettingUp(true);
     try {
-      checkSubmitAvailability();
-
-      const files = prepareProposalFiles();
-      setPreparedFiles(files);
-
-      if (anonymous.needsSetup) {
-        setStep(5);
-        return;
-      }
-
-      await startProposalCreation(files);
-    } catch (err: any) {
-      console.error(err.message);
-      setError(err.message);
+      if (!anonymous.keys || !anonymous.saved)
+        throw new Error("The key file is not saved yet");
+      await setupAnonymousVoting(
+        projectName,
+        anonymous.keys.publicKey,
+        anonymous.replacing,
+      );
+      anonymous.setUp();
+    } catch (err) {
+      flow.fail(err);
+      return;
+    } finally {
+      setSettingUp(false);
     }
+    await create();
   };
 
-  const validateProposalNameField = (): boolean => {
-    const error = validateProposalName(proposalName);
-    setProposalNameError(error);
-    return error === null;
-  };
-
-  const validateDescriptionField = (): boolean => {
-    const error = validateTextContent(mdText, 10, "Proposal description");
-    setDescriptionError(error);
-    return error === null;
-  };
-
-  /** A submitted proposal leaves no draft to submit twice. */
-  const resetDraft = () => {
-    imageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
-    setImageFiles([]);
-    setProposalName("");
-    setMdText("");
-    setOutcomes({});
-    setSelectedDate(defaultEndDay());
-    anonymous.reset();
-    setVotingType("badge");
-    setTokenContract("");
-    setPreparedFiles(null);
-  };
-
-  const handleCloseModal = () => {
-    // Preserve the draft (description markdown + attached images + their live
-    // blob: URLs) so reopening the modal shows the images correctly. Object URLs
-    // are revoked on unmount instead (see effect above). Fixes issue #177.
+  const close = () => {
     onClose();
     setStep(1);
+    flow.reset();
   };
 
-  if (!showModal) return <></>;
+  if (!open) return null;
 
   return (
-    <FlowProgressModal
-      isOpen={showModal}
-      onClose={handleCloseModal}
+    <FlowDialog
+      state={flow.state}
+      onClose={close}
       onSuccess={() => {
-        onClose();
-        if (projectName && proposalId !== null)
-          navigate(proposalUrl(projectName, proposalId));
+        if (proposalId !== null) navigate(proposalUrl(projectName, proposalId));
       }}
-      step={step}
-      setStep={setStep}
-      isLoading={isLoading}
-      setIsLoading={setIsLoading}
-      isUploading={isUploading}
-      setIsUploading={setIsUploading}
-      isSuccessful={isSuccessful}
-      setIsSuccessful={setIsSuccessful}
-      error={error}
-      setError={setError}
-      signLabel="proposal"
-      successTitle="Your Proposal Is Live!"
-      successMessage="Congratulations! You've successfully submitted your proposal. Let's move forward and make it a success!"
+      steps={flowSteps("proposal")}
+      success={{
+        title: "Your Proposal Is Live!",
+        description:
+          "Congratulations! You've successfully submitted your proposal. Let's move forward and make it a success!",
+      }}
+      size="auto"
     >
-      {step == 1 ? (
-        <div className="flex flex-col gap-8 lg:gap-10">
-          {/* Header section */}
-          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-            <div className="flex-shrink-0">
-              <img
-                src="/images/idea.svg"
-                alt="Idea icon"
-                className="w-16 h-16 lg:w-20 lg:h-20 mx-auto lg:mx-0"
-              />
-            </div>
-            <div className="flex-grow space-y-6 lg:space-y-8">
-              <div className="text-center lg:text-left">
-                <StepBar step={step} totalSteps={4} />
-                <Title
-                  title="Basic Information"
-                  description="Enter the title and description for your proposal to begin."
-                />
-              </div>
-
-              <AnonymousKeySetup setup={anonymous} />
-
-              {/* Voting type: Badge based (default) or Token based */}
-              <div className="flex flex-col gap-2 sm:gap-3 max-w-2xl">
-                <label className="text-ui font-semibold text-ink">
-                  Voting type
-                </label>
-                <select
-                  value={votingType}
-                  onChange={(e) =>
-                    setVotingType(e.target.value as "badge" | "token")
-                  }
-                  className="rounded-control border border-ink bg-transparent px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-focus"
-                >
-                  <option value="badge">Badge based</option>
-                  <option value="token">Token based</option>
-                </select>
-                {votingType === "token" && (
-                  <>
-                    <Input
-                      label="Token Contract Address"
-                      placeholder="Enter SAC token contract address (C...)"
-                      value={tokenContract}
-                      onChange={(e) => setTokenContract(e.target.value)}
-                    />
-                    {tokenContract && (
-                      <span className="text-ui text-link">
-                        Voting weight is capped by each voter's token balance.
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="max-w-2xl">
-                <Input
-                  label="Proposal Name"
-                  placeholder="Write the name"
-                  value={proposalName}
-                  onChange={(e) => {
-                    setProposalName(e.target.value);
-                    setProposalNameError(null);
-                  }}
-                  error={proposalNameError}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Description Section */}
-          <div className="space-y-4">
-            <TemplateSelector
-              templates={PROPOSAL_TEMPLATES}
-              purpose="your proposal"
-              onTemplateSelect={(template) => {
-                setMdText(template.content);
-                setDescriptionError(null);
-              }}
+      {step === 1 ? (
+        <ProposalBasicsStep
+          draft={draft}
+          onNext={() => setStep(2)}
+          onCancel={close}
+        />
+      ) : step === 2 ? (
+        <ProposalOutcomesStep
+          draft={draft}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
+        />
+      ) : step === 3 ? (
+        <ProposalScheduleStep
+          draft={draft}
+          onNext={() => setStep(4)}
+          onBack={() => setStep(2)}
+        />
+      ) : step === 4 ? (
+        <ProposalReviewStep
+          draft={draft}
+          onStep={setStep}
+          onRegister={register}
+        />
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-8">
+          <img
+            src="/images/scan.svg"
+            alt=""
+            className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
+          />
+          <div className="flex-grow flex flex-col gap-4 sm:gap-6 text-center sm:text-left">
+            <Title
+              title="Configure anonymous voting"
+              description="Sign the setup transaction. This enables anonymous voting for this project."
             />
-            <div className="flex items-center justify-between">
-              <p className="text-card font-semibold text-ink">Description</p>
-              <span className="text-ui text-ink-muted">
-                Supports Markdown formatting
-              </span>
-            </div>
-            <MarkdownEditorWithImages
-              value={mdText}
-              onChange={(val) => {
-                setMdText(val);
-                setDescriptionError(null);
-              }}
-              imageFiles={imageFiles}
-              onImageFilesChange={setImageFiles}
-              imageError={imageError}
-              onImageErrorChange={setImageError}
-              placeholder="Input your proposal description here..."
-            />
-            {descriptionError && (
-              <p className="text-danger text-ui">{descriptionError}</p>
-            )}
-          </div>
-
-          {/* Footer Buttons */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-6">
-            <Button tone="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                try {
-                  if (
-                    !validateProposalNameField() ||
-                    !validateDescriptionField()
-                  )
-                    throw new Error("Invalid proposal name or description");
-
-                  if (anonymous.needsSetup && !anonymous.saved) {
-                    throw new Error(
-                      "Download the anonymous key file and select it to confirm you saved it.",
-                    );
-                  }
-
-                  validateTokenContractForVoting();
-
-                  setStep(step + 1);
-                } catch (err: any) {
-                  console.error(err.message);
-                  toast.error("Submit proposal", err.message);
-                }
-              }}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : step == 2 ? (
-        <div className="flex flex-col gap-10 md:gap-14">
-          {/* Header and title section */}
-          <div className="flex flex-col gap-8 md:gap-10">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-6">
-              <img
-                src="/images/cards.svg"
-                alt="cards"
-                className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
-              />
-              <div className="flex-grow flex flex-col justify-center gap-6 text-center sm:text-left">
-                <StepBar step={step} totalSteps={4} />
-                <Title
-                  title="Outcome Details"
-                  description="Provide descriptions and XDRs for approved, rejected, and canceled outcomes."
-                />
-              </div>
-            </div>
-
-            {/* Outcome Inputs */}
-            <div className="space-y-8">
-              {OUTCOMES.map((kind) => {
-                const draft = outcomes[kind];
-                return draft ? (
-                  <OutcomeInput
-                    key={kind}
-                    type={kind}
-                    draft={draft}
-                    onChange={(next) => {
-                      setOutcomes((all) => ({ ...all, [kind]: next }));
-                      // An edited call is checked afresh.
-                      setOutcomeErrors(({ [kind]: _edited, ...rest }) => rest);
-                    }}
-                    callError={outcomeErrors[kind]}
-                    onRemove={() => {
-                      setOutcomes(({ [kind]: _removed, ...rest }) => rest);
-                      setOutcomeErrors(({ [kind]: _removed, ...rest }) => rest);
-                    }}
-                  />
-                ) : (
-                  <div key={kind} className="flex justify-center">
-                    <Button
-                      tone="secondary"
-                      onClick={() =>
-                        setOutcomes((all) => ({
-                          ...all,
-                          [kind]: emptyOutcome(),
-                        }))
-                      }
-                    >
-                      + Add {capitalizeFirstLetter(kind)} Outcome
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Navigation buttons */}
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
-            <Button
-              tone="secondary"
-              onClick={() => setStep(step - 1)}
-              className="w-full sm:w-auto"
-            >
-              Back
-            </Button>
-
-            <Button
-              loading={checkingOutcomes}
-              onClick={async () => {
-                try {
-                  if (
-                    !validateProposalNameField() ||
-                    !validateDescriptionField()
-                  )
-                    throw new Error("Invalid proposal name or description");
-
-                  if (anonymous.needsSetup && !anonymous.saved) {
-                    throw new Error(
-                      "Download the anonymous key file and select it to confirm you saved it.",
-                    );
-                  }
-
-                  validateTokenContractForVoting();
-
-                  setCheckingOutcomes(true);
-                  await validateOutcomeCalls();
-
-                  setStep(step + 1);
-                } catch (err: any) {
-                  console.error(err.message);
-                  toast.error("Submit proposal", err.message);
-                } finally {
-                  setCheckingOutcomes(false);
-                }
-              }}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : step == 3 ? (
-        <div className="flex flex-col gap-10 md:gap-14">
-          {/* Header and content */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-8">
-            <img
-              src="/images/clock.svg"
-              alt="clock icon"
-              className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
-            />
-
-            <div className="flex-grow flex flex-col justify-center gap-6 sm:gap-8 text-center sm:text-left">
-              <StepBar step={step} totalSteps={4} />
-              <Title
-                title="Voting Duration"
-                description="Enter the number of days for the voting period."
-              />
-
-              {/* Voting Duration Controls */}
-              <div className="flex flex-col gap-4 sm:gap-6">
-                <p className="leading-4 text-body font-semibold text-ink">
-                  Select End Day
-                </p>
-
-                <div className="flex flex-col gap-6">
-                  <DatePicker
-                    selectedDate={selectedDate}
-                    onDateChange={(day) => setSelectedDate(endOfDay(day))}
-                  />
-
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 text-ui sm:text-body">
-                    <p className="leading-4 text-ink-muted">
-                      Minimum duration:
-                    </p>
-                    <p className="leading-4 font-semibold text-ink">1 day</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
-            <Button
-              tone="secondary"
-              onClick={() => setStep(step - 1)}
-              className="w-full sm:w-auto"
-            >
-              Back
-            </Button>
-
-            <Button
-              onClick={() => {
-                try {
-                  // Compute hour difference between now and the picked calendar date
-                  let diffMs = new Date(selectedDate).getTime() - Date.now();
-                  let diffHours = diffMs / (1000 * 60 * 60);
-
-                  // Ensure at least 25 hours of duration
-                  if (diffHours < 25) {
-                    const corrected = new Date(
-                      Date.now() + 25 * 60 * 60 * 1000,
-                    );
-                    setSelectedDate(corrected);
-                    diffMs = corrected.getTime() - Date.now();
-                    diffHours = diffMs / (1000 * 60 * 60);
-                  }
-
-                  if (diffHours > 30 * 24)
-                    throw new Error("Voting duration cannot exceed 30 days");
-
-                  setStep(step + 1);
-                } catch (err: any) {
-                  console.error(err.message);
-                  toast.error("Submit proposal", err.message);
-                }
-              }}
-              className="w-full sm:w-auto"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : step == 4 ? (
-        <div className="flex flex-col gap-10 md:gap-14">
-          {/* Header Section */}
-          <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">
-            <img
-              src="/images/note.svg"
-              alt="note icon"
-              className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
-            />
-
-            <div className="flex-grow flex flex-col justify-center gap-6 sm:gap-8 text-center sm:text-left">
-              <StepBar step={step} totalSteps={4} />
-              <Title
-                title="Review and Submit Your Proposal"
-                description="Take a moment to review your proposal before submitting. You can go back and make changes if needed."
-              />
-              {/* Note to the user */}
-              <p className="px-3 py-1 text-ui sm:text-body bg-sunken text-ink">
-                ℹ️ Creating a proposal requires 5 XLM collateral. This
-                collateral is refunded when the proposal is executed.
-              </p>
-              {/* Buttons for small screens */}
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
-                <Button
-                  tone="secondary"
-                  onClick={() => setStep(step - 1)}
-                  className="w-full sm:w-auto"
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={handleRegisterProposal}
-                  className="w-full sm:w-auto"
-                >
-                  Register Proposal
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Review Sections */}
-          <div className="flex flex-col gap-8 sm:gap-10">
-            {/* First Step */}
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-card sm:text-lead font-medium text-ink">
-                  First Step
-                </p>
-                <Button
-                  tone="secondary"
-                  size="sm"
-                  className="px-3 py-1 text-ui sm:text-body"
-                  onClick={() => setStep(1)}
-                >
-                  Back to the First Step
-                </Button>
-              </div>
-              <Label label="Proposal name">
-                <p className="text-card sm:text-lead text-ink break-words">
-                  {proposalName}
-                </p>
-              </Label>
-
-              <Label label="Proposal description">
-                <ExpandableText>{mdText}</ExpandableText>
-              </Label>
-            </div>
-
-            <div className="h-px bg-sunken" />
-
-            {/* Second Step */}
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-card sm:text-lead font-medium text-ink">
-                  Second Step
-                </p>
-                <Button
-                  tone="secondary"
-                  size="sm"
-                  className="px-3 py-1 text-ui sm:text-body"
-                  onClick={() => setStep(2)}
-                >
-                  Back to the Second Step
-                </Button>
-              </div>
-
-              {(() => {
-                const stored = Object.entries(
-                  storedOutcomes(outcomes).outcomes,
-                );
-                if (!stored.length) {
-                  return (
-                    <Label label="Contract Calls">
-                      <p className="text-body sm:text-card text-ink-muted">
-                        None
-                      </p>
-                    </Label>
-                  );
-                }
-                return stored.map(([kind, node]) => (
-                  <div key={kind} className="flex flex-col gap-4">
-                    <p
-                      className={`text-card sm:text-lead font-medium text-${kind}`}
-                    >
-                      {capitalizeFirstLetter(kind)} Outcome
-                    </p>
-                    <Label label="Description">
-                      <ExpandableText>{node.description}</ExpandableText>
-                    </Label>
-                    {node.execution?.type === "xdr" && (
-                      <Label label="XDR Transaction">
-                        <p className="text-body sm:text-card text-ink break-all font-mono">
-                          {node.execution.xdr}
-                        </p>
-                      </Label>
-                    )}
-                    {node.execution?.contract && (
-                      <Label label="Contract Call">
-                        <p className="text-body sm:text-card text-ink break-all font-mono">
-                          {node.execution.contract.address}
-                        </p>
-                        <p className="text-body sm:text-card text-ink font-mono break-all">
-                          {node.execution.contract.execute_fn}(
-                          {node.execution.contract.args.join(", ")})
-                        </p>
-                      </Label>
-                    )}
-                    {!node.execution && (
-                      <Label label="Action">
-                        <p className="text-body sm:text-card text-ink-muted">
-                          No automated action - description only
-                        </p>
-                      </Label>
-                    )}
-                  </div>
-                ));
-              })()}
-            </div>
-
-            <div className="h-px bg-sunken" />
-
-            {/* Third Step */}
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-card sm:text-lead font-medium text-ink">
-                  Third Step
-                </p>
-                <Button
-                  tone="secondary"
-                  size="sm"
-                  className="px-3 py-1 text-ui sm:text-body"
-                  onClick={() => setStep(3)}
-                >
-                  Back to the Third Step
-                </Button>
-              </div>
-              <Label label="Voting End Day">
-                <p className="text-body sm:text-card text-ink">
-                  {formatDate(selectedDate.toISOString())}
-                </p>
-              </Label>
-            </div>
-          </div>
-
-          {/* Bottom Buttons (repeated for desktop) */}
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 sm:gap-6">
-            <Button
-              tone="secondary"
-              onClick={() => setStep(step - 1)}
-              className="w-full sm:w-auto"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={handleRegisterProposal}
-              className="w-full sm:w-auto"
-            >
-              Register Proposal
-            </Button>
-          </div>
-        </div>
-      ) : step === 5 && anonymous.needsSetup ? (
-        <div className="flex flex-col gap-10 md:gap-12">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-6 sm:gap-8">
-            <img
-              src="/images/scan.svg"
-              alt="scan icon"
-              className="w-20 h-auto mx-auto sm:mx-0 sm:w-24"
-            />
-
-            <div className="flex-grow flex flex-col gap-4 sm:gap-6 text-center sm:text-left">
-              <StepBar step={1} totalSteps={5} />
-              <Title
-                title="Configure anonymous voting"
-                description="Sign the setup transaction. This enables anonymous voting for this project."
-              />
-
-              <p className="text-ui sm:text-body text-ink-muted">
-                Your key file is saved. Sign the setup transaction to use its
-                key for this project's anonymous votes.
-              </p>
-
-              <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-4">
-                <Button
-                  disabled={isLoading}
-                  onClick={async () => {
-                    try {
-                      setIsLoading(true);
-
-                      if (!projectName) throw new Error("Project name missing");
-                      if (!anonymous.keys || !anonymous.saved)
-                        throw new Error("The key file is not saved yet");
-
-                      await setupAnonymousVoting(
-                        projectName,
-                        anonymous.keys.publicKey,
-                        anonymous.replacing,
-                      );
-
-                      anonymous.setUp();
-
-                      const files = preparedFiles || prepareProposalFiles();
-                      await startProposalCreation(files);
-                    } catch (e: any) {
-                      setError(e.message);
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <div className="absolute inset-0 bg-surface flex items-center justify-center z-50">
-                      <Loading />
-                    </div>
-                  ) : (
-                    "Sign setup"
-                  )}
-                </Button>
-              </div>
+            <p className="text-ui sm:text-body text-ink-muted">
+              Your key file is saved. Sign the setup transaction to use its key
+              for this project's anonymous votes.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mt-4">
+              <Button
+                loading={settingUp}
+                onClick={setUpKey}
+                className="w-full sm:w-auto"
+              >
+                Sign setup
+              </Button>
             </div>
           </div>
         </div>
-      ) : null}
-    </FlowProgressModal>
+      )}
+    </FlowDialog>
   );
 };
 

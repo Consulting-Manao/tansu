@@ -17,7 +17,7 @@ import { ipfsQuery, parseTansuToml } from "../utils/ipfsFunctions";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { extractConfigData } from "../utils/utils";
 import { queryClient } from "./queryClient";
-import { packUpload, sendTransaction } from "./TxService";
+import { packUpload, sendTransaction, type TxStage } from "./TxService";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
@@ -132,7 +132,7 @@ interface ProjectConfigWrite {
   minVotingPeriod?: bigint;
   executeDelay?: bigint;
   attestationThreshold?: number;
-  onProgress?: (step: number) => void;
+  onProgress?: (stage: TxStage) => void;
 }
 
 /** Register a project: its files on IPFS, its name and settings on chain. */
@@ -144,7 +144,7 @@ export async function registerProject(
     config.tomlFile,
     ...(config.additionalFiles ?? []),
   ]);
-  config.onProgress?.(7);
+  config.onProgress?.("sign");
   const address = connectedAddress();
   const tx = await tansuFor(address).register({
     maintainer: address,
@@ -185,7 +185,7 @@ export async function updateConfig(
     config.tomlFile,
     ...(config.additionalFiles ?? []),
   ]);
-  config.onProgress?.(7);
+  config.onProgress?.("sign");
   const address = connectedAddress();
   const tx = await tansuFor(address).update_config({
     maintainer: address,

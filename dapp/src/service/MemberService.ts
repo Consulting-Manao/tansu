@@ -9,7 +9,7 @@ import { IpfsMissError } from "../utils/ipfsMissCache";
 import { parseEd25519SshKey } from "../utils/sshSignature";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { queryClient } from "./queryClient";
-import { packUpload, sendTransaction } from "./TxService";
+import { packUpload, sendTransaction, type TxStage } from "./TxService";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
@@ -106,7 +106,7 @@ interface ProfileWrite {
   memberAddress: string;
   /** profile.json and its image; none keeps no profile. */
   profileFiles: File[];
-  onProgress?: (step: number) => void;
+  onProgress?: (stage: TxStage) => void;
 }
 
 /** An Ed25519 SSH key of a Git account. */
@@ -195,7 +195,7 @@ export async function joinCommunity({
   onProgress,
 }: ProfileWrite & { gitIdentity?: GitIdentity | undefined }): Promise<void> {
   const upload = await packProfile(profileFiles);
-  onProgress?.(7);
+  onProgress?.("sign");
   const address = memberAddress || connectedAddress();
   const tx = await tansuFor(address).add_member({
     member_address: address,
@@ -218,7 +218,7 @@ export async function updateMember({
   onProgress,
 }: ProfileWrite): Promise<void> {
   const upload = await packProfile(profileFiles);
-  onProgress?.(7);
+  onProgress?.("sign");
   const address = memberAddress || connectedAddress();
   const tx = await tansuFor(address).update_member({
     member_address: address,

@@ -33,7 +33,7 @@ import {
   getTokenBalance,
   tokenVoteWeightToContract,
 } from "./TokenBalanceService";
-import { packUpload, sendTransaction } from "./TxService";
+import { packUpload, sendTransaction, type TxStage } from "./TxService";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
@@ -377,10 +377,10 @@ export async function createProposal({
   outcomeContracts?: OutcomeContract[] | undefined;
   /** A token for token-weighted voting (its SAC address). */
   tokenContract?: string | undefined;
-  onProgress?: (step: number) => void;
+  onProgress?: (stage: TxStage) => void;
 }): Promise<{ id: number; cid: string }> {
   const upload = await packUpload(proposalFiles);
-  onProgress?.(7);
+  onProgress?.("sign");
   const address = connectedAddress();
   const tx = await tansuFor(address).create_proposal({
     proposer: address,

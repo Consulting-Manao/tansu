@@ -1,47 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, useRef } from "react";
-import { parse } from "smol-toml";
-import FlowProgressModal from "components/utils/FlowProgressModal";
+import { useState } from "react";
 import MarkdownEditorWithImages, {
   embedImages,
-  type AttachedImage,
 } from "components/utils/MarkdownEditorWithImages";
 import { validateGithubUrl } from "utils/validations";
+import { carriedImages } from "utils/readmeImages";
+import { useConfigForm } from "./useConfigForm";
 import { updateConfig } from "@service/ProjectService";
-import { thresholdQuery } from "@service/AttestationService";
-import {
-  governanceActivation,
-  governanceQuery,
-} from "@service/ProposalService";
-import { queryClient } from "@service/queryClient";
-import {
-  DEFAULT_FINALITY_THRESHOLD_PERCENT,
-  validateFinalityThresholdPercent,
-} from "constants/attestation";
-import { extractConfigData } from "utils/utils";
-import {
-  fetchFromIpfs,
-  getIpfsBasicLink,
-  ipfsQuery,
-} from "utils/ipfsFunctions";
-import { isValidCid } from "utils/contentHashes";
-import { IpfsMissError } from "utils/ipfsMissCache";
+import { validateFinalityThresholdPercent } from "constants/attestation";
+import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import type { Project } from "../../../../packages/tansu";
-import type { ConfigData } from "types/projectConfig";
-import {
-  getRepositoryProvider,
-  getRepositoryProviderLabel,
-  type RepositoryProvider,
-} from "utils/editLinkFunctions";
+import { getRepositoryProviderLabel } from "utils/editLinkFunctions";
 import {
   validateFullName,
   validateOrganization,
   writeTansuToml,
 } from "utils/tansuToml";
 import {
-  activeProvider,
   checkMaintainers,
-  emptyOrganization,
   GovernanceFields,
   handleLabel,
   MaintainerRows,
@@ -49,40 +24,16 @@ import {
   RepositoryFields,
   ThresholdField,
   validateGovernanceHours,
-  type MaintainerRow,
 } from "./ProjectFields";
-import { Button, Input, StepBar, Title } from "components/ui";
-
-/**
- * The images a README shows from its directory, as files for the new one; a
- * file already missing is left out. One that cannot be read stops the update
- * rather than go missing.
- */
-async function carriedImages(
-  cid: string,
-  readme: string,
-  already: Set<string>,
-): Promise<File[]> {
-  const paths = [
-    ...readme.matchAll(/!\[[^\]]*\]\((?!https?:\/\/)([^)]+)\)/g),
-  ].flatMap(([, path]) => (path && !already.has(path) ? [path] : []));
-  const files = await Promise.all(
-    [...new Set(paths)].map(async (path) => {
-      const response = await fetchFromIpfs(cid, path).catch((error) => {
-        if (error instanceof IpfsMissError && error.scope === "path") {
-          return null;
-        }
-        throw new Error(
-          `Could not copy the README image ${path}: ${error.message}`,
-        );
-      });
-      if (!response) return null;
-      const blob = await response.blob();
-      return new File([blob], path, { type: blob.type });
-    }),
-  );
-  return files.filter((file) => file !== null);
-}
+import {
+  Button,
+  FlowDialog,
+  flowSteps,
+  Input,
+  StepBar,
+  Title,
+  useFlow,
+} from "components/ui";
 
 /**
  * For maintainers: change the project's maintainers and tansu.toml. The form
@@ -92,149 +43,61 @@ async function carriedImages(
  */
 const UpdateConfigModal = ({ project }: { project: Project }) => {
   const [open, setOpen] = useState(false);
-  // The project directory the form was filled from; `null` until it is.
-  const [basedOn, setBasedOn] = useState<string | null>(null);
   const [step, setStep] = useState(1);
 
-  // Flow state management
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSuccessful, setIsSuccessful] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const flow = useFlow();
 
-  // fields
-  const [maintainers, setMaintainers] = useState<MaintainerRow[]>([]);
-  const [repositoryUrl, setRepositoryUrl] = useState("");
-  const [chosenProvider, setChosenProvider] =
-    useState<RepositoryProvider>("github");
-  const [repositoryUrlError, setRepositoryUrlError] = useState<string | null>(
-    null,
-  );
-  const [projectFullName, setProjectFullName] = useState("");
-  const [projectFullNameError, setProjectFullNameError] = useState<
-    string | null
-  >(null);
-  const [org, setOrg] = useState(emptyOrganization);
-  const [orgErrors, setOrgErrors] = useState<
-    ReturnType<typeof validateOrganization>
-  >({});
-  const [finalityThreshold, setFinalityThreshold] = useState("");
-  const [finalityThresholdError, setFinalityThresholdError] = useState<
-    string | null
-  >(null);
-  const originalThresholdRef = useRef("");
-  const [timing, setTiming] = useState({ votingPeriod: "", executeDelay: "" });
-  const [timingErrors, setTimingErrors] = useState<{
-    votingPeriod?: string | null;
-    executeDelay?: string | null;
-  }>({});
-  const originalTimingRef = useRef(timing);
-  const originalRepositoryUrlRef = useRef("");
-  const [readmeContent, setReadmeContent] = useState("");
-  const [readmeImageFiles, setReadmeImageFiles] = useState<AttachedImage[]>([]);
-  const [readmeImageError, setReadmeImageError] = useState<string | null>(null);
-
-  const cid = project.config.ipfs;
-  const hasFiles = isValidCid(cid);
-  const tomlRead = useQuery(
-    { ...ipfsQuery(cid, "/tansu.toml"), enabled: open && hasFiles },
-    queryClient,
-  );
-  /** The current tansu.toml; `null` when it is not valid TOML. */
-  const previousToml = useMemo(() => {
-    try {
-      return tomlRead.data ? parse(tomlRead.data) : {};
-    } catch {
-      return null;
-    }
-  }, [tomlRead.data]);
-  const current = useMemo(
-    () => extractConfigData(previousToml ?? {}, project) as ConfigData,
-    [previousToml, project],
-  );
-  const tomlKnown = !hasFiles || tomlRead.isSuccess;
-  const isSoftware = current.projectType === "SOFTWARE";
-  const readmeRead = useQuery(
-    {
-      ...ipfsQuery(cid, "/README.md"),
-      enabled: open && hasFiles && tomlKnown && !isSoftware,
-    },
-    queryClient,
-  );
-  const thresholdRead = useQuery(
-    { ...thresholdQuery(project.name), enabled: open },
-    queryClient,
-  );
-  const governanceRead = useQuery(
-    { ...governanceQuery(project.name), enabled: open },
-    queryClient,
-  );
-  const reads = [tomlRead, readmeRead, thresholdRead, governanceRead];
-  const readError = reads.find((read) => read.isError)?.error;
-  const ready =
-    tomlKnown &&
-    thresholdRead.isSuccess &&
-    governanceRead.isSuccess &&
-    (isSoftware || !hasFiles || readmeRead.isSuccess);
-
-  const provider = isSoftware
-    ? activeProvider(repositoryUrl, chosenProvider)
-    : undefined;
-
-  useEffect(() => {
-    if (!open) {
-      setBasedOn(null);
-      return;
-    }
-    if (basedOn !== null || !ready) return;
-    setBasedOn(cid);
-    setMaintainers(
-      project.maintainers.map((address) => ({
-        address,
-        handle: current.handles[address] ?? "",
-      })),
-    );
-    const url = current.officials.githubLink || project.config.url;
-    originalRepositoryUrlRef.current = url;
-    setRepositoryUrl(url);
-    setChosenProvider(getRepositoryProvider(url) || "github");
-    setProjectFullName(current.projectFullName || project.name);
-    setOrg({
-      orgName: current.organizationName,
-      orgUrl: current.officials.websiteLink,
-      orgLogo: current.logoImageLink,
-      orgDescription: current.description,
-    });
-    const threshold = String(
-      thresholdRead.data || DEFAULT_FINALITY_THRESHOLD_PERCENT,
-    );
-    originalThresholdRef.current = threshold;
-    setFinalityThreshold(threshold);
-    const hours = (seconds: number) => String(Math.round(seconds / 3600));
-    const currentTiming = {
-      votingPeriod: hours(governanceRead.data!.timing.minVotingPeriod),
-      executeDelay: hours(governanceRead.data!.timing.executeDelay),
-    };
-    originalTimingRef.current = currentTiming;
-    setTiming(currentTiming);
-    setTimingErrors({});
-    setReadmeContent(readmeRead.data ?? "");
-  }, [open, ready]);
-
-  // On open: no images attached yet.
-  useEffect(() => {
-    if (!open) return;
-    setReadmeImageFiles((prev) => {
-      prev.forEach((img) => URL.revokeObjectURL(img.localUrl));
-      return [];
-    });
-    setReadmeImageError(null);
-  }, [open]);
+  const {
+    basedOn,
+    maintainers,
+    setMaintainers,
+    repositoryUrl,
+    setRepositoryUrl,
+    chosenProvider,
+    setChosenProvider,
+    repositoryUrlError,
+    setRepositoryUrlError,
+    projectFullName,
+    setProjectFullName,
+    projectFullNameError,
+    setProjectFullNameError,
+    org,
+    setOrg,
+    orgErrors,
+    setOrgErrors,
+    finalityThreshold,
+    setFinalityThreshold,
+    finalityThresholdError,
+    setFinalityThresholdError,
+    originalThresholdRef,
+    timing,
+    setTiming,
+    timingErrors,
+    setTimingErrors,
+    originalTimingRef,
+    originalRepositoryUrlRef,
+    readmeContent,
+    setReadmeContent,
+    readmeImageFiles,
+    setReadmeImageFiles,
+    readmeImageError,
+    setReadmeImageError,
+    cid,
+    hasFiles,
+    previousToml,
+    current,
+    isSoftware,
+    reads,
+    readError,
+    provider,
+    timingChanged,
+    timingNotice,
+  } = useConfigForm(project, open);
 
   const handleClose = () => {
     readmeImageFiles.forEach((img) => URL.revokeObjectURL(img.localUrl));
     setOpen(false);
-    setIsSuccessful(false);
+    flow.reset();
   };
 
   const nextFromTeam = () => {
@@ -244,53 +107,6 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
     setRepositoryUrlError(urlError);
     if (checked.valid && !urlError) setStep(2);
   };
-
-  const timingChanged = {
-    votingPeriod:
-      timing.votingPeriod !== originalTimingRef.current.votingPeriod,
-    executeDelay:
-      timing.executeDelay !== originalTimingRef.current.executeDelay,
-  };
-  const timingNotice = (() => {
-    const current = governanceRead.data;
-    if (!current) return null;
-    const lines: string[] = [];
-    if (current.pending) {
-      lines.push(
-        `A looser timing is pending and applies on ${new Date(current.pending.activatesAt * 1000).toLocaleString()}.`,
-      );
-    }
-    const valid = (field: "votingPeriod" | "executeDelay") =>
-      !timingChanged[field] || !validateGovernanceHours(timing[field]);
-    if (
-      (timingChanged.votingPeriod || timingChanged.executeDelay) &&
-      valid("votingPeriod") &&
-      valid("executeDelay")
-    ) {
-      const now = Math.floor(Date.now() / 1000);
-      const seconds = (
-        field: "votingPeriod" | "executeDelay",
-        stored: number,
-      ) => (timingChanged[field] ? Number(timing[field]) * 3600 : stored);
-      const activatesAt = governanceActivation(
-        current.timing,
-        {
-          minVotingPeriod: seconds(
-            "votingPeriod",
-            current.timing.minVotingPeriod,
-          ),
-          executeDelay: seconds("executeDelay", current.timing.executeDelay),
-        },
-        now,
-      );
-      lines.push(
-        activatesAt === now
-          ? "The new timing is stricter: it applies as soon as the update lands."
-          : `The new timing is looser: it applies around ${new Date(activatesAt * 1000).toLocaleString()}, once proposals opened under the current timing are through.`,
-      );
-    }
-    return lines.length ? lines.join(" ") : null;
-  })();
 
   const nextFromDetails = () => {
     const fullNameError = validateFullName(projectFullName);
@@ -320,7 +136,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
   };
 
   const handleSubmit = async () => {
-    setIsLoading(true);
+    flow.stage("prepare");
     try {
       if (basedOn === null) {
         throw new Error("The project's files are not loaded");
@@ -368,7 +184,7 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
         tomlFile,
         repositoryUrl,
         maintainers: maintainers.map((row) => row.address),
-        onProgress: setStep,
+        onProgress: flow.stage,
         additionalFiles,
         // Omitted when unchanged: the contract treats `None` as "leave as is".
         ...(finalityThreshold !== originalThresholdRef.current
@@ -383,11 +199,9 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
       });
       originalThresholdRef.current = finalityThreshold;
       originalTimingRef.current = timing;
-      setIsSuccessful(true);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsLoading(false);
+      flow.done();
+    } catch (error) {
+      flow.fail(error);
     }
   };
 
@@ -411,23 +225,15 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
       </Button>
 
       {open && (
-        <FlowProgressModal
-          isOpen={open}
+        <FlowDialog
+          state={flow.state}
           onClose={handleClose}
-          onSuccess={handleClose}
-          step={step}
-          setStep={setStep}
-          isLoading={isLoading}
-          setIsLoading={setIsLoading}
-          isUploading={isUploading}
-          setIsUploading={setIsUploading}
-          isSuccessful={isSuccessful}
-          setIsSuccessful={setIsSuccessful}
-          error={error}
-          setError={setError}
-          signLabel="project configuration"
-          successTitle="Config Updated!"
-          successMessage="Project configuration updated successfully."
+          steps={flowSteps("project configuration")}
+          success={{
+            title: "Config Updated!",
+            description: "Project configuration updated successfully.",
+          }}
+          size="auto"
         >
           {step <= 3 && basedOn === null ? (
             <div className="flex flex-col gap-4">
@@ -592,14 +398,12 @@ const UpdateConfigModal = ({ project }: { project: Project }) => {
                   <Button tone="secondary" onClick={() => setStep(2)}>
                     Back
                   </Button>
-                  <Button loading={isLoading} onClick={handleSubmit}>
-                    Update Config
-                  </Button>
+                  <Button onClick={handleSubmit}>Update Config</Button>
                 </div>
               </div>
             )
           )}
-        </FlowProgressModal>
+        </FlowDialog>
       )}
     </>
   );

@@ -108,7 +108,17 @@ export default [
     },
   },
   {
-    // The kit stays small: a piece that grows past this splits.
+    // A component that grows past this splits into steps and hooks.
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
+    // The kit stays smaller: a piece that grows past this splits.
     files: ["src/components/ui/**/*.{ts,tsx}"],
     rules: {
       "max-lines": [

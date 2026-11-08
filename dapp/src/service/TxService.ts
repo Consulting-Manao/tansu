@@ -226,9 +226,16 @@ export interface SendOptions {
   upload?: Upload | undefined;
   /** The queries the call changes, refetched once it settles. */
   invalidate?: QueryKey[];
-  /** Flow steps: 8 uploading, 9 sending. */
-  onProgress?: ((step: number) => void) | undefined;
+  /** Where the write stands, for its flow's steps. */
+  onProgress?: ((stage: TxStage) => void) | undefined;
 }
+
+/**
+ * A write's stages, as FlowDialog lists them: prepared (the flow's own
+ * work, packing files), signed in the wallet, its files uploaded, sent and
+ * confirmed.
+ */
+export type TxStage = "prepare" | "sign" | "upload" | "send";
 
 /**
  * Sign a contract call once and land it, in the order the wallet allows. A
@@ -256,7 +263,7 @@ async function land<T>(
   onProgress: SendOptions["onProgress"],
 ): Promise<Landed<T>> {
   if (!upload) {
-    onProgress?.(9);
+    onProgress?.("send");
     return "hash" in signed
       ? confirm(tx, signed.hash, maxTimeOf(tx.built))
       : submit(tx, signed.xdr);
@@ -264,7 +271,7 @@ async function land<T>(
 
   if ("hash" in signed) {
     const landed = await confirm(tx, signed.hash, maxTimeOf(tx.built));
-    onProgress?.(8);
+    onProgress?.("upload");
     try {
       await uploadToIpfsProxy({ ...upload, txHash: signed.hash });
     } catch (error: any) {
@@ -273,13 +280,13 @@ async function land<T>(
         { cause: error },
       );
     }
-    onProgress?.(9);
+    onProgress?.("send");
     return landed;
   }
 
-  onProgress?.(8);
+  onProgress?.("upload");
   await uploadToIpfsProxy({ ...upload, signedTxXdr: signed.xdr });
-  onProgress?.(9);
+  onProgress?.("send");
   return submit(tx, signed.xdr);
 }
 
