@@ -3,7 +3,7 @@ import cx from "classnames";
 interface SpinnerProps {
   /** Announced to screen readers; without it the spinner is decoration. */
   label?: string;
-  className?: string;
+  className?: string | undefined;
 }
 
 /** Busy, inline: in a button or next to text, in the text's colour. */

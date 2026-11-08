@@ -1,4 +1,5 @@
-import type { ChangeEventHandler, FC, ReactNode } from "react";
+import { useId, type ChangeEventHandler, type FC, type ReactNode } from "react";
+import { fieldBox } from "components/ui/style";
 
 interface Props {
   className?: string;
@@ -10,6 +11,7 @@ interface Props {
   error?: string | null | undefined;
 }
 
+/** The older text area API, drawn like the kit's fields. */
 const Textarea: FC<Props> = ({
   className,
   label,
@@ -19,24 +21,32 @@ const Textarea: FC<Props> = ({
   onChange,
   error,
 }) => {
+  const field = useId();
+  const hint = error || description;
   return (
-    <div className="flex-grow flex flex-col gap-[18px]">
+    <div className="flex min-w-0 grow flex-col gap-2">
       {label && (
-        <p className="leading-4 text-base font-semibold text-primary">
+        <label htmlFor={field} className="text-ui font-semibold text-ink">
           {label}
-        </p>
+        </label>
       )}
       <textarea
-        className={`p-[18px] border ${error ? "border-red-500" : "border-[#978AA1]"} outline-none ${className}`}
+        id={field}
+        aria-describedby={hint ? `${field}-hint` : undefined}
+        aria-invalid={error ? true : undefined}
+        className={`${fieldBox(!!error)} min-h-22 py-2.5 ${className ?? ""}`}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
       />
-      {error ? (
-        <p className="leading-[16px] text-base text-red-500">{error}</p>
-      ) : description ? (
-        <p className="leading-[16px] text-base text-tertiary">{description}</p>
-      ) : null}
+      {hint && (
+        <p
+          id={`${field}-hint`}
+          className={`text-small ${error ? "text-danger" : "text-ink-muted"}`}
+        >
+          {hint}
+        </p>
+      )}
     </div>
   );
 };

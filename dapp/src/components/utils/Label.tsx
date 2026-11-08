@@ -5,13 +5,12 @@ interface Props {
   children?: ReactNode;
 }
 
-const Label: FC<Props> = ({ label, children }) => {
-  return (
-    <div className="flex flex-col gap-[18px]">
-      <div className="leading-4 text-base text-secondary">{label}</div>
-      {children}
-    </div>
-  );
-};
+/** A caption over its content, like the kit's field labels. */
+const Label: FC<Props> = ({ label, children }) => (
+  <div className="flex flex-col gap-2">
+    <div className="text-ui font-semibold text-ink">{label}</div>
+    {children}
+  </div>
+);
 
 export default Label;

@@ -1,11 +1,12 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Container from "../components/layout/Container.astro";
+import HomeHero from "../components/page/home/HomeHero.astro";
 import ProjectList from "../components/page/dashboard/ProjectList";
 ---
 
-<!-- text-active text-rejected text-cancelled text-voted text-approved text-approve text-reject text-abstain -->
 <Layout title="Tansu" page="home">
+  <HomeHero />
   <Container>
     <ProjectList client:only="react" />
   </Container>

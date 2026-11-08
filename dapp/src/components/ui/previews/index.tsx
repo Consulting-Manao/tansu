@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { SegmentedControl } from "..";
+import { SegmentedControl, ToastHost } from "..";
 import { Actions } from "./Actions";
 import { Forms } from "./Forms";
+import { Overlays } from "./Overlays";
 import { Structure } from "./Structure";
 
 type Theme = "system" | "light" | "dark";
@@ -39,6 +40,8 @@ export default function Previews() {
       <Actions />
       <Forms />
       <Structure />
+      <Overlays />
+      <ToastHost />
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { focusRing } from "components/ui/style";
 
 interface CopyButtonProps {
   textToCopy: string;
@@ -47,31 +48,34 @@ const CopyButton = ({
     }
   }, [textToCopy]);
 
-  const baseClasses =
-    "hover:bg-zinc-100 transition-colors duration-200 p-1 rounded flex shrink-0 items-center justify-center gap-2 min-w-6 min-h-6";
-  const combinedClasses = `${baseClasses} ${className}`;
-
+  const icon = sizeClasses[size];
   return (
     <button
       type="button"
-      className={combinedClasses}
+      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-md p-1 text-ink-muted transition-colors hover:bg-sunken hover:text-ink ${focusRing} ${className}`}
       onClick={handleCopy}
       aria-label={isCopied ? "Copied" : "Copy to clipboard"}
       title={isCopied ? "Copied" : "Copy to clipboard"}
     >
-      {isCopied ? (
-        <img
-          src="/icons/check.svg"
-          alt="Copied"
-          className={sizeClasses[size]}
-        />
-      ) : (
-        <img
-          src="/icons/clipboard.svg"
-          alt="Copy"
-          className={sizeClasses[size]}
-        />
-      )}
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className={`${icon} ${isCopied ? "text-success" : ""}`}
+      >
+        {isCopied ? (
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        ) : (
+          <>
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+          </>
+        )}
+      </svg>
       {showText && <span>{isCopied ? "Copied!" : text}</span>}
     </button>
   );

@@ -75,7 +75,6 @@ test("join with a picture and a git identity, then edit the profile", async ({
 
   // The profile reads the new member from the chain, without a reload.
   await page.evaluate(() => ((window as any).stayed = true));
-  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Open user profile" }).click();
   await expect(page.getByText("codeberg:ada")).toBeVisible();
   // Codeberg does not list keys to check: the identity is self-declared.

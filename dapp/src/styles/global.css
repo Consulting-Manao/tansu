@@ -2,6 +2,8 @@
 /* The light theme only: the default file follows the system's dark mode,
    which painted dark Markdown panels inside the light app. */
 @import "github-markdown-css/github-markdown-light.css";
+/* Status colours named at runtime (`text-${status}`): kept in the build. */
+@source inline("text-active text-rejected text-cancelled text-voted text-approved text-approve text-reject text-abstain");
 
 /*
  * The fonts, self-hosted from each family's original release: Google's copies
@@ -142,6 +144,7 @@
   --color-band-ink: var(--ds-band-ink);
   --color-band-muted: var(--ds-band-muted);
   --color-band-line: var(--ds-band-line);
+  --color-scrim: var(--ds-scrim);
 
   --shadow-raise: var(--ds-shadow-raise);
   --shadow-float: var(--ds-shadow-float);
@@ -228,6 +231,8 @@
   --ds-band-ink: light-dark(#1a1128, #ffffff);
   --ds-band-muted: light-dark(#574f68, rgba(255, 255, 255, 0.76));
   --ds-band-line: light-dark(#e3d9f1, rgba(255, 255, 255, 0.14));
+  /* Behind an open dialog */
+  --ds-scrim: light-dark(rgba(26, 17, 40, 0.45), rgba(0, 0, 0, 0.6));
   --ds-shadow-raise:
     0 1px 2px light-dark(rgba(26, 17, 40, 0.05), rgba(0, 0, 0, 0.4)),
     0 1px 3px light-dark(rgba(26, 17, 40, 0.06), transparent);
@@ -272,16 +277,6 @@
   .font-outline-sm {
     -webkit-text-stroke: 1.2px black;
     background-color: transparent;
-  }
-}
-
-/* In a layer, so a page that sets its own ground with a utility wins. */
-@layer base {
-  body {
-    max-width: 1920px;
-    margin: 0 auto 0 auto;
-    padding: 0;
-    background: linear-gradient(180deg, #fbfbfb 0%, #e2e2e2 100%);
   }
 }
 

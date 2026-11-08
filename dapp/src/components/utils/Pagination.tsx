@@ -1,9 +1,33 @@
+import cx from "classnames";
+import { focusRing } from "components/ui/style";
+
 interface PaginationProps {
   totalPage: number;
   currentPage: number;
   onPageChange: (page: number) => void;
 }
 
+const Arrow = ({ flip }: { flip?: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    className={flip ? "rotate-180" : undefined}
+  >
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+);
+
+const cell =
+  "figures-tabular inline-flex size-10 items-center justify-center rounded-control text-ui font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-40";
+
+/** Pages of a list: the arrows and a window of 15 page numbers. */
 const Pagination: React.FC<PaginationProps> = ({
   totalPage,
   currentPage,
@@ -22,61 +46,42 @@ const Pagination: React.FC<PaginationProps> = ({
   );
 
   return (
-    <div className="p-[6px_18px] flex items-center gap-[24px] bg-white">
+    <nav aria-label="Pages" className="flex flex-wrap items-center gap-1">
       <button
         type="button"
         aria-label="Previous page"
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
-        className="disabled:opacity-50"
+        className={cx(cell, focusRing)}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M17.1 7.98789H4.77787L10.4377 2.32802L8.99999 0.900391L0.899994 9.00039L8.99999 17.1004L10.4276 15.6728L4.77787 10.0129H17.1V7.98789Z"
-            fill="#311255"
-          />
-        </svg>
+        <Arrow />
       </button>
-      <div className="flex gap-3">
-        {pages.map((page) => (
-          <button
-            key={page}
-            type="button"
-            aria-current={page === currentPage ? "page" : undefined}
-            className={`p-[6px_10px] w-8 h-8 ${page === currentPage ? "border border-primary" : ""}`}
-            onClick={() => onPageChange(page)}
-          >
-            <p className="leading-5 text-xl text-primary">{page}</p>
-          </button>
-        ))}
-      </div>
+      {pages.map((page) => (
+        <button
+          key={page}
+          type="button"
+          aria-current={page === currentPage ? "page" : undefined}
+          className={cx(
+            cell,
+            focusRing,
+            page === currentPage &&
+              "bg-action text-on-action hover:bg-action-hover",
+          )}
+          onClick={() => onPageChange(page)}
+        >
+          {page}
+        </button>
+      ))}
       <button
         type="button"
         aria-label="Next page"
         onClick={() => onPageChange(Math.min(totalPage, currentPage + 1))}
         disabled={currentPage === totalPage}
-        className="disabled:opacity-50"
+        className={cx(cell, focusRing)}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M0.900005 10.0121L13.2221 10.0121L7.56226 15.672L9.00001 17.0996L17.1 8.99961L9.00001 0.899609L7.57238 2.32723L13.2221 7.98711L0.900005 7.98711V10.0121Z"
-            fill="#311255"
-          />
-        </svg>
+        <Arrow flip />
       </button>
-    </div>
+    </nav>
   );
 };
 

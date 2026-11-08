@@ -115,7 +115,9 @@ test("outcome calls land in their slots, typed, and execute", async ({
       .getByRole("button", { name: "Vote", exact: true })
       .last()
       .click();
-    await page.getByRole("button", { name: "OK" }).click({ timeout: 120_000 });
+    await expect(
+      page.getByText("Your vote was submitted successfully."),
+    ).toBeVisible({ timeout: 120_000 });
     return id;
   };
   const typed = await approve(

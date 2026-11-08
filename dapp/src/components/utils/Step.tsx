@@ -5,20 +5,19 @@ interface Props {
   totalSteps: number;
 }
 
-const Step: FC<Props> = ({ step, totalSteps }) => {
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="leading-4 text-base text-secondary">
-        Step {step} Of {totalSteps}
-      </p>
-      <div className="h-1.5 bg-[#F5F1F9]">
-        <div
-          className="h-full bg-[#FFBD1E]"
-          style={{ width: `${(step / totalSteps) * 100}%` }}
-        />
-      </div>
+/** Where a form wizard stands: "Step 2 of 5" and its bar. */
+const Step: FC<Props> = ({ step, totalSteps }) => (
+  <div className="flex flex-col gap-2">
+    <p className="text-ui text-ink-muted">
+      Step {step} of {totalSteps}
+    </p>
+    <div className="h-1.5 overflow-hidden rounded-full bg-sunken">
+      <div
+        className="h-full rounded-full bg-accent"
+        style={{ width: `${(step / totalSteps) * 100}%` }}
+      />
     </div>
-  );
-};
+  </div>
+);
 
 export default Step;

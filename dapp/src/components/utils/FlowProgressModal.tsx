@@ -1,6 +1,4 @@
-import Modal from "./Modal";
-import ProgressStep from "./ProgressStep";
-import Button from "./Button";
+import { FlowDialog, type FlowState } from "components/ui";
 
 interface FlowProgressModalProps {
   isOpen: boolean;
@@ -22,6 +20,11 @@ interface FlowProgressModalProps {
   children?: React.ReactNode;
 }
 
+/**
+ * The older flow API on the kit's FlowDialog: steps 6 to 9 are the write
+ * (prepare, sign, upload, send); a success becomes a toast and closes the
+ * flow; an error shows in the dialog.
+ */
 const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
   isOpen,
   onClose,
@@ -36,12 +39,13 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
   error,
   setError,
   signLabel = "action",
-  successTitle = "Success!",
-  successMessage = "Your action has been completed successfully.",
+  successTitle = "Done",
+  successMessage,
   children,
 }) => {
-  const handleClose = () => {
-    // Reset all states when closing
+  if (!isOpen) return null;
+
+  const close = () => {
     setIsSuccessful(false);
     setStep(0);
     setIsLoading(false);
@@ -49,64 +53,31 @@ const FlowProgressModal: React.FC<FlowProgressModalProps> = ({
     setError(null);
     onClose();
   };
-
-  const handleSuccess = () => {
-    onSuccess?.();
-    handleClose();
-  };
-
-  if (!isOpen) return null;
-
-  // A flow being signed and sent stays open: its outcome shows here.
-  const busy = isLoading && !error && !isSuccessful;
+  const working = isLoading && step >= 6 && step <= 9;
+  const state: FlowState = error
+    ? { phase: "error", error }
+    : isSuccessful
+      ? { phase: "done" }
+      : working
+        ? { phase: "working", step: step - 6 }
+        : { phase: "form" };
 
   return (
-    <Modal onClose={handleClose} closable={!busy}>
-      {error ? (
-        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6">
-          <img
-            src="/images/wrong.svg"
-            alt="Error"
-            className="w-40 h-40 sm:w-auto sm:h-auto"
-          />
-          <div className="flex-grow flex flex-col gap-5 text-center sm:text-left">
-            <p className="text-lg sm:text-xl font-bold text-red-600">
-              Something went wrong
-            </p>
-            <p className="text-sm sm:text-base text-secondary">{error}</p>
-            <div className="flex justify-end">
-              <Button onClick={handleClose}>Close</Button>
-            </div>
-          </div>
-        </div>
-      ) : isSuccessful ? (
-        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-[18px] p-4 sm:p-6">
-          <img
-            src="/images/flower.svg"
-            alt="Success"
-            className="w-40 h-40 sm:w-auto sm:h-auto"
-          />
-          <div className="flex-grow flex flex-col gap-5 text-center sm:text-left">
-            <p className="text-lg sm:text-xl font-bold text-primary">
-              {successTitle}
-            </p>
-            <p className="text-sm sm:text-base text-secondary">
-              {successMessage}
-            </p>
-            <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[18px]">
-              <Button type="secondary" onClick={handleClose}>
-                Close
-              </Button>
-              <Button onClick={handleSuccess}>Continue</Button>
-            </div>
-          </div>
-        </div>
-      ) : step >= 6 && step <= 9 ? (
-        <ProgressStep step={step - 5} signLabel={signLabel} />
-      ) : (
-        children
-      )}
-    </Modal>
+    <FlowDialog
+      state={state}
+      onClose={close}
+      onSuccess={onSuccess}
+      steps={[
+        "Prepare the transaction",
+        `Sign the ${signLabel} transaction`,
+        "Upload to IPFS",
+        "Send and confirm",
+      ]}
+      success={{ title: successTitle, description: successMessage }}
+      size="auto"
+    >
+      {children}
+    </FlowDialog>
   );
 };
 

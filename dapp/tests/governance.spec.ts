@@ -27,7 +27,6 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   await setBadges(wallet, name, wallet.publicKey(), [Badge.Developer]);
   const soon = await createProposal(proposer, name, "Ship the dark theme", 90);
 
-  const ok = page.getByRole("button", { name: "OK" });
   await page.goto("/");
   await connectWallet(page);
 
@@ -36,7 +35,11 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.getByText("Approve", { exact: true }).click();
   await page.getByRole("button", { name: "Vote", exact: true }).last().click();
-  await ok.click({ timeout: 120_000 });
+  await expect(
+    page.getByText("Your vote was submitted successfully."),
+  ).toBeVisible({
+    timeout: 120_000,
+  });
   await expect(page.getByText("Weight: 10,000,000")).toBeVisible();
   await page
     .getByRole("button", { name: "Close", exact: true })
@@ -75,7 +78,6 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   await expect(page.getByText("Vote Removed")).toBeVisible({
     timeout: 120_000,
   });
-  await ok.click();
   await expect(page.getByText("No votes yet")).toBeVisible();
   await page
     .getByRole("button", { name: "Mark as Malicious", exact: true })
@@ -87,7 +89,6 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   await expect(page.getByText("Proposal Revoked")).toBeVisible({
     timeout: 120_000,
   });
-  await ok.click();
   // Revoking deletes the proposal: its id is never reused.
   await expect(page.getByText("Proposal not found")).toBeVisible();
   expect(await read.proposal(name, created)).toHaveProperty("error");

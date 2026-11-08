@@ -35,7 +35,6 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   ]);
   await setBadges(wallet, name, wallet.publicKey(), [Badge.Developer]);
 
-  const ok = page.getByRole("button", { name: "OK" });
   const next = page.getByRole("button", { name: "Next", exact: true });
   await page.goto("/");
   await connectWallet(page);
@@ -59,7 +58,6 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   await next.click();
   // The refusal, not the panel's own advice.
   await expect(page.getByText("Download the anonymous key file")).toBeVisible();
-  await ok.click();
   await page.getByLabel("Select the saved key file").setInputFiles(keyFile);
   await expect(page.getByText("Key file saved.")).toBeVisible();
   for (const _ of ["outcomes", "duration", "review"]) await next.click();
@@ -95,7 +93,11 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.getByText("Approve", { exact: true }).click();
   await page.getByRole("button", { name: "Vote", exact: true }).last().click();
-  await ok.click({ timeout: 120_000 });
+  await expect(
+    page.getByText("Your vote was submitted successfully."),
+  ).toBeVisible({
+    timeout: 120_000,
+  });
   await expect(page.getByText("Vote Receipt")).toBeVisible();
   await expect(page.getByText(/^[0-9a-f]{192}$/)).toHaveCount(3);
 

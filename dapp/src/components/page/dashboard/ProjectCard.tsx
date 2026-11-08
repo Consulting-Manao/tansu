@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { Skeleton } from "components/ui";
+import { focusRing } from "components/ui/style";
 import {
   convertGitHubLink,
   getRepositoryIconInfo,
 } from "../../../utils/editLinkFunctions";
-import ProjectInfoModal from "./ProjectInfoModal";
+import { projectUrl } from "utils/urls";
 
 /** What a project card shows. */
 export interface CardConfig {
@@ -19,8 +20,10 @@ export interface CardConfig {
   organizationName?: string;
 }
 
-const placeholder = "bg-zinc-200 motion-safe:animate-pulse";
-
+/**
+ * A project: the card is one link to its page (its title link covers it);
+ * the website and repository links sit above that cover.
+ */
 const ProjectCard = ({
   config,
   isMetadataLoading = false,
@@ -30,25 +33,31 @@ const ProjectCard = ({
   isMetadataLoading?: boolean;
 }) => {
   const repositoryIcon = getRepositoryIconInfo(config.officials.githubLink);
-
-  const [showInfo, setShowInfo] = useState(false);
+  const links = [
+    config.officials.websiteLink && {
+      href: config.officials.websiteLink,
+      src: "/icons/logos/web.svg",
+      label: "Website",
+    },
+    config.officials.githubLink && {
+      href: config.officials.githubLink,
+      src: repositoryIcon.src,
+      label: repositoryIcon.label,
+    },
+    ...Object.entries(config.socialLinks).map(
+      ([platform, href]) =>
+        href && { href, src: `/icons/logos/${platform}.svg`, label: platform },
+    ),
+  ].filter(Boolean) as { href: string; src: string; label: string }[];
 
   return (
-    <div
-      className="project-card w-full h-full flex flex-col shadow-card rounded-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
+    <article
+      className="project-card relative flex h-full flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-raise transition-shadow hover:shadow-float sm:p-6"
       aria-busy={isMetadataLoading || undefined}
     >
-      {/* Named by its logo: the project's name. */}
-      <button
-        type="button"
-        className="h-[200px] sm:h-[240px] md:h-[290px] bg-white/25 backdrop-blur-[9px] overflow-hidden cursor-pointer group flex justify-center items-center flex-shrink-0"
-        onClick={() => setShowInfo(true)}
-      >
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-card bg-sunken">
         {!config.logoImageLink && isMetadataLoading ? (
-          <div
-            aria-hidden="true"
-            className={`w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg ${placeholder}`}
-          />
+          <Skeleton className="size-9 rounded-control" />
         ) : (
           <img
             src={
@@ -56,111 +65,58 @@ const ProjectCard = ({
                 ? convertGitHubLink(config.logoImageLink)
                 : "/fallback-image.jpg"
             }
-            alt={config.projectName}
-            className="thumbnail w-30 h-30 sm:w-36 sm:h-36 md:w-44 md:h-44 rounded-lg object-contain transition-transform duration-300 ease-in-out group-hover:scale-110"
+            alt=""
+            className="thumbnail size-9 rounded-md object-contain"
           />
         )}
-      </button>
-      <div className="flex-grow bg-white p-4 sm:p-6 flex flex-col gap-4 sm:gap-[30px] justify-between">
-        <div className="flex flex-col gap-2 sm:gap-3">
-          <h3 className="project-name text-xl sm:text-2xl leading-6 font-medium font-firamono text-pink">
-            {config.projectFullName || config.projectName || "No project name"}
-          </h3>
-          <p className="text-sm text-secondary">
-            <span className="font-medium">{config.projectName}</span>
-          </p>
-          {!config.description && isMetadataLoading ? (
-            <div
-              aria-hidden="true"
-              className="flex flex-col justify-center gap-2 min-h-[2.5rem] sm:min-h-[3rem]"
-            >
-              <div className={`h-3.5 w-full rounded ${placeholder}`} />
-              <div className={`h-3.5 w-2/3 rounded ${placeholder}`} />
-            </div>
-          ) : (
-            <p className="description text-sm sm:text-base font-victormono text-zinc-800 line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
-              {config.description || "No description"}
-            </p>
-          )}
+      </span>
+      <a
+        href={projectUrl(config.projectName)}
+        className={`flex flex-col gap-1 no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none ${focusRing.replaceAll("focus-visible:", "focus-visible:after:")}`}
+      >
+        <h3 className="project-name text-card font-semibold text-ink">
+          {config.projectFullName || config.projectName}
+        </h3>
+        <p className="font-mono text-small text-ink-muted">
+          {config.projectName}
+        </p>
+      </a>
+      {!config.description && isMetadataLoading ? (
+        <div aria-hidden="true" className="flex flex-col gap-2">
+          <Skeleton className="w-full" />
+          <Skeleton className="w-2/3" />
         </div>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
-          <div className="links flex gap-2 items-center">
-            {config.officials.websiteLink && (
-              <a
-                href={config.officials.websiteLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:opacity-80 transition-opacity"
-              >
-                <img
-                  src="/icons/logos/web.svg"
-                  width={24}
-                  height={24}
-                  alt="Website"
-                  className="icon-website"
-                />
-              </a>
-            )}
-            {config.officials.githubLink && (
-              <a
-                href={config.officials.githubLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:opacity-80 transition-opacity"
-              >
-                <img
-                  src={repositoryIcon.src}
-                  width={24}
-                  height={24}
-                  alt={repositoryIcon.label}
-                  className="icon-repository"
-                />
-              </a>
-            )}
-            {Object.entries(config.socialLinks).map(
-              ([platform, link]) =>
-                link && (
-                  <a
-                    key={platform}
-                    href={link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:opacity-80 transition-opacity"
-                  >
-                    <img
-                      src={`/icons/logos/${platform}.svg`}
-                      width={16}
-                      height={16}
-                      alt={platform}
-                      className={`icon-${platform}`}
-                    />
-                  </a>
-                ),
-            )}
-          </div>
-          {config.organizationName ? (
-            <p className="organization-name text-sm sm:text-base leading-4 font-firamono text-pink font-light">
-              by <span className="font-medium">{config.organizationName}</span>
-            </p>
-          ) : isMetadataLoading ? (
-            <div
-              aria-hidden="true"
-              className={`h-4 w-32 rounded ${placeholder}`}
-            />
-          ) : (
-            <p className="organization-name text-sm sm:text-base leading-4 font-firamono text-pink">
-              No organization name
-            </p>
-          )}
+      ) : (
+        <p className="description line-clamp-2 text-ink-muted">
+          {config.description || "No description yet."}
+        </p>
+      )}
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-4 text-small text-ink-muted">
+        {config.organizationName ? (
+          <p className="organization-name min-w-0 truncate">
+            by {config.organizationName}
+          </p>
+        ) : isMetadataLoading ? (
+          <Skeleton className="w-32" />
+        ) : (
+          <span />
+        )}
+        <div className="links relative z-10 flex shrink-0 items-center gap-1">
+          {links.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={link.label}
+              className={`inline-flex size-8 items-center justify-center rounded-md hover:bg-sunken ${focusRing}`}
+            >
+              <img src={link.src} alt="" className="size-4" />
+            </a>
+          ))}
         </div>
       </div>
-      {showInfo && (
-        <ProjectInfoModal
-          name={config.projectName}
-          onClose={() => setShowInfo(false)}
-        />
-      )}
-    </div>
+    </article>
   );
 };
 

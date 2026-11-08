@@ -42,15 +42,14 @@ test.describe("browsing without a wallet", () => {
     await accept.click();
     await expect(terms).toBeHidden();
 
-    // Search finds the project on chain; its card leads to the project page,
+    // Search finds the project on chain; its card is a link to its page,
     // filled in from its tansu.toml and its Radicle repository.
-    const search = page.getByRole("textbox", {
-      name: "Search projects or community...",
-    });
+    const search = page
+      .getByRole("banner")
+      .getByRole("searchbox", { name: "Search projects or members" });
     await search.fill(project);
     await search.press("Enter");
-    await page.getByRole("button", { name: project, exact: true }).click();
-    await page.getByRole("button", { name: "View Details" }).click();
+    await page.getByRole("link", { name: new RegExp(project) }).click();
     await expect(page).toHaveURL(new RegExp(`/project/?\\?name=${project}`));
     await expect(page.getByText("E2E Labs").first()).toBeVisible();
     // The metrics are read once their section is in view.

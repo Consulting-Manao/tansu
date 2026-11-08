@@ -5,14 +5,13 @@ import { memberQuery } from "../../../service/MemberService";
 import { projectQuery, projectsQuery } from "../../../service/ProjectService";
 import { queryClient } from "../../../service/queryClient";
 import { openModal } from "../../../utils/modals";
-import Button from "components/utils/Button";
+import { Button, EmptyState, Loading, SectionTitle } from "components/ui";
 import {
   ErrorBoundary,
   withErrorBoundary,
 } from "components/utils/ErrorBoundary";
 import OnChainProjectCard from "./OnChainProjectCard";
 import ProjectCard from "./ProjectCard";
-import Loading from "components/utils/Loading";
 
 const scrollToAllProjects = () =>
   document.querySelector(".all-projects-section")?.scrollIntoView({
@@ -62,7 +61,13 @@ const ProjectList = () => {
     const term = searchParams.get("search");
     if (!term) return;
     setSearchTerm(term);
-    if (searchParams.get("member") === "true") setMemberAddress(term);
+    // An account (G…) or a smart account (C…) is a member, also when the
+    // search came from the home page's form, which cannot say so.
+    if (
+      searchParams.get("member") === "true" ||
+      /^[GC][A-Z2-7]{55}$/.test(term)
+    )
+      setMemberAddress(term);
   }, []);
 
   useEffect(() => {
@@ -78,136 +83,106 @@ const ProjectList = () => {
     !searchTerm || (filteredProjects.length > 0 && !isInOnChain);
 
   const paginationControls = (
-    <div className="flex justify-center items-center gap-4 py-4">
-      <button
+    <nav aria-label="Pages" className="flex items-center justify-center gap-3">
+      <Button
+        tone="ghost"
+        aria-label="Previous page"
         onClick={() => showPage(page - 1)}
         disabled={page === 0 || onChain.isFetching}
-        className="disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        <img src="/icons/arrow-left.svg" alt="Previous page" />
-      </button>
-      <span className="text-base text-primary font-medium">{page + 1}</span>
-      <button
+        Previous
+      </Button>
+      <span className="figures-tabular text-ui text-ink-muted">
+        Page {page + 1}
+      </span>
+      <Button
+        tone="ghost"
+        aria-label="Next page"
         onClick={() => showPage(page + 1)}
         disabled={!hasNextPage || onChain.isFetching}
-        className="disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        <img src="/icons/arrow-right.svg" alt="Next page" />
-      </button>
-    </div>
+        Next
+      </Button>
+    </nav>
   );
 
-  return (
-    <div className="project-list-container relative mx-auto w-full max-w-[984px] px-4">
-      {showFeaturedHeading && (
-        <div className="flex flex-col items-center gap-[30px] md:gap-[60px] mb-8">
-          <div className="w-full flex justify-center items-center">
-            <p className="text-[26px] leading-[42px] font-firamono text-pink">
-              Featured Projects
-            </p>
-          </div>
-        </div>
-      )}
+  const grid = "project-list grid items-stretch gap-6 sm:grid-cols-2";
 
-      {isLoading ? (
-        <div className="no-projects h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
+  return (
+    <div className="project-list-container flex w-full flex-col gap-16">
+      <section className="flex flex-col gap-6">
+        {showFeaturedHeading && <SectionTitle>Featured projects</SectionTitle>}
+        {isLoading ? (
           <Loading />
-        </div>
-      ) : memberNotFound ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <img alt="" className="mx-auto mb-8" src="/images/no-result.svg" />
-          <p className="text-xl text-center font-medium text-zinc-700">
-            Member not found. Try searching for something else.
-          </p>
-        </div>
-      ) : memberAddress ? null : filteredProjects.length > 0 ? (
-        <div className="project-list grid gap-6 md:gap-8 grid-cols-1 sm:grid-cols-2 justify-items-center items-stretch">
-          {filteredProjects.map((project) => (
-            <div className="w-full h-full" key={project.projectName}>
-              <ProjectCard config={project} />
-            </div>
-          ))}
-        </div>
-      ) : searched.data ? (
-        <div className="w-full sm:w-1/2 mx-auto pb-[120px]">
-          <OnChainProjectCard
-            key={`${searched.data.name}:${searched.data.config.ipfs}`}
-            project={searched.data}
-          />
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-12">
-          <img alt="" className="mx-auto mb-8" src="/images/no-result.svg" />
-          <p className="text-xl text-center font-medium text-zinc-700">
+        ) : memberNotFound ? (
+          <EmptyState image="/images/no-result.svg" title="Member not found">
+            Try another address or a project name.
+          </EmptyState>
+        ) : memberAddress ? null : filteredProjects.length > 0 ? (
+          <div className={grid}>
+            {filteredProjects.map((project) => (
+              <ProjectCard key={project.projectName} config={project} />
+            ))}
+          </div>
+        ) : searched.data ? (
+          <div className="sm:max-w-[calc(50%-12px)]">
+            <OnChainProjectCard
+              key={`${searched.data.name}:${searched.data.config.ipfs}`}
+              project={searched.data}
+            />
+          </div>
+        ) : (
+          <EmptyState
+            image="/images/no-result.svg"
+            title={searched.isError ? "Could not search" : "Project not found"}
+          >
             {searched.isError
-              ? `Could not search: ${searched.error.message}`
-              : "Project not found. Try searching for something else."}
-          </p>
-        </div>
-      )}
+              ? searched.error.message
+              : "Try another name, or an address for a member."}
+          </EmptyState>
+        )}
+      </section>
 
       {!searchTerm && (
-        <div className="mt-16 all-projects-section">
-          <div className="flex flex-col items-center gap-[30px] md:gap-[60px] mb-8">
-            <div className="w-full flex justify-center items-center">
-              <p className="text-[26px] leading-[42px] font-firamono text-pink">
-                All Projects
-              </p>
-            </div>
-          </div>
-
+        <section className="all-projects-section flex scroll-mt-6 flex-col gap-6">
+          <SectionTitle>All projects</SectionTitle>
           {onChain.isPending ? (
-            <div className="no-projects h-80 flex flex-col gap-6 justify-center items-center text-center py-4">
-              <Loading />
-              <p className="text-base text-secondary">Loading projects ...</p>
-            </div>
+            <Loading label="Loading projects…" />
           ) : onChain.isError ? (
-            <div className="flex flex-col items-center gap-4 py-12">
-              <p className="text-xl text-center font-medium text-zinc-700">
-                Could not load the projects: {onChain.error.message}
-              </p>
-              <Button type="secondary" onClick={() => onChain.refetch()}>
-                Retry
-              </Button>
-            </div>
+            <EmptyState
+              title="Could not load the projects"
+              action={
+                <Button tone="secondary" onClick={() => onChain.refetch()}>
+                  Retry
+                </Button>
+              }
+            >
+              {onChain.error.message}
+            </EmptyState>
           ) : onChainProjects.length > 0 ? (
-            <div className="flex flex-col gap-8">
-              <div className="project-list grid gap-6 md:gap-8 grid-cols-1 sm:grid-cols-2 justify-items-center items-stretch">
+            <>
+              <div className={grid}>
                 {onChainProjects.map((project) => (
-                  <div
-                    className="w-full h-full"
-                    key={`${project.name}:${project.config.ipfs}`}
-                  >
-                    {/* Anyone writes a project's files: one cannot take the
-                        list down. */}
-                    <ErrorBoundary>
-                      <OnChainProjectCard project={project} />
-                    </ErrorBoundary>
-                  </div>
+                  // Anyone writes a project's files: one cannot take the
+                  // list down.
+                  <ErrorBoundary key={`${project.name}:${project.config.ipfs}`}>
+                    <OnChainProjectCard project={project} />
+                  </ErrorBoundary>
                 ))}
               </div>
               {paginationControls}
-            </div>
+            </>
           ) : page > 0 ? (
-            <div className="flex flex-col gap-8">
-              <div className="flex flex-col items-center justify-center py-12">
-                <p className="text-xl text-center font-medium text-zinc-700">
-                  No more projects
-                </p>
-              </div>
+            <>
+              <EmptyState title="No more projects" />
               {paginationControls}
-            </div>
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12">
-              <p className="text-xl text-center font-medium text-zinc-700">
-                No projects found yet.
-              </p>
-              <p className="text-base text-center text-secondary mt-2">
-                Be the first to register a project!
-              </p>
-            </div>
+            <EmptyState title="No projects yet">
+              Be the first to register one.
+            </EmptyState>
           )}
-        </div>
+        </section>
       )}
     </div>
   );

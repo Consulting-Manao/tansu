@@ -85,3 +85,37 @@ test("nothing scrolls sideways on a phone", async ({ page }) => {
   );
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("a dialog keeps focus, closes on Escape and gives it back", async ({
+  page,
+}) => {
+  const opener = page.getByRole("button", { name: "Open a dialog" });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Add a badge" });
+  await expect(dialog).toBeVisible();
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Tab");
+  expect(
+    await dialog.evaluate((element) =>
+      element.contains(document.activeElement),
+    ),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+});
+
+test("a flow ends in a toast", async ({ page }) => {
+  await page.getByRole("button", { name: "Start a flow" }).click();
+  await page
+    .getByRole("dialog", { name: "Vote" })
+    .getByRole("button", { name: "Vote" })
+    .click();
+  await expect(page.getByText("Step 2 of 4")).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByRole("button", { name: "Close dialog" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Vote recorded" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
+});

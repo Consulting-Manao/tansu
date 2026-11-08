@@ -39,7 +39,7 @@ test("register a project, then update its config, badges and sub-projects", asyn
   await connectWallet(page);
 
   // Register a project hosted on Radicle; the first name is already taken.
-  await page.getByRole("button", { name: "+ Add Project" }).click();
+  await page.getByRole("button", { name: "New project" }).first().click();
   const wizard = page.getByRole("dialog");
   const name = page.getByPlaceholder(
     "Write the project name (e.g., myproject)",
@@ -75,7 +75,6 @@ test("register a project, then update its config, badges and sub-projects", asyn
   });
 
   // Update the configuration of the first project, from its files.
-  const ok = page.getByRole("button", { name: "OK" });
   const dialog = page.getByRole("dialog");
   const editFullName = async (fullName: string) => {
     await page.getByRole("button", { name: "Update config" }).click();
@@ -115,7 +114,6 @@ test("register a project, then update its config, badges and sub-projects", asyn
     .not.toBe(theirs);
   expect(await read.minVotingPeriod(taken)).toBe(48 * 3600);
   // The page shows the new configuration at once.
-  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Demo Project", { exact: true })).toBeVisible();
   const toml: any = parse(
     await (
@@ -141,7 +139,6 @@ test("register a project, then update its config, badges and sub-projects", asyn
     })
     .toEqual([grace.publicKey()]);
   expect((await read.badges(taken)).developer).toEqual([grace.publicKey()]);
-  await ok.click();
 
   // The project groups others: one that cannot be read stays, and a name
   // that is no project is refused.

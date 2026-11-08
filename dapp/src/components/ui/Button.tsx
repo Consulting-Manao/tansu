@@ -51,7 +51,7 @@ export const buttonClass = ({ tone = "primary", size = "md", block }: Look) =>
 
 interface ButtonProps extends Look, ButtonHTMLAttributes<HTMLButtonElement> {
   /** At work: a spinner, and no second click. */
-  loading?: boolean;
+  loading?: boolean | undefined;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

@@ -1,6 +1,10 @@
 import type { FC, MouseEventHandler, ReactNode } from "react";
-import type { AnyObject, Size } from "types/types";
-import Spinner from "./Spinner";
+import type { Size } from "types/types";
+import {
+  Button as KitButton,
+  type ButtonSize,
+  type ButtonTone,
+} from "components/ui";
 
 interface Props {
   id?: string;
@@ -17,53 +21,48 @@ interface Props {
   [key: string]: any; // allow data-*, aria-* passthrough
 }
 
-const sizeMap: AnyObject = {
-  "2xs": "p-[7px] gap-1 leading-[10px] text-xs",
-  xs: "p-[10px] gap-1 leading-3 text-sm",
-  sm: "p-[10px_20px] gap-2 leading-4 text-base",
-  md: "p-[12px_24px] gap-3 leading-[18px] text-lg",
-  xl: "p-[18px_30px] gap-4 leading-5 text-xl",
+const tones: Record<NonNullable<Props["type"]>, ButtonTone> = {
+  primary: "primary",
+  secondary: "secondary",
+  tertiary: "secondary",
+  quaternary: "ghost",
 };
 
+const sizes: Record<Size, ButtonSize> = {
+  "2xs": "sm",
+  xs: "sm",
+  sm: "sm",
+  md: "md",
+  lg: "lg",
+  xl: "lg",
+  "2xl": "lg",
+};
+
+/**
+ * The older button API on the kit's Button (components/ui): `type` is the
+ * tone here, and `icon` an image placed before or after the label.
+ */
 const Button: FC<Props> = ({
-  id,
   type = "primary",
   order = "primary",
   size = "md",
-  className,
-  children,
   icon,
   isLoading,
-  onClick,
-  title,
-  disabled,
+  children,
   ...rest
 }) => {
+  const image = icon && <img src={icon} alt="" className="size-5 shrink-0" />;
   return (
-    <button
-      id={id}
-      className={`${className ?? ""} ${type == "primary" ? "bg-primary text-white" : type == "secondary" ? "bg-[#F5F1F9] text-primary" : type == "tertiary" ? "border border-primary text-primary" : "bg-white text-primary"} ${disabled || isLoading ? "cursor-not-allowed opacity-60" : "cursor-pointer"} flex justify-center items-center whitespace-nowrap ${sizeMap[size]} hover:opacity-90 transition-opacity`}
-      onClick={onClick}
-      title={title}
-      // A button at work takes no second click.
-      disabled={disabled || isLoading}
+    <KitButton
+      tone={tones[type]}
+      size={sizes[size]}
+      loading={isLoading}
       {...rest}
     >
-      {isLoading && <Spinner />}
-      {!isLoading && icon && order === "primary" && (
-        <>
-          <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />
-          {children}
-        </>
-      )}
-      {!isLoading && icon && order === "secondary" && (
-        <>
-          {children}
-          <img src={icon} alt="" className="w-6 h-6 min-w-[24px]" />
-        </>
-      )}
-      {!isLoading && !icon && children}
-    </button>
+      {order === "primary" && !isLoading && image}
+      {children}
+      {order === "secondary" && image}
+    </KitButton>
   );
 };
 

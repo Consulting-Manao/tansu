@@ -1,7 +1,8 @@
 import { navigate } from "astro:transitions/client";
 import { useState, useEffect } from "react";
 import { useStore } from "@nanostores/react";
-import Button from "./utils/Button";
+import { Button, IconButton } from "components/ui";
+import { CloseIcon, SearchIcon } from "components/ui/icons";
 
 import { openModal } from "../utils/modals";
 import { connectedPublicKey } from "../utils/store";
@@ -12,7 +13,6 @@ const HOME_PATH = "/";
 
 const NavbarSearch = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [originalUrl, setOriginalUrl] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -82,8 +82,6 @@ const NavbarSearch = () => {
   };
 
   const performClearNavigation = () => {
-    setIsSearchFocused(false);
-
     const searchParams = new URLSearchParams(window.location.search);
     const fromUrl = searchParams.get("from");
     const safeFromUrl = toSafeInternalPath(fromUrl);
@@ -157,163 +155,77 @@ const NavbarSearch = () => {
     ? "Add Project"
     : "Connect wallet to add project";
 
-  return (
-    <div className="flex items-center gap-3 md:gap-6 w-full">
-      {/* MOBILE VERSION */}
-      <div className="md:hidden flex items-center gap-3 w-full">
-        {/* Mobile: Search icon toggle button */}
-        <button
-          onClick={toggleSearchVisibility}
-          className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Toggle search"
-          title="Search"
+  const field = (autoFocus: boolean) => (
+    <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-control border border-line bg-surface px-3 text-ink-muted focus-within:border-focus focus-within:ring-4 focus-within:ring-accent/40 sm:h-10">
+      <SearchIcon />
+      <input
+        type="search"
+        aria-label="Search projects or members"
+        placeholder="Search projects or members"
+        autoFocus={autoFocus}
+        className="min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink-subtle"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSearch();
+        }}
+      />
+      {searchTerm && (
+        <IconButton
+          label="Clear search"
+          onClick={handleClearSearch}
+          className="-mr-2 size-8 sm:size-8"
         >
-          <img
-            src="/icons/search.svg"
-            width={20}
-            height={20}
-            className="icon-search text-gray-400"
-            alt="Search"
-          />
-        </button>
+          <CloseIcon />
+        </IconButton>
+      )}
+    </div>
+  );
 
-        {/* Mobile: Search bar */}
-        {isSearchVisible && (
+  const addProject = (
+    <Button
+      tone="secondary"
+      size="sm"
+      onClick={handleAddProject}
+      title={buttonTitle}
+      className="shrink-0"
+    >
+      New project
+    </Button>
+  );
+
+  return (
+    <div className="flex w-full min-w-0 items-center gap-3">
+      {/* Phones: a search button opens the field over the bar */}
+      <div className="flex w-full min-w-0 items-center gap-2 md:hidden">
+        {isSearchVisible ? (
           <>
-            <div className="search-container relative flex-1">
-              <div
-                className={`flex items-center border ${
-                  isSearchFocused
-                    ? "border-primary ring-2 ring-primary"
-                    : "border-zinc-800"
-                } h-10 bg-white rounded-lg shadow-sm transition-all duration-300 w-full`}
-              >
-                <input
-                  type="text"
-                  placeholder="Search projects or community..."
-                  className="search-input min-w-[70px] w-full h-full font-firacode text-sm leading-6 px-4 border-none outline-none bg-transparent placeholder-gray-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch();
-                    }
-                  }}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => {
-                    if (!searchTerm) {
-                      setIsSearchFocused(false);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Close search */}
-            <button
+            {field(true)}
+            <IconButton
+              label="Close and clear search"
               onClick={() => {
                 setSearchTerm("");
                 toggleSearchVisibility();
               }}
-              className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close and clear search"
-              title="Close and clear search"
             >
-              <img
-                src="/icons/cancel.svg"
-                width={20}
-                height={20}
-                className="icon-cancel"
-                alt="Close and clear"
-              />
-            </button>
+              <CloseIcon />
+            </IconButton>
           </>
-        )}
-
-        {/* Mobile: Add Project button (ONLY if connected: visitors get Join) */}
-        {isClient && isWalletConnected && !isSearchVisible && (
-          <Button
-            type="primary"
-            order="secondary"
-            className="ml-auto h-8 px-3 whitespace-nowrap transition-all duration-200 flex items-center justify-center text-xs font-medium"
-            onClick={handleAddProject}
-            title={buttonTitle}
-            size="sm"
-          >
-            <span className="text-xs font-medium">+ Add Project</span>
-          </Button>
+        ) : (
+          <>
+            <IconButton label="Search" onClick={toggleSearchVisibility}>
+              <SearchIcon />
+            </IconButton>
+            {isClient && isWalletConnected && (
+              <span className="ml-auto">{addProject}</span>
+            )}
+          </>
         )}
       </div>
-
-      {/* DESKTOP VERSION */}
-      <div className="hidden md:flex items-center gap-6 w-full">
-        {/* Desktop: Search bar */}
-        <div className="search-container relative flex-1">
-          <div className="flex items-center border border-zinc-800 h-12 bg-white rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all duration-300 w-full">
-            <div className="flex-shrink-0 pl-4">
-              <img
-                src="/icons/search.svg"
-                width={16}
-                height={16}
-                className="icon-search text-gray-400"
-                alt="Search"
-              />
-            </div>
-            <input
-              type="text"
-              placeholder="Search projects or community..."
-              className="search-input w-full h-full font-firacode text-base leading-6 px-3 border-none outline-none bg-transparent placeholder-gray-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
-                }
-              }}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => {
-                if (!searchTerm) {
-                  setIsSearchFocused(false);
-                }
-              }}
-            />
-            {searchTerm && (
-              <button
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer p-2 hover:bg-gray-100 rounded transition-colors"
-                onClick={handleClearSearch}
-                type="button"
-                title="Clear search"
-                aria-label="Clear search"
-              >
-                <img
-                  src="/icons/cancel.svg"
-                  width={16}
-                  height={16}
-                  className="icon-cancel"
-                  alt="Clear"
-                />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Desktop: Add Project button (only render client-side) */}
-        {isClient && (
-          <>
-            <Button
-              type="primary"
-              order="secondary"
-              className="h-10 lg:h-12 px-4 lg:px-6 whitespace-nowrap transition-all duration-200 flex items-center justify-center text-sm lg:text-base font-medium"
-              onClick={handleAddProject}
-              title={buttonTitle}
-              size="sm"
-            >
-              <span className="text-sm lg:text-base font-medium">
-                + Add Project
-              </span>
-            </Button>
-          </>
-        )}
+      <div className="hidden w-full min-w-0 items-center gap-3 md:flex">
+        <div className="flex max-w-md min-w-0 flex-1">{field(false)}</div>
+        {/* The home page offers it in its hero. */}
+        {isClient && window.location.pathname !== HOME_PATH && addProject}
       </div>
     </div>
   );

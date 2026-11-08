@@ -387,25 +387,5 @@ export const modifyProposalFromContract = (
   } as Proposal;
 };
 
-/**
- * Toast notification system
- *
- * This object provides methods for showing toast notifications.
- * Under the hood, it creates a React root and renders a Modal component.
- */
-export const toast = {
-  success: (title: string, description: string) => {
-    import("./toastHelper")
-      .then(({ renderToastModal }) => {
-        renderToastModal("/images/flower.svg", title, description);
-      })
-      .catch((_err) => {});
-  },
-  error: (title: string, description: string) => {
-    import("./toastHelper")
-      .then(({ renderToastModal }) => {
-        renderToastModal("/images/wrong.svg", title, description);
-      })
-      .catch((_err) => {});
-  },
-};
+/** Feedback after an action: the kit's toasts (components/ui). */
+export { toast } from "components/ui/toast";

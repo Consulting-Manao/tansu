@@ -3,6 +3,7 @@ import Navbar from "../components/layout/Navbar.astro";
 import Footer from "../components/layout/Footer.astro";
 import UpdatePrompt from "../components/layout/UpdatePrompt.astro";
 import ModalHost from "../components/ModalHost";
+import { ToastHost } from "../components/ui/ToastHost";
 import { ClientRouter } from "astro:transitions";
 import { SEO } from "astro-seo";
 
@@ -38,6 +39,15 @@ const { title, page } = Astro.props;
          before any module runs, or the terms gate below would not start. -->
     <script is:inline>
       var global = global || window;
+    </script>
+    <!-- The theme before the first paint: the visitor's choice, kept in
+         this browser (light until then). -->
+    <script is:inline>
+      try {
+        var theme = localStorage.getItem("tansu-theme");
+        if (theme === "dark" || theme === "system")
+          document.documentElement.dataset.theme = theme;
+      } catch (_) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
@@ -126,7 +136,7 @@ const { title, page } = Astro.props;
       }
     </script>
   </head>
-  <body class="font-firacode min-h-screen flex flex-col">
+  <body class="flex min-h-screen flex-col bg-ground font-ui text-body text-ink antialiased">
     <Navbar page={page} />
     <main class="flex-grow flex flex-col">
       <slot />
@@ -134,5 +144,6 @@ const { title, page } = Astro.props;
     <Footer />
     <UpdatePrompt />
     <ModalHost client:only="react" />
+    <ToastHost client:only="react" />
   </body>
 </html>
