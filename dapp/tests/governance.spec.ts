@@ -122,9 +122,13 @@ test("propose, vote, remove a vote, revoke, veto and execute", async ({
     timeout: 120_000,
   });
   // No vote, no tools: it is final.
-  await expect(page.getByText("Vetoed", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Proposal" }).getByText("Vetoed"),
+  ).toBeVisible();
   await expect(page.getByText(/^Vetoed by /)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Vote" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Vote", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Veto proposal" })).toHaveCount(
     0,
   );
