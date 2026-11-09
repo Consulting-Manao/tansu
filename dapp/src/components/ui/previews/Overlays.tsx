@@ -6,6 +6,7 @@ import {
   Input,
   Stepper,
   toast,
+  useFlow,
   type FlowState,
 } from "..";
 import { Row, Section } from "./Section";
@@ -15,6 +16,19 @@ const steps = ["Prepare", "Sign in your wallet", "Send", "Upload to IPFS"];
 export function Overlays() {
   const [dialog, setDialog] = useState(false);
   const [flow, setFlow] = useState<FlowState | null>(null);
+  const upload = useFlow();
+  const failUpload = () =>
+    upload.fail(
+      Object.assign(
+        new Error(
+          "Transaction 3f2a…c91e is on-chain, but its files (CID bafy…q4e) could not be uploaded to IPFS after 5 tries: Filebase HTTP 502. The change is recorded; its files will not load until they are uploaded. Closing this drops them.",
+        ),
+        {
+          retry: () =>
+            new Promise((resolve) => window.setTimeout(resolve, 600)),
+        },
+      ),
+    );
   const run = () => {
     setFlow({ phase: "working", step: 0 });
     steps.forEach((_, step) =>
@@ -30,6 +44,9 @@ export function Overlays() {
         </Button>
         <Button tone="secondary" onClick={() => setFlow({ phase: "form" })}>
           Start a flow
+        </Button>
+        <Button tone="secondary" onClick={failUpload}>
+          Fail an upload
         </Button>
         <Button
           tone="secondary"
@@ -65,6 +82,16 @@ export function Overlays() {
             </div>
           </div>
         </Dialog>
+      )}
+      {upload.state.phase !== "form" && (
+        <FlowDialog
+          state={upload.state}
+          steps={steps}
+          onClose={upload.reset}
+          success={{ title: "Vote recorded" }}
+        >
+          <></>
+        </FlowDialog>
       )}
       {flow && (
         <FlowDialog

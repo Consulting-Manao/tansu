@@ -11,6 +11,8 @@ export interface FlowState {
   /** While working: the step at work in `steps`. */
   step?: number;
   error?: string | null | undefined;
+  /** An error of a write that landed: asks for its upload again. */
+  retry?: (() => void) | undefined;
 }
 
 interface FlowDialogProps {
@@ -56,8 +58,17 @@ export function FlowDialog({
           <Notice tone="danger" live>
             {state.error}
           </Notice>
-          <div className="flex justify-end">
-            <Button onClick={onClose}>Close</Button>
+          <div className="flex justify-end gap-3">
+            {state.retry ? (
+              <>
+                <Button tone="ghost" onClick={onClose}>
+                  Close
+                </Button>
+                <Button onClick={state.retry}>Try the upload again</Button>
+              </>
+            ) : (
+              <Button onClick={onClose}>Close</Button>
+            )}
           </div>
         </div>
       ) : working ? (

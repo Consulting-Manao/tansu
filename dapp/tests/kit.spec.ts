@@ -119,3 +119,17 @@ test("a flow ends in a toast", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toBeHidden();
 });
+
+test("an upload that failed after the transaction landed can be tried again", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Fail an upload" }).click();
+  const dialog = page.getByRole("dialog", { name: "Something went wrong" });
+  await expect(dialog).toContainText("is on-chain, but its files");
+  await dialog.getByRole("button", { name: "Try the upload again" }).click();
+  await expect(page.getByText("Step 4 of 4")).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Vote recorded" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
+});
