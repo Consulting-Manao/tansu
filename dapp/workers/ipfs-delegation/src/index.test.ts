@@ -564,6 +564,28 @@ describe("upload", () => {
     } as any);
   };
 
+  it("asks the RPC again, and says 502 when it never answers", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.mocked(fetch);
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url, init) =>
+      url === ENV.SOROBAN_RPC_URL
+        ? Promise.reject(new DOMException("timed out", "TimeoutError"))
+        : answer(url, init),
+    );
+    const pending = upload({ txHash: "a".repeat(64) });
+    await vi.runAllTimersAsync();
+    const response = await pending;
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("Soroban RPC did not answer"),
+    });
+    const asked = fetchMock.mock.calls.filter(
+      ([url]) => url === ENV.SOROBAN_RPC_URL,
+    );
+    expect(asked).toHaveLength(3);
+  });
+
   it("takes a landed transaction without simulating it", async () => {
     const response = await upload({ txHash: "a".repeat(64) });
     expect(response.status).toBe(200);

@@ -64,6 +64,7 @@ const ALLOWED_ORIGINS = [
   "https://deploy-preview-*--staging-tansu.netlify.app",
 ];
 const FILEBASE_MAX_ATTEMPTS = 3;
+const RPC_MAX_ATTEMPTS = 3;
 const PINATA_MAX_ATTEMPTS = 3;
 const FILEBASE_PIN_LS = "https://rpc.filebase.io/api/v0/pin/ls";
 /** The empty directory: pinned or not, Filebase answers about it. */
@@ -188,21 +189,30 @@ export function validateSignedTransaction(
   return tx.source;
 }
 
+/** The Soroban RPC did not answer: not the caller's fault. */
+class UpstreamError extends Error {}
+
 async function rpc<T>(
   env: Pick<Env, "SOROBAN_RPC_URL">,
   method: string,
   params: Record<string, unknown>,
 ): Promise<T> {
-  const res = await fetch(env.SOROBAN_RPC_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
-    throw new Error(`Soroban RPC HTTP ${res.status}`);
-  }
-  return ((await res.json()) as { result: T }).result;
+  return withExponentialBackoff(async () => {
+    try {
+      const res = await fetch(env.SOROBAN_RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return ((await res.json()) as { result: T }).result;
+    } catch (error: any) {
+      throw new UpstreamError(
+        `Soroban RPC did not answer ${method}: ${error?.message ?? error}`,
+      );
+    }
+  }, RPC_MAX_ATTEMPTS);
 }
 
 /**
@@ -436,7 +446,9 @@ export default {
         source = validateSignedTransaction(body.signedTxXdr!, body.cid, env);
       }
     } catch (error: any) {
-      return refuse(error?.message ?? "Invalid upload request");
+      return error instanceof UpstreamError
+        ? reply(502, { success: false, error: error.message })
+        : refuse(error?.message ?? "Invalid upload request");
     }
 
     const carBlob = buildUploadBlob(body.car);
@@ -461,7 +473,9 @@ export default {
       try {
         await simulateSignedTransaction(body.signedTxXdr, env);
       } catch (error: any) {
-        return refuse(error?.message ?? "Transaction would not succeed");
+        return error instanceof UpstreamError
+          ? reply(502, { success: false, error: error.message })
+          : refuse(error?.message ?? "Transaction would not succeed");
       }
     }
 
