@@ -3,7 +3,7 @@ use crate::errors::ContractErrors;
 use crate::events::{BadgesUpdated, MemberAdded};
 use crate::types::{Badge, ProjectBadges};
 use soroban_sdk::testutils::{Address as _, Events};
-use soroban_sdk::{Address, BytesN, Event, String, vec};
+use soroban_sdk::{Address, Bytes, BytesN, Event, String, vec};
 extern crate alloc;
 use alloc::vec::Vec;
 
@@ -596,6 +596,63 @@ fn badges_are_deduplicated_and_limited_to_real_kinds() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::InvalidBadges.into());
+}
+
+#[test]
+fn member_removes_a_project_from_its_own_record() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+    let member = Address::generate(env);
+    setup
+        .contract
+        .add_member(&member, &String::from_str(env, "meta"), &None, &None, &None);
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &member, &vec![env, Badge::Community]);
+
+    // The member alone signs the removal.
+    let empty = vec![env];
+    setup.contract.set_badges(&member, &id, &member, &empty);
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, member);
+    assert!(setup.contract.get_member(&member).projects.is_empty());
+    assert!(setup.contract.get_badges(&id).community.is_empty());
+    assert_eq!(
+        setup.contract.get_max_weight(&id, &member),
+        Badge::Default as u32
+    );
+
+    // It cannot give itself badges, nor clear another member's.
+    let err = setup
+        .contract
+        .try_set_badges(&member, &id, &member, &vec![env, Badge::Developer])
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+    let other = Address::generate(env);
+    setup
+        .contract
+        .add_member(&other, &String::from_str(env, "meta"), &None, &None, &None);
+    setup
+        .contract
+        .set_badges(&setup.mando, &id, &other, &vec![env, Badge::Triage]);
+    let err = setup
+        .contract
+        .try_set_badges(&member, &id, &other, &empty)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+
+    // The project must exist.
+    let unknown = Bytes::from_array(env, &[7; 32]);
+    let err = setup
+        .contract
+        .try_set_badges(&member, &unknown, &member, &empty)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::InvalidKey.into());
 }
 
 mod failing_nqg {

@@ -79,6 +79,23 @@ stellar contract invoke \
 
 The dApp exposes a convenient **"Add badge"** modal that wraps this call.
 
+### Removing a project from your record
+
+A member's badges for every project live in one record, and any project's maintainers can add to it. So a member can take a project out of its own record, with its own signature and an empty list; it cannot add badges to itself:
+
+```bash
+stellar contract invoke \
+  --source-account <member_G...> \
+  --network testnet \
+  --id <TANSU_CONTRACT_ID> \
+  -- \
+  set_badges \
+  --maintainer <member_G...> \
+  --key <project_key> \
+  --member <member_G...> \
+  --badges '[]'
+```
+
 ## Voting weight modes
 
 Effective vote weight depends on the proposal type and project configuration. The contract's `get_max_weight` helper applies to badge-based and NQG-weighted projects; token-based proposals use a different path at vote time.

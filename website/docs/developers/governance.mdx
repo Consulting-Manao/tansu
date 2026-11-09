@@ -486,8 +486,7 @@ The contract enforces several limits to prevent abuse:
 **Proposal Limits:**
 
 - `MAX_PROPOSALS_PER_PAGE`: **9 proposals** per page
-- `MAX_PAGES`: **1000 pages** maximum
-- Total capacity: **9,000 proposals** per project
+- No limit on the number of proposals of a project: each page is its own entry
 
 **Time Limits:**
 
@@ -548,4 +547,4 @@ DAO state is paginated to keep storage small and predictable:
 - `get_dao(project_key, page)` – returns up to **9** proposals
 - `get_proposal(project_key, proposal_id)` – fetch a single proposal by id
 
-`MAX_PAGES` is 1000, meaning a project can store up to **9,000 proposals** on-chain.
+Proposal `id` is on page `id / 9`; a page past the last proposal is empty.

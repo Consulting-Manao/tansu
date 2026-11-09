@@ -783,6 +783,40 @@ fn proposal_revoke() {
 }
 
 #[test]
+fn proposal_ids_have_no_cap() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    setup.env.ledger().set_timestamp(1234567890);
+
+    // As if 9,000 proposals had been created: the old cap.
+    setup.env.as_contract(&setup.contract_id, || {
+        setup
+            .env
+            .storage()
+            .persistent()
+            .set(&ProjectKey::DaoTotalProposals(id.clone()), &9000u32);
+    });
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Past the old cap"),
+        &String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &(1234567890 + 3600 * 24 * 2),
+        &true,
+        &None,
+        &None,
+    );
+    assert_eq!(proposal_id, 9000);
+    let page = setup.contract.get_dao(&id, &1000);
+    assert_eq!(page.proposals.len(), 1);
+    assert_eq!(page.proposals.get(0).unwrap().id, 9000);
+    assert_eq!(setup.contract.get_dao(&id, &1001).proposals.len(), 0);
+}
+
+#[test]
 fn voter_weight_validation() {
     let setup = create_test_data();
     let id = init_contract(&setup);

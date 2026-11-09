@@ -318,7 +318,7 @@ Limits and delays are constants in `contracts/tansu/src/types.rs`,
 | `TIMELOCK_DELAY`                                                       | Upgrade timelock, and default execution delay of proposals |
 | `MIN_VOTING_PERIOD`, `MAX_VOTING_PERIOD`                               | Bounds of a proposal's voting period                       |
 | `MAX_VOTES_PER_PROPOSAL`, `MAX_DEFAULT_WEIGHT_VOTES`                   | Votes on a proposal, and how many of them weigh 1          |
-| `MAX_PROPOSALS_PER_PAGE`, `MAX_PAGES`                                  | Storage layout of proposals                                |
+| `MAX_PROPOSALS_PER_PAGE`                                               | Storage layout of proposals                                |
 | `MAX_EVIDENCE`                                                         | Evidence entries kept per project, commit and kind         |
 | `MAX_ATTESTATIONS`, `MAX_MAINTAINERS`                                  | Attestations kept per target, maintainers per project      |
 | `DEFAULT_FINALITY_THRESHOLD_PERCENT`, `MIN_FINALITY_THRESHOLD_PERCENT` | Default and lowest attestation threshold                   |

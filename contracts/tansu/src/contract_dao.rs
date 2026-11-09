@@ -12,7 +12,6 @@ use soroban_sdk::{
 const PROPOSAL_COLLATERAL: i128 = 5 * 10_000_000;
 const MAX_TITLE_LENGTH: u32 = 256;
 pub(crate) const MAX_PROPOSALS_PER_PAGE: u32 = 9;
-const MAX_PAGES: u32 = 1000;
 pub(crate) const MIN_VOTING_PERIOD: u64 = 24 * 3600; // 1 day in seconds
 pub(crate) const MAX_VOTING_PERIOD: u64 = 30 * 24 * 3600; // 30 days in seconds
 /// Votes a proposal accepts. The addresses that voted are one persistent
@@ -330,11 +329,6 @@ impl DaoTrait for Tansu {
 
         let next_id = proposal_id + 1;
         let page = proposal_id / MAX_PROPOSALS_PER_PAGE;
-
-        // Prevent exceeding maximum page limit
-        if page >= MAX_PAGES {
-            panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound);
-        }
 
         env.storage().persistent().set(
             &types::ProjectKey::DaoTotalProposals(project_key.clone()),
@@ -1065,7 +1059,8 @@ impl DaoTrait for Tansu {
     /// Returns a page of proposals (0 to MAX_PROPOSALS_PER_PAGE proposals per page).
     ///
     /// Proposal `id` is on page `id / MAX_PROPOSALS_PER_PAGE`. Revoked
-    /// proposals are deleted and left out, so a page can hold fewer.
+    /// proposals are deleted and left out, so a page can hold fewer, and a
+    /// page past the last proposal is empty.
     ///
     /// # Arguments
     /// * `env` - The environment object
@@ -1076,12 +1071,8 @@ impl DaoTrait for Tansu {
     /// * `types::Dao` - The DAO object containing a page of proposals
     ///
     /// # Panics
-    /// * If the page number is out of bounds
+    /// * If the project doesn't exist
     fn get_dao(env: Env, project_key: Bytes, page: u32) -> types::Dao {
-        if page >= MAX_PAGES {
-            panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound);
-        }
-
         if !env
             .storage()
             .persistent()

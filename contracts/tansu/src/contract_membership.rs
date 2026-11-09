@@ -146,10 +146,11 @@ impl MembershipTrait for Tansu {
     /// with the new badge list. Repeated badges count once, and an empty list
     /// removes the project from the member's record. The member's maximum
     /// voting weight is calculated as the sum of all assigned badge weights.
+    /// A member can remove a project from its own record, never add one.
     ///
     /// # Arguments
     /// * `env` - The environment object
-    /// * `maintainer` - The address of the maintainer (must be authorized)
+    /// * `maintainer` - A maintainer of the project, or the member itself with an empty list
     /// * `key` - The project key identifier
     /// * `member` - The address of the member to set badges for
     /// * `badges` - Vector of badges to assign
@@ -168,7 +169,20 @@ impl MembershipTrait for Tansu {
     ) {
         Tansu::require_not_paused(env.clone());
 
-        crate::auth_maintainers(&env, &maintainer, &key);
+        // Any maintainer can add a project to a member's record, so the
+        // member can take one out: its record would otherwise fill up.
+        if maintainer == member && badges.is_empty() {
+            member.require_auth();
+            if !env
+                .storage()
+                .persistent()
+                .has(&types::ProjectKey::Key(key.clone()))
+            {
+                panic_with_error!(&env, &errors::ContractErrors::InvalidKey)
+            }
+        } else {
+            crate::auth_maintainers(&env, &maintainer, &key);
+        }
 
         // Only the four real badges, each at most once: the list is stored in
         // the member's record, shared by every project.
