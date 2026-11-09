@@ -1,0 +1,118 @@
+# Tansu internal audit, November 2026
+
+| | |
+|---|---|
+| Date | 2026-11-09 |
+| Source | git `5c474a7` plus two uncommitted contract fixes made the same day (a member can remove a project from its own record; the 9,000-proposal cap is removed). The dApp ledger-read work that was uncommitted then is in `ec2de64` |
+| Scope | The whole repository: contracts, the IPFS upload worker, the dApp, the events service, the release tools, CI. Deployed or mainnet state, data migrations between releases and the Stellar protocol itself are out of scope |
+| Method | A staged review (one reconnaissance pass, one hunting pass per area, one coverage check, then an independent verifier for each candidate) and a separate vulnerability hunt on the contracts. Tests ran offline in a sandbox, on a frozen copy of the source |
+| Coverage | **Partial.** One hunting pass, so eight areas were not examined (listed at the end), and one lead (N-03) was reviewed but could not be recorded within the review budget |
+
+## Summary
+
+No critical or high finding. Six findings were confirmed and verified by a second reviewer who re-ran the decisive test: **two medium and four low**. Six further leads are unresolved because the deciding fact is not in the source (Cloudflare, Filebase, GitHub and network settings); they carry no severity.
+
+What holds up: every contract entry point authenticates the named address before it reads a role; storage keys are typed; the executor holds no authority and the host forbids re-entry into Tansu; the collateral is refunded once; the anonymous tally is checked against the stored aggregate; the dApp signs only the Tansu call and XLM transfers to Tansu; the workflows that hold secrets pin their actions to commit hashes.
+
+## Findings
+
+| ID | Severity | Area | Finding | Status |
+|---|---|---|---|---|
+| F-01 | Medium | Contract | `approve_upgrade` names no proposal, so an admin's approval can be moved to a replacement upgrade | Accepted by the owner |
+| F-02 | Medium | dApp | User markdown inside `<pre>` keeps forms, meta refresh, base, link and styled overlays | Fixed in `140d9e9` |
+| F-03 | Low | dApp | The execute dialog previews the outcome from ballots that still exist, not from the persistent tally | Open |
+| F-04 | Low | dApp | A proposal id that did not exist yet is cached as missing and hidden from the lists once created | Open |
+| F-05 | Low | dApp | A non-string `description` or `xdr` in `outcomes.json` crashes the proposal page and its controls | Open |
+| F-06 | Low | dApp | `<img>` written as a block crashes the proposal page and its controls | Fixed in `140d9e9` |
+
+### F-01 (Medium, accepted): `approve_upgrade` is not bound to a proposal
+
+`contracts/tansu/src/contract_tansu.rs:209` takes only the signer, so the authorization an admin gives names no WASM hash, admin set or proposal. Any one admin can cancel the pending proposal (`finalize_upgrade` with `accept = false`, line 261) and propose another (line 141); an approval from another admin that lands afterwards counts for the new one. In a 2-of-2 set {A, B}, a test shows B's approval for upgrade X accepted for upgrade Y, which replaces the admin set with {A} at threshold 1; after the 24 h timelock A finalizes alone (line 272).
+
+The chain needs a held or delegated authorization, or a race against B's own transaction, and no admin cancelling during the timelock. An approval that landed on X before the swap is deleted with X, and B can cancel Y alone.
+
+**Decision:** accepted by the owner on 2026-11-09, because the 24 h timelock lets any other admin cancel. The acceptance depends on that timelock being in place; a build with a shorter or zero timelock removes the defence. **If revisited:** `approve_upgrade` takes a digest of `(wasm_hash, executable_at, admins_config)` and rejects it unless it equals the pending proposal's; a prototype passed the 10 existing upgrade tests. It changes the ABI (bindings, Makefile target, `docs/operations.md`).
+
+### F-02 (Medium, fixed): forbidden HTML survives inside `<pre>`
+
+`dapp/src/components/utils/Markdown.tsx` limits raw HTML in user markdown to formatting tags, but `markdown-to-jsx` renders the inner source of a `<pre>` holding tags, and of any container holding a `<pre>`, through `dangerouslySetInnerHTML` without calling the allowlist. A proposer (5 XLM), member or project registrant could therefore put a `<form>`, `<meta http-equiv=refresh>`, `<base>`, `<link>`, `<object>` or a fixed full-screen styled link into the pages where people vote and sign. A 40,000-case fuzz found no script execution, so the effect is phishing, UI overlay, forced navigation and rewritten relative URLs, not code execution.
+
+**Fixed in `140d9e9`:** the compiled tree is walked and any element carrying raw HTML is dropped; `public/_headers` adds `base-uri 'self'; form-action 'self'; object-src 'none'` (Netlify only). The tests fail on the old component. Cost: a literal `<pre>` HTML block that holds tags no longer renders; fenced code is unaffected. Browser effects were checked with an HTML parser, not a browser.
+
+### F-03 (Low, open): the execute preview scores lapsed ballots
+
+Ballots are temporary entries that lapse 14 days after the earliest execution; `execute` rules on the persistent tally. The dApp sums the ballots it can still read (`modifyProposalFromContract`, `winningOutcome`), so after that period `ExecuteProposalModal` can show the call of a different outcome slot than the one `execute` runs: all lapsed shows "cancelled" with 0/0/0, and anyone who extended only some ballots' TTL can make another option look like the winner. The signed transaction and the on-chain ruling are unaffected. Tests show the divergence on both sides.
+**Fix:** read the `ProposalTallies` entry in the ledger read and score public votes from it.
+
+### F-04 (Low, open): a not-yet-created proposal is cached as missing
+
+`queryClient.ts` persists a null proposal for 7 days and `proposalSummaryQuery` gives it an infinite stale time, on the reasoning that ids are not reused. That is true below the project's proposal count, not at or above it. A browser that opens `/proposal/?id=N` before proposal N exists then hides N from the project list, the overview and the "to vote" count, in that session and across reloads, until the proposal's own page is opened. Reproduced with the real modules.
+**Fix:** do not persist null proposals, and give a null summary a short stale time unless the proposal has ended. Gating on the proposal count does not work, because the count refreshes after the null was stored.
+
+### F-05 (Low, open): a malformed `outcomes.json` crashes the proposal page
+
+`normalizeOutcomeData` copies `description` and `xdr` without checking they are strings, and `ProposalDetail` calls `.trim()` on them. A proposer who publishes a hand-written directory with an object or a number there makes the render throw; the single error boundary around the page then replaces the tally, the vote button and the maintainer tools (execute, remove vote, revoke, conflict of interest) for every visitor. Voting stays possible from the Proposals tab, and the chain is unaffected.
+**Fix:** coerce both fields to strings where they enter, as `extractConfigData` does for `tansu.toml`; optionally give each card its own error boundary.
+
+### F-06 (Low, fixed): `<img>` as a block throws on render
+
+`markdown-to-jsx` hands an `<img>` written as `<img>`, blank line, text, blank line, `</img>` some children, and React throws on a void element that has them, which replaced the whole proposal page. **Fixed in `140d9e9`:** the image component ignores its children. A per-card error boundary was not added.
+
+## Unresolved leads
+
+Each lead has a verified source trace. What remains is a fact the repository does not contain; the check is the owner's.
+
+| ID | Lead | The owner checks |
+|---|---|---|
+| N-01 | `dapp/workers/ipfs-delegation`: an upload proof costs the caller nothing. `validateSignedTransaction` accepts an envelope signed by a throwaway key on a nonexistent account, never submitted and replayable, so anyone can spend the Filebase and Pinata credentials (a local run through the worker's own handler, with mocked providers, confirmed it) | Cloudflare rate or WAF rules on the two routes; Filebase and Pinata quotas. **The worker changed after this round's snapshot** (a simulation check and a daily per-account quota), so re-check against it |
+| N-02 | The same worker decodes a request in memory with large amplification: a 1 MB CAR of 5-byte blocks needed about 180 MiB of heap in Node before the root was compared with the CID | Cloudflare isolate memory limit and what a kill takes with it. Re-check against the new worker |
+| N-03 | The worker checks only the CAR header root: blocks are not hashed or required, and `pin_by_cid` fetches whatever the CID names. A verifier agreed with the lead, but its record failed the schema and no review budget was left, so it is **unverified** | How Filebase `dag/import` and Pinata `pin_by_cid` treat missing or non-matching blocks |
+| N-04 | The registry manager's `trigger` reads every ballot through `get_proposal`: in the SDK's model of mainnet limits, a proposal with more than about 380 ballots cannot be run through it, and only an admin revoke closes it (the deposit is forfeited). `get_dao` would avoid it | The live per-transaction ledger-entry limit; which projects a manager is the sole maintainer of |
+| N-05 | `.github/workflows/sbom.yml`, `python-release.yml`, `dapp-ipfs.yml`: the maintainer signing key (`TANSU_SECRET_KEY`), PyPI trusted publishing and the Filebase token sit behind workflows any ref can start; the only gate is GitHub environment protection. Only a repository writer can reach them | Environment branch and tag policy and reviewers; whether the secrets are environment-scoped; who has write access; the PyPI trusted-publisher binding |
+| N-06 | `.github/workflows/sbom-pg-atlas.yml:24` runs `pg-atlas-sbom-action@main` in a job with `id-token: write`, and `.github/zizmor.yml` disables the unpinned-uses check | Which services accept GitHub OIDC tokens for this repository; pin the action to a commit |
+
+## Contracts: second method
+
+A separate vulnerability hunt on the contracts (eight units, 60 ideas, a passing test required for any finding) confirmed one item and rejected 58.
+
+- **H-1, medium by our calibration:** a maintainer of many cheap projects (5 XLM each) can add an entry to any member's single record until it reaches the 64 KiB ledger entry limit, so no further project can badge that member and the member cannot change its profile. Mitigated in `302933a`: a member can remove a project from its own record with an empty `set_badges` list and its own signature. Not closed: re-adding costs the attacker one transaction. Structural fix: one entry per `(project, member)`, or ask for the member's signature when a project is first added.
+- **H-2, low, found by reading:** proposal ids were permanent, so 9,000 proposals (45,000 XLM of deposits) closed a project's governance for good. Fixed in `302933a`: the page cap is removed.
+- **Needs a network fact:** `get_proposal` reads up to 1,000 ballots, which may exceed the read limits for readers on a busy anonymous vote (the same cause as N-04).
+
+Questions an auditor is likely to ask, and the answers the hunt found:
+
+- One admin can pause, unpause, set the executor or cancel an upgrade; upgrade acceptance needs the threshold and the timelock. Documented.
+- One maintainer replaces the maintainer list, sets badges or the NQG contract, attests, executes or removes votes. Documented permissioned-DAO powers.
+- A failing outcome call blocks `execute`; `revoke_proposal` is the exit and forfeits the deposit. Documented.
+- Ballots lapse after the grace period, but `execute` uses the persistent aggregate, `remove_vote` works until `execute`, and anyone can extend a ballot's TTL.
+- Anonymous tallies: the opening is bound to the stored aggregate, seeds reduce modulo the group order harmlessly, and the contract does not enforce one choice per ballot. The maintainer's browser check and `remove_vote` are the control, and both worked in tests.
+- Token-weighted votes read the live balance with no escrow (maintainer-only proposals; a documented limit).
+- Anyone can create a proposal for 5 XLM; project names are case-sensitive; maintainers can be listed without consent. By design.
+- The executor holds nothing, and an outcome cannot re-enter Tansu or spend its collateral (tests).
+- The git binding signs address, key and identity; replay needs the member's own authorization; handles are self-declared and not unique.
+- An NQG contract's failure reads as weight 0; a maintainer can clear or re-pin it.
+
+## Hardening notes
+
+Not findings; each is a code change you can take or leave.
+
+- Upgrade proposals never expire and `finalize_upgrade` names no hash. `set_executor` and the constructor accept an address that is not a contract.
+- An NQG reference with no WASM hash and no contract freezes voting on the project; a pinned NQG whose code changes makes `get_max_weight` trap, which also blocks `vote` and `attest` (`attest` does not use the weight).
+- Replacing the maintainer list has no notice window, so one maintainer can shrink the list, attest once (1 of 1 latches finality), and restore the others.
+- Token-weighted proposals: the 500-slot weight-1 cap does not apply, so one balance moved across addresses can take every slot. Removing the proposer's own abstain ballot lets a maintainer-proposer vote with full weight.
+- Anonymous voting: a bad ballot left past the grace period can no longer be removed and makes the honest opening fail for good (exit: `revoke_proposal`). A one-choice proof at vote time, or a batch `remove_votes`, would remove the class.
+- `OutcomeContract.args`, the conflict-of-interest list and the number of open proposals per project are unbounded.
+- A project run by the registry manager cannot execute a proposal with no outcome, two or three outcomes, or an anonymous tally.
+- dApp: `public/_headers` has no `script-src`, and is Netlify-only, so the IPFS-hosted build carries none of the headers. IPFS reads trust one gateway and do not check the response against the CID; `fetchWithin` has no body size cap.
+- Worker: type-check the request fields, treat Content-Length as advisory, do not swallow the Filebase CID-mismatch error, pin the function names that may carry the CID, and declare `workers_dev = false`.
+- CI: `cost-estimate.yml` does not fail on a failing cost test and holds unused write permissions; `lint.yml` runs ruff without `--all-files`; `events.yml` runs no tests; release workflows cancel in progress; most actions are tag-pinned with the `unpinned-uses` check off; `dapp-ipfs.yml` installs without `--frozen-lockfile` and lacks `PUBLIC_DEFAULT_FEE`; Dependabot misses the worker, `tansu/` and `pre-commit/`; the root `.gitignore` lacks `.stellar/`, `.soroban/` and `*.pem`.
+- Events service: cap `limit`, drop `allow_credentials`, do not default the database credentials, bind the compose Postgres to `127.0.0.1`.
+- `tools/evidence/publish.sh --dry-run` uploads first and prints `--source-account`; signing material travels in argv.
+
+## Not examined
+
+The `.radicle` release scripts (not in the checkout), the registry manager's end-to-end shell scripts, anonymous `remove_vote` arithmetic, the third-party wallet-kit modules, per-visitor read amplification in the governance lists, the proposal wizard on manager-run projects, the Horizon, token-balance and contribution-metric services, and the query-string readers.
+
+## Method and limits
+
+Reviewers worked on a frozen copy of the source and ran tests only inside an offline sandbox (no network; writes only to their own scratch). The worker was exercised by calling its own `fetch` handler in-process with mocked providers, on Node rather than the Workers runtime; no browser was used, so the browser effects of F-02, F-05 and F-06 were checked with an HTML parser or a DOM stand-in. Local results from Node and the Rust test environment are lower bounds for the production runtimes. The tests, logs and run data behind each item are kept with the run, not in this repository.

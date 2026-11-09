@@ -165,6 +165,7 @@ When you touch the dApp:
 
 - **Trunk-based development**: every change goes through a branch + review; squash-merge keeps history linear. `main` must stay green.
 - **All code changes need tests and documentation**; human review is mandatory (see CONTRIBUTING.md for the AI tool-use policy). A dApp UI change also updates its design canvas (see "Design document (dApp)").
+- **Audits** live in `Audits/`. `Audits/README.md` is the current state: what was assessed at which commit, every open item with its status (open, fixed in a commit, accepted), and the index of the rounds. Each round is one dated report in the same folder, `YYYY-MM-DD-<name>.md`. Commit the reports only: tests, logs, run data and evidence stay out of the repository. A report stands alone: it cites source lines, not earlier audits. Change `Audits/README.md` in the same piece of work that fixes or accepts an item or adds a round.
 - **CONTRIBUTING.md** is the canonical reference for deployment/release procedures (Python release via hatch + tag-triggered workflow, dApp via Netlify — staging `testnet.tansu.dev` tracks `main`, production `app.tansu.dev` tracks `app_prod` — contract releases built in a pinned container from a `v*` tag and published on Radicle, followed by the on-chain propose/approve/finalize upgrade flow). `.radicle` is the `radicle-ci-cd` submodule that holds the CI and release scripts.
 
 ## Stack notes
