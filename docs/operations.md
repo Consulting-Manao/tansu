@@ -34,12 +34,12 @@ WASM.
 
 ## Roles
 
-| Role               | Authority                                                                                                                                                                                                                                               | Key custody                             |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Deployer           | Upload and deploy the WASM                                                                                                                                                                                                                              | Dedicated key, used only for deployment |
-| Admin              | `pause`, `set_executor`, the upgrade flow, `revoke_proposal` on any project, also while paused                                                                                                                                                          | Hardware-backed, one key per admin      |
-| Project maintainer | Everything scoped to one project: `commit`, `set_evidence`, `attest`, `set_badges`, `update_config`, `set_attestation_threshold`, `set_nqg_contract`, `anonymous_voting_setup`, `execute`, `remove_vote`, `revoke_proposal`, conflict-of-interest lists | Chosen by each project                  |
-| Proposer, voter    | `create_proposal`, `vote`                                                                                                                                                                                                                               | End users                               |
+| Role               | Authority                                                                                                                                                                                                                                                       | Key custody                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Deployer           | Upload and deploy the WASM                                                                                                                                                                                                                                      | Dedicated key, used only for deployment |
+| Admin              | `pause`, `set_executor`, the upgrade flow, `revoke_proposal` on any project, also while paused                                                                                                                                                                  | Hardware-backed, one key per admin      |
+| Project maintainer | Everything scoped to one project: `commit`, `set_evidence`, `attest`, `set_badges`, `update_config`, `set_attestation_threshold`, `set_nqg_contract`, `anonymous_voting_setup`, `execute`, `remove_vote`, `revoke_proposal`, `veto`, conflict-of-interest lists | Chosen by each project                  |
+| Proposer, voter    | `create_proposal`, `vote`                                                                                                                                                                                                                                       | End users                               |
 
 The following rules apply to admins:
 
@@ -161,6 +161,7 @@ approving, which can make the threshold impossible to reach.
 | `execute`                      | Maintainer                     | After `voting_ends_at` plus the project's execution delay                                                                            |
 | `remove_vote`                  | Maintainer                     | Drops a vote from an active proposal                                                                                                 |
 | `revoke_proposal`              | Maintainer or admin            | Deletes the proposal, leaves its ballots to expire, and keeps the proposer's deposit                                                 |
+| `veto`                         | Maintainer                     | Rejects an active proposal whatever the votes are: it stays as `Vetoed`, runs no outcome, and the deposit is returned                |
 
 The governance settings `min_voting_period` and `execute_delay` change in two ways.
 A change that only lengthens them applies immediately. A change that shortens one of
@@ -344,6 +345,7 @@ The following events raise an alert:
 | `AttestationThresholdSet`                             | Change of a project's finality threshold                                         |
 | `ProposalExecuted` with status `Malicious`            | A proposal was revoked                                                           |
 | `VoteRemoved`                                         | A maintainer removed a vote                                                      |
+| `ProposalVetoed`                                      | A maintainer vetoed a proposal; carries the CID of the reason                    |
 
 The following is also monitored:
 
@@ -413,7 +415,7 @@ the name.
 - Executor. If outcome calls fail because of the executor, deploy a new one and call
   `set_executor`.
 - Outcome contract. If an approved proposal's outcome keeps failing, the proposal
-  cannot be executed. `revoke_proposal` closes it and keeps the proposer's deposit.
+  cannot be executed. `veto` closes it and returns the proposer's deposit; `revoke_proposal` closes it and keeps it.
   When the proposer is not at fault, the decision and any off-chain compensation are
   recorded.
 

@@ -118,10 +118,11 @@ The SCF Public Goods Award uses this to keep Pilots from voting on projects they
 
 ## Moderation
 
-Two maintainer actions handle bad votes and bad proposals:
+Three maintainer actions handle bad votes, bad proposals and proposals the project does not want:
 
 - `remove_vote(maintainer, project_key, proposal_id, voter)` drops a vote and its contribution to the tally, while the proposal is active (including after the voting period ends, before execution). It is also the operational answer to malformed anonymous votes, see [Known limitation](#known-limitation-ballot-well-formedness).
 - `revoke_proposal(maintainer, project_key, proposal_id)` deletes an active proposal as spam or malicious. Its ballots are left to expire, its id stays taken, and `get_proposal` then reports it as not found. The proposer's deposit is forfeited. An admin can also revoke, even while the contract is paused.
+- `veto(maintainer, project_key, proposal_id, reason)` lets any maintainer reject an active proposal whatever the votes are, during the vote and the execution delay. A veto only rejects: the proposal becomes `Vetoed`, runs none of its outcome calls, and can no longer be voted on or executed, and nothing can undo it. Unlike a revocation it is a governance decision, so the proposal stays readable and the proposer's deposit is returned. `reason` is the CID of an explanation (a `reason.md` file, uploaded once the veto landed), checked like a proposal's `ipfs` (32 to 64 characters). Who vetoed, the reason and the time stay on the ledger and are read with `get_veto(project_key, proposal_id)`; the `ProposalVetoed` event carries them too. It needs no tally, so it also ends an anonymous proposal that cannot be tallied. In the dApp, **Veto proposal** sits in the maintainer tools of a proposal page, next to **Revoke proposal**, and a vetoed proposal shows a red **Vetoed** badge, a timeline that ends at the veto, and who vetoed with a link to the reason.
 
 ## Acting on other contracts
 
@@ -132,7 +133,7 @@ An approved proposal can do more than record a decision: its [outcome contract](
 Two cautions apply to every outcome:
 
 - **Voters approve the on-chain outcome, not the description.** The title and IPFS text are free-form and need not match `outcome_contracts`. The dApp shows the on-chain outcome contract (target, function and arguments) on the proposal page; read it before voting.
-- **A failing outcome blocks execution.** If the outcome call fails, `execute` fails as a whole and can be retried, but if the target keeps failing (paused, upgraded, or refusing the call) the proposal stays active and the proposer's deposit stays locked. The only exit today is `revoke_proposal`, which forfeits that deposit.
+- **A failing outcome blocks execution.** If the outcome call fails, `execute` fails as a whole and can be retried, but if the target keeps failing (paused, upgraded, or refusing the call) the proposal stays active and the proposer's deposit stays locked. The exits are `veto`, which returns the deposit and keeps the proposal on record as vetoed, and `revoke_proposal`, which forfeits it.
 
 **The target requires a specific address to authorize the call** (an admin, owner or manager role). Tansu cannot sign on behalf of that address, so the role is given to a small **manager contract** that is also the project's only maintainer:
 
@@ -453,7 +454,7 @@ Tansu separates two problems: keeping junk out, and keeping votes honest. Deposi
 | Action | Deposit | Returned? |
 | --- | --- | --- |
 | Register a project | **5 XLM** (`REGISTER_COLLATERAL`) | No -- it is the price of a unique on-chain name |
-| Create a proposal | **5 XLM** (`PROPOSAL_COLLATERAL`) | Yes, on `execute`, whatever the outcome. Forfeited if the proposal is revoked |
+| Create a proposal | **5 XLM** (`PROPOSAL_COLLATERAL`) | Yes, on `execute` whatever the outcome, and on `veto`. Forfeited if the proposal is revoked |
 | Vote | None | -- |
 
 Deposits are paid in the collateral asset set when the contract is deployed (the native XLM asset contract).
