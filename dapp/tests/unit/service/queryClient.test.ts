@@ -72,6 +72,22 @@ describe("queryClient", () => {
     expect(misses.findIpfsMiss("bafydead", "/tansu.toml")).toBeUndefined();
   });
 
+  it("keeps a missing proposal, not other absent answers", async () => {
+    const first = await load();
+    first.queryClient.setQueryData(["proposal", "ab", 3], null);
+    first.queryClient.setQueryData(["project", "taken"], null);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const second = await load();
+    expect(
+      second.queryClient.getQueryState(["proposal", "ab", 3])?.status,
+    ).toBe("success");
+    expect(second.queryClient.getQueryData(["proposal", "ab", 3])).toBeNull();
+    expect(
+      second.queryClient.getQueryState(["project", "taken"]),
+    ).toBeUndefined();
+  });
+
   it("refetches after a write, even one that failed", async () => {
     const { queryClient, invalidateAfter } = await load();
     await queryClient.query({

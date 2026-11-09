@@ -88,10 +88,11 @@ if (typeof window !== "undefined" && "indexedDB" in window) {
     maxAge: MAX_AGE,
     buster: `${import.meta.env.PUBLIC_TANSU_CONTRACT_ID}:${import.meta.env.PUBLIC_BUILD}`,
     dehydrateOptions: {
-      // Not what was absent: once created elsewhere, it would stay absent here.
+      // Not what was absent: once created elsewhere, it would stay absent
+      // here. A missing proposal stays missing: ids are not reused.
       shouldDehydrateQuery: (query) =>
         query.state.status === "success" &&
-        query.state.data != null &&
+        (query.state.data != null || query.queryKey[0] === "proposal") &&
         PERSISTED.has(String(query.queryKey[0])),
     },
   });

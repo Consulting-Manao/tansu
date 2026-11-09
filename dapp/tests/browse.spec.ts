@@ -87,7 +87,8 @@ test("no page scrolls sideways on a phone", async ({ page }) => {
     "/terms/",
   ]) {
     await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // The page's own; a proposal's Markdown can hold another.
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,

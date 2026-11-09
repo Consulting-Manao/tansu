@@ -9,12 +9,14 @@ vi.mock("../../../src/contracts/soroban_tansu", () => ({
   tansuReads: {},
   rpcServer: {
     // DaoTotalProposals(project_key), read from its ledger entry
-    getLedgerEntries: async () => ({
+    getLedgerEntries: async (key: unknown) => ({
+      latestLedger: 1,
       entries:
         stored.total === undefined
           ? []
           : [
               {
+                key,
                 val: {
                   type: "contractData",
                   contractData: {

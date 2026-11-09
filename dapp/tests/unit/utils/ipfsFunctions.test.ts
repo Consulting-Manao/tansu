@@ -138,6 +138,53 @@ describe("remembered IPFS misses", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("waits once for a file the gateway never answers, for an hour", async () => {
+    // The gateway holds the request until the deadline aborts it.
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) =>
+          init.signal!.addEventListener("abort", () =>
+            reject(init.signal!.reason),
+          ),
+        ),
+    );
+    const ipfs = await load();
+
+    const stall = await errorOf(
+      ipfs.fetchFromIpfs(CID, "/tansu.toml", { timeoutMs: 20 }),
+    );
+    expect(stall).toMatchObject({
+      name: "IpfsMissError",
+      scope: "path",
+      status: 0,
+      fromCache: false,
+    });
+    expect(stall.message).toContain("no answer");
+
+    // Across a reload, the query fails at once: an error, not an absent
+    // file, and nothing is retried.
+    const reloaded = await load();
+    const client = new QueryClient();
+    const query = reloaded.ipfsQuery(CID, "/tansu.toml");
+    expect(await errorOf(client.query(query))).toMatchObject({
+      name: "IpfsMissError",
+      fromCache: true,
+    });
+    expect(client.getQueryData(query.queryKey)).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // An hour later the gateway is asked again.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61 * 60 * 1000);
+    fetchMock.mockResolvedValueOnce(
+      new Response("VERSION = 1", { status: 200 }),
+    );
+    expect(
+      await (await reloaded.fetchFromIpfs(CID, "/tansu.toml")).text(),
+    ).toBe("VERSION = 1");
+    vi.useRealTimers();
+  });
+
   it("forgets a CID's misses once it is uploaded", async () => {
     const upload = {
       cid: CID,

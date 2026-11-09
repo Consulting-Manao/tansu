@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockGetProposal = vi.fn();
 const mockGetMaxWeight = vi.fn();
 const mockGetTokenBalance = vi.fn();
 
 vi.mock("../../../src/contracts/soroban_tansu", () => ({
   tansuReads: {
-    get_proposal: (...args: unknown[]) => mockGetProposal(...args),
     get_max_weight: (...args: unknown[]) => mockGetMaxWeight(...args),
   },
 }));
@@ -27,7 +25,17 @@ vi.mock("../../../src/service/TokenBalanceService", async (importOriginal) => {
   };
 });
 
-import { getVotingPower } from "../../../src/service/ProposalService";
+import {
+  getVotingPower,
+  proposalQuery,
+} from "../../../src/service/ProposalService";
+import { queryClient } from "../../../src/service/queryClient";
+
+/** The proposal as its query has it. */
+const proposal = (id: number, token_contract: unknown) =>
+  queryClient.setQueryData(proposalQuery("myproject", id).queryKey, {
+    vote_data: { token_contract },
+  } as never);
 
 describe("getVotingPower", () => {
   beforeEach(() => {
@@ -37,11 +45,7 @@ describe("getVotingPower", () => {
   it("uses token balance when proposal has token_contract", async () => {
     const tokenAddr =
       "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
-    mockGetProposal.mockResolvedValue({
-      result: {
-        vote_data: { token_contract: { tag: "Some", values: [tokenAddr] } },
-      },
-    });
+    proposal(1, { tag: "Some", values: [tokenAddr] });
     mockGetTokenBalance.mockResolvedValue({
       balanceInTokens: 5000,
       maxVoteWeight: 5000,
@@ -65,9 +69,7 @@ describe("getVotingPower", () => {
   });
 
   it("uses get_max_weight for badge proposals", async () => {
-    mockGetProposal.mockResolvedValue({
-      result: { vote_data: { token_contract: null } },
-    });
+    proposal(2, null);
     mockGetMaxWeight.mockResolvedValue({ result: 11 });
 
     const result = await getVotingPower("myproject", 2);

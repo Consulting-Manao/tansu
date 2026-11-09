@@ -32,24 +32,32 @@ function serviceWorker() {
           `${root}version.json`,
           JSON.stringify({ build: BUILD }),
         );
+        await stampPreloads(root);
         const stamp = await deployStamp(root);
         const { count, size, warnings } = await generateSW({
           globDirectory: root,
           swDest: `${root}sw.js`,
           globPatterns: [
             "**/*.html",
-            // The XDR decoder of the proposal page is WebAssembly.
-            "_astro/*.{js,css,wasm}",
+            "_astro/*.{js,css}",
             "*.{svg,png,jpg,json}",
             "{icons,images}/**",
             // Self-hosted, so the installed app keeps its type offline.
             "fonts/*.woff2",
           ],
           // version.json must come from the network, never from the worker.
-          globIgnores: [
-            "social-card.png",
-            "_astro/forme_bg.*.wasm",
-            "version.json",
+          globIgnores: ["social-card.png", "version.json"],
+          // The XDR decoder of a proposal's raw transaction is 3.5 MB of
+          // WebAssembly that few pages need: kept once used, not installed.
+          runtimeCaching: [
+            {
+              urlPattern: /\/_astro\/[^/]+\.wasm$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "tansu-wasm",
+                expiration: { maxEntries: 4 },
+              },
+            },
           ],
           maximumFileSizeToCacheInBytes: 8 * 2 ** 20,
           // Pages read their query string in the browser, and Netlify adds
@@ -74,6 +82,28 @@ function serviceWorker() {
       },
     },
   };
+}
+
+/**
+ * The adapter stamps a chunk's imports, not the list of files a lazy chunk
+ * preloads (`__vite__mapDeps`, which ignores `build.modulePreload` here).
+ * Unstamped, they are fetched twice, the first time under a plain URL that
+ * can hold another deploy's file.
+ */
+async function stampPreloads(root) {
+  const id = process.env.DEPLOY_ID;
+  if (!id) return;
+  const query = `?dpl=${encodeURIComponent(id)}`;
+  const dir = join(root, "_astro");
+  for (const file of await readdir(dir)) {
+    if (!file.endsWith(".js")) continue;
+    const path = join(dir, file);
+    const source = await readFile(path, "utf8");
+    const stamped = source.replace(/m\.f=\[[^\]]*\]/g, (list) =>
+      list.replace(/"(_astro\/[^"?]+\.js)"/g, `"$1${query}"`),
+    );
+    if (stamped !== source) await writeFile(path, stamped);
+  }
 }
 
 /**

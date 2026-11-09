@@ -6,6 +6,11 @@
 /** How long one network call may take. */
 export const DEADLINE_MS = 15_000;
 
+/** A call that did not answer within its deadline. */
+export class DeadlineError extends Error {
+  override name = "DeadlineError";
+}
+
 // Statuses whose responses have no body.
 const NO_BODY = new Set([101, 204, 205, 304]);
 
@@ -31,7 +36,7 @@ export async function fetchWithin(
     });
   } catch (error) {
     if (signal.aborted) {
-      throw new Error(
+      throw new DeadlineError(
         `${new URL(url).host} did not answer within ${ms / 1000} s`,
         { cause: error },
       );

@@ -4,7 +4,9 @@
  *
  * A CID no node provides any more is remembered as a whole (`root`); a file
  * missing under a live CID only for its own path (`path`). Entries expire a
- * fixed 24 h after they are recorded. They live in localStorage, read and
+ * fixed 24 h after they are recorded; a file no gateway answered for at all
+ * (status 0) is a `path` miss for an hour, so a stalled CID costs one wait,
+ * not one per visit. They live in localStorage, read and
  * written on every call so reloads and other tabs share them, with an
  * in-memory fallback when storage is unavailable.
  *
@@ -123,10 +125,11 @@ export function recordIpfsMiss(
   path: string,
   scope: IpfsMissScope,
   status: number,
+  ttlMs = MISS_TTL_MS,
 ): void {
   update((entries) => {
     entries.set(scope === "root" ? cid : cid + path, {
-      expiresAt: Date.now() + MISS_TTL_MS,
+      expiresAt: Date.now() + ttlMs,
       scope,
       status,
     });
@@ -162,7 +165,7 @@ export class IpfsMissError extends Error {
     fromCache: boolean,
   ) {
     super(
-      `IPFS content unavailable: ${miss.scope === "root" ? cid : cid + path} (HTTP ${miss.status})`,
+      `IPFS content unavailable: ${miss.scope === "root" ? cid : cid + path} (${miss.status ? `HTTP ${miss.status}` : "no answer"})`,
     );
     this.cid = cid;
     this.path = path;

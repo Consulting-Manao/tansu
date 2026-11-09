@@ -176,42 +176,64 @@ export function countVoterProposalStats(
   return { voted, toVote };
 }
 
-function shuffleArray<T>(array: T[], random: () => number): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    const temp = shuffled[i]!;
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = temp;
+const ORDER_SEED_KEY = "tansu_order_seed";
+let memorySeed: string | undefined;
+
+/**
+ * This visitor's seed for the order of proposals to vote on: made once and
+ * kept, so their order never changes as they vote or come back.
+ */
+export function visitorSeed(): string {
+  try {
+    const stored = localStorage.getItem(ORDER_SEED_KEY);
+    if (stored) return stored;
+    const seed = crypto.randomUUID();
+    localStorage.setItem(ORDER_SEED_KEY, seed);
+    return seed;
+  } catch {
+    return (memorySeed ??= crypto.randomUUID());
   }
-  return shuffled;
 }
 
 /**
- * Connected: active unvoted first (shuffled), then the rest newest-first.
- * Logged out: newest-first only.
+ * A proposal's place in a seed's order (FNV-1a, then murmur3's finalizer):
+ * its own, so the others keep theirs as proposals come and go.
+ */
+function rank(seed: string, project: string, id: number): number {
+  let hash = 0x811c9dc5;
+  for (const char of `${seed}:${project}:${id}`) {
+    hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193);
+  }
+  hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+  return (hash ^ (hash >>> 16)) >>> 0;
+}
+
+/**
+ * Connected: the active proposals they have not voted on, in the order of
+ * their seed; then the ended ones they did not vote on, and last the ones
+ * they voted on, both newest first. Logged out: newest first.
  */
 export function orderProposalsForVoter(
   proposals: ProposalView[],
   connectedAddress: string | undefined,
-  random: () => number = Math.random,
+  seed: string = visitorSeed(),
 ): ProposalView[] {
-  if (!connectedAddress) {
-    return [...proposals].sort((a, b) => b.id - a.id);
-  }
+  const newestFirst = (a: ProposalView, b: ProposalView) => b.id - a.id;
+  if (!connectedAddress) return [...proposals].sort(newestFirst);
 
-  const activeUnvoted = proposals.filter(
-    (p) =>
-      p.status === "active" && !hasUserVoted(p.voteStatus, connectedAddress),
-  );
-  const rest = proposals
-    .filter(
-      (p) =>
-        p.status !== "active" || hasUserVoted(p.voteStatus, connectedAddress),
-    )
-    .sort((a, b) => b.id - a.id);
-
-  return [...shuffleArray(activeUnvoted, random), ...rest];
+  const voted = (p: ProposalView) =>
+    hasUserVoted(p.voteStatus, connectedAddress);
+  const toVote = proposals
+    .filter((p) => p.status === "active" && !voted(p))
+    .map((p) => ({ p, rank: rank(seed, p.projectName, p.id) }))
+    .sort((a, b) => a.rank - b.rank || b.p.id - a.p.id)
+    .map(({ p }) => p);
+  const ended = proposals
+    .filter((p) => p.status !== "active" && !voted(p))
+    .sort(newestFirst);
+  const done = proposals.filter(voted).sort(newestFirst);
+  return [...toVote, ...ended, ...done];
 }
 
 export const modifyProposalToView = (

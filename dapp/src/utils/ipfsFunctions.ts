@@ -7,7 +7,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { parse } from "smol-toml";
 
 import { isValidCid } from "./contentHashes";
-import { fetchWithin } from "./deadline";
+import { DeadlineError, fetchWithin } from "./deadline";
 import {
   classifyIpfsFailure,
   clearIpfsMisses,
@@ -30,6 +30,8 @@ const GATEWAYS: ReadonlyArray<{
 // A file just uploaded can take the gateway several seconds to serve.
 const DEFAULT_IPFS_TIMEOUT_MS = 10000;
 const PER_ATTEMPT_MS = 10000;
+// A file no gateway answered for is not asked for again for this long.
+const STALL_MS = 60 * 60 * 1000;
 
 type FetchFromIpfsOptions = {
   timeoutMs?: number;
@@ -41,7 +43,8 @@ function normalizePath(path: string): string {
 
 /**
  * Core IPFS fetch: CID + path, tried on each gateway in order. Read through
- * `ipfsQuery`, which keeps the answers; this only remembers final misses.
+ * `ipfsQuery`, which keeps the answers; this only remembers final misses,
+ * and for an hour a file no gateway answered for within the deadline.
  */
 export async function fetchFromIpfs(
   cid: string,
@@ -61,6 +64,7 @@ export async function fetchFromIpfs(
   let lastError: unknown;
   // Final answers per gateway: a miss is only remembered when all agree.
   const misses: { scope: IpfsMissScope; status: number }[] = [];
+  let stalls = 0;
 
   for (let i = 0; i < GATEWAYS.length; i++) {
     const gateway = GATEWAYS[i]!;
@@ -81,9 +85,15 @@ export async function fetchFromIpfs(
       return res;
     } catch (err) {
       lastError = err;
+      if (err instanceof DeadlineError) stalls++;
     }
   }
 
+  if (stalls && stalls + misses.length === GATEWAYS.length) {
+    const stall = { scope: "path" as const, status: 0 };
+    recordIpfsMiss(cid, pathNorm, stall.scope, stall.status, STALL_MS);
+    throw new IpfsMissError(cid, pathNorm, stall, false);
+  }
   if (misses.length === GATEWAYS.length) {
     const final = misses.find((m) => m.scope === "root") ?? misses[0]!;
     recordIpfsMiss(cid, pathNorm, final.scope, final.status);
@@ -95,9 +105,9 @@ export async function fetchFromIpfs(
 /**
  * A file under a CID, as text. Content under a CID never changes, so it is
  * never refetched, and `null` (the gateway says the file is not there) is
- * final too. A dead CID or a temporary failure throws: the first is not
- * cached, since a re-upload revives the CID, and the miss cache already spares
- * the requests; a gateway's final answer is not retried either.
+ * final too. A dead CID, a stall or a temporary failure throws: the first two
+ * are not cached, since a re-upload revives the CID, and the miss cache
+ * already spares their requests; they are not retried either.
  */
 export const ipfsQuery = (cid: string, path: string) =>
   queryOptions({
@@ -106,7 +116,12 @@ export const ipfsQuery = (cid: string, path: string) =>
       try {
         return await (await fetchFromIpfs(cid, path)).text();
       } catch (error) {
-        if (error instanceof IpfsMissError && error.scope === "path") {
+        // The gateway said the file is not there; a stall stays an error.
+        if (
+          error instanceof IpfsMissError &&
+          error.scope === "path" &&
+          error.status !== 0
+        ) {
           return null;
         }
         throw error;

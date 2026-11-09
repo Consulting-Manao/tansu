@@ -38,26 +38,156 @@ import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
 
+/** A key of the contract's storage: its `ProjectKey` variant, then fields. */
+const storageKey = (variant: string, ...fields: xdr.ScVal[]) =>
+  xdr.ScVal.scvVec([xdr.ScVal.scvSymbol(variant), ...fields]);
+
+const ledgerKey = (key: xdr.ScVal, temporary = false) =>
+  xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(
+        import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
+      ).toScAddress(),
+      key,
+      durability: temporary
+        ? xdr.ContractDataDurability.temporary
+        : xdr.ContractDataDurability.persistent,
+    }),
+  );
+
+/** The RPC reads at most this many ledger entries per call. */
+const KEYS_PER_READ = 200;
+
+/**
+ * The values the contract keeps under `keys`, in order, read from their
+ * ledger entries in as few calls as the RPC allows. `undefined` where the
+ * entry does not exist, or is temporary and past its TTL: the contract no
+ * longer sees it either.
+ */
+async function contractEntries(
+  keys: xdr.LedgerKey[],
+  temporary = false,
+): Promise<(xdr.ScVal | undefined)[]> {
+  const found = new Map<string, xdr.ScVal>();
+  const reads: xdr.LedgerKey[][] = [];
+  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
+    reads.push(keys.slice(i, i + KEYS_PER_READ));
+  }
+  await Promise.all(
+    reads.map(async (read) => {
+      const { entries, latestLedger } = await rpcServer.getLedgerEntries(
+        ...read,
+      );
+      for (const { key, val, liveUntilLedgerSeq } of entries) {
+        const expired =
+          temporary &&
+          liveUntilLedgerSeq !== undefined &&
+          liveUntilLedgerSeq < latestLedger;
+        if (val.type === "contractData" && !expired) {
+          found.set(key.toXdr("base64"), val.contractData.val);
+        }
+      }
+    }),
+  );
+  return keys.map((key) => found.get(key.toXdr("base64")));
+}
+
 /**
  * A value the contract keeps under `key` in its persistent storage, read from
  * its ledger entry: the contract has no getter for it. `undefined` when the
  * entry does not exist.
  */
 async function contractStorage(key: xdr.ScVal): Promise<unknown> {
-  const ledgerKey = xdr.LedgerKey.contractData(
-    new xdr.LedgerKeyContractData({
-      contract: new Address(
-        import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
-      ).toScAddress(),
-      key,
-      durability: xdr.ContractDataDurability.persistent,
-    }),
+  const [value] = await contractEntries([ledgerKey(key)]);
+  return value && scValToNative(value);
+}
+
+const udt = (name: string) =>
+  xdr.ScSpecTypeDef.scSpecTypeUdt(new xdr.ScSpecTypeUdt({ name }));
+
+/**
+ * Proposals of a project as `get_proposal` returns them, in two ledger reads
+ * instead of one simulation each: every proposal with its voters, then the
+ * ballots that still live. `null` where the project has no such proposal.
+ */
+async function readProposals(
+  name: string,
+  ids: number[],
+): Promise<(ContractProposal | null)[]> {
+  const project = xdr.ScVal.scvBytes(deriveProjectKey(name));
+  const first = await contractEntries(
+    ids.flatMap((id) => [
+      ledgerKey(storageKey("Proposal", project, xdr.ScVal.scvU32(id))),
+      ledgerKey(storageKey("Voters", project, xdr.ScVal.scvU32(id))),
+    ]),
   );
-  const { entries } = await rpcServer.getLedgerEntries(ledgerKey);
-  const data = entries[0]?.val;
-  return data?.type === "contractData"
-    ? scValToNative(data.contractData.val)
-    : undefined;
+  const proposals = ids.map((_, i) => {
+    const value = first[2 * i];
+    return value
+      ? (tansuReads.spec.scValToNative(
+          value,
+          udt("Proposal"),
+        ) as ContractProposal)
+      : null;
+  });
+  const voters = ids.map((_, i) => {
+    const value = first[2 * i + 1];
+    return proposals[i] && value ? (scValToNative(value) as string[]) : [];
+  });
+  const ballotKeys = ids.flatMap((id, i) =>
+    voters[i]!.map((voter) =>
+      ledgerKey(
+        storageKey(
+          "Vote",
+          project,
+          xdr.ScVal.scvU32(id),
+          new Address(voter).toScVal(),
+        ),
+        true,
+      ),
+    ),
+  );
+  const ballots = ballotKeys.length
+    ? await contractEntries(ballotKeys, true)
+    : [];
+  let next = 0;
+  return proposals.map((proposal, i) => {
+    const values = ballots.slice(next, (next += voters[i]!.length));
+    if (!proposal) return null;
+    const votes = values.flatMap((value) =>
+      value ? [tansuReads.spec.scValToNative(value, udt("Vote")) as Vote] : [],
+    );
+    return { ...proposal, vote_data: { ...proposal.vote_data, votes } };
+  });
+}
+
+/** Proposals asked for in the same tick, per project, read together. */
+const proposalBatches = new Map<
+  string,
+  { ids: Set<number>; read: Promise<Map<number, ContractProposal | null>> }
+>();
+
+function loadProposal(
+  name: string,
+  id: number,
+): Promise<ContractProposal | null> {
+  const project = projectKeyHex(name);
+  let batch = proposalBatches.get(project);
+  if (!batch) {
+    const ids = new Set<number>();
+    const read = new Promise((resolve) => setTimeout(resolve, 0)).then(
+      async () => {
+        proposalBatches.delete(project);
+        const list = [...ids];
+        const found = await readProposals(name, list);
+        return new Map(list.map((id, i) => [id, found[i] ?? null]));
+      },
+    );
+    batch = { ids, read };
+    proposalBatches.set(project, batch);
+  }
+  batch.ids.add(id);
+  return batch.read.then((found) => found.get(id) ?? null);
 }
 
 /**
@@ -187,18 +317,14 @@ export const governanceQuery = (name: string) =>
     staleTime: 10 * MINUTE,
   });
 
-/** A proposal with its votes; `null` when the project has no such id. */
+/**
+ * A proposal with its votes; `null` when the project has no such id. The
+ * proposals a page asks for at once are read together (`readProposals`).
+ */
 export const proposalQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["proposal", projectKeyHex(name), id],
-    queryFn: async () =>
-      readResult(
-        await tansuReads.get_proposal({
-          project_key: deriveProjectKey(name),
-          proposal_id: id,
-        }),
-        301,
-      ),
+    queryFn: () => loadProposal(name, id),
     staleTime: MINUTE,
   });
 
@@ -572,6 +698,7 @@ export async function vote(
   const { hash } = await sendTransaction(tx, {
     invalidate: [proposalKey(projectName, proposalId)],
   });
+  await refetchUntilVoted(projectName, proposalId, voter);
   return {
     projectName,
     proposalId,
@@ -604,6 +731,28 @@ export async function executeProposal(
   await sendTransaction(tx, {
     invalidate: [proposalKey(projectName, proposalId)],
   });
+}
+
+/**
+ * Refetches a proposal until it shows `voter`'s ballot, for at most ten
+ * seconds: the RPC node that answers can be a ledger behind the one that
+ * confirmed the vote, and a stale answer would leave the proposal among the
+ * ones still to vote on.
+ */
+async function refetchUntilVoted(name: string, id: number, voter: string) {
+  const query = proposalQuery(name, id);
+  const shows = (proposal: ContractProposal | null | undefined) =>
+    !!proposal?.vote_data.votes.some(
+      (vote) => vote.values[0].address === voter,
+    );
+  for (
+    let attempt = 0;
+    attempt < 5 && !shows(queryClient.getQueryData(query.queryKey));
+    attempt++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await queryClient.fetchQuery({ ...query, staleTime: 0 }).catch(() => {});
+  }
 }
 
 /** Revoke a proposal as malicious. */

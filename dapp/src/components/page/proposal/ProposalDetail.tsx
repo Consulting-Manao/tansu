@@ -16,7 +16,6 @@ import type {
   VoteStatus,
 } from "types/proposal";
 import { parseToLosslessJson } from "utils/passToLosslessJson";
-import * as StellarXdr from "utils/stellarXdr";
 import { getIpfsBasicLink } from "utils/ipfsFunctions";
 import { getStellarExpertUrl } from "utils/urls";
 import { winningOutcome } from "utils/proposalOutcomes";
@@ -53,8 +52,6 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
   voteStatus,
   status,
 }) => {
-  const [isReady, setIsReady] = useState(false);
-
   const executedType = useMemo(() => {
     if (
       status === "approved" ||
@@ -67,14 +64,6 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
     return voteStatus ? winningOutcome(voteStatus) : null;
   }, [voteStatus, status]);
 
-  useEffect(() => {
-    const init = async () => {
-      await StellarXdr.initialize();
-      setIsReady(true);
-    };
-
-    init();
-  }, []);
   const canHighlightOutcome =
     status === "approved" || status === "rejected" || status === "cancelled";
 
@@ -129,7 +118,6 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
                   key={type}
                   type={type}
                   detail={detail}
-                  isXdrInit={isReady}
                   isExecuted={canHighlightOutcome && executedType === type}
                 />
               ) : null;
@@ -146,9 +134,8 @@ export default ProposalDetail;
 const OutcomeDetail: React.FC<{
   type: string;
   detail: { description: string; xdr?: string; contract?: OutcomeContract };
-  isXdrInit: boolean;
   isExecuted?: boolean;
-}> = ({ type, detail, isXdrInit, isExecuted }) => {
+}> = ({ type, detail, isExecuted }) => {
   const [content, setContent] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
   const [paramNames, setParamNames] = useState<string[] | null>(null);
@@ -181,26 +168,22 @@ const OutcomeDetail: React.FC<{
     return `Arg ${index + 1}`;
   };
 
-  const getContentFromXdr = async (_xdr: string) => {
-    try {
-      if (!isXdrInit) {
-        return;
-      }
-
-      if (_xdr) {
-        const decoded = StellarXdr.decode("TransactionEnvelope", _xdr);
-        setContent(parseToLosslessJson(decoded));
-      }
-    } catch (error) {
-      console.error("Error decoding XDR:", error);
-    }
-  };
-
+  // The decoder is 3.5 MB of WebAssembly: loaded only for an XDR outcome.
   useEffect(() => {
-    if (detail.xdr) {
-      getContentFromXdr(detail.xdr);
-    }
-  }, [detail, isXdrInit]);
+    const xdr = detail.xdr;
+    if (!xdr) return;
+    let live = true;
+    import("utils/stellarXdr")
+      .then(async (StellarXdr) => {
+        await StellarXdr.initialize();
+        const decoded = StellarXdr.decode("TransactionEnvelope", xdr);
+        if (live) setContent(parseToLosslessJson(decoded));
+      })
+      .catch((error) => console.error("Error decoding XDR:", error));
+    return () => {
+      live = false;
+    };
+  }, [detail.xdr]);
 
   useEffect(() => {
     const loadParamNames = async () => {

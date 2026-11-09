@@ -6,7 +6,8 @@ test("the app opens offline once installed", async ({ page, context }) => {
   await page.goto("/");
   // The first visit installs the worker, which serves the next navigations.
   await page.evaluate(() => navigator.serviceWorker.ready);
-  // It holds the app, the proposal page's XDR decoder (WebAssembly) too.
+  // It holds the app, but not the XDR decoder of a proposal's raw
+  // transaction: 3.5 MB of WebAssembly, kept once a page uses it.
   const cached = await page.evaluate(async () => {
     const urls: string[] = [];
     for (const name of await caches.keys()) {
@@ -15,7 +16,7 @@ test("the app opens offline once installed", async ({ page, context }) => {
     }
     return urls;
   });
-  expect(cached.some((url) => /\.wasm($|\?)/.test(url))).toBe(true);
+  expect(cached.some((url) => /\.wasm($|\?)/.test(url))).toBe(false);
   // And its fonts, so the installed app keeps its type offline (the worker
   // keys files without a hash in their name with a revision query).
   const fonts = cached.filter((url) => /\/fonts\/.+\.woff2($|\?)/.test(url));
