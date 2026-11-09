@@ -12,7 +12,7 @@ custom_domain = true
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 # Uploads must record their CID with this contract (deployments/tansu-testnet).
 TANSU_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
-# Checks txHash proofs from smart-account wallets (Nido, testnet only).
+# Simulates the envelopes to upload for and checks txHash proofs.
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 
 [env.production]
@@ -24,6 +24,8 @@ custom_domain = true
 NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
 # Uploads must record their CID with this contract (deployments/tansu-mainnet).
 TANSU_CONTRACT_ID = "CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI"
+# Simulates the envelopes to upload for and checks txHash proofs.
+SOROBAN_RPC_URL = "https://rpc.lightsail.network/"
 
 [observability]
 enabled = true

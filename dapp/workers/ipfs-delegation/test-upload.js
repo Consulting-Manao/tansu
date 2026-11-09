@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import "dotenv/config";
 import {
-  Account,
   Keypair,
   Networks,
   Operation,
   TransactionBuilder,
   nativeToScVal,
+  rpc,
+  xdr,
 } from "@stellar/stellar-sdk";
 import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
 
@@ -80,12 +81,21 @@ const TANSU_CONTRACT_ID =
   process.env.TANSU_CONTRACT_ID ||
   "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA";
 
-/** A signed Tansu call recording `cid`, as the dapp sends; never submitted. */
-function buildSignedTestTransaction(signer, cid) {
-  const account = new Account(signer.publicKey(), "0");
+const RPC_URL =
+  process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
+
+/**
+ * A signed Tansu call recording `cid`, as the dapp sends it: simulated, its
+ * authorizations attached, signed; never submitted. The worker simulates it
+ * again, so the signer must exist on the network.
+ */
+async function buildSignedTestTransaction(signer, cid) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(signer.publicKey());
   const transaction = new TransactionBuilder(account, {
     fee: "100",
-    networkPassphrase: process.env.NETWORK_PASSPHRASE || Networks.TESTNET,
+    networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(
       Operation.invokeContractFunction({
@@ -94,14 +104,23 @@ function buildSignedTestTransaction(signer, cid) {
         args: [
           nativeToScVal(signer.publicKey(), { type: "address" }),
           nativeToScVal(cid, { type: "string" }),
+          xdr.ScVal.scvVoid(),
+          xdr.ScVal.scvVoid(),
+          xdr.ScVal.scvVoid(),
         ],
       }),
     )
     .setTimeout(60)
     .build();
 
-  transaction.sign(signer);
-  return transaction.toXDR();
+  const assembled = rpc
+    .assembleTransaction(
+      transaction,
+      await server.simulateTransaction(transaction),
+    )
+    .build();
+  assembled.sign(signer);
+  return assembled.toXDR();
 }
 
 async function test() {
@@ -114,10 +133,14 @@ async function test() {
   );
   const { cid, car } = await packFilesToCar([testFile]);
 
+  // Without a funded account of yours, friendbot funds a new one (testnet).
   const signer = process.env.TEST_SIGNER_SECRET
     ? Keypair.fromSecret(process.env.TEST_SIGNER_SECRET)
     : Keypair.random();
-  const signedTxXdr = buildSignedTestTransaction(signer, cid);
+  if (!process.env.TEST_SIGNER_SECRET) {
+    await fetch(`https://friendbot.stellar.org/?addr=${signer.publicKey()}`);
+  }
+  const signedTxXdr = await buildSignedTestTransaction(signer, cid);
 
   try {
     const res = await fetch(WORKER_URL, {

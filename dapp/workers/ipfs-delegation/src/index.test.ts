@@ -10,6 +10,8 @@ import {
   nativeToScVal,
 } from "@stellar/stellar-sdk";
 import worker, {
+  type Env,
+  simulateSignedTransaction,
   validateSignedTransaction,
   validateSubmittedTransaction,
   validateUploadRequest,
@@ -31,13 +33,14 @@ function invokeTx({
   contract = TANSU,
   network = Networks.TESTNET,
   timeout = 300,
+  source = Keypair.random(),
 }: {
   cid?: string;
   contract?: string;
   network?: string;
   timeout?: number;
+  source?: Keypair;
 } = {}) {
-  const source = Keypair.random();
   const tx = new TransactionBuilder(new Account(source.publicKey(), "1"), {
     fee: "100",
     networkPassphrase: network,
@@ -235,15 +238,6 @@ describe("validateSubmittedTransaction", () => {
     },
   );
 
-  it("rejects when no RPC is configured", async () => {
-    await expect(
-      validateSubmittedTransaction(HASH, CID, {
-        ...ENV,
-        SOROBAN_RPC_URL: undefined,
-      }),
-    ).rejects.toThrow("not configured");
-  });
-
   it("rejects a malformed hash", async () => {
     await expect(
       validateSubmittedTransaction("not-a-hash", CID, ENV),
@@ -258,7 +252,7 @@ describe("CORS", () => {
         method: "OPTIONS",
         headers: { Origin: origin },
       }),
-      { ...ENV, FILEBASE_TOKEN: "" },
+      { ...ENV, FILEBASE_TOKEN: "" } as unknown as Env,
       { waitUntil: () => {} },
     );
 
@@ -280,5 +274,141 @@ describe("CORS", () => {
       const response = await preflight(origin);
       expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
     }
+  });
+});
+
+describe("simulateSignedTransaction", () => {
+  const xdr = () => invokeTx().toXDR();
+
+  function mockSimulation(result: Record<string, unknown>) {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("accepts a call the ledger would run, in enforce mode", async () => {
+    const fetchMock = mockSimulation({ results: [{ auth: [] }] });
+    const signed = xdr();
+    await expect(
+      simulateSignedTransaction(signed, ENV),
+    ).resolves.toBeUndefined();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      method: "simulateTransaction",
+      params: { transaction: signed, authMode: "enforce" },
+    });
+  });
+
+  it("rejects a call the ledger would refuse", async () => {
+    mockSimulation({ error: "HostError: Error(Auth, InvalidAction)" });
+    await expect(simulateSignedTransaction(xdr(), ENV)).rejects.toThrow(
+      "would not succeed on-chain: HostError",
+    );
+  });
+});
+
+describe("upload", () => {
+  const SOURCE = Keypair.random();
+  const CAR = "Y3ViZQo=";
+
+  let calls: string[];
+  let simulation: Record<string, unknown>;
+  let filebaseStatus: number;
+
+  let env: Env;
+
+  const upload = (body: Record<string, unknown>) =>
+    worker.fetch(
+      new Request("https://ipfs.example", {
+        method: "POST",
+        body: JSON.stringify({ cid: CID, car: CAR, ...body }),
+      }),
+      env,
+      { waitUntil: () => {} },
+    );
+  const signed = (source = SOURCE) => ({
+    signedTxXdr: invokeTx({ source }).toXDR(),
+  });
+
+  beforeEach(() => {
+    calls = [];
+    simulation = { results: [{ auth: [] }] };
+    filebaseStatus = 200;
+    env = {
+      ...ENV,
+      FILEBASE_TOKEN: "token",
+    } as unknown as Env;
+    vi.spyOn(CarReader, "fromBytes").mockResolvedValue({
+      getRoots: async () => [{ toString: () => CID }],
+    } as any);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (url === ENV.SOROBAN_RPC_URL) {
+          const { method } = JSON.parse(init.body as string);
+          calls.push(method);
+          return new Response(
+            JSON.stringify({
+              result:
+                method === "simulateTransaction"
+                  ? simulation
+                  : { status: "SUCCESS", envelopeXdr: invokeTx().toXDR() },
+            }),
+          );
+        }
+        calls.push("filebase");
+        const sent = (init.body as FormData).get("file") as File;
+        return new Response(sent.name, { status: filebaseStatus });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("pins a call the ledger would run", async () => {
+    const response = await upload(signed());
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(["simulateTransaction", "filebase"]);
+  });
+
+  it("pins nothing when the ledger would refuse the call", async () => {
+    simulation = { error: "HostError: Error(Auth, InvalidAction)" };
+    const response = await upload(signed());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("would not succeed on-chain"),
+    });
+    expect(calls).toEqual(["simulateTransaction"]);
+  });
+
+  it("does not ask the ledger about junk", async () => {
+    await upload({ ...signed(), cid: "bafyreiother" });
+    await upload({ ...signed(), car: "" });
+    expect(calls).toEqual([]);
+  });
+
+  it("answers 502 when Filebase fails", async () => {
+    vi.useFakeTimers();
+    filebaseStatus = 500;
+    const failing = upload(signed());
+    await vi.runAllTimersAsync();
+    expect((await failing).status).toBe(502);
+  });
+
+  it("takes a landed transaction without simulating it", async () => {
+    const response = await upload({ txHash: "a".repeat(64) });
+    expect(response.status).toBe(200);
+    expect(calls).not.toContain("simulateTransaction");
   });
 });

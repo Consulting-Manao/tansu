@@ -6,6 +6,10 @@
  * wallet already submitted with this CID. Either must call the Tansu contract
  * with the CID. The worker verifies the proof, uploads the CAR to Filebase,
  * then optionally pins the resulting CID on Pinata in the background.
+ *
+ * A signed envelope is never submitted by the worker, so a valid signature
+ * proves nothing by itself: the worker also simulates it against the ledger
+ * in enforce mode (the call must succeed, with its authorizations).
  */
 
 import {
@@ -28,8 +32,8 @@ export interface Env {
   NETWORK_PASSPHRASE: string;
   /** The Tansu contract an upload's transaction must call. */
   TANSU_CONTRACT_ID: string;
-  /** Soroban RPC used to check `txHash` proofs. Unset disables them. */
-  SOROBAN_RPC_URL?: string;
+  /** Soroban RPC that simulates signed envelopes and checks `txHash` proofs. */
+  SOROBAN_RPC_URL: string;
 }
 
 interface WorkerExecutionContext {
@@ -172,6 +176,45 @@ export function validateSignedTransaction(
   }
 }
 
+async function rpc<T>(
+  env: Pick<Env, "SOROBAN_RPC_URL">,
+  method: string,
+  params: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(env.SOROBAN_RPC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Soroban RPC HTTP ${res.status}`);
+  }
+  return ((await res.json()) as { result: T }).result;
+}
+
+/**
+ * Check that the ledger would accept `signedTxXdr` now: simulated in enforce
+ * mode, where the authorizations it carries must satisfy the contract. The
+ * dapp simulated it just before signing, so a call that fails here was never
+ * going to land, and has no reason to be pinned.
+ */
+export async function simulateSignedTransaction(
+  signedTxXdr: string,
+  env: Pick<Env, "SOROBAN_RPC_URL">,
+): Promise<void> {
+  const result = await rpc<{ error?: string } | undefined>(
+    env,
+    "simulateTransaction",
+    { transaction: signedTxXdr, authMode: "enforce" },
+  );
+  if (!result || result.error) {
+    throw new Error(
+      `Transaction would not succeed on-chain: ${result?.error ?? "no simulation"}`,
+    );
+  }
+}
+
 /**
  * Check that `txHash` is a successful transaction calling Tansu with `cid`.
  *
@@ -188,30 +231,15 @@ export async function validateSubmittedTransaction(
     "NETWORK_PASSPHRASE" | "TANSU_CONTRACT_ID" | "SOROBAN_RPC_URL"
   >,
 ): Promise<void> {
-  if (!env.SOROBAN_RPC_URL) {
-    throw new Error("Transaction hash proofs are not configured");
-  }
   if (!/^[0-9a-f]{64}$/i.test(txHash)) {
     throw new Error("Invalid transaction hash");
   }
 
-  const res = await fetch(env.SOROBAN_RPC_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getTransaction",
-      params: { hash: txHash },
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
-    throw new Error(`Soroban RPC HTTP ${res.status}`);
-  }
-  const { result } = (await res.json()) as {
-    result?: { status?: string; envelopeXdr?: string };
-  };
+  const result = await rpc<{ status?: string; envelopeXdr?: string }>(
+    env,
+    "getTransaction",
+    { hash: txHash },
+  );
   if (result?.status !== "SUCCESS" || !result.envelopeXdr) {
     throw new Error(
       `Transaction ${txHash} did not succeed on-chain (${result?.status ?? "unknown"})`,
@@ -301,6 +329,21 @@ export default {
       );
     }
 
+    const reply = (
+      status: number,
+      payload: Record<string, unknown>,
+      headers: Record<string, string> = {},
+    ) =>
+      new Response(JSON.stringify(payload), {
+        status,
+        headers: {
+          ...corsHeaders,
+          ...headers,
+          "Content-Type": "application/json",
+        },
+      });
+    const refuse = (error: string) => reply(400, { success: false, error });
+
     let body: UploadRequest;
     try {
       // Base64 takes 4 bytes per 3 of the CAR.
@@ -316,68 +359,33 @@ export default {
         validateSignedTransaction(body.signedTxXdr!, body.cid, env);
       }
     } catch (error: any) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: error?.message ?? "Invalid upload request",
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return refuse(error?.message ?? "Invalid upload request");
     }
 
     const carBlob = buildUploadBlob(body.car);
     if (carBlob.size === 0 || carBlob.size > MAX_CAR_BYTES) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid CAR body" }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return refuse("Invalid CAR body");
     }
 
     let calculatedCid: string;
     try {
       calculatedCid = await calculateCidFromCar(carBlob);
     } catch (error: any) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: error?.message ?? "Failed to calculate CID from CAR",
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return refuse(error?.message ?? "Failed to calculate CID from CAR");
     }
 
     if (calculatedCid !== body.cid) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `CID mismatch: expected ${body.cid}, got ${calculatedCid}`,
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return refuse(`CID mismatch: expected ${body.cid}, got ${calculatedCid}`);
+    }
+
+    // Only an envelope nobody has sent yet needs the ledger's word: a landed
+    // transaction already paid for its CID.
+    if (body.signedTxXdr) {
+      try {
+        await simulateSignedTransaction(body.signedTxXdr, env);
+      } catch (error: any) {
+        return refuse(error?.message ?? "Transaction would not succeed");
+      }
     }
 
     async function uploadToFilebase(): Promise<void> {
@@ -457,20 +465,11 @@ export default {
     try {
       await uploadToFilebase();
     } catch (error: any) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: error?.message ?? "Filebase upload failed",
-          cid: body.cid,
-        }),
-        {
-          status: 502,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return reply(502, {
+        success: false,
+        error: error?.message ?? "Filebase upload failed",
+        cid: body.cid,
+      });
     }
 
     if (isPinataEnabled(env)) {
@@ -481,18 +480,6 @@ export default {
       );
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        cid: body.cid,
-      }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    return reply(200, { success: true, cid: body.cid });
   },
 };
