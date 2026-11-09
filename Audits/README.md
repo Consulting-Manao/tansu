@@ -6,7 +6,7 @@ Last updated: 2026-11-09. This page is the entry point: what has been assessed, 
 
 | | |
 |---|---|
-| Latest assessment | [2026-11-09 internal audit](2026-11-09-internal-audit.md) |
+| Latest assessment | [2026-11-09 pre-audit](2026-11-09-pre-audit.md) |
 | Source assessed | git `5c474a7` plus two contract fixes that were uncommitted at the time |
 | Scope | The whole repository: contracts, IPFS upload worker, dApp, events service, release tools, CI. A partial pass: eight areas were not examined |
 | Result | No critical or high. 2 medium and 4 low confirmed, 6 leads that need a fact only the deployment shows |
@@ -43,8 +43,8 @@ One dated file per round, in this folder, newest first. Earlier rounds describe 
 
 | Date | Report | Assessed | Findings (critical, high, medium, low, info) |
 |---|---|---|---|
-| 2026-11-09 | [Internal audit](2026-11-09-internal-audit.md) | The whole repository at `5c474a7` | 0, 0, 2, 4, 0; and 6 leads |
+| 2026-11-09 | [Pre-audit](2026-11-09-pre-audit.md) | The whole repository at `5c474a7` | 0, 0, 2, 4, 0; and 6 leads |
 | 2026-09-28 | [Pre-audit](2026-09-28-pre-audit.md) | `tansu` 2.1.0, `tansu-executor` at `f48aca4` | 0, 0, 2, 11, 12 |
 | 2026-09-26 | [Pre-audit](2026-09-26-pre-audit.md) | `tansu` 2.1.0, `registry-tansu-manager` at `bf6cf54` | 1, 4, 11, 21, 10; fixed in `f490db1` to `f8985ff` |
 | 2026-07-20 | [Pre-audit](2026-07-20-pre-audit.md) | `tansu` 2.0.2, `scf-membership` 1.0.0 at `68ae3ec` | 0, 0, 2, 6, 5 |
-| 2026-05 | [Soroban security assessment](2026-05-soroban-security-assessment.md) | `contracts/tansu` 2.0.0 | 0, 0, 1, 3, 3 |
+| 2026-05-15 | [Pre-audit](2026-05-15-pre-audit.md) | `contracts/tansu` 2.0.0 (the first Soroban security assessment) | 0, 0, 1, 3, 3 |
