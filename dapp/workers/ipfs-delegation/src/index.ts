@@ -276,9 +276,11 @@ export async function validateSubmittedTransaction(
 
 /**
  * What the Filebase bucket says about `cid`: pinned, absent, or unknown when
- * it does not answer, refuses the token or says anything else. Kubo, which
- * Filebase follows, answers 200 with the key for a pinned CID and an error
- * "is not pinned" for the others.
+ * it does not answer: unreachable, no JSON, the token refused or throttled, a
+ * server error. Kubo, which Filebase follows, answers 200 with the key for a
+ * pinned CID and an error "is not pinned" for the others; any other answer
+ * that is JSON and a client error is taken as "not pinned", so a different
+ * wording cannot make the bucket look down.
  */
 export async function pinStatus(
   cid: string,
@@ -296,6 +298,13 @@ export async function pinStatus(
     };
     if (res.ok && body.Keys?.[cid]) return "pinned";
     if (res.ok || /not pinned/i.test(body.Message ?? "")) return "absent";
+    if (
+      res.status >= 400 &&
+      res.status < 500 &&
+      ![401, 403, 429].includes(res.status)
+    ) {
+      return "absent";
+    }
   } catch {
     // Unreachable or not JSON: not known.
   }

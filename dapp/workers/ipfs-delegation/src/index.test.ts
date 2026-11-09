@@ -663,6 +663,13 @@ describe("pinStatus", () => {
     expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("absent");
     answer(Response.json({ Message: "invalid token" }, { status: 401 }));
     expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
+    answer(Response.json({ Message: "slow down" }, { status: 429 }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
+    // Another wording of "not pinned" must not make the bucket look down.
+    answer(Response.json({ Message: "no such pin" }, { status: 404 }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("absent");
+    answer(Response.json({ Message: "internal error" }, { status: 500 }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
     answer(new Response("<html>", { status: 502 }));
     expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
