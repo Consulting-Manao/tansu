@@ -1,28 +1,22 @@
 /**
  * Cloudflare Worker for delegated IPFS uploads.
  *
- * The dapp sends the CAR payload plus a proof: the already-signed transaction
- * that will later be submitted on-chain, or the hash of a transaction that a
- * wallet already submitted with this CID. Either must call the Tansu contract
- * with the CID. The worker verifies the proof, uploads the CAR to Filebase,
- * then optionally pins the resulting CID on Pinata in the background.
- *
- * A signed envelope is never submitted by the worker, so a valid signature
- * proves nothing by itself: the worker also simulates it against the ledger
- * in enforce mode (the call must succeed, with its authorizations), and an
- * account may have only so much pinned in a day (`quota.ts`).
+ * The dapp sends the CAR payload plus a proof: the hash of the transaction
+ * that recorded the CID with Tansu, once it landed. The worker verifies the
+ * proof, checks the CAR is exactly the content of that CID (`car.ts`), uploads
+ * it to Filebase, then optionally pins the resulting CID on Pinata in the
+ * background. A landed transaction paid for its CID, and an account may have
+ * only so much pinned in a day (`quota.ts`).
  */
 
 import {
   Address,
   FeeBumpTransaction,
-  Keypair,
   Transaction,
   TransactionBuilder,
   scValToNative,
-  type xdr,
 } from "@stellar/stellar-sdk";
-import { CarReader } from "@ipld/car";
+import { verifiedRoot } from "./car";
 
 export { UploadQuota } from "./quota";
 
@@ -35,12 +29,16 @@ export interface Env {
   NETWORK_PASSPHRASE: string;
   /** The Tansu contract an upload's transaction must call. */
   TANSU_CONTRACT_ID: string;
-  /** Soroban RPC that simulates signed envelopes and checks `txHash` proofs. */
+  /** Soroban RPC that checks `txHash` proofs. */
   SOROBAN_RPC_URL: string;
   /** The largest CAR taken, in bytes: a variable, per environment. */
   MAX_CAR_BYTES: string;
-  /** One `UploadQuota` Durable Object per source account. */
+  /** One `UploadQuota` Durable Object per account that signed the call. */
   UPLOAD_QUOTA: DurableObjectNamespace;
+  /** Uploads one address may ask for in a minute. */
+  RATE_LIMIT: {
+    limit(options: { key: string }): Promise<{ success: boolean }>;
+  };
 }
 
 interface WorkerExecutionContext {
@@ -50,10 +48,8 @@ interface WorkerExecutionContext {
 interface UploadRequest {
   cid: string;
   car: string;
-  /** Signed envelope of the transaction the dapp is about to send. */
-  signedTxXdr?: string;
-  /** Hash of a transaction a wallet already submitted (smart accounts). */
-  txHash?: string;
+  /** Hash of the transaction that landed with this CID. */
+  txHash: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -71,8 +67,8 @@ const FILEBASE_PIN_LS = "https://rpc.filebase.io/api/v0/pin/ls";
 const HEALTH_PROBE_CID =
   "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354";
 const HEALTH_TTL_MS = 30_000;
-/** An envelope signed for upload is sent right after: it expires soon. */
-const MAX_ENVELOPE_LIFETIME_S = 3600;
+/** Asks of `getTransaction` for a hash the RPC may not know yet. */
+const LANDED_MAX_ATTEMPTS = 4;
 
 function isPinataEnabled(env: Env): boolean {
   return env.ENABLE_PINATA_PINNING === "true";
@@ -103,90 +99,61 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-function decodeBase64(base64: string): Uint8Array {
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-}
-
-export function buildUploadBlob(base64Car: string): Blob {
-  const bytes = new Uint8Array(decodeBase64(base64Car));
-  return new Blob([bytes], {
-    type: "application/vnd.ipld.car",
-  });
-}
-
 export function validateUploadRequest(body: UploadRequest): void {
-  const { cid, signedTxXdr, txHash, car } = body;
+  const { cid, txHash, car } = body;
 
-  if (!cid || !car || !signedTxXdr === !txHash) {
-    throw new Error(
-      "Missing required fields: cid, car and either signedTxXdr or txHash",
-    );
+  if (!cid || !car || !txHash) {
+    throw new Error("Missing required fields: cid, car and txHash");
   }
-}
-
-/** Whether `value`, or a value nested in it, is the string `text`. */
-function holdsString(value: xdr.ScVal, text: string): boolean {
-  switch (value.type) {
-    case "scvString":
-      return scValToNative(value) === text;
-    case "scvVec":
-      return (value.vec ?? []).some((item) => holdsString(item, text));
-    case "scvMap":
-      return (value.map ?? []).some((entry) => holdsString(entry.val, text));
-    default:
-      return false;
-  }
-}
-
-/** Whether `tx` calls the Tansu contract with `cid` among its arguments. */
-export function callsTansuWith(
-  tx: Transaction,
-  cid: string,
-  tansuContractId: string,
-): boolean {
-  return tx.operations.some((op) => {
-    if (op.type !== "invokeHostFunction") return false;
-    if (op.func.type !== "hostFunctionTypeInvokeContract") return false;
-    const call = op.func.invokeContract;
-    return (
-      Address.fromScAddress(call.contractAddress).toString() ===
-        tansuContractId && call.args.some((arg) => holdsString(arg, cid))
-    );
-  });
 }
 
 /**
- * Check the envelope the dapp is about to send: for this network, signed by
- * its source, expiring within the hour, and calling Tansu with `cid`. Returns
- * the source account.
+ * For each Tansu function that records a CID, where the CID is among its
+ * arguments and where the address that authorizes the call is. Only the
+ * argument named here counts, so a CID tucked in another one proves nothing.
  */
-export function validateSignedTransaction(
-  signedTxXdr: string,
+const CID_CALLS: Record<string, { actor: number; cid: number }> = {
+  add_member: { actor: 0, cid: 1 },
+  update_member: { actor: 0, cid: 1 },
+  register: { actor: 0, cid: 4 },
+  update_config: { actor: 0, cid: 4 },
+  set_evidence: { actor: 0, cid: 5 },
+  create_proposal: { actor: 0, cid: 4 },
+  veto: { actor: 0, cid: 4 },
+};
+
+/**
+ * The address that authorized a call of `tx` recording `cid` with Tansu, or
+ * undefined when `tx` has none. The address is the account the upload counts
+ * against: a relayer pays the fee of a smart account's transactions, so their
+ * source account would be shared by all its users.
+ */
+export function uploadActor(
+  tx: Transaction,
   cid: string,
-  env: Pick<Env, "NETWORK_PASSPHRASE" | "TANSU_CONTRACT_ID">,
-): string {
-  let tx: Transaction;
-  try {
-    tx = new Transaction(signedTxXdr, env.NETWORK_PASSPHRASE);
-  } catch {
-    throw new Error("Transaction signature is invalid for the source account");
+  tansuContractId: string,
+): string | undefined {
+  for (const op of tx.operations) {
+    if (op.type !== "invokeHostFunction") continue;
+    if (op.func.type !== "hostFunctionTypeInvokeContract") continue;
+    const call = op.func.invokeContract;
+    if (
+      Address.fromScAddress(call.contractAddress).toString() !== tansuContractId
+    ) {
+      continue;
+    }
+    const spec = CID_CALLS[String(call.functionName)];
+    const recorded = spec && call.args[spec.cid];
+    const actor = spec && call.args[spec.actor];
+    if (
+      recorded?.type === "scvString" &&
+      scValToNative(recorded) === cid &&
+      actor?.type === "scvAddress"
+    ) {
+      return Address.fromScVal(actor).toString();
+    }
   }
-  const source = Keypair.fromPublicKey(tx.source);
-  const hash = tx.hash();
-  if (!tx.signatures.some((s) => source.verify(hash, s.signature))) {
-    throw new Error("Transaction signature is invalid for the source account");
-  }
-
-  const maxTime = Number(tx.timeBounds?.maxTime ?? 0);
-  const now = Date.now() / 1000;
-  if (!maxTime || maxTime < now || maxTime > now + MAX_ENVELOPE_LIFETIME_S) {
-    throw new Error("Transaction must expire within the hour");
-  }
-
-  if (!callsTansuWith(tx, cid, env.TANSU_CONTRACT_ID)) {
-    throw new Error(`Transaction does not record ${cid} with Tansu`);
-  }
-  return tx.source;
+  return undefined;
 }
 
 /** The Soroban RPC did not answer: not the caller's fault. */
@@ -216,35 +183,14 @@ async function rpc<T>(
 }
 
 /**
- * Check that the ledger would accept `signedTxXdr` now: simulated in enforce
- * mode, where the authorizations it carries must satisfy the contract. The
- * dapp simulated it just before signing, so a call that fails here was never
- * going to land, and has no reason to be pinned.
- */
-export async function simulateSignedTransaction(
-  signedTxXdr: string,
-  env: Pick<Env, "SOROBAN_RPC_URL">,
-): Promise<void> {
-  const result = await rpc<{ error?: string } | undefined>(
-    env,
-    "simulateTransaction",
-    { transaction: signedTxXdr, authMode: "enforce" },
-  );
-  if (!result || result.error) {
-    throw new Error(
-      `Transaction would not succeed on-chain: ${result?.error ?? "no simulation"}`,
-    );
-  }
-}
-
-/**
- * Check that `txHash` is a successful transaction calling Tansu with `cid`.
- * Returns its source account (that of the inner transaction of a fee bump).
+ * Check that `txHash` is a successful transaction recording `cid` with Tansu.
+ * Returns the address that authorized the call (see `uploadActor`).
  *
- * Smart-account wallets (Nido) submit through their own relayer, so the dapp
- * holds no envelope signed by its source and uploads once the transaction has
- * landed. The CAR root must equal `cid`, so a replay can only upload content
- * already recorded on-chain.
+ * Smart-account wallets (Nido) submit through their own relayer, and the dapp
+ * uploads once the transaction has landed. The CAR is exactly the content of
+ * `cid`, so a replay can only upload content already recorded on-chain.
+ * An RPC node that lags answers "not found" for a transaction that landed:
+ * it is asked again a few times before that is believed.
  */
 export async function validateSubmittedTransaction(
   txHash: string,
@@ -258,11 +204,17 @@ export async function validateSubmittedTransaction(
     throw new Error("Invalid transaction hash");
   }
 
-  const result = await rpc<{ status?: string; envelopeXdr?: string }>(
-    env,
-    "getTransaction",
-    { hash: txHash },
-  );
+  let result;
+  for (let attempt = 1; ; attempt += 1) {
+    result = await rpc<{ status?: string; envelopeXdr?: string }>(
+      env,
+      "getTransaction",
+      { hash: txHash },
+    );
+    if (result?.status !== "NOT_FOUND" || attempt === LANDED_MAX_ATTEMPTS)
+      break;
+    await sleep(500 * 2 ** attempt);
+  }
   if (result?.status !== "SUCCESS" || !result.envelopeXdr) {
     throw new Error(
       `Transaction ${txHash} did not succeed on-chain (${result?.status ?? "unknown"})`,
@@ -278,10 +230,9 @@ export async function validateSubmittedTransaction(
     envelope instanceof FeeBumpTransaction
       ? envelope.innerTransaction
       : envelope;
-  if (!callsTansuWith(tx, cid, env.TANSU_CONTRACT_ID)) {
-    throw new Error(`Transaction ${txHash} does not record ${cid}`);
-  }
-  return tx.source;
+  const actor = uploadActor(tx, cid, env.TANSU_CONTRACT_ID);
+  if (!actor) throw new Error(`Transaction ${txHash} does not record ${cid}`);
+  return actor;
 }
 
 /**
@@ -332,21 +283,6 @@ async function filebaseLive(env: Pick<Env, "FILEBASE_TOKEN">) {
     };
   }
   return health.ok;
-}
-
-export async function calculateCidFromCar(carBlob: Blob): Promise<string> {
-  const reader = await CarReader.fromBytes(
-    new Uint8Array(await carBlob.arrayBuffer()),
-  );
-  const roots = await reader.getRoots();
-  if (roots.length !== 1) {
-    throw new Error(
-      roots.length
-        ? "CAR file must have one root"
-        : "CAR file has no declared root",
-    );
-  }
-  return roots[0]!.toString();
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -429,55 +365,66 @@ export default {
       });
     const refuse = (error: string) => reply(400, { success: false, error });
 
+    const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    if (!(await env.RATE_LIMIT.limit({ key: address })).success) {
+      return reply(
+        429,
+        { success: false, error: "Too many uploads from this address" },
+        { "Retry-After": "60" },
+      );
+    }
+
     const maxCarBytes = Number(env.MAX_CAR_BYTES);
     let body: UploadRequest;
-    let source: string;
+    let actor: string;
     try {
-      // Base64 takes 4 bytes per 3 of the CAR.
-      const length = Number(request.headers.get("Content-Length") ?? 0);
-      if (length > (maxCarBytes * 4) / 3 + 64 * 1024) {
-        throw new Error("Upload too large");
-      }
-      body = (await request.json()) as UploadRequest;
+      // Base64 takes 4 bytes per 3 of the CAR. The body is read up to that
+      // and no further, whatever its Content-Length says.
+      const limit = (maxCarBytes * 4) / 3 + 64 * 1024;
+      let size = 0;
+      body = (await new Response(
+        request.body?.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              size += chunk.length;
+              if (size > limit) {
+                controller.error(new Error("Upload too large"));
+              } else {
+                controller.enqueue(chunk);
+              }
+            },
+          }),
+        ),
+      ).json()) as UploadRequest;
       validateUploadRequest(body);
-      if (body.txHash) {
-        source = await validateSubmittedTransaction(body.txHash, body.cid, env);
-      } else {
-        source = validateSignedTransaction(body.signedTxXdr!, body.cid, env);
-      }
+      actor = await validateSubmittedTransaction(body.txHash, body.cid, env);
     } catch (error: any) {
       return error instanceof UpstreamError
         ? reply(502, { success: false, error: error.message })
         : refuse(error?.message ?? "Invalid upload request");
     }
 
-    const carBlob = buildUploadBlob(body.car);
-    if (carBlob.size === 0 || carBlob.size > maxCarBytes) {
+    // Only a transaction that landed gets this far: the CAR is decoded last.
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(body.car), (char) => char.charCodeAt(0));
+    } catch {
+      return refuse("Invalid CAR body");
+    }
+    if (bytes.length === 0 || bytes.length > maxCarBytes) {
       return refuse("Invalid CAR body");
     }
 
-    let calculatedCid: string;
+    let root: string;
     try {
-      calculatedCid = await calculateCidFromCar(carBlob);
+      root = await verifiedRoot(bytes);
     } catch (error: any) {
-      return refuse(error?.message ?? "Failed to calculate CID from CAR");
+      return refuse(error?.message ?? "Invalid CAR body");
     }
-
-    if (calculatedCid !== body.cid) {
-      return refuse(`CID mismatch: expected ${body.cid}, got ${calculatedCid}`);
+    if (root !== body.cid) {
+      return refuse(`CID mismatch: expected ${body.cid}, got ${root}`);
     }
-
-    // An envelope nobody has sent yet needs the ledger's word: a landed
-    // transaction already paid for its CID.
-    if (body.signedTxXdr) {
-      try {
-        await simulateSignedTransaction(body.signedTxXdr, env);
-      } catch (error: any) {
-        return error instanceof UpstreamError
-          ? reply(502, { success: false, error: error.message })
-          : refuse(error?.message ?? "Transaction would not succeed");
-      }
-    }
+    const carBlob = new Blob([bytes], { type: "application/vnd.ipld.car" });
 
     // Already in the bucket: nothing to upload, nothing to count. This is
     // also what makes asking again after a failed answer harmless.
@@ -485,7 +432,7 @@ export default {
       return reply(200, { success: true, cid: body.cid, alreadyPinned: true });
     }
 
-    const quota = env.UPLOAD_QUOTA.get(env.UPLOAD_QUOTA.idFromName(source));
+    const quota = env.UPLOAD_QUOTA.get(env.UPLOAD_QUOTA.idFromName(actor));
     const ask = async (action: "reserve" | "release") =>
       (await (
         await quota.fetch("https://quota", {

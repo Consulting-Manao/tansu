@@ -6,11 +6,13 @@
       "name": "ipfs-delegation-worker",
       "dependencies": {
         "@ipld/car": "^5.4.7",
+        "@ipld/dag-pb": "^4.2.0",
         "@stellar/stellar-sdk": "^17.4.0",
         "ipfs-car": "^3.1.0",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^5.20261107.1",
+        "multiformats": "^14.0.5",
         "typescript": "^7.0.2",
         "vitest": "^5.1.0",
         "wrangler": "^4.158.0",

@@ -1,7 +1,7 @@
 /**
- * What one Stellar account may have the worker pin in a day.
+ * What one Stellar address may have the worker pin in a day.
  *
- * One Durable Object per account holds its usage. A Durable Object takes its
+ * One Durable Object per address (the one that authorized the call) holds its usage. A Durable Object takes its
  * requests one storage step at a time, so parallel uploads of one account
  * cannot each see room that only one of them can use.
  */

@@ -1,9 +1,9 @@
 # IPFS Delegation Worker
 
-Cloudflare Worker that verifies a Tansu transaction, checks the ledger would
-accept it, and then uploads the CAR file to Filebase. Once Filebase succeeds,
-it pins the resulting CID on Pinata in the background when Pinata pinning is
-enabled.
+Cloudflare Worker that verifies a landed Tansu transaction, checks the CAR is
+exactly the content of the CID that transaction recorded, and uploads it to
+Filebase. Once Filebase succeeds, it pins the resulting CID on Pinata in the
+background when Pinata pinning is enabled.
 
 ## API
 
@@ -11,51 +11,42 @@ enabled.
 POST /
 {
   "cid": "<expected-root-cid>",
-  "signedTxXdr": "<signed transaction xdr>",
+  "txHash": "<hash of the transaction that landed with the CID>",
   "car": "<base64-car-bytes>"
 }
 ```
 
-A request carries one proof: `signedTxXdr`, or `txHash` in its place.
+The dapp sends the transaction first and uploads after, so the proof is a
+transaction that already paid for its CID. Smart-account wallets such as Nido
+submit through their own relayer; their transactions are proven the same way.
 
-- `signedTxXdr` is the envelope the dapp is about to send. The dapp uploads
-  first and sends after, so the worker never sees it land: it simulates it
-  instead (see below).
-- `txHash` is a transaction a wallet already submitted. Smart-account wallets
-  such as Nido submit through their own relayer, so the dapp has no envelope
-  signed by its source and uploads once the transaction has landed.
+The worker checks the upload request by:
 
-The worker verifies the upload request by:
-
-- for `signedTxXdr`, it checks the envelope is for `NETWORK_PASSPHRASE`, is
-  signed by its source account, expires within the hour, and calls the
-  `TANSU_CONTRACT_ID` contract with `cid` as an argument
-- for `signedTxXdr`, it then simulates the envelope on `SOROBAN_RPC_URL` in
-  enforce mode: the call must succeed with the authorizations it carries, as
-  the ledger would run it now. A signature alone proves nothing, since anyone
-  with a keypair can sign a call they never send
-- for both proofs, the transaction's source account may have 50 CIDs and 100 MB
-  pinned in a day (`src/quota.ts`, one `UploadQuota` Durable Object per account,
-  reset a day after the first upload; a smart-account wallet's relayer is the
-  source of all its users' transactions, so they share one). A CID already counted is free, so a retry is;
-  a failed upload gives its share back; over the quota the answer is `429`
-  with `Retry-After`
-- for `txHash`, it fetches the transaction from Soroban RPC, checks it
-  succeeded, and checks it calls `TANSU_CONTRACT_ID` with `cid` as an argument
-- it checks the CAR (at most `MAX_CAR_BYTES`) has exactly one root, equal to
-  `cid`
+- at most 10 requests a minute per address (`CF-Connecting-IP`, the
+  `RATE_LIMIT` binding); past it the answer is `429`
+- reading the body up to `MAX_CAR_BYTES` in base64 and no further
+- fetching `txHash` from Soroban RPC (asked again a few times if the node does
+  not know it yet), checking it succeeded, and checking it calls
+  `TANSU_CONTRACT_ID` with `cid` as the CID argument of a function that records
+  one (`CID_CALLS` in `src/index.ts`: `add_member`, `update_member`, `register`,
+  `update_config`, `set_evidence`, `create_proposal`, `veto`). The CID anywhere
+  else in the call does not count
+- the address that authorized that call may have 50 CIDs and 100 MB pinned in a
+  day (`src/quota.ts`, one `UploadQuota` Durable Object per address, reset a day
+  after the first upload). It is the address in the call, not the transaction's
+  source: a relayer pays for all its users' transactions. A CID already counted
+  is free, so a retry is; a failed upload gives its share back; over the quota
+  the answer is `429` with `Retry-After`
+- only then is the CAR decoded (at most `MAX_CAR_BYTES`; `src/car.ts`). It is
+  read block by block: one root, equal to `cid`; every block is raw or DAG-PB,
+  hashed with SHA-256 and equal to its CID; every link leads to a block in the
+  file and every block is linked from the root; at most 2048 blocks. What the
+  root names is exactly what is pinned
 - it asks the Filebase bucket whether `cid` is already pinned
   (`pin/ls`): if so it answers `{ success: true, alreadyPinned: true }` and
   uploads and counts nothing. An answer that is not clear counts as "not pinned"
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
-
-A landed transaction is neither simulated nor counted: it already paid for its
-CID, and the CAR root must equal that CID.
-
-Beyond the worker, put a Cloudflare rate-limiting rule on the custom domains
-(Security → WAF) to bound the requests one address may send; the worker's
-quota counts accounts, which are free to create.
 
 `txHash` is checked with `getTransaction`, which only knows recent
 transactions (the RPC's retention window): the upload has to follow the
@@ -75,9 +66,10 @@ kept for 30 seconds.
 }
 ```
 
-- If the request does not check out, or the ledger would refuse the call,
-  `success` is `false` and the HTTP status is `400`.
-- If the account reached its quota, the HTTP status is `429`.
+- If the request does not check out, `success` is `false` and the HTTP status
+  is `400`. If the RPC does not answer, it is `502`.
+- If the address reached its quota, or asks too often, the HTTP status is
+  `429`.
 - If Filebase upload fails, `success` is `false` and the HTTP status is `502`.
 - Pinata pinning is disabled by default.
 - If enabled, Pinata pinning does not block the response. It runs after
@@ -101,12 +93,11 @@ TANSU_CONTRACT_ID=CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
 ```
 
 `NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID`, `SOROBAN_RPC_URL` and
-`MAX_CAR_BYTES` (bytes; 10 MB on testnet, 50 MB on production until the app
-that production serves checks the size before it signs) are plain
-variables, not secrets: `wrangler.toml` sets them per environment, the contract
-ids from `deployments/tansu-*`. All three are required: without
-`SOROBAN_RPC_URL` no upload can be checked. `wrangler.toml` also binds the
-`UPLOAD_QUOTA` Durable Object, per environment (the first deploy runs its
+`MAX_CAR_BYTES` (bytes, 10 MB) are plain variables, not secrets:
+`wrangler.toml` sets them per environment, the contract ids from
+`deployments/tansu-*`. All are required: without `SOROBAN_RPC_URL` no upload
+can be checked. `wrangler.toml` also binds the `UPLOAD_QUOTA` Durable Object and
+the `RATE_LIMIT` rate limiter, per environment (the first deploy runs the
 migration).
 
 ### Start the Worker
@@ -135,10 +126,10 @@ ENV=DEV bun run test:upload  # Use testnet environment
 ENV=PROD bun run test:upload # Use production environment
 ```
 
-The upload script generates a CAR, simulates and signs a Tansu call recording
-its CID (never submitted) with a new friendbot-funded testnet account, or the
-one in `TEST_SIGNER_SECRET`, and sends the same JSON payload the dapp sends.
-It counts against that account's quota. A successful local test confirms
+The upload script generates a CAR, sends a Tansu call recording its CID from a
+new friendbot-funded testnet account, or the one in `TEST_SIGNER_SECRET`, waits
+for it to land, and sends the same JSON payload the dapp sends. It counts
+against that account's quota. A successful local test confirms
 the blocking Filebase upload path. When Pinata pinning is enabled, that step
 runs asynchronously after the response is returned.
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { CarReader } from "@ipld/car";
 import {
   Account,
   Keypair,
@@ -8,23 +7,24 @@ import {
   StrKey,
   TransactionBuilder,
   nativeToScVal,
+  type xdr,
 } from "@stellar/stellar-sdk";
 import worker, {
   type Env,
   pinStatus,
-  simulateSignedTransaction,
-  validateSignedTransaction,
+  uploadActor,
   validateSubmittedTransaction,
   validateUploadRequest,
-  calculateCidFromCar,
-  buildUploadBlob,
 } from "./index";
+import { verifiedRoot } from "./car";
 import {
   QUOTA_BYTES,
   QUOTA_UPLOADS,
   QUOTA_WINDOW_MS,
   UploadQuota,
 } from "./quota";
+
+vi.mock("./car", () => ({ verifiedRoot: vi.fn() }));
 
 const CID = "bafyreitestcid";
 const TANSU = StrKey.encodeContract(Buffer.alloc(32, 1));
@@ -35,146 +35,117 @@ const ENV = {
   MAX_CAR_BYTES: String(10 * 1024 * 1024),
 };
 
-/** A contract call with `cid` as argument, signed by its source. */
+/** A Tansu call recording `cid`, authorized by `actor` (the source if absent). */
 function invokeTx({
   cid = CID,
   contract = TANSU,
-  network = Networks.TESTNET,
-  timeout = 300,
+  fn = "add_member",
+  args,
   source = Keypair.random(),
+  actor = source.publicKey(),
 }: {
   cid?: string;
   contract?: string;
-  network?: string;
-  timeout?: number;
+  fn?: string;
+  args?: xdr.ScVal[];
   source?: Keypair;
+  actor?: string;
 } = {}) {
   const tx = new TransactionBuilder(new Account(source.publicKey(), "1"), {
     fee: "100",
-    networkPassphrase: network,
+    networkPassphrase: Networks.TESTNET,
   })
     .addOperation(
       Operation.invokeContractFunction({
         contract,
-        function: "add_member",
-        args: [nativeToScVal(cid, { type: "string" })],
+        function: fn,
+        args: args ?? [
+          nativeToScVal(actor, { type: "address" }),
+          nativeToScVal(cid, { type: "string" }),
+        ],
       }),
     )
-    .setTimeout(timeout)
+    .setTimeout(300)
     .build();
   tx.sign(source);
   return tx;
 }
 
-describe("validateSignedTransaction", () => {
-  it("accepts the Tansu call the dapp is about to send", () => {
-    expect(() =>
-      validateSignedTransaction(invokeTx().toXDR(), CID, ENV),
-    ).not.toThrow();
+describe("uploadActor", () => {
+  const call = (tx: ReturnType<typeof invokeTx>, cid = CID) =>
+    uploadActor(tx, cid, TANSU);
+  const text = (value: string) => nativeToScVal(value, { type: "string" });
+
+  it("is the address that authorized the call, not the source", () => {
+    const actor = Keypair.random().publicKey();
+    expect(call(invokeTx({ actor }))).toBe(actor);
+    // A smart account is a contract address.
+    const smart = StrKey.encodeContract(Buffer.alloc(32, 9));
+    expect(call(invokeTx({ actor: smart }))).toBe(smart);
   });
 
-  it("rejects what is not a signed transaction", () => {
-    for (const xdr of ["", "not-valid-xdr"]) {
-      expect(() => validateSignedTransaction(xdr, CID, ENV)).toThrow(
-        "Transaction signature is invalid",
-      );
+  it("knows where each function takes its CID", () => {
+    const actor = nativeToScVal(Keypair.random().publicKey(), {
+      type: "address",
+    });
+    for (const [fn, position] of [
+      ["update_member", 1],
+      ["register", 4],
+      ["update_config", 4],
+      ["set_evidence", 5],
+      ["create_proposal", 4],
+      ["veto", 4],
+    ] as const) {
+      const args = Array.from({ length: position + 1 }, () => text("other"));
+      args[0] = actor;
+      args[position] = text(CID);
+      expect(call(invokeTx({ fn, args }))).toBeDefined();
     }
   });
 
-  it("rejects an envelope another key signed", () => {
-    const tx = invokeTx();
-    tx.signatures.length = 0;
-    tx.sign(Keypair.random());
-    expect(() => validateSignedTransaction(tx.toXDR(), CID, ENV)).toThrow(
-      "Transaction signature is invalid",
-    );
+  it("refuses a CID anywhere else", () => {
+    const actor = nativeToScVal(Keypair.random().publicKey(), {
+      type: "address",
+    });
+    for (const args of [
+      [actor, text("x"), text(CID)],
+      [actor, nativeToScVal([CID], { type: "string" }), text("x")],
+      [actor, nativeToScVal({ meta: CID })],
+    ]) {
+      expect(call(invokeTx({ args }))).toBeUndefined();
+    }
   });
 
-  it("rejects another network's envelope", () => {
-    expect(() =>
-      validateSignedTransaction(
-        invokeTx({ network: Networks.PUBLIC }).toXDR(),
-        CID,
-        ENV,
-      ),
-    ).toThrow("Transaction signature is invalid");
-  });
-
-  it("rejects an envelope that never expires", () => {
-    expect(() =>
-      validateSignedTransaction(invokeTx({ timeout: 0 }).toXDR(), CID, ENV),
-    ).toThrow("expire within the hour");
-  });
-
-  it("rejects a call to another contract, or without the CID", () => {
+  it("refuses another function, another contract and another CID", () => {
     const other = StrKey.encodeContract(Buffer.alloc(32, 2));
-    for (const tx of [invokeTx({ contract: other }), invokeTx({ cid: "x" })]) {
-      expect(() => validateSignedTransaction(tx.toXDR(), CID, ENV)).toThrow(
-        `does not record ${CID} with Tansu`,
-      );
+    for (const tx of [
+      invokeTx({ fn: "vote" }),
+      invokeTx({ contract: other }),
+      invokeTx({ cid: "bafyreiother" }),
+    ]) {
+      expect(call(tx)).toBeUndefined();
     }
   });
-});
 
-describe("calculateCidFromCar", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  const car = (roots: unknown[]) =>
-    vi.spyOn(CarReader, "fromBytes").mockResolvedValue({
-      getRoots: async () => roots,
-      blocks: (async function* () {})(),
-    } as any);
-  const blob = new Blob([""], { type: "application/vnd.ipld.car" });
-
-  it("throws for CAR with no root", async () => {
-    car([]);
-    await expect(calculateCidFromCar(blob)).rejects.toThrow(
-      "CAR file has no declared root",
-    );
-  });
-
-  it("throws for CAR with several roots", async () => {
-    car([{ toString: () => "a" }, { toString: () => "b" }]);
-    await expect(calculateCidFromCar(blob)).rejects.toThrow("one root");
-  });
-
-  it("returns root CID when present", async () => {
-    car([{ toString: () => "bafyrei123" }]);
-    expect(await calculateCidFromCar(blob)).toBe("bafyrei123");
-  });
-});
-
-describe("buildUploadBlob", () => {
-  it("creates valid blob from base64 CAR", () => {
-    const blob = buildUploadBlob("Y3ViZQo=");
-    expect(blob.type).toBe("application/vnd.ipld.car");
+  it("refuses a call whose first argument is not an address", () => {
+    expect(call(invokeTx({ args: [text("x"), text(CID)] }))).toBeUndefined();
   });
 });
 
 describe("validateUploadRequest", () => {
-  it("accepts exactly one proof", () => {
-    expect(() =>
-      validateUploadRequest({ cid: "c", car: "a", signedTxXdr: "x" }),
-    ).not.toThrow();
+  it("wants a CID, a CAR and a transaction hash", () => {
     expect(() =>
       validateUploadRequest({ cid: "c", car: "a", txHash: "h" }),
     ).not.toThrow();
-  });
-
-  it("rejects both proofs or neither", () => {
-    expect(() =>
-      validateUploadRequest({
-        cid: "c",
-        car: "a",
-        signedTxXdr: "x",
-        txHash: "h",
-      }),
-    ).toThrow("Missing required fields");
-    expect(() => validateUploadRequest({ cid: "c", car: "a" })).toThrow(
-      "Missing required fields",
-    );
+    for (const body of [
+      { cid: "c", car: "a" },
+      { cid: "c", txHash: "h" },
+      { car: "a", txHash: "h" },
+    ]) {
+      expect(() => validateUploadRequest(body as any)).toThrow(
+        "Missing required fields",
+      );
+    }
   });
 });
 
@@ -238,15 +209,52 @@ describe("validateSubmittedTransaction", () => {
     }
   });
 
-  it.each(["FAILED", "NOT_FOUND"])(
-    "rejects a %s transaction",
-    async (status) => {
-      mockRpc({ status });
-      await expect(
-        validateSubmittedTransaction(HASH, CID, ENV),
-      ).rejects.toThrow(`did not succeed on-chain (${status})`);
-    },
-  );
+  it("rejects a failed transaction", async () => {
+    mockRpc({ status: "FAILED" });
+    await expect(validateSubmittedTransaction(HASH, CID, ENV)).rejects.toThrow(
+      "did not succeed on-chain (FAILED)",
+    );
+  });
+
+  describe("an RPC that does not know the transaction", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const answers = (statuses: string[]) => {
+      vi.useFakeTimers();
+      const fetchMock = vi.fn(async () => {
+        const status = statuses.shift() ?? "NOT_FOUND";
+        return Response.json({
+          result: {
+            status,
+            envelopeXdr: invokeTx().toXDR(),
+          },
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    };
+
+    it("is asked again, for a node that lags", async () => {
+      const fetchMock = answers(["NOT_FOUND", "NOT_FOUND", "SUCCESS"]);
+      const pending = validateSubmittedTransaction(HASH, CID, ENV);
+      await vi.runAllTimersAsync();
+      await expect(pending).resolves.toMatch(/^G/);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("is believed after a few tries", async () => {
+      const fetchMock = answers([]);
+      const pending = validateSubmittedTransaction(HASH, CID, ENV);
+      const rejected = expect(pending).rejects.toThrow(
+        "did not succeed on-chain (NOT_FOUND)",
+      );
+      await vi.runAllTimersAsync();
+      await rejected;
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+  });
 
   it("rejects a malformed hash", async () => {
     await expect(
@@ -284,43 +292,6 @@ describe("CORS", () => {
       const response = await preflight(origin);
       expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
     }
-  });
-});
-
-describe("simulateSignedTransaction", () => {
-  const xdr = () => invokeTx().toXDR();
-
-  function mockSimulation(result: Record<string, unknown>) {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result })),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-    return fetchMock;
-  }
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("accepts a call the ledger would run, in enforce mode", async () => {
-    const fetchMock = mockSimulation({ results: [{ auth: [] }] });
-    const signed = xdr();
-    await expect(
-      simulateSignedTransaction(signed, ENV),
-    ).resolves.toBeUndefined();
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
-      method: "simulateTransaction",
-      params: { transaction: signed, authMode: "enforce" },
-    });
-  });
-
-  it("rejects a call the ledger would refuse", async () => {
-    mockSimulation({ error: "HostError: Error(Auth, InvalidAction)" });
-    await expect(simulateSignedTransaction(xdr(), ENV)).rejects.toThrow(
-      "would not succeed on-chain: HostError",
-    );
   });
 });
 
@@ -391,12 +362,20 @@ describe("UploadQuota", () => {
 });
 
 describe("upload", () => {
-  const SOURCE = Keypair.random();
+  /** The relayer that pays for every landed transaction. */
+  const RELAYER = Keypair.random();
+  const ACTOR = Keypair.random().publicKey();
+  const HASH = "a".repeat(64);
   const CAR = "Y3ViZQo=";
 
   let calls: string[];
-  let simulation: Record<string, unknown>;
   let filebaseStatus: number;
+  /** Who is allowed to ask: the rate limiter's answer. */
+  let allowed: boolean;
+  /** The address that authorized the landed transaction. */
+  let landedActor: string;
+  /** How many times the RPC says "not found" before the transaction. */
+  let notFound: number;
   /** What the bucket says about a CID: pinned, absent, or not answering. */
   let pin: "pinned" | "absent" | "down";
   /** The CID the landed transaction records. */
@@ -429,53 +408,50 @@ describe("upload", () => {
 
   let env: Env;
 
-  const upload = (body: Record<string, unknown>) =>
+  const upload = (body: Record<string, unknown> = {}) =>
     worker.fetch(
       new Request("https://ipfs.example", {
         method: "POST",
-        body: JSON.stringify({ cid: CID, car: CAR, ...body }),
+        body: JSON.stringify({ cid: CID, car: CAR, txHash: HASH, ...body }),
       }),
       env,
       { waitUntil: () => {} },
     );
-  const signed = (source = SOURCE) => ({
-    signedTxXdr: invokeTx({ source }).toXDR(),
-  });
 
   beforeEach(() => {
     calls = [];
-    simulation = { results: [{ auth: [] }] };
     filebaseStatus = 200;
     pin = "absent";
     landedCid = CID;
+    landedActor = ACTOR;
+    allowed = true;
+    notFound = 0;
+    vi.mocked(verifiedRoot).mockResolvedValue(CID);
     env = {
       ...ENV,
       FILEBASE_TOKEN: "token",
       UPLOAD_QUOTA: quotas(),
+      RATE_LIMIT: { limit: vi.fn(async () => ({ success: allowed })) },
     } as unknown as Env;
-    vi.spyOn(CarReader, "fromBytes").mockResolvedValue({
-      getRoots: async () => [{ toString: () => CID }],
-    } as any);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init: RequestInit) => {
         if (url === ENV.SOROBAN_RPC_URL) {
           const { method } = JSON.parse(init.body as string);
           calls.push(method);
-          return new Response(
-            JSON.stringify({
-              result:
-                method === "simulateTransaction"
-                  ? simulation
-                  : {
-                      status: "SUCCESS",
-                      envelopeXdr: invokeTx({
-                        cid: landedCid,
-                        source: SOURCE,
-                      }).toXDR(),
-                    },
-            }),
-          );
+          return Response.json({
+            result:
+              notFound-- > 0
+                ? { status: "NOT_FOUND" }
+                : {
+                    status: "SUCCESS",
+                    envelopeXdr: invokeTx({
+                      cid: landedCid,
+                      source: RELAYER,
+                      actor: landedActor,
+                    }).toXDR(),
+                  },
+          });
         }
         if (url.startsWith("https://rpc.filebase.io/api/v0/pin/ls")) {
           calls.push("pin-ls");
@@ -497,72 +473,88 @@ describe("upload", () => {
     vi.useRealTimers();
   });
 
-  it("pins a call the ledger would run", async () => {
-    const response = await upload(signed());
+  /** The CAR and the landed transaction both name `cid`. */
+  const useCid = (cid: string) => {
+    landedCid = cid;
+    vi.mocked(verifiedRoot).mockResolvedValue(cid);
+  };
+
+  it("pins what a landed transaction recorded", async () => {
+    const response = await upload();
     expect(response.status).toBe(200);
-    expect(calls).toEqual(["simulateTransaction", "pin-ls", "filebase"]);
+    expect(calls).toEqual(["getTransaction", "pin-ls", "filebase"]);
   });
 
-  it("pins nothing when the ledger would refuse the call", async () => {
-    simulation = { error: "HostError: Error(Auth, InvalidAction)" };
-    const response = await upload(signed());
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining("would not succeed on-chain"),
-    });
-    expect(calls).toEqual(["simulateTransaction"]);
-  });
-
-  it("does not ask the ledger about junk", async () => {
-    await upload({ ...signed(), cid: "bafyreiother" });
-    await upload({ ...signed(), car: "" });
+  it("asks nothing of the network for junk", async () => {
+    await upload({ txHash: "nope" });
+    await upload({ txHash: "" });
+    await upload({ car: "" });
     expect(calls).toEqual([]);
   });
 
-  it("stops an account that reached its quota, not the others", async () => {
+  it("decodes no CAR before the transaction checks out", async () => {
+    landedCid = "bafyreiother";
+    expect((await upload()).status).toBe(400);
+    expect(verifiedRoot).not.toHaveBeenCalled();
+  });
+
+  it("refuses a CAR that is not what its CID names", async () => {
+    vi.mocked(verifiedRoot).mockRejectedValue(
+      new Error("Block x does not hash to its CID"),
+    );
+    const response = await upload();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("does not hash"),
+    });
+    expect(calls).toEqual(["getTransaction"]);
+  });
+
+  it("refuses a CAR whose root is not the CID", async () => {
+    vi.mocked(verifiedRoot).mockResolvedValue("bafyreiother");
+    const response = await upload();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("CID mismatch"),
+    });
+  });
+
+  it("stops an address that reached its quota, not the others", async () => {
     for (let i = 0; i < QUOTA_UPLOADS; i += 1) {
-      const cid = `cid${i}`;
-      vi.mocked(CarReader.fromBytes).mockResolvedValue({
-        getRoots: async () => [{ toString: () => cid }],
-      } as any);
-      const response = await upload({
-        cid,
-        signedTxXdr: invokeTx({ cid, source: SOURCE }).toXDR(),
-      });
-      expect(response.status).toBe(200);
+      useCid(`cid${i}`);
+      expect((await upload({ cid: `cid${i}` })).status).toBe(200);
     }
-    vi.mocked(CarReader.fromBytes).mockResolvedValue({
-      getRoots: async () => [{ toString: () => CID }],
-    } as any);
+    useCid(CID);
     calls = [];
-    const response = await upload(signed());
+    const response = await upload();
     expect(response.status).toBe(429);
     expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(calls).toEqual(["simulateTransaction", "pin-ls"]);
+    expect(calls).toEqual(["getTransaction", "pin-ls"]);
 
-    expect((await upload(signed(Keypair.random()))).status).toBe(200);
+    // Another user of the same relayer has a quota of their own.
+    landedActor = Keypair.random().publicKey();
+    expect((await upload()).status).toBe(200);
   });
 
   it("gives the quota back when Filebase fails", async () => {
     vi.useFakeTimers();
     filebaseStatus = 500;
-    const failing = upload(signed());
+    const failing = upload();
     await vi.runAllTimersAsync();
     expect((await failing).status).toBe(502);
 
     filebaseStatus = 200;
-    const body = signed();
-    const retry = await upload(body);
-    expect(retry.status).toBe(200);
+    expect((await upload()).status).toBe(200);
   });
 
-  /** The CAR and the landed transaction both name `cid`. */
-  const useCid = (cid: string) => {
-    landedCid = cid;
-    vi.mocked(CarReader.fromBytes).mockResolvedValue({
-      getRoots: async () => [{ toString: () => cid }],
-    } as any);
-  };
+  it("asks the RPC again for a transaction it does not know yet", async () => {
+    vi.useFakeTimers();
+    notFound = 2;
+    const pending = upload();
+    await vi.runAllTimersAsync();
+    expect((await pending).status).toBe(200);
+    expect(calls.filter((call) => call === "getTransaction")).toHaveLength(3);
+  });
 
   it("asks the RPC again, and says 502 when it never answers", async () => {
     vi.useFakeTimers();
@@ -573,7 +565,7 @@ describe("upload", () => {
         ? Promise.reject(new DOMException("timed out", "TimeoutError"))
         : answer(url, init),
     );
-    const pending = upload({ txHash: "a".repeat(64) });
+    const pending = upload();
     await vi.runAllTimersAsync();
     const response = await pending;
     expect(response.status).toBe(502);
@@ -586,30 +578,10 @@ describe("upload", () => {
     expect(asked).toHaveLength(3);
   });
 
-  it("takes a landed transaction without simulating it", async () => {
-    const response = await upload({ txHash: "a".repeat(64) });
-    expect(response.status).toBe(200);
-    expect(calls).toEqual(["getTransaction", "pin-ls", "filebase"]);
-  });
-
-  it("counts a landed transaction against its source account", async () => {
-    for (let i = 0; i < QUOTA_UPLOADS; i += 1) {
-      useCid(`cid${i}`);
-      const response = await upload({
-        cid: `cid${i}`,
-        txHash: "a".repeat(64),
-      });
-      expect(response.status).toBe(200);
-    }
-    useCid("one-more");
-    const response = await upload({ cid: "one-more", txHash: "a".repeat(64) });
-    expect(response.status).toBe(429);
-  });
-
   it("does not upload or count what the bucket already pins", async () => {
     pin = "pinned";
     for (let i = 0; i < QUOTA_UPLOADS + 1; i += 1) {
-      const response = await upload({ txHash: "a".repeat(64) });
+      const response = await upload();
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
         success: true,
@@ -621,17 +593,33 @@ describe("upload", () => {
 
   it("uploads when the bucket does not answer about the CID", async () => {
     pin = "down";
-    const response = await upload({ txHash: "a".repeat(64) });
+    const response = await upload();
     expect(response.status).toBe(200);
     expect(calls).toContain("filebase");
   });
 
   it("refuses a CAR over the cap", async () => {
     env = { ...env, MAX_CAR_BYTES: "3" };
-    const response = await upload({ txHash: "a".repeat(64) });
+    const response = await upload();
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "Invalid CAR body" });
     expect(calls).toEqual(["getTransaction"]);
+  });
+
+  it("reads no more of a body than a CAR of the cap can take", async () => {
+    env = { ...env, MAX_CAR_BYTES: "3" };
+    const response = await upload({ car: "A".repeat(100_000) });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "Upload too large" });
+    expect(calls).toEqual([]);
+  });
+
+  it("answers 429 to an address that asks too often, before reading", async () => {
+    allowed = false;
+    const response = await upload();
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(calls).toEqual([]);
   });
 
   describe("/health", () => {

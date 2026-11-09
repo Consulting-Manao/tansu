@@ -85,11 +85,11 @@ const RPC_URL =
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
 
 /**
- * A signed Tansu call recording `cid`, as the dapp sends it: simulated, its
- * authorizations attached, signed; never submitted. The worker simulates it
- * again, so the signer must exist on the network.
+ * A Tansu call recording `cid`, as the dapp sends it: simulated, its
+ * authorizations attached, signed, sent and waited for. Returns its hash, the
+ * worker's proof. The signer must exist on the network.
  */
-async function buildSignedTestTransaction(signer, cid) {
+async function landTestTransaction(signer, cid) {
   const server = new rpc.Server(RPC_URL);
   const account = await server.getAccount(signer.publicKey());
   const transaction = new TransactionBuilder(account, {
@@ -119,7 +119,12 @@ async function buildSignedTestTransaction(signer, cid) {
     )
     .build();
   assembled.sign(signer);
-  return assembled.toXDR();
+  const { hash } = await server.sendTransaction(assembled);
+  const landed = await server.pollTransaction(hash, { attempts: 30 });
+  if (landed.status !== "SUCCESS") {
+    throw new Error(`The test transaction ${hash} ended ${landed.status}`);
+  }
+  return hash;
 }
 
 async function test() {
@@ -139,7 +144,7 @@ async function test() {
   if (!process.env.TEST_SIGNER_SECRET) {
     await fetch(`https://friendbot.stellar.org/?addr=${signer.publicKey()}`);
   }
-  const signedTxXdr = await buildSignedTestTransaction(signer, cid);
+  const txHash = await landTestTransaction(signer, cid);
 
   try {
     const res = await fetch(WORKER_URL, {
@@ -149,7 +154,7 @@ async function test() {
       },
       body: JSON.stringify({
         cid,
-        signedTxXdr,
+        txHash,
         car: arrayBufferToBase64(await car.arrayBuffer()),
       }),
     });
