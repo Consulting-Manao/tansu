@@ -190,8 +190,8 @@ rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
 
 1. Ensure code is merged and stable on `main`.
 2. Create a release tag (for example `v3.0.1`) and push it to Radicle.
-3. Select a trusted single-architecture Stellar CLI image pinned by digest.
-   Run `make radicle_release tag=v3.0.1 image="$IMAGE"` to build both contracts
+3. The Stellar CLI image is a trusted single-architecture one pinned by digest; the
+   Makefile defaults it (`image=` overrides). Run `make radicle_release tag=v3.0.1` to build both contracts
    from the tag's source, with SEP-58 build/source fields and a SEP-55
    `source_repo` embedded in each WASM. `STELLAR_CONTAINER_ENGINE` picks the
    container engine the Stellar CLI uses.

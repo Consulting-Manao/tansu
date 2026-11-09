@@ -26,6 +26,13 @@ ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
 endif
 
+# The Stellar CLI image the contracts are released in, pinned by digest: stellar-cli
+# 28.0.0, linux/arm64. The digest is written into each WASM's metadata (`bldimg`), so
+# an independent rebuild uses the same image on the same architecture.
+ifndef image
+   override image = docker.io/stellar/stellar-cli@sha256:038a39c82927d7fa32066ed8fea9e44b402b0bdecf483450a2bbe2c7c0daba11
+endif
+
 ifndef executor_wasm
 	override executor_wasm = target/wasm32v1-none/release/tansu_executor.wasm
 endif
@@ -235,7 +242,7 @@ radicle_push:
 radicle_ci:  ## Run the tests as a Radicle job; the log goes to the rad-ci branch
 	RADICLE_CI_CMD='cargo test' .radicle/ci.sh
 
-radicle_release:  ## Build tag=v3.0.1 in the stellar-cli container image=<registry/image@sha256:digest>
+radicle_release:  ## Build tag=v3.0.1 in the stellar-cli container image (image=<registry/image@sha256:digest> to change the default)
 	STELLAR_IMAGE='$(image)' RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev \
 		.radicle/release.sh build "$(tag)"
 
