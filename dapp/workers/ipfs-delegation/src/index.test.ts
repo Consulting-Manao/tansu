@@ -11,6 +11,7 @@ import {
 } from "@stellar/stellar-sdk";
 import worker, {
   type Env,
+  pinStatus,
   simulateSignedTransaction,
   validateSignedTransaction,
   validateSubmittedTransaction,
@@ -31,6 +32,7 @@ const ENV = {
   NETWORK_PASSPHRASE: Networks.TESTNET,
   TANSU_CONTRACT_ID: TANSU,
   SOROBAN_RPC_URL: "https://rpc.example",
+  MAX_CAR_BYTES: String(10 * 1024 * 1024),
 };
 
 /** A contract call with `cid` as argument, signed by its source. */
@@ -194,13 +196,14 @@ describe("validateSubmittedTransaction", () => {
   });
 
   it("accepts a successful Tansu call that records the CID", async () => {
+    const source = Keypair.random();
     const fetchMock = mockRpc({
       status: "SUCCESS",
-      envelopeXdr: invokeTx().toXDR(),
+      envelopeXdr: invokeTx({ source }).toXDR(),
     });
-    await expect(
-      validateSubmittedTransaction(HASH, CID, ENV),
-    ).resolves.toBeUndefined();
+    await expect(validateSubmittedTransaction(HASH, CID, ENV)).resolves.toBe(
+      source.publicKey(),
+    );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toMatchObject({
       method: "getTransaction",
@@ -209,16 +212,17 @@ describe("validateSubmittedTransaction", () => {
   });
 
   it("accepts a fee-bumped call that records the CID", async () => {
+    const source = Keypair.random();
     const feeBump = TransactionBuilder.buildFeeBumpTransaction(
       Keypair.random(),
       "200",
-      invokeTx(),
+      invokeTx({ source }),
       Networks.TESTNET,
     );
     mockRpc({ status: "SUCCESS", envelopeXdr: feeBump.toXDR() });
-    await expect(
-      validateSubmittedTransaction(HASH, CID, ENV),
-    ).resolves.toBeUndefined();
+    await expect(validateSubmittedTransaction(HASH, CID, ENV)).resolves.toBe(
+      source.publicKey(),
+    );
   });
 
   it("rejects a call that does not record the CID with Tansu", async () => {
@@ -393,6 +397,10 @@ describe("upload", () => {
   let calls: string[];
   let simulation: Record<string, unknown>;
   let filebaseStatus: number;
+  /** What the bucket says about a CID: pinned, absent, or not answering. */
+  let pin: "pinned" | "absent" | "down";
+  /** The CID the landed transaction records. */
+  let landedCid: string;
 
   /** One quota per account, as the Durable Object namespace makes them. */
   function quotas() {
@@ -438,6 +446,8 @@ describe("upload", () => {
     calls = [];
     simulation = { results: [{ auth: [] }] };
     filebaseStatus = 200;
+    pin = "absent";
+    landedCid = CID;
     env = {
       ...ENV,
       FILEBASE_TOKEN: "token",
@@ -457,9 +467,22 @@ describe("upload", () => {
               result:
                 method === "simulateTransaction"
                   ? simulation
-                  : { status: "SUCCESS", envelopeXdr: invokeTx().toXDR() },
+                  : {
+                      status: "SUCCESS",
+                      envelopeXdr: invokeTx({
+                        cid: landedCid,
+                        source: SOURCE,
+                      }).toXDR(),
+                    },
             }),
           );
+        }
+        if (url.startsWith("https://rpc.filebase.io/api/v0/pin/ls")) {
+          calls.push("pin-ls");
+          if (pin === "down") return new Response("", { status: 503 });
+          return pin === "pinned"
+            ? Response.json({ Keys: { [landedCid]: { Type: "recursive" } } })
+            : Response.json({ Message: "is not pinned" }, { status: 500 });
         }
         calls.push("filebase");
         const sent = (init.body as FormData).get("file") as File;
@@ -477,7 +500,7 @@ describe("upload", () => {
   it("pins a call the ledger would run", async () => {
     const response = await upload(signed());
     expect(response.status).toBe(200);
-    expect(calls).toEqual(["simulateTransaction", "filebase"]);
+    expect(calls).toEqual(["simulateTransaction", "pin-ls", "filebase"]);
   });
 
   it("pins nothing when the ledger would refuse the call", async () => {
@@ -515,7 +538,7 @@ describe("upload", () => {
     const response = await upload(signed());
     expect(response.status).toBe(429);
     expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(calls).toEqual(["simulateTransaction"]);
+    expect(calls).toEqual(["simulateTransaction", "pin-ls"]);
 
     expect((await upload(signed(Keypair.random()))).status).toBe(200);
   });
@@ -533,11 +556,116 @@ describe("upload", () => {
     expect(retry.status).toBe(200);
   });
 
-  it("takes a landed transaction without simulating or counting it", async () => {
+  /** The CAR and the landed transaction both name `cid`. */
+  const useCid = (cid: string) => {
+    landedCid = cid;
+    vi.mocked(CarReader.fromBytes).mockResolvedValue({
+      getRoots: async () => [{ toString: () => cid }],
+    } as any);
+  };
+
+  it("takes a landed transaction without simulating it", async () => {
+    const response = await upload({ txHash: "a".repeat(64) });
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(["getTransaction", "pin-ls", "filebase"]);
+  });
+
+  it("counts a landed transaction against its source account", async () => {
+    for (let i = 0; i < QUOTA_UPLOADS; i += 1) {
+      useCid(`cid${i}`);
+      const response = await upload({
+        cid: `cid${i}`,
+        txHash: "a".repeat(64),
+      });
+      expect(response.status).toBe(200);
+    }
+    useCid("one-more");
+    const response = await upload({ cid: "one-more", txHash: "a".repeat(64) });
+    expect(response.status).toBe(429);
+  });
+
+  it("does not upload or count what the bucket already pins", async () => {
+    pin = "pinned";
     for (let i = 0; i < QUOTA_UPLOADS + 1; i += 1) {
       const response = await upload({ txHash: "a".repeat(64) });
       expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        success: true,
+        alreadyPinned: true,
+      });
     }
-    expect(calls).not.toContain("simulateTransaction");
+    expect(calls).not.toContain("filebase");
+  });
+
+  it("uploads when the bucket does not answer about the CID", async () => {
+    pin = "down";
+    const response = await upload({ txHash: "a".repeat(64) });
+    expect(response.status).toBe(200);
+    expect(calls).toContain("filebase");
+  });
+
+  it("refuses a CAR over the cap", async () => {
+    env = { ...env, MAX_CAR_BYTES: "3" };
+    const response = await upload({ txHash: "a".repeat(64) });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "Invalid CAR body" });
+    expect(calls).toEqual(["getTransaction"]);
+  });
+
+  describe("/health", () => {
+    const health = () =>
+      worker.fetch(new Request("https://ipfs.example/health"), env, {
+        waitUntil: () => {},
+      });
+
+    // The answer is kept for a while: every test starts well after the last.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + 3_600_000 * ++healthTest);
+    });
+
+    it("says ok while Filebase answers", async () => {
+      expect((await health()).status).toBe(200);
+      expect(calls).toEqual(["pin-ls"]);
+    });
+
+    it("says 503 when Filebase does not answer", async () => {
+      pin = "down";
+      const response = await health();
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ ok: false });
+    });
+
+    it("asks Filebase once in a while", async () => {
+      await health();
+      await health();
+      expect(calls).toEqual(["pin-ls"]);
+    });
+  });
+});
+
+let healthTest = 0;
+
+describe("pinStatus", () => {
+  const answer = (response: Response) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("knows a pinned CID, an unpinned one, and when it cannot know", async () => {
+    answer(Response.json({ Keys: { [CID]: { Type: "recursive" } } }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("pinned");
+    answer(
+      Response.json({ Message: "path 'x' is not pinned" }, { status: 500 }),
+    );
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("absent");
+    answer(Response.json({ Message: "invalid token" }, { status: 401 }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
+    answer(new Response("<html>", { status: 502 }));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(await pinStatus(CID, { FILEBASE_TOKEN: "t" })).toBe("unknown");
   });
 });

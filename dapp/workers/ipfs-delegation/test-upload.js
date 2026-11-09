@@ -127,7 +127,7 @@ async function test() {
   console.log(`Connecting to worker at: ${WORKER_URL}`);
 
   const testFile = new File(
-    ["This is a test file uploaded via the IPFS delegation worker!"],
+    [`Uploaded via the IPFS delegation worker at ${new Date().toISOString()}`],
     "test.txt",
     { type: "text/plain" },
   );

@@ -37,6 +37,8 @@ export interface Env {
   TANSU_CONTRACT_ID: string;
   /** Soroban RPC that simulates signed envelopes and checks `txHash` proofs. */
   SOROBAN_RPC_URL: string;
+  /** The largest CAR taken, in bytes: a variable, per environment. */
+  MAX_CAR_BYTES: string;
   /** One `UploadQuota` Durable Object per source account. */
   UPLOAD_QUOTA: DurableObjectNamespace;
 }
@@ -63,8 +65,11 @@ const ALLOWED_ORIGINS = [
 ];
 const FILEBASE_MAX_ATTEMPTS = 3;
 const PINATA_MAX_ATTEMPTS = 3;
-/** A proposal with its images, with room to spare. */
-const MAX_CAR_BYTES = 50 * 1024 * 1024;
+const FILEBASE_PIN_LS = "https://rpc.filebase.io/api/v0/pin/ls";
+/** The empty directory: pinned or not, Filebase answers about it. */
+const HEALTH_PROBE_CID =
+  "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354";
+const HEALTH_TTL_MS = 30_000;
 /** An envelope signed for upload is sent right after: it expires soon. */
 const MAX_ENVELOPE_LIFETIME_S = 3600;
 
@@ -91,7 +96,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
   };
@@ -224,6 +229,7 @@ export async function simulateSignedTransaction(
 
 /**
  * Check that `txHash` is a successful transaction calling Tansu with `cid`.
+ * Returns its source account (that of the inner transaction of a fee bump).
  *
  * Smart-account wallets (Nido) submit through their own relayer, so the dapp
  * holds no envelope signed by its source and uploads once the transaction has
@@ -237,7 +243,7 @@ export async function validateSubmittedTransaction(
     Env,
     "NETWORK_PASSPHRASE" | "TANSU_CONTRACT_ID" | "SOROBAN_RPC_URL"
   >,
-): Promise<void> {
+): Promise<string> {
   if (!/^[0-9a-f]{64}$/i.test(txHash)) {
     throw new Error("Invalid transaction hash");
   }
@@ -265,6 +271,48 @@ export async function validateSubmittedTransaction(
   if (!callsTansuWith(tx, cid, env.TANSU_CONTRACT_ID)) {
     throw new Error(`Transaction ${txHash} does not record ${cid}`);
   }
+  return tx.source;
+}
+
+/**
+ * What the Filebase bucket says about `cid`: pinned, absent, or unknown when
+ * it does not answer, refuses the token or says anything else. Kubo, which
+ * Filebase follows, answers 200 with the key for a pinned CID and an error
+ * "is not pinned" for the others.
+ */
+export async function pinStatus(
+  cid: string,
+  env: Pick<Env, "FILEBASE_TOKEN">,
+): Promise<"pinned" | "absent" | "unknown"> {
+  try {
+    const res = await fetch(`${FILEBASE_PIN_LS}?arg=${cid}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.FILEBASE_TOKEN}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+    const body = (await res.json()) as {
+      Keys?: Record<string, unknown>;
+      Message?: string;
+    };
+    if (res.ok && body.Keys?.[cid]) return "pinned";
+    if (res.ok || /not pinned/i.test(body.Message ?? "")) return "absent";
+  } catch {
+    // Unreachable or not JSON: not known.
+  }
+  return "unknown";
+}
+
+let health: { at: number; ok: boolean } | undefined;
+
+/** Whether Filebase answers us; kept for a while so this cannot hammer it. */
+async function filebaseLive(env: Pick<Env, "FILEBASE_TOKEN">) {
+  if (!health || Date.now() - health.at > HEALTH_TTL_MS) {
+    health = {
+      at: Date.now(),
+      ok: (await pinStatus(HEALTH_PROBE_CID, env)) !== "unknown",
+    };
+  }
+  return health.ok;
 }
 
 export async function calculateCidFromCar(carBlob: Blob): Promise<string> {
@@ -323,6 +371,17 @@ export default {
       });
     }
 
+    if (
+      request.method === "GET" &&
+      new URL(request.url).pathname === "/health"
+    ) {
+      const ok = await filebaseLive(env);
+      return new Response(JSON.stringify({ ok }), {
+        status: ok ? 200 : 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (request.method !== "POST") {
       return new Response(
         JSON.stringify({ success: false, error: "Method not allowed" }),
@@ -351,18 +410,19 @@ export default {
       });
     const refuse = (error: string) => reply(400, { success: false, error });
 
+    const maxCarBytes = Number(env.MAX_CAR_BYTES);
     let body: UploadRequest;
-    let source: string | undefined;
+    let source: string;
     try {
       // Base64 takes 4 bytes per 3 of the CAR.
       const length = Number(request.headers.get("Content-Length") ?? 0);
-      if (length > (MAX_CAR_BYTES * 4) / 3 + 64 * 1024) {
+      if (length > (maxCarBytes * 4) / 3 + 64 * 1024) {
         throw new Error("Upload too large");
       }
       body = (await request.json()) as UploadRequest;
       validateUploadRequest(body);
       if (body.txHash) {
-        await validateSubmittedTransaction(body.txHash, body.cid, env);
+        source = await validateSubmittedTransaction(body.txHash, body.cid, env);
       } else {
         source = validateSignedTransaction(body.signedTxXdr!, body.cid, env);
       }
@@ -371,7 +431,7 @@ export default {
     }
 
     const carBlob = buildUploadBlob(body.car);
-    if (carBlob.size === 0 || carBlob.size > MAX_CAR_BYTES) {
+    if (carBlob.size === 0 || carBlob.size > maxCarBytes) {
       return refuse("Invalid CAR body");
     }
 
@@ -386,36 +446,40 @@ export default {
       return refuse(`CID mismatch: expected ${body.cid}, got ${calculatedCid}`);
     }
 
-    // Only an envelope nobody has sent yet needs the ledger's word and a
-    // quota: a landed transaction already paid for its CID.
-    const quota = source
-      ? env.UPLOAD_QUOTA.get(env.UPLOAD_QUOTA.idFromName(source))
-      : undefined;
+    // An envelope nobody has sent yet needs the ledger's word: a landed
+    // transaction already paid for its CID.
+    if (body.signedTxXdr) {
+      try {
+        await simulateSignedTransaction(body.signedTxXdr, env);
+      } catch (error: any) {
+        return refuse(error?.message ?? "Transaction would not succeed");
+      }
+    }
+
+    // Already in the bucket: nothing to upload, nothing to count. This is
+    // also what makes asking again after a failed answer harmless.
+    if ((await pinStatus(body.cid, env)) === "pinned") {
+      return reply(200, { success: true, cid: body.cid, alreadyPinned: true });
+    }
+
+    const quota = env.UPLOAD_QUOTA.get(env.UPLOAD_QUOTA.idFromName(source));
     const ask = async (action: "reserve" | "release") =>
       (await (
-        await quota!.fetch("https://quota", {
+        await quota.fetch("https://quota", {
           method: "POST",
           body: JSON.stringify({ action, cid: body.cid, bytes: carBlob.size }),
         })
       ).json()) as { ok: boolean; retryAfter?: number };
-
-    if (quota) {
-      try {
-        await simulateSignedTransaction(body.signedTxXdr!, env);
-      } catch (error: any) {
-        return refuse(error?.message ?? "Transaction would not succeed");
-      }
-      const { ok, retryAfter } = await ask("reserve");
-      if (!ok) {
-        return reply(
-          429,
-          {
-            success: false,
-            error: "Upload quota of this account reached for today",
-          },
-          { "Retry-After": String(retryAfter) },
-        );
-      }
+    const { ok, retryAfter } = await ask("reserve");
+    if (!ok) {
+      return reply(
+        429,
+        {
+          success: false,
+          error: "Upload quota of this account reached for today",
+        },
+        { "Retry-After": String(retryAfter) },
+      );
     }
 
     async function uploadToFilebase(): Promise<void> {
@@ -495,7 +559,7 @@ export default {
     try {
       await uploadToFilebase();
     } catch (error: any) {
-      if (quota) await ask("release");
+      await ask("release");
       return reply(502, {
         success: false,
         error: error?.message ?? "Filebase upload failed",

@@ -34,14 +34,19 @@ The worker verifies the upload request by:
   enforce mode: the call must succeed with the authorizations it carries, as
   the ledger would run it now. A signature alone proves nothing, since anyone
   with a keypair can sign a call they never send
-- for `signedTxXdr`, the source account may have 50 CIDs and 100 MB pinned in
-  a day (`src/quota.ts`, one `UploadQuota` Durable Object per account, reset a
-  day after the first upload). A CID already counted is free, so a retry is;
+- for both proofs, the transaction's source account may have 50 CIDs and 100 MB
+  pinned in a day (`src/quota.ts`, one `UploadQuota` Durable Object per account,
+  reset a day after the first upload; a smart-account wallet's relayer is the
+  source of all its users' transactions, so they share one). A CID already counted is free, so a retry is;
   a failed upload gives its share back; over the quota the answer is `429`
   with `Retry-After`
 - for `txHash`, it fetches the transaction from Soroban RPC, checks it
   succeeded, and checks it calls `TANSU_CONTRACT_ID` with `cid` as an argument
-- it checks the CAR (at most 50 MB) has exactly one root, equal to `cid`
+- it checks the CAR (at most `MAX_CAR_BYTES`) has exactly one root, equal to
+  `cid`
+- it asks the Filebase bucket whether `cid` is already pinned
+  (`pin/ls`): if so it answers `{ success: true, alreadyPinned: true }` and
+  uploads and counts nothing. An answer that is not clear counts as "not pinned"
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
 
@@ -51,6 +56,15 @@ CID, and the CAR root must equal that CID.
 Beyond the worker, put a Cloudflare rate-limiting rule on the custom domains
 (Security → WAF) to bound the requests one address may send; the worker's
 quota counts accounts, which are free to create.
+
+`txHash` is checked with `getTransaction`, which only knows recent
+transactions (the RPC's retention window): the upload has to follow the
+transaction soon after it lands.
+
+`GET /health` answers `200 {"ok":true}` when the Filebase bucket answers the
+worker's token, else `503`. The dapp asks before it asks a wallet to sign, so
+it does not send a transaction whose files it could not upload. The answer is
+kept for 30 seconds.
 
 ## Returns JSON
 
@@ -86,7 +100,9 @@ NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 TANSU_CONTRACT_ID=CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
 ```
 
-`NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID` and `SOROBAN_RPC_URL` are plain
+`NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID`, `SOROBAN_RPC_URL` and
+`MAX_CAR_BYTES` (bytes; 10 MB on testnet, 50 MB on production until the app
+that production serves checks the size before it signs) are plain
 variables, not secrets: `wrangler.toml` sets them per environment, the contract
 ids from `deployments/tansu-*`. All three are required: without
 `SOROBAN_RPC_URL` no upload can be checked. `wrangler.toml` also binds the
@@ -136,7 +152,10 @@ bunx wrangler login
 
 ### Security
 
-All secrets are stored in Cloudflare Secrets. Set them with wrangler:
+All secrets are stored in Cloudflare Secrets. Each environment has its own
+Filebase bucket, key and Pinata group, so abuse of testnet cannot exhaust or
+get suspended what mainnet depends on; `.dev.vars` uses the testnet bucket. Set
+them with wrangler:
 
 ```bash
 # Development

@@ -24,6 +24,8 @@ NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 TANSU_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
 # Simulates the envelopes to upload for and checks txHash proofs.
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
+# The largest CAR an upload may carry, in bytes (10 MB).
+MAX_CAR_BYTES = "10485760"
 
 [[env.testnet.durable_objects.bindings]]
 name = "UPLOAD_QUOTA"
@@ -44,6 +46,8 @@ NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
 TANSU_CONTRACT_ID = "CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI"
 # Simulates the envelopes to upload for and checks txHash proofs.
 SOROBAN_RPC_URL = "https://rpc.lightsail.network/"
+# 50 MB until app_prod's dapp checks the size before it signs (10 MB then).
+MAX_CAR_BYTES = "52428800"
 
 [[env.production.durable_objects.bindings]]
 name = "UPLOAD_QUOTA"
