@@ -22,7 +22,7 @@ submit through their own relayer; their transactions are proven the same way.
 
 The worker checks the upload request by:
 
-- at most 10 requests a minute per address (`CF-Connecting-IP`, the
+- at most 30 requests a minute per address (`CF-Connecting-IP`, the
   `RATE_LIMIT` binding); past it the answer is `429`
 - reading the body up to `MAX_CAR_BYTES` in base64 and no further
 - fetching `txHash` from Soroban RPC (asked again a few times if the node does

@@ -117,9 +117,9 @@ const CID_CALLS: Record<string, { actor: number; cid: number }> = {
   update_member: { actor: 0, cid: 1 },
   register: { actor: 0, cid: 4 },
   update_config: { actor: 0, cid: 4 },
-  set_evidence: { actor: 0, cid: 5 },
-  create_proposal: { actor: 0, cid: 4 },
-  veto: { actor: 0, cid: 4 },
+  set_evidence: { actor: 0, cid: 4 },
+  create_proposal: { actor: 0, cid: 3 },
+  veto: { actor: 0, cid: 3 },
 };
 
 /**

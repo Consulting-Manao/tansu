@@ -85,21 +85,60 @@ describe("uploadActor", () => {
   });
 
   it("knows where each function takes its CID", () => {
-    const actor = nativeToScVal(Keypair.random().publicKey(), {
-      type: "address",
-    });
-    for (const [fn, position] of [
-      ["update_member", 1],
-      ["register", 4],
-      ["update_config", 4],
-      ["set_evidence", 5],
-      ["create_proposal", 4],
-      ["veto", 4],
-    ] as const) {
-      const args = Array.from({ length: position + 1 }, () => text("other"));
-      args[0] = actor;
-      args[position] = text(CID);
-      expect(call(invokeTx({ fn, args }))).toBeDefined();
+    // The contract's signatures, written out (env left out): the CID is the
+    // argument named `cid`, `ipfs`, `meta` or `reason`.
+    const address = () =>
+      nativeToScVal(Keypair.random().publicKey(), { type: "address" });
+    const signatures: Record<string, string[]> = {
+      add_member: [
+        "member_address",
+        "meta",
+        "git_identity",
+        "git_pubkey",
+        "git_sig",
+      ],
+      update_member: [
+        "member_address",
+        "meta",
+        "git_identity",
+        "git_pubkey",
+        "git_sig",
+      ],
+      register: [
+        "maintainer",
+        "name",
+        "maintainers",
+        "url",
+        "ipfs",
+        "min_voting_period",
+      ],
+      update_config: [
+        "maintainer",
+        "key",
+        "maintainers",
+        "url",
+        "ipfs",
+        "min_voting_period",
+      ],
+      set_evidence: ["maintainer", "project_key", "commit_hash", "kind", "cid"],
+      create_proposal: [
+        "proposer",
+        "project_key",
+        "title",
+        "ipfs",
+        "voting_ends_at",
+      ],
+      veto: ["maintainer", "project_key", "proposal_id", "reason"],
+    };
+    for (const [fn, names] of Object.entries(signatures)) {
+      const args = names.map((name, i) => (i === 0 ? address() : text(name)));
+      const cid = names.find((name) =>
+        ["meta", "ipfs", "cid", "reason"].includes(name),
+      )!;
+      args[names.indexOf(cid)] = text(CID);
+      expect(call(invokeTx({ fn, args })), fn).toBeDefined();
+      // Any other string argument is not the CID.
+      expect(call(invokeTx({ fn, args }), "title"), fn).toBeUndefined();
     }
   });
 

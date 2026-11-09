@@ -16,7 +16,7 @@ new_sqlite_classes = ["UploadQuota"]
 [[ratelimits]]
 name = "RATE_LIMIT"
 namespace_id = "1000"
-simple = { limit = 10, period = 60 }
+simple = { limit = 30, period = 60 }
 
 [env.testnet]
 [[env.testnet.routes]]
@@ -41,7 +41,7 @@ class_name = "UploadQuota"
 [[env.testnet.ratelimits]]
 name = "RATE_LIMIT"
 namespace_id = "1001"
-simple = { limit = 10, period = 60 }
+simple = { limit = 30, period = 60 }
 
 [[env.testnet.migrations]]
 tag = "v1"
@@ -68,7 +68,7 @@ class_name = "UploadQuota"
 [[env.production.ratelimits]]
 name = "RATE_LIMIT"
 namespace_id = "1002"
-simple = { limit = 10, period = 60 }
+simple = { limit = 30, period = 60 }
 
 [[env.production.migrations]]
 tag = "v1"
