@@ -131,18 +131,24 @@ async function land<T>(
     );
   }
   if (pack) {
-    const upload = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cid: pack.cid,
-        car: Buffer.from(await pack.carBlob.arrayBuffer()).toString("base64"),
-        txHash: sent.sendTransactionResponse!.hash,
-      }),
-      signal: AbortSignal.timeout(120_000),
+    // The dapp tries five times; a slow RPC behind the worker is the usual miss.
+    const body = JSON.stringify({
+      cid: pack.cid,
+      car: Buffer.from(await pack.carBlob.arrayBuffer()).toString("base64"),
+      txHash: sent.sendTransactionResponse!.hash,
     });
-    if (!upload.ok) {
-      throw new Error(`upload ${upload.status}: ${await upload.text()}`);
+    for (let attempt = 1; ; attempt += 1) {
+      const upload = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (upload.ok) break;
+      if (attempt === 4) {
+        throw new Error(`upload ${upload.status}: ${await upload.text()}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
     }
     await Promise.all(
       pack.names.map((name) => read.ipfs(pack.cid, `/${name}`)),
