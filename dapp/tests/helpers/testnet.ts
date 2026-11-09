@@ -395,6 +395,14 @@ export const read = {
         proposal_id: id,
       })
     ).result,
+  /** Who vetoed a proposal, why (a CID) and when. */
+  veto: async (name: string, id: number) =>
+    (
+      await tansu().get_veto({
+        project_key: projectKey(name),
+        proposal_id: id,
+      })
+    ).result,
   member: async (address: string) =>
     (await tansu().get_member({ member_address: address })).result,
   badges: async (name: string) =>

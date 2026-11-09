@@ -18,6 +18,11 @@ export * as rpc from "@stellar/stellar-sdk/rpc";
 export interface Dao {
   proposals: Array<Proposal>;
 }
+export interface Veto {
+  maintainer: string;
+  reason: string;
+  vetoed_at: u64;
+}
 export type Vote =
   | {
       tag: "PublicVote";
@@ -156,6 +161,10 @@ export type ProposalStatus =
     }
   | {
       tag: "Malicious";
+      values: void;
+    }
+  | {
+      tag: "Vetoed";
       values: void;
     };
 export interface OutcomeContract {
@@ -325,6 +334,45 @@ export declare const ContractErrors: {
 };
 export interface Client {
   /**
+   * Construct and simulate a veto transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Veto a proposal.
+   *
+   * Any maintainer can veto an active proposal, during the vote and the
+   * execute delay, whatever the votes are. A veto only rejects: the
+   * proposal becomes `Vetoed`, runs no outcome call and cannot be executed
+   * or voted on. Unlike [`DaoTrait::revoke_proposal`], which deletes spam
+   * and forfeits the deposit, the proposal stays readable and the
+   * proposer's deposit is repaid; who vetoed, why and when stay readable with
+   * [`DaoTrait::get_veto`]. It needs no tally, so it also ends an
+   * anonymous proposal whose ballots cannot be tallied.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `maintainer` - The maintainer vetoing the proposal
+   * * `project_key` - The project key identifier
+   * * `proposal_id` - The ID of the proposal to veto
+   * * `reason` - IPFS content identifier of the explanation, stored and published in the event
+   *
+   * # Panics
+   * * If the maintainer is not authorized
+   * * If the proposal is not active
+   * * If the reason is not an IPFS content identifier of 32 to 64 characters
+   */
+  veto: (
+    {
+      maintainer,
+      project_key,
+      proposal_id,
+      reason,
+    }: {
+      maintainer: string;
+      project_key: Buffer;
+      proposal_id: u32;
+      reason: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
+  /**
    * Construct and simulate a vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Cast a vote on a proposal.
    *
@@ -459,7 +507,8 @@ export interface Client {
    * Returns a page of proposals (0 to MAX_PROPOSALS_PER_PAGE proposals per page).
    *
    * Proposal `id` is on page `id / MAX_PROPOSALS_PER_PAGE`. Revoked
-   * proposals are deleted and left out, so a page can hold fewer.
+   * proposals are deleted and left out, so a page can hold fewer, and a
+   * page past the last proposal is empty.
    *
    * # Arguments
    * * `env` - The environment object
@@ -470,7 +519,7 @@ export interface Client {
    * * `types::Dao` - The DAO object containing a page of proposals
    *
    * # Panics
-   * * If the page number is out of bounds
+   * * If the project doesn't exist
    */
   get_dao: (
     {
@@ -482,6 +531,31 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Dao>>;
+  /**
+   * Construct and simulate a get_veto transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get who vetoed a proposal, why and when.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   * * `proposal_id` - The ID of the proposal
+   *
+   * # Returns
+   * * `types::Veto` - The maintainer, the CID of the reason and the ledger timestamp
+   *
+   * # Panics
+   * * If the proposal was not vetoed
+   */
+  get_veto: (
+    {
+      project_key,
+      proposal_id,
+    }: {
+      project_key: Buffer;
+      proposal_id: u32;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<Veto>>;
   /**
    * Construct and simulate a remove_vote transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Remove a malicious or non-compliant vote from a proposal.
@@ -1038,10 +1112,11 @@ export interface Client {
    * with the new badge list. Repeated badges count once, and an empty list
    * removes the project from the member's record. The member's maximum
    * voting weight is calculated as the sum of all assigned badge weights.
+   * A member can remove a project from its own record, never add one.
    *
    * # Arguments
    * * `env` - The environment object
-   * * `maintainer` - The address of the maintainer (must be authorized)
+   * * `maintainer` - A maintainer of the project, or the member itself with an empty list
    * * `key` - The project key identifier
    * * `member` - The address of the member to set badges for
    * * `badges` - Vector of badges to assign
@@ -1714,10 +1789,12 @@ export declare class Client extends ContractClient {
   ): Promise<AssembledTransaction<T>>;
   constructor(options: ContractClientOptions);
   readonly fromJSON: {
+    veto: (json: string) => AssembledTransaction<null>;
     vote: (json: string) => AssembledTransaction<null>;
     proof: (json: string) => AssembledTransaction<boolean>;
     execute: (json: string) => AssembledTransaction<ProposalStatus>;
     get_dao: (json: string) => AssembledTransaction<Dao>;
+    get_veto: (json: string) => AssembledTransaction<Veto>;
     remove_vote: (json: string) => AssembledTransaction<null>;
     get_proposal: (json: string) => AssembledTransaction<Proposal>;
     create_proposal: (json: string) => AssembledTransaction<number>;

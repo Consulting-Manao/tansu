@@ -23,7 +23,9 @@ const ProposalStatusBadge = ({ proposal }: { proposal: ProposalView }) => {
             ? ["danger", "Rejected"]
             : proposal.status === "malicious"
               ? ["danger", "Revoked"]
-              : ["neutral", "Cancelled"];
+              : proposal.status === "vetoed"
+                ? ["danger", "Vetoed"]
+                : ["neutral", "Cancelled"];
   return (
     <span title={`Vote ends ${formatUtcDate(proposal.endDate)} UTC`}>
       <Badge tone={tone} dot={tone === "success" && !isExpired}>

@@ -12,6 +12,7 @@ import { hasUserVoted } from "utils/utils";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
 import MarkMaliciousModal from "./MarkMaliciousModal";
 import RemoveVoteModal from "./RemoveVoteModal";
+import VetoProposalModal from "./VetoProposalModal";
 
 const Eyebrow = ({ children }: { children: string }) => (
   <p className="font-mono text-label tracking-[0.08em] text-ink-muted uppercase">
@@ -23,7 +24,7 @@ const Eyebrow = ({ children }: { children: string }) => (
  * What the connected member can do with a proposal: vote while it runs
  * (Vote alone stands out; the wallet picker comes first without a wallet),
  * and, for its maintainers, execute it once its delay passed, remove a
- * ballot, or revoke it, as quieter text actions.
+ * ballot, revoke it (spam) or veto it, as quieter text actions.
  */
 const ProposalActions = ({
   proposal,
@@ -37,9 +38,9 @@ const ProposalActions = ({
   onExecute: () => void;
 }) => {
   const address = useStore(connectedPublicKey);
-  const [shown, setShown] = useState<"remove" | "revoke" | "conflict" | null>(
-    null,
-  );
+  const [shown, setShown] = useState<
+    "remove" | "revoke" | "veto" | "conflict" | null
+  >(null);
   const isMaintainer = !!address && maintainers.includes(address);
   const voted = hasUserVoted(proposal.voteStatus, address);
   const isRunning =
@@ -138,7 +139,18 @@ const ProposalActions = ({
             >
               Revoke proposal
             </Button>
+            <Button
+              tone="danger-ghost"
+              size="sm"
+              onClick={() => setShown("veto")}
+            >
+              Veto proposal
+            </Button>
           </div>
+          <p className="text-small text-ink-muted">
+            Veto rejects a proposal whatever the votes are and keeps it on
+            record. Revoke deletes spam.
+          </p>
         </Card>
       )}
       {shown === "conflict" && (
@@ -157,6 +169,14 @@ const ProposalActions = ({
           voteStatus={proposal.voteStatus}
           onClose={() => setShown(null)}
           onRemoved={() => setShown(null)}
+        />
+      )}
+      {shown === "veto" && (
+        <VetoProposalModal
+          projectName={proposal.projectName}
+          proposalId={proposal.id}
+          proposalTitle={proposal.title}
+          onClose={() => setShown(null)}
         />
       )}
       {shown === "revoke" && (

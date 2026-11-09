@@ -11,6 +11,7 @@ import type {
 } from "types/proposal";
 import type {
   Proposal as ContractProposal,
+  Veto,
   Vote,
   VoteChoice,
 } from "../../packages/tansu";
@@ -672,6 +673,61 @@ export async function revokeProposal(
   });
   await sendTransaction(tx, {
     invalidate: [proposalKey(projectName, proposalId)],
+  });
+}
+
+/** The file of a veto's IPFS directory that holds its reason. */
+export const VETO_REASON_FILE = "reason.md";
+
+/**
+ * Who vetoed a proposal, why (the CID of its reason) and when, from the
+ * ledger; `null` for a proposal that was not vetoed.
+ */
+export const vetoQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["veto", projectKeyHex(name), id],
+    queryFn: async (): Promise<Veto | null> => {
+      const entry = await readEntry(
+        storageKey("Veto", projectBytes(name), xdr.ScVal.scvU32(id)),
+      );
+      return entry ? decode<Veto>(entry, "Veto") : null;
+    },
+    // A veto is final once it is on the ledger; its absence is asked again.
+    staleTime: (query) => (query.state.data ? Infinity : MINUTE),
+  });
+
+/**
+ * Veto a proposal as a maintainer: it is rejected whatever the votes are.
+ * The reason is a file on IPFS, uploaded once the call landed, as for every
+ * write that carries files.
+ */
+export async function vetoProposal({
+  projectName,
+  proposalId,
+  reason,
+  onProgress,
+}: {
+  projectName: string;
+  proposalId: number;
+  reason: string;
+  onProgress?: (stage: TxStage) => void;
+}): Promise<void> {
+  const upload = await packUpload([new File([reason], VETO_REASON_FILE)]);
+  onProgress?.("sign");
+  const maintainer = connectedAddress();
+  const tx = await tansuFor(maintainer).veto({
+    maintainer,
+    project_key: deriveProjectKey(projectName),
+    proposal_id: proposalId,
+    reason: upload.cid,
+  });
+  await sendTransaction(tx, {
+    upload,
+    onProgress,
+    invalidate: [
+      proposalKey(projectName, proposalId),
+      ["veto", projectKeyHex(projectName), proposalId],
+    ],
   });
 }
 

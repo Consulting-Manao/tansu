@@ -46,7 +46,12 @@ vi.mock("../../../src/contracts/soroban_tansu", async () => {
 import {
   proposalQuery,
   proposalSummaryQuery,
+  vetoQuery,
 } from "../../../src/service/ProposalService";
+import {
+  modifyProposalFromContract,
+  modifyProposalToView,
+} from "../../../src/utils/utils";
 import { deriveProjectKey } from "../../../src/utils/projectKey";
 import { Address } from "@stellar/stellar-sdk";
 
@@ -183,6 +188,54 @@ describe("proposalQuery", () => {
     // The active one and the absent one are read again; the executed one
     // never.
     expect(reads.calls).toEqual([4]);
+    vi.useRealTimers();
+  });
+
+  it("reads a veto from the ledger, and never reads a vetoed proposal again", async () => {
+    const client = new QueryClient();
+    const id = xdr.ScVal.scvU32(4);
+    store(
+      "Proposal",
+      [project, id],
+      spec.nativeToScVal(
+        {
+          ...spec.scValToNative(proposal(4), udt("Proposal")),
+          status: { tag: "Vetoed", values: undefined },
+        },
+        udt("Proposal"),
+      ),
+    );
+    store(
+      "Veto",
+      [project, id],
+      spec.nativeToScVal(
+        { maintainer: alive, reason: "bafyreason", vetoed_at: 5n },
+        udt("Veto"),
+      ),
+    );
+
+    const summary = await client.query(proposalSummaryQuery("demo", 4));
+    expect(summary?.proposal.status.tag).toBe("Vetoed");
+    // The page maps it to its own status, final like an executed one.
+    const view = modifyProposalToView(
+      modifyProposalFromContract(summary!.proposal),
+      "demo",
+    );
+    expect(view.status).toBe("vetoed");
+    expect(await client.query(vetoQuery("demo", 4))).toEqual({
+      maintainer: alive,
+      reason: "bafyreason",
+      vetoed_at: 5n,
+    });
+    // A proposal nobody vetoed has none.
+    expect(await client.query(vetoQuery("demo", 0))).toBeNull();
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 2 * 60_000);
+    reads.calls = [];
+    await client.query(proposalSummaryQuery("demo", 4));
+    await client.query(vetoQuery("demo", 4));
+    expect(reads.calls).toEqual([]);
     vi.useRealTimers();
   });
 

@@ -1,6 +1,7 @@
 import { Badge } from "../packages/tansu/src/index.ts";
 import { expect, test } from "./helpers/app";
 import {
+  castVote,
   createProposal,
   fundedKeypair,
   join,
@@ -11,7 +12,7 @@ import {
 } from "./helpers/testnet";
 import { connectWallet } from "./helpers/wallet";
 
-test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
+test("propose, vote, remove a vote, revoke, veto and execute", async ({
   page,
   wallet,
 }) => {
@@ -90,6 +91,53 @@ test("propose, vote, remove a vote, revoke a proposal and execute one", async ({
   // Revoking deletes the proposal: its id is never reused.
   await expect(page.getByText("Proposal not found")).toBeVisible();
   expect(await read.proposal(name, created)).toHaveProperty("error");
+
+  // A maintainer vetoes a proposal the vote approves: it stays on record,
+  // rejected, with its reason.
+  const unwanted = await createProposal(
+    proposer,
+    name,
+    "Rename the project",
+    90,
+  );
+  await castVote(wallet, name, unwanted, {
+    tag: "PublicVote",
+    values: [
+      {
+        address: wallet.publicKey(),
+        weight: Badge.Developer,
+        vote_choice: { tag: "Approve", values: undefined },
+      },
+    ],
+  });
+  await page.goto(`/proposal/?id=${unwanted}&name=${name}`);
+  await page.getByRole("button", { name: "Veto proposal" }).click();
+  const reason = "The name is part of a trademark claim.";
+  await page.getByLabel("Reason").fill(reason);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Veto proposal" })
+    .click();
+  await expect(page.getByText("Proposal vetoed")).toBeVisible({
+    timeout: 120_000,
+  });
+  // No vote, no tools: it is final.
+  await expect(page.getByText("Vetoed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Vetoed by /)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Vote" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Veto proposal" })).toHaveCount(
+    0,
+  );
+  expect((await read.proposal(name, unwanted))?.status.tag).toBe("Vetoed");
+  const veto = await read.veto(name, unwanted);
+  expect(veto.maintainer).toBe(wallet.publicKey());
+  // The reason was uploaded once the veto landed, and the page links it.
+  expect(await (await read.ipfs(veto.reason, "/reason.md")).text()).toBe(
+    reason,
+  );
+  await expect(
+    page.getByRole("link", { name: "Read the reason" }),
+  ).toBeVisible();
 
   // Once its vote has ended, the first proposal is executed: approved.
   const endsAt = Number(

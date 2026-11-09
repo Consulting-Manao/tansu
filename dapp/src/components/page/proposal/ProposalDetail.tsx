@@ -105,6 +105,11 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({
           }
         />
         <div className="flex flex-col gap-3">
+          {status === "vetoed" && (
+            <p className="text-small text-ink-muted">
+              Vetoed: none of these outcomes runs.
+            </p>
+          )}
           {!outcome ||
           !OUTCOME_TYPES.some((type) =>
             hasUsableOutcomeContent(outcome[type]),

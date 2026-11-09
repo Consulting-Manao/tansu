@@ -1,8 +1,14 @@
 export type ProposalStatus =
-  "active" | "rejected" | "cancelled" | "approved" | "malicious";
+  "active" | "rejected" | "cancelled" | "approved" | "malicious" | "vetoed";
 
 export type ProposalViewStatus =
-  "active" | "rejected" | "cancelled" | "voted" | "approved" | "malicious";
+  | "active"
+  | "rejected"
+  | "cancelled"
+  | "voted"
+  | "approved"
+  | "malicious"
+  | "vetoed";
 
 export interface OutcomeContract {
   address: string;

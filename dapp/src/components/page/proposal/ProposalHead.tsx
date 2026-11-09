@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { executeDelayQuery, proposalQuery } from "@service/ProposalService";
+import {
+  executeDelayQuery,
+  proposalQuery,
+  vetoQuery,
+} from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import {
   Badge,
@@ -24,13 +28,36 @@ import {
   modifyProposalToView,
   truncateMiddle,
 } from "utils/utils";
+import VetoNotice from "./VetoNotice";
 
 const when = (seconds: number) =>
   formatDateTime(new Date(seconds * 1000).toISOString());
 
-/** A proposal's life: submitted, its vote, its execution, the outcome. */
-const steps = (proposal: ProposalView, delay: number | undefined) => {
+/**
+ * A proposal's life: submitted, its vote, its execution, the outcome; or its
+ * vote and a veto that ended it.
+ */
+const steps = (
+  proposal: ProposalView,
+  delay: number | undefined,
+  vetoedAt: bigint | undefined,
+) => {
   const ended = proposal.endDate * 1000 <= Date.now();
+  if (proposal.status === "vetoed") {
+    return [
+      { label: "Submitted", state: "done" },
+      {
+        label: "Voting",
+        detail: `${ended ? "Ended" : "Was to end"} ${when(proposal.endDate)}`,
+        state: "done",
+      },
+      {
+        label: "Vetoed",
+        detail: vetoedAt === undefined ? undefined : when(Number(vetoedAt)),
+        state: "now",
+      },
+    ] satisfies TimelineStep[];
+  }
   const executed = ["approved", "rejected", "cancelled"].includes(
     proposal.status,
   );
@@ -73,6 +100,11 @@ const ProposalHead = () => {
     : null;
   const delay = useQuery(
     { ...executeDelayQuery(name, id), enabled: !!proposal },
+    queryClient,
+  ).data;
+  const vetoed = proposal?.status === "vetoed";
+  const veto = useQuery(
+    { ...vetoQuery(name, id), enabled: vetoed },
     queryClient,
   ).data;
 
@@ -140,6 +172,7 @@ const ProposalHead = () => {
           <Badge>
             {proposal.publicVoting ? "Public vote" : "Anonymous vote"}
           </Badge>
+          {vetoed && <Badge tone="danger">Vetoed</Badge>}
         </div>
         <h1 className={title}>{proposal.title}</h1>
         <p className="text-band-muted">
@@ -153,8 +186,12 @@ const ProposalHead = () => {
         </p>
       </div>
       <div className="mt-2 max-w-220">
-        <Timeline label="Proposal" steps={steps(proposal, delay)} />
+        <Timeline
+          label="Proposal"
+          steps={steps(proposal, delay, veto?.vetoed_at)}
+        />
       </div>
+      {vetoed && <VetoNotice name={name} id={id} />}
     </>,
   );
 };
