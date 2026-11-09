@@ -1,5 +1,35 @@
-import MarkdownToJsx, { RuleType, type MarkdownToJSX } from "markdown-to-jsx";
-import { useMemo, type ComponentProps } from "react";
+import { compiler, RuleType, type MarkdownToJSX } from "markdown-to-jsx";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useMemo,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
+
+/**
+ * markdown-to-jsx renders the inner source of a `<pre>`, and of any allowed
+ * container that holds one, as raw HTML (`dangerouslySetInnerHTML`) without
+ * calling `renderRule` for what is inside, so the allowlist below never sees
+ * it. That markup is dropped: a literal `<pre>` HTML block (fenced code is
+ * not one) disappears.
+ */
+function withoutRawHtml(node: ReactNode): ReactNode {
+  if (
+    !isValidElement<{
+      children?: ReactNode;
+      dangerouslySetInnerHTML?: unknown;
+    }>(node)
+  ) {
+    return node;
+  }
+  if (node.props.dangerouslySetInnerHTML) return null;
+  if (node.props.children == null) return node;
+  return cloneElement(node, {
+    children: Children.toArray(node.props.children).map(withoutRawHtml),
+  });
+}
 
 /**
  * The raw HTML users may write: formatting. markdown-to-jsx already drops
@@ -117,7 +147,14 @@ export default function Markdown({
           ),
         },
         img: {
-          component: ({ src, ...props }: ComponentProps<"img">) => (
+          // An image has no children: markdown-to-jsx hands it some for
+          // `<img>` written as a block, and React throws on a void element
+          // that has them, which would replace the whole page.
+          component: ({
+            src,
+            children: _children,
+            ...props
+          }: ComponentProps<"img">) => (
             <img
               alt=""
               {...props}
@@ -149,9 +186,10 @@ export default function Markdown({
     [baseUrl],
   );
 
-  return (
-    <div className={`markdown-body ${className}`}>
-      <MarkdownToJsx options={options}>{children}</MarkdownToJsx>
-    </div>
+  const content = useMemo(
+    () => Children.toArray(compiler(children, options)).map(withoutRawHtml),
+    [children, options],
   );
+
+  return <div className={`markdown-body ${className}`}>{content}</div>;
 }
