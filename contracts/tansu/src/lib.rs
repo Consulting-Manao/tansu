@@ -256,6 +256,8 @@ pub trait DaoTrait {
 
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal;
 
+    fn get_veto(env: Env, project_key: Bytes, proposal_id: u32) -> types::Veto;
+
     fn add_conflict_of_interest(
         env: Env,
         maintainer: Address,

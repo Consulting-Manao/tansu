@@ -169,6 +169,14 @@ pub struct Proposal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct Veto {
+    pub maintainer: Address,
+    pub reason: String, // CID of the explanation
+    pub vetoed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Dao {
     pub proposals: Vec<Proposal>,
 }
@@ -201,6 +209,7 @@ pub enum ProjectKey {
     Voters(Bytes, u32),        // Voter addresses for proposal
     Vote(Bytes, u32, Address), // Proposal vote keyed by voter
     ProposalTallies(Bytes, u32),
+    Veto(Bytes, u32), // Who vetoed a proposal, why and when
     AnonymousVoteConfig(Bytes),
     ProjectKeys(u32),                    // List of project keys, pagination
     TotalProjects,                       // Total number of projects

@@ -885,6 +885,18 @@ fn veto_rejects_whatever_the_votes_are() {
     assert_eq!(proposal.status, ProposalStatus::Vetoed);
     assert_eq!(setup.token_stellar.balance(&setup.grogu), balance_before);
 
+    // who, why and when stay on the ledger, beyond what an event lasts
+    let veto = setup.contract.get_veto(&id, &proposal_id);
+    assert_eq!(veto.maintainer, setup.mando);
+    assert_eq!(veto.reason, reason);
+    assert_eq!(veto.vetoed_at, voting_ends_at + 1);
+    let err = setup
+        .contract
+        .try_get_veto(&id, &(proposal_id + 1))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::NoProposalorPageFound.into());
+
     // nothing leads from a veto to an execution, a vote or a second veto
     setup
         .env

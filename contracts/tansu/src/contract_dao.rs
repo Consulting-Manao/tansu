@@ -620,7 +620,8 @@ impl DaoTrait for Tansu {
     /// proposal becomes `Vetoed`, runs no outcome call and cannot be executed
     /// or voted on. Unlike [`DaoTrait::revoke_proposal`], which deletes spam
     /// and forfeits the deposit, the proposal stays readable and the
-    /// proposer's deposit is repaid. It needs no tally, so it also ends an
+    /// proposer's deposit is repaid; who vetoed, why and when stay readable with
+    /// [`DaoTrait::get_veto`]. It needs no tally, so it also ends an
     /// anonymous proposal whose ballots cannot be tallied.
     ///
     /// # Arguments
@@ -628,7 +629,7 @@ impl DaoTrait for Tansu {
     /// * `maintainer` - The maintainer vetoing the proposal
     /// * `project_key` - The project key identifier
     /// * `proposal_id` - The ID of the proposal to veto
-    /// * `reason` - IPFS content identifier of the explanation, published in the event
+    /// * `reason` - IPFS content identifier of the explanation, stored and published in the event
     ///
     /// # Panics
     /// * If the maintainer is not authorized
@@ -652,6 +653,16 @@ impl DaoTrait for Tansu {
         env.storage().persistent().set(
             &types::ProjectKey::Proposal(project_key.clone(), proposal_id),
             &proposal,
+        );
+
+        // The ledger keeps what an event only lasts a few days for
+        env.storage().persistent().set(
+            &types::ProjectKey::Veto(project_key.clone(), proposal_id),
+            &types::Veto {
+                maintainer: maintainer.clone(),
+                reason: reason.clone(),
+                vetoed_at: env.ledger().timestamp(),
+            },
         );
 
         events::ProposalVetoed {
@@ -1155,6 +1166,27 @@ impl DaoTrait for Tansu {
         let mut proposal = load_proposal(&env, &project_key, proposal_id);
         proposal.vote_data.votes = get_all_votes(&env, &project_key, proposal_id);
         proposal
+    }
+
+    /// Get who vetoed a proposal, why and when.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    ///
+    /// # Returns
+    /// * `types::Veto` - The maintainer, the CID of the reason and the ledger timestamp
+    ///
+    /// # Panics
+    /// * If the proposal was not vetoed
+    fn get_veto(env: Env, project_key: Bytes, proposal_id: u32) -> types::Veto {
+        env.storage()
+            .persistent()
+            .get(&types::ProjectKey::Veto(project_key, proposal_id))
+            .unwrap_or_else(|| {
+                panic_with_error!(&env, &errors::ContractErrors::NoProposalorPageFound)
+            })
     }
 
     /// Add addresses to the conflict-of-interest list of a proposal.
