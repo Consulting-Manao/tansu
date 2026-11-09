@@ -82,6 +82,12 @@ test("join with a picture and a git identity, then edit the profile", async ({
   // Codeberg does not list keys to check: the identity is self-declared.
   await expect(page.getByText("Self-declared")).toBeVisible();
   await expect(page.getByText("Writes Soroban contracts.")).toBeVisible();
+  // The on-chain activity is its own tab, as wide as the page: the join is its
+  // first row (the page keeps the tab in `?tab=`).
+  await page.getByRole("tab", { name: /On-chain activity/ }).click();
+  await expect(page).toHaveURL(/tab=activity/);
+  await expect(page.getByText(/added member/)).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Profile" }).click();
 
   // A new name: the picture and the git identity stay. The picture moves
   // through the gateway, which takes a while to serve a new file.

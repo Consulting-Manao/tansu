@@ -139,7 +139,7 @@ When you touch the dApp:
 | browse | `browse-governance` | the project page's Proposals tab: `components/page/governance/` (`ProposalsTab`, `RecentProposals` on the Overview) |
 | browse | `browse-proposal` | `pages/proposal/index.astro`, `components/page/proposal/ProposalHead.tsx` (timeline), `ProposalPage.tsx`, `ProposalTally.tsx`, `ProposalActions.tsx` (your vote, maintainer tools), `ProposalDetail.tsx`, `VetoNotice.tsx`, `DiscussionSection.tsx` |
 | browse | `browse-legal` | `pages/[legal].astro`, the root `legal/` files |
-| member | `member-profile` | `pages/member/index.astro` (`?address=`, `memberUrl`), `components/page/member/MemberHead.tsx`, `MemberPage.tsx`, `useMemberProfile.ts`, `components/page/dashboard/OnChainActions.tsx` |
+| member | `member-profile` | `pages/member/index.astro` (`?address=`, `?tab=` profile or activity, `memberUrl`), `components/page/member/MemberHead.tsx`, `MemberPage.tsx`, `useMemberProfile.ts`, `components/page/dashboard/OnChainActions.tsx` |
 | member | `member-join` | `components/page/dashboard/ProfileModal.tsx`, `GitVerification.tsx` |
 | project | `project-register` | `components/page/dashboard/CreateProjectModal.tsx`, `CreateProjectReview.tsx`, `components/page/project/ProjectFields.tsx` |
 | project | `project-config` | `components/page/project/UpdateConfigModal.tsx`, `useConfigForm.ts`, `ProjectFields.tsx`, `utils/tansuToml.ts`, `utils/readmeImages.ts` |

@@ -47,8 +47,19 @@ export function memberAddressFromUrl(): string {
   return new URLSearchParams(window.location.search).get("address") ?? "";
 }
 
-export function memberUrl(address: string): string {
-  return `/member/?address=${encodeURIComponent(address)}`;
+/** The member page's tabs; the first is the page without `?tab=`. */
+const MEMBER_TABS = ["profile", "activity"] as const;
+export type MemberTab = (typeof MEMBER_TABS)[number];
+
+/** The tab the member page shows: `?tab=` in its address. */
+export function memberTabFromUrl(): MemberTab {
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return MEMBER_TABS.find((known) => known === tab) ?? "profile";
+}
+
+export function memberUrl(address: string, tab: MemberTab = "profile"): string {
+  const query = tab === "profile" ? "" : `&tab=${tab}`;
+  return `/member/?address=${encodeURIComponent(address)}${query}`;
 }
 
 /** The proposal the page is about: `?id=` in its address, or NaN. */
