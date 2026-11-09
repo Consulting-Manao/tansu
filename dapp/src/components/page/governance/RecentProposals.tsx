@@ -1,13 +1,13 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  loadedProposals,
+  loaded,
   proposalCountQuery,
-  proposalQuery,
+  proposalSummaryQuery,
 } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { Card, CardHeader, Skeleton } from "components/ui";
 import { proposalUrl } from "utils/urls";
-import { modifyProposalFromContract, modifyProposalToView } from "utils/utils";
+import { summaryToView } from "utils/utils";
 import ProposalStatusBadge from "./ProposalStatusBadge";
 
 const SHOWN = 3;
@@ -27,17 +27,15 @@ const RecentProposals = ({
     { length: Math.min(SHOWN, count) },
     (_, index) => count - 1 - index,
   );
-  const { proposals, isLoading } = useQueries(
+  const { data: summaries, isLoading } = useQueries(
     {
-      queries: ids.map((id) => proposalQuery(name, id)),
-      combine: loadedProposals,
+      queries: ids.map((id) => proposalSummaryQuery(name, id)),
+      combine: loaded,
     },
     queryClient,
   );
-  const views = proposals
-    .map((proposal) =>
-      modifyProposalToView(modifyProposalFromContract(proposal), name),
-    )
+  const views = summaries
+    .map((summary) => summaryToView(summary, name))
     .filter((proposal) => proposal.status !== "malicious");
 
   return (

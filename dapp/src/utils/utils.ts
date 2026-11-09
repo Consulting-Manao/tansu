@@ -3,6 +3,7 @@ import type {
   Project,
 } from "../../packages/tansu";
 import type { Vote } from "../../packages/tansu";
+import type { ProposalSummary } from "../service/ProposalService";
 import {
   VoteType,
   type Proposal,
@@ -163,14 +164,14 @@ export const hasUserVoted = (
 
 /** Active proposals only: how many the user has voted on vs still need to. */
 export function countVoterProposalStats(
-  proposals: Pick<ProposalView, "status" | "voteStatus">[],
+  proposals: Pick<ProposalView, "status" | "voters">[],
   userAddress: string | undefined,
 ): { voted: number; toVote: number } {
   let voted = 0;
   let toVote = 0;
   for (const proposal of proposals) {
     if (proposal.status !== "active") continue;
-    if (hasUserVoted(proposal.voteStatus, userAddress)) voted += 1;
+    if (votedOn(proposal, userAddress)) voted += 1;
     else toVote += 1;
   }
   return { voted, toVote };
@@ -222,8 +223,7 @@ export function orderProposalsForVoter(
   const newestFirst = (a: ProposalView, b: ProposalView) => b.id - a.id;
   if (!connectedAddress) return [...proposals].sort(newestFirst);
 
-  const voted = (p: ProposalView) =>
-    hasUserVoted(p.voteStatus, connectedAddress);
+  const voted = (p: ProposalView) => votedOn(p, connectedAddress);
   const toVote = proposals
     .filter((p) => p.status === "active" && !voted(p))
     .map((p) => ({ p, rank: rank(seed, p.projectName, p.id) }))
@@ -253,12 +253,35 @@ export const modifyProposalToView = (
     ipfsLink: proposal.ipfs,
     endDate: proposal.voting_ends_at,
     voteStatus: proposal.voteStatus,
+    voters: [
+      ...proposal.voteStatus.approve.voters,
+      ...proposal.voteStatus.reject.voters,
+      ...proposal.voteStatus.abstain.voters,
+    ].map((voter) => voter.address),
     status: proposalStatusView as ProposalViewStatus,
     tokenContract: proposal.tokenContract ?? null,
   };
 
   return proposalView;
 };
+
+/** A proposal as a list shows it, from its summary: who voted, no ballots. */
+export const summaryToView = (
+  summary: ProposalSummary,
+  projectName: string,
+): ProposalView => ({
+  ...modifyProposalToView(
+    modifyProposalFromContract(summary.proposal),
+    projectName,
+  ),
+  voters: summary.voters,
+});
+
+/** Whether `address` voted on a listed proposal. */
+export const votedOn = (
+  proposal: Pick<ProposalView, "voters">,
+  address: string | undefined,
+) => !!address && proposal.voters.includes(address);
 
 /** Normalize contract proposal status; handles both { tag: "Approved" } and string/array RPC formats. */
 function normalizeProposalStatus(status: unknown): ProposalStatus {

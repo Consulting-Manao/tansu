@@ -14,7 +14,7 @@ import type {
   Vote,
   VoteChoice,
 } from "../../packages/tansu";
-import { rpcServer, tansuFor, tansuReads } from "../contracts/soroban_tansu";
+import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import { errorMessage, readResult } from "../utils/contractErrors";
 import {
   buildCommitments,
@@ -33,162 +33,14 @@ import {
   getTokenBalance,
   tokenVoteWeightToContract,
 } from "./TokenBalanceService";
+import { decode, readEntry, readStorage, storageKey } from "./ledger";
 import { packUpload, sendTransaction, type TxStage } from "./TxService";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
 
-/** A key of the contract's storage: its `ProjectKey` variant, then fields. */
-const storageKey = (variant: string, ...fields: xdr.ScVal[]) =>
-  xdr.ScVal.scvVec([xdr.ScVal.scvSymbol(variant), ...fields]);
-
-const ledgerKey = (key: xdr.ScVal, temporary = false) =>
-  xdr.LedgerKey.contractData(
-    new xdr.LedgerKeyContractData({
-      contract: new Address(
-        import.meta.env.PUBLIC_TANSU_CONTRACT_ID,
-      ).toScAddress(),
-      key,
-      durability: temporary
-        ? xdr.ContractDataDurability.temporary
-        : xdr.ContractDataDurability.persistent,
-    }),
-  );
-
-/** The RPC reads at most this many ledger entries per call. */
-const KEYS_PER_READ = 200;
-
-/**
- * The values the contract keeps under `keys`, in order, read from their
- * ledger entries in as few calls as the RPC allows. `undefined` where the
- * entry does not exist, or is temporary and past its TTL: the contract no
- * longer sees it either.
- */
-async function contractEntries(
-  keys: xdr.LedgerKey[],
-  temporary = false,
-): Promise<(xdr.ScVal | undefined)[]> {
-  const found = new Map<string, xdr.ScVal>();
-  const reads: xdr.LedgerKey[][] = [];
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    reads.push(keys.slice(i, i + KEYS_PER_READ));
-  }
-  await Promise.all(
-    reads.map(async (read) => {
-      const { entries, latestLedger } = await rpcServer.getLedgerEntries(
-        ...read,
-      );
-      for (const { key, val, liveUntilLedgerSeq } of entries) {
-        const expired =
-          temporary &&
-          liveUntilLedgerSeq !== undefined &&
-          liveUntilLedgerSeq < latestLedger;
-        if (val.type === "contractData" && !expired) {
-          found.set(key.toXdr("base64"), val.contractData.val);
-        }
-      }
-    }),
-  );
-  return keys.map((key) => found.get(key.toXdr("base64")));
-}
-
-/**
- * A value the contract keeps under `key` in its persistent storage, read from
- * its ledger entry: the contract has no getter for it. `undefined` when the
- * entry does not exist.
- */
-async function contractStorage(key: xdr.ScVal): Promise<unknown> {
-  const [value] = await contractEntries([ledgerKey(key)]);
-  return value && scValToNative(value);
-}
-
-const udt = (name: string) =>
-  xdr.ScSpecTypeDef.scSpecTypeUdt(new xdr.ScSpecTypeUdt({ name }));
-
-/**
- * Proposals of a project as `get_proposal` returns them, in two ledger reads
- * instead of one simulation each: every proposal with its voters, then the
- * ballots that still live. `null` where the project has no such proposal.
- */
-async function readProposals(
-  name: string,
-  ids: number[],
-): Promise<(ContractProposal | null)[]> {
-  const project = xdr.ScVal.scvBytes(deriveProjectKey(name));
-  const first = await contractEntries(
-    ids.flatMap((id) => [
-      ledgerKey(storageKey("Proposal", project, xdr.ScVal.scvU32(id))),
-      ledgerKey(storageKey("Voters", project, xdr.ScVal.scvU32(id))),
-    ]),
-  );
-  const proposals = ids.map((_, i) => {
-    const value = first[2 * i];
-    return value
-      ? (tansuReads.spec.scValToNative(
-          value,
-          udt("Proposal"),
-        ) as ContractProposal)
-      : null;
-  });
-  const voters = ids.map((_, i) => {
-    const value = first[2 * i + 1];
-    return proposals[i] && value ? (scValToNative(value) as string[]) : [];
-  });
-  const ballotKeys = ids.flatMap((id, i) =>
-    voters[i]!.map((voter) =>
-      ledgerKey(
-        storageKey(
-          "Vote",
-          project,
-          xdr.ScVal.scvU32(id),
-          new Address(voter).toScVal(),
-        ),
-        true,
-      ),
-    ),
-  );
-  const ballots = ballotKeys.length
-    ? await contractEntries(ballotKeys, true)
-    : [];
-  let next = 0;
-  return proposals.map((proposal, i) => {
-    const values = ballots.slice(next, (next += voters[i]!.length));
-    if (!proposal) return null;
-    const votes = values.flatMap((value) =>
-      value ? [tansuReads.spec.scValToNative(value, udt("Vote")) as Vote] : [],
-    );
-    return { ...proposal, vote_data: { ...proposal.vote_data, votes } };
-  });
-}
-
-/** Proposals asked for in the same tick, per project, read together. */
-const proposalBatches = new Map<
-  string,
-  { ids: Set<number>; read: Promise<Map<number, ContractProposal | null>> }
->();
-
-function loadProposal(
-  name: string,
-  id: number,
-): Promise<ContractProposal | null> {
-  const project = projectKeyHex(name);
-  let batch = proposalBatches.get(project);
-  if (!batch) {
-    const ids = new Set<number>();
-    const read = new Promise((resolve) => setTimeout(resolve, 0)).then(
-      async () => {
-        proposalBatches.delete(project);
-        const list = [...ids];
-        const found = await readProposals(name, list);
-        return new Map(list.map((id, i) => [id, found[i] ?? null]));
-      },
-    );
-    batch = { ids, read };
-    proposalBatches.set(project, batch);
-  }
-  batch.ids.add(id);
-  return batch.read.then((found) => found.get(id) ?? null);
-}
+const projectBytes = (name: string) =>
+  xdr.ScVal.scvBytes(deriveProjectKey(name));
 
 /**
  * How many proposals a project has had: their ids run from 0 to count - 1.
@@ -198,11 +50,8 @@ export const proposalCountQuery = (name: string) =>
   queryOptions({
     queryKey: ["proposals", projectKeyHex(name)],
     queryFn: async () => {
-      const count = await contractStorage(
-        xdr.ScVal.scvVec([
-          xdr.ScVal.scvSymbol("DaoTotalProposals"),
-          xdr.ScVal.scvBytes(deriveProjectKey(name)),
-        ]),
+      const count = await readStorage(
+        storageKey("DaoTotalProposals", projectBytes(name)),
       );
       return count === undefined ? 0 : Number(count);
     },
@@ -220,12 +69,12 @@ export const executeDelayQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["executeDelay", projectKeyHex(name), id],
     queryFn: async () => {
-      const delay = await contractStorage(
-        xdr.ScVal.scvVec([
-          xdr.ScVal.scvSymbol("ProposalExecuteDelay"),
-          xdr.ScVal.scvBytes(deriveProjectKey(name)),
+      const delay = await readStorage(
+        storageKey(
+          "ProposalExecuteDelay",
+          projectBytes(name),
           xdr.ScVal.scvU32(id),
-        ]),
+        ),
       );
       return delay === undefined ? DEFAULT_EXECUTE_DELAY : Number(delay);
     },
@@ -286,12 +135,7 @@ export const governanceQuery = (name: string) =>
     queryKey: ["governance", projectKeyHex(name)],
     queryFn: async () => {
       const entry = (symbol: string) =>
-        contractStorage(
-          xdr.ScVal.scvVec([
-            xdr.ScVal.scvSymbol(symbol),
-            xdr.ScVal.scvBytes(deriveProjectKey(name)),
-          ]),
-        );
+        readStorage(storageKey(symbol, projectBytes(name)));
       const [min, delay, pending] = await Promise.all([
         entry("MinVotingPeriod"),
         entry("ExecuteDelay"),
@@ -317,22 +161,83 @@ export const governanceQuery = (name: string) =>
     staleTime: 10 * MINUTE,
   });
 
+/** A proposal as the lists show it: its entry and who voted, no ballots. */
+export interface ProposalSummary {
+  /** The proposal, its ballots left out (`vote_data.votes` is empty). */
+  proposal: ContractProposal;
+  voters: string[];
+}
+
 /**
- * A proposal with its votes; `null` when the project has no such id. The
- * proposals a page asks for at once are read together (`readProposals`).
+ * A proposal and its voters, from two ledger entries; `null` when the project
+ * has no such id. A list reads these: they come in one call for a page, and
+ * an executed proposal is not read again.
+ */
+export const proposalSummaryQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["proposal", projectKeyHex(name), id, "summary"],
+    queryFn: async (): Promise<ProposalSummary | null> => {
+      const [proposal, voters] = await Promise.all([
+        readEntry(
+          storageKey("Proposal", projectBytes(name), xdr.ScVal.scvU32(id)),
+        ),
+        readEntry(
+          storageKey("Voters", projectBytes(name), xdr.ScVal.scvU32(id)),
+        ),
+      ]);
+      if (!proposal) return null;
+      const entry = decode<ContractProposal>(proposal, "Proposal");
+      return {
+        proposal: { ...entry, vote_data: { ...entry.vote_data, votes: [] } },
+        voters: voters ? (scValToNative(voters) as string[]) : [],
+      };
+    },
+    // A settled proposal never changes. An absent one is asked again: the
+    // RPC node that answered may be a ledger behind its creation.
+    staleTime: (query) =>
+      query.state.data && query.state.data.proposal.status.tag !== "Active"
+        ? Infinity
+        : MINUTE,
+  });
+
+/**
+ * A proposal with its votes, as `get_proposal` returns it: its summary, then
+ * the ballots that still live; `null` when the project has no such id.
  */
 export const proposalQuery = (name: string, id: number) =>
   queryOptions({
     queryKey: ["proposal", projectKeyHex(name), id],
-    queryFn: () => loadProposal(name, id),
+    queryFn: async (): Promise<ContractProposal | null> => {
+      // The list's read when it is fresh: a vote invalidates both.
+      const summary = await queryClient.query(proposalSummaryQuery(name, id));
+      if (!summary) return null;
+      const ballots = await Promise.all(
+        summary.voters.map((voter) =>
+          readEntry(
+            storageKey(
+              "Vote",
+              projectBytes(name),
+              xdr.ScVal.scvU32(id),
+              new Address(voter).toScVal(),
+            ),
+            true,
+          ),
+        ),
+      );
+      const votes = ballots.flatMap((ballot) =>
+        ballot ? [decode<Vote>(ballot, "Vote")] : [],
+      );
+      const { proposal } = summary;
+      return { ...proposal, vote_data: { ...proposal.vote_data, votes } };
+    },
     staleTime: MINUTE,
   });
 
-/** Combines proposal queries for `useQueries`: the loaded ones, in order. */
-export const loadedProposals = (
-  reads: { data: ContractProposal | null | undefined; isLoading: boolean }[],
+/** Combines `useQueries` reads: the loaded ones, in order. */
+export const loaded = <T>(
+  reads: { data: T | null | undefined; isLoading: boolean }[],
 ) => ({
-  proposals: reads.flatMap(({ data }) => (data ? [data] : [])),
+  data: reads.flatMap(({ data }) => (data ? [data] : [])),
   isLoading: reads.some(({ isLoading }) => isLoading),
 });
 
@@ -734,25 +639,24 @@ export async function executeProposal(
 }
 
 /**
- * Refetches a proposal until it shows `voter`'s ballot, for at most ten
- * seconds: the RPC node that answers can be a ledger behind the one that
- * confirmed the vote, and a stale answer would leave the proposal among the
- * ones still to vote on.
+ * Refetches a proposal until it lists `voter`, for at most ten seconds, then
+ * its full read: the RPC node that answers can be a ledger behind the one
+ * that confirmed the vote, and a stale answer would leave the proposal among
+ * the ones still to vote on.
  */
 async function refetchUntilVoted(name: string, id: number, voter: string) {
-  const query = proposalQuery(name, id);
-  const shows = (proposal: ContractProposal | null | undefined) =>
-    !!proposal?.vote_data.votes.some(
-      (vote) => vote.values[0].address === voter,
-    );
-  for (
-    let attempt = 0;
-    attempt < 5 && !shows(queryClient.getQueryData(query.queryKey));
-    attempt++
-  ) {
+  const query = proposalSummaryQuery(name, id);
+  const shows = () =>
+    !!queryClient.getQueryData(query.queryKey)?.voters.includes(voter);
+  if (shows()) return;
+  for (let attempt = 0; attempt < 5 && !shows(); attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     await queryClient.fetchQuery({ ...query, staleTime: 0 }).catch(() => {});
   }
+  await queryClient.invalidateQueries({
+    queryKey: proposalQuery(name, id).queryKey,
+    exact: true,
+  });
 }
 
 /** Revoke a proposal as malicious. */

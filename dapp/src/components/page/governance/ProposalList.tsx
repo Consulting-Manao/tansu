@@ -1,18 +1,14 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  loadedProposals,
+  loaded,
   proposalCountQuery,
-  proposalQuery,
+  proposalSummaryQuery,
 } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { projectNameFromUrl } from "utils/urls";
 import { Button, EmptyState, Loading, Notice, Pagination } from "components/ui";
 import { useEffect, useMemo, useState } from "react";
-import {
-  modifyProposalFromContract,
-  modifyProposalToView,
-  orderProposalsForVoter,
-} from "utils/utils";
+import { orderProposalsForVoter, summaryToView } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
 import { useStore } from "@nanostores/react";
 import VotingModal from "../proposal/VotingModal";
@@ -41,10 +37,10 @@ const ProposalList: React.FC = () => {
     { length: Math.max(0, Math.min(PROPOSALS_PER_PAGE, newest + 1)) },
     (_, index) => newest - index,
   );
-  const { proposals, isLoading: isPageLoading } = useQueries(
+  const { data: summaries, isLoading: isPageLoading } = useQueries(
     {
-      queries: ids.map((id) => proposalQuery(projectName, id)),
-      combine: loadedProposals,
+      queries: ids.map((id) => proposalSummaryQuery(projectName, id)),
+      combine: loaded,
     },
     queryClient,
   );
@@ -62,16 +58,16 @@ const ProposalList: React.FC = () => {
 
   const isLoading = countRead.isLoading || isPageLoading;
 
-  // `proposals` only changes with the queries' data, so re-renders from
-  // elsewhere do not reshuffle the list.
-  const sortedProposals = useMemo(() => {
-    const views = proposals
-      .map((proposal) =>
-        modifyProposalToView(modifyProposalFromContract(proposal), projectName),
-      )
-      .filter((proposal) => proposal.status !== "malicious");
-    return orderProposalsForVoter(views, connectedAddress);
-  }, [proposals, connectedAddress, projectName]);
+  const sortedProposals = useMemo(
+    () =>
+      orderProposalsForVoter(
+        summaries
+          .map((summary) => summaryToView(summary, projectName))
+          .filter((proposal) => proposal.status !== "malicious"),
+        connectedAddress,
+      ),
+    [summaries, connectedAddress, projectName],
+  );
 
   return (
     <>

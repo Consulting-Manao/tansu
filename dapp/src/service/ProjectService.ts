@@ -7,7 +7,13 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Buffer } from "buffer";
 import { useMemo } from "react";
-import type { Badge, Project } from "../../packages/tansu";
+import { xdr } from "@stellar/stellar-sdk";
+import type {
+  AnonymousVoteConfig,
+  Badge,
+  Badges,
+  Project,
+} from "../../packages/tansu";
 import { tansuFor, tansuReads } from "../contracts/soroban_tansu";
 import type { ConfigData } from "../types/projectConfig";
 import { isValidCid, isValidCommitHash } from "../utils/contentHashes";
@@ -16,6 +22,7 @@ import { normalizeRepositoryUrl } from "../utils/editLinkFunctions";
 import { ipfsQuery, parseTansuToml } from "../utils/ipfsFunctions";
 import { deriveProjectKey, projectKeyHex } from "../utils/projectKey";
 import { extractConfigData } from "../utils/utils";
+import { decode, readEntry, readStorage, storageKey } from "./ledger";
 import { queryClient } from "./queryClient";
 import { packUpload, sendTransaction, type TxStage } from "./TxService";
 import { connectedAddress } from "./walletService";
@@ -38,11 +45,12 @@ export const projectsQuery = (page: number) =>
 export const projectByKeyQuery = (key: string) =>
   queryOptions({
     queryKey: ["project", key],
-    queryFn: async () =>
-      readResult(
-        await tansuReads.get_project({ project_key: Buffer.from(key, "hex") }),
-        200,
-      ),
+    queryFn: async () => {
+      const value = await readEntry(
+        storageKey("Key", xdr.ScVal.scvBytes(Buffer.from(key, "hex"))),
+      );
+      return value ? decode<Project>(value, "Project") : null;
+    },
     staleTime: 10 * MINUTE,
   });
 
@@ -54,12 +62,12 @@ export const projectQuery = (name: string) =>
 export const commitQuery = (name: string) =>
   queryOptions({
     queryKey: ["commit", projectKeyHex(name)],
-    queryFn: async () =>
-      readResult(
-        await tansuReads.get_commit({ project_key: deriveProjectKey(name) }),
-        200,
-        300,
-      ),
+    queryFn: async () => {
+      const hash = await readStorage(
+        storageKey("LastHash", xdr.ScVal.scvBytes(deriveProjectKey(name))),
+      );
+      return hash === undefined ? null : String(hash);
+    },
     staleTime: 5 * MINUTE,
   });
 
@@ -67,8 +75,14 @@ export const commitQuery = (name: string) =>
 export const badgesQuery = (name: string) =>
   queryOptions({
     queryKey: ["badges", projectKeyHex(name)],
-    queryFn: async () =>
-      readResult(await tansuReads.get_badges({ key: deriveProjectKey(name) })),
+    queryFn: async (): Promise<Badges> => {
+      const value = await readEntry(
+        storageKey("Badges", xdr.ScVal.scvBytes(deriveProjectKey(name))),
+      );
+      return value
+        ? decode<Badges>(value, "Badges")
+        : { community: [], developer: [], triage: [], verified: [] };
+    },
     staleTime: 10 * MINUTE,
   });
 
@@ -76,13 +90,17 @@ export const badgesQuery = (name: string) =>
 export const anonymousConfigQuery = (name: string) =>
   queryOptions({
     queryKey: ["anonymousConfig", projectKeyHex(name)],
-    queryFn: async () =>
-      readResult(
-        await tansuReads.get_anonymous_voting_config({
-          project_key: deriveProjectKey(name),
-        }),
-        303,
-      ),
+    queryFn: async () => {
+      const value = await readEntry(
+        storageKey(
+          "AnonymousVoteConfig",
+          xdr.ScVal.scvBytes(deriveProjectKey(name)),
+        ),
+      );
+      return value
+        ? decode<AnonymousVoteConfig>(value, "AnonymousVoteConfig")
+        : null;
+    },
     staleTime: 60 * MINUTE,
   });
 

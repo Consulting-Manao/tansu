@@ -38,6 +38,7 @@ function proposal(
     status,
     endDate: 0,
     voteStatus,
+    voters: voteStatus.approve.voters.map((v) => v.address),
   };
 }
 
@@ -91,9 +92,7 @@ describe("orderProposalsForVoter", () => {
     const votedOn = before[2]!;
     const after = ids(
       orderProposalsForVoter(
-        active.map((p) =>
-          p.id === votedOn ? { ...p, voteStatus: withVoter(voter) } : p,
-        ),
+        active.map((p) => (p.id === votedOn ? { ...p, voters: [voter] } : p)),
         voter,
         "seed",
       ),

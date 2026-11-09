@@ -4,7 +4,7 @@ import { focusRing } from "components/ui/style";
 import type { ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import { proposalUrl } from "utils/urls";
-import { hasUserVoted, truncateMiddle } from "utils/utils";
+import { truncateMiddle, votedOn } from "utils/utils";
 import ProposalStatusBadge from "./ProposalStatusBadge";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 /** A proposal in the list: its title links to it; Vote opens the ballot. */
 const ProposalCard: React.FC<Props> = ({ proposal, onVoteClick }) => {
   const connectedAddress = useStore(connectedPublicKey);
-  const userHasVoted = hasUserVoted(proposal.voteStatus, connectedAddress);
+  const userHasVoted = votedOn(proposal, connectedAddress);
 
   return (
     <article className="relative flex flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-raise hover:border-line-strong sm:p-6">

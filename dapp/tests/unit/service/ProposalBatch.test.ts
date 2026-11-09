@@ -43,7 +43,10 @@ vi.mock("../../../src/contracts/soroban_tansu", async () => {
   };
 });
 
-import { proposalQuery } from "../../../src/service/ProposalService";
+import {
+  proposalQuery,
+  proposalSummaryQuery,
+} from "../../../src/service/ProposalService";
 import { deriveProjectKey } from "../../../src/utils/projectKey";
 import { Address } from "@stellar/stellar-sdk";
 
@@ -138,7 +141,52 @@ describe("proposalQuery", () => {
     store("Proposal", [project, id(2)], proposal(2));
   });
 
-  it("reads a page of proposals in two ledger calls", async () => {
+  it("lists a page of proposals and their voters in one ledger call", async () => {
+    const client = new QueryClient();
+    const [first, revoked, fresh] = await Promise.all(
+      [0, 1, 2].map((id) => client.query(proposalSummaryQuery("demo", id))),
+    );
+
+    expect(first?.proposal.title).toBe("Proposal 0");
+    // Who voted, from the voters entry: no ballot is read.
+    expect(first?.voters).toEqual([alive, expired]);
+    expect(first?.proposal.vote_data.votes).toEqual([]);
+    expect(revoked).toBeNull();
+    expect(fresh?.voters).toEqual([]);
+    expect(reads.calls).toEqual([6]);
+  });
+
+  it("does not read again an executed proposal", async () => {
+    const client = new QueryClient();
+    const settled = (id: number, tag: string) =>
+      store(
+        "Proposal",
+        [project, xdr.ScVal.scvU32(id)],
+        spec.nativeToScVal(
+          {
+            ...spec.scValToNative(proposal(id), udt("Proposal")),
+            status: { tag, values: undefined },
+          },
+          udt("Proposal"),
+        ),
+      );
+    settled(3, "Approved");
+    const read = () =>
+      Promise.all(
+        [0, 1, 3].map((id) => client.query(proposalSummaryQuery("demo", id))),
+      );
+    await read();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 2 * 60_000);
+    reads.calls = [];
+    await read();
+    // The active one and the absent one are read again; the executed one
+    // never.
+    expect(reads.calls).toEqual([4]);
+    vi.useRealTimers();
+  });
+
+  it("reads a proposal with its live ballots in two ledger calls", async () => {
     const client = new QueryClient();
     const [first, revoked, fresh] = await Promise.all(
       [0, 1, 2].map((id) => client.query(proposalQuery("demo", id))),

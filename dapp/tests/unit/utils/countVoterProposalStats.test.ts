@@ -1,23 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VoteType, type VoteStatus } from "../../../src/types/proposal";
 import { countVoterProposalStats } from "../../../src/utils/utils";
-
-const emptyVotes = (): VoteStatus => ({
-  approve: { voteType: VoteType.APPROVE, score: 0, voters: [] },
-  reject: { voteType: VoteType.REJECT, score: 0, voters: [] },
-  abstain: { voteType: VoteType.CANCEL, score: 0, voters: [] },
-});
-
-const withVoter = (address: string): VoteStatus => {
-  const status = emptyVotes();
-  status.approve.voters.push({
-    address,
-    image: null,
-    name: "",
-    github: "",
-  });
-  return status;
-};
 
 describe("countVoterProposalStats", () => {
   const voter = "GABC";
@@ -25,11 +7,11 @@ describe("countVoterProposalStats", () => {
   it("counts only active proposals as voted vs to vote", () => {
     const result = countVoterProposalStats(
       [
-        { status: "active", voteStatus: withVoter(voter) },
-        { status: "active", voteStatus: emptyVotes() },
-        { status: "active", voteStatus: emptyVotes() },
-        { status: "voted", voteStatus: withVoter(voter) },
-        { status: "approved", voteStatus: emptyVotes() },
+        { status: "active", voters: [voter] },
+        { status: "active", voters: [] },
+        { status: "active", voters: ["GOTHER"] },
+        { status: "voted", voters: [voter] },
+        { status: "approved", voters: [] },
       ],
       voter,
     );
@@ -40,7 +22,7 @@ describe("countVoterProposalStats", () => {
   it("returns zeros when address is missing", () => {
     expect(
       countVoterProposalStats(
-        [{ status: "active", voteStatus: withVoter(voter) }],
+        [{ status: "active", voters: [voter] }],
         undefined,
       ),
     ).toEqual({ voted: 0, toVote: 1 });

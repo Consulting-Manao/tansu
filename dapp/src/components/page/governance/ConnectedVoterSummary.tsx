@@ -3,16 +3,15 @@ import { useStore } from "@nanostores/react";
 import { useMemo } from "react";
 import { votingPowerQuery } from "@service/MemberService";
 import {
-  loadedProposals,
+  loaded,
   proposalCountQuery,
-  proposalQuery,
+  proposalSummaryQuery,
 } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { projectNameFromUrl } from "utils/urls";
 import {
   countVoterProposalStats,
-  modifyProposalFromContract,
-  modifyProposalToView,
+  summaryToView,
   truncateMiddle,
 } from "utils/utils";
 import { connectedPublicKey } from "utils/store";
@@ -22,18 +21,18 @@ const ConnectedVoterSummary: React.FC = () => {
   const connectedAddress = useStore(connectedPublicKey);
   const enabled = projectName.length > 0 && !!connectedAddress;
 
-  // The same queries as the list: every proposal, loaded once.
+  // Every proposal's summary, in one ledger read; the list shares them.
   const countRead = useQuery(
     { ...proposalCountQuery(projectName), enabled },
     queryClient,
   );
-  const { proposals, isLoading: areProposalsLoading } = useQueries(
+  const { data: summaries, isLoading: areProposalsLoading } = useQueries(
     {
       queries: Array.from({ length: countRead.data ?? 0 }, (_, id) => ({
-        ...proposalQuery(projectName, id),
+        ...proposalSummaryQuery(projectName, id),
         enabled,
       })),
-      combine: loadedProposals,
+      combine: loaded,
     },
     queryClient,
   );
@@ -46,17 +45,12 @@ const ConnectedVoterSummary: React.FC = () => {
   const { voted, toVote } = useMemo(
     () =>
       countVoterProposalStats(
-        proposals
-          .map((proposal) =>
-            modifyProposalToView(
-              modifyProposalFromContract(proposal),
-              projectName,
-            ),
-          )
+        summaries
+          .map((summary) => summaryToView(summary, projectName))
           .filter((proposal) => proposal.status !== "malicious"),
         connectedAddress,
       ),
-    [proposals, connectedAddress, projectName],
+    [summaries, connectedAddress, projectName],
   );
 
   if (!connectedAddress || !projectName) return null;

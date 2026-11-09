@@ -35,6 +35,8 @@ export interface ProposalView {
   status: ProposalViewStatus;
   endDate: number;
   voteStatus: VoteStatus;
+  /** Who voted: on a list, read without the ballots. */
+  voters: string[];
   tokenContract?: string | null;
 }
 
