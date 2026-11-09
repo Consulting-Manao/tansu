@@ -266,11 +266,24 @@ export async function sendTransaction<T>(
   checkAuthorization(tx);
   if (upload) await checkIpfsService();
   const signed = await sign(tx.toXDR());
-  return invalidateAfter(
-    land(tx, signed, upload, invalidate, onProgress),
-    ...invalidate,
-  );
+  // Every write is a row in somebody's on-chain activity, which Horizon lists
+  // a few seconds after the ledger closes: ask again once it has.
+  const changed = [...invalidate, ACTIVITY_KEY];
+  try {
+    return await invalidateAfter(
+      land(tx, signed, upload, changed, onProgress),
+      ...changed,
+    );
+  } finally {
+    setTimeout(
+      () => void queryClient.invalidateQueries({ queryKey: ACTIVITY_KEY }),
+      HORIZON_LAG_MS,
+    );
+  }
 }
+
+const ACTIVITY_KEY: QueryKey = ["activity"];
+const HORIZON_LAG_MS = 8_000;
 
 /** The upload of a call that landed failed: its files can be tried again. */
 export class LandedUploadError extends Error {
