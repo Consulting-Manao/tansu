@@ -3,6 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# What an account may have pinned in a day (src/quota.ts). Bindings are not
+# inherited by environments: each one declares its own.
+[[durable_objects.bindings]]
+name = "UPLOAD_QUOTA"
+class_name = "UploadQuota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UploadQuota"]
+
 [env.testnet]
 [[env.testnet.routes]]
 pattern = "ipfs-testnet.tansu.dev"
@@ -15,6 +25,14 @@ TANSU_CONTRACT_ID = "CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA"
 # Simulates the envelopes to upload for and checks txHash proofs.
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 
+[[env.testnet.durable_objects.bindings]]
+name = "UPLOAD_QUOTA"
+class_name = "UploadQuota"
+
+[[env.testnet.migrations]]
+tag = "v1"
+new_sqlite_classes = ["UploadQuota"]
+
 [env.production]
 [[env.production.routes]]
 pattern = "ipfs.tansu.dev"
@@ -26,6 +44,14 @@ NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
 TANSU_CONTRACT_ID = "CDXINK2T3P46M4LWK35FVIXXHJ2XHAS4FOVCGVPJ63YV5OVTM24IY5BI"
 # Simulates the envelopes to upload for and checks txHash proofs.
 SOROBAN_RPC_URL = "https://rpc.lightsail.network/"
+
+[[env.production.durable_objects.bindings]]
+name = "UPLOAD_QUOTA"
+class_name = "UploadQuota"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["UploadQuota"]
 
 [observability]
 enabled = true

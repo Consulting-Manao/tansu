@@ -34,17 +34,23 @@ The worker verifies the upload request by:
   enforce mode: the call must succeed with the authorizations it carries, as
   the ledger would run it now. A signature alone proves nothing, since anyone
   with a keypair can sign a call they never send
+- for `signedTxXdr`, the source account may have 50 CIDs and 100 MB pinned in
+  a day (`src/quota.ts`, one `UploadQuota` Durable Object per account, reset a
+  day after the first upload). A CID already counted is free, so a retry is;
+  a failed upload gives its share back; over the quota the answer is `429`
+  with `Retry-After`
 - for `txHash`, it fetches the transaction from Soroban RPC, checks it
   succeeded, and checks it calls `TANSU_CONTRACT_ID` with `cid` as an argument
 - it checks the CAR (at most 50 MB) has exactly one root, equal to `cid`
 - it uploads to Filebase with exponential backoff retries
 - it can pin that CID on Pinata asynchronously with exponential backoff retries
 
-A landed transaction is not simulated: it already paid for its CID, and the CAR
-root must equal that CID.
+A landed transaction is neither simulated nor counted: it already paid for its
+CID, and the CAR root must equal that CID.
 
 Beyond the worker, put a Cloudflare rate-limiting rule on the custom domains
-(Security → WAF) to bound the requests one address may send.
+(Security → WAF) to bound the requests one address may send; the worker's
+quota counts accounts, which are free to create.
 
 ## Returns JSON
 
@@ -57,6 +63,7 @@ Beyond the worker, put a Cloudflare rate-limiting rule on the custom domains
 
 - If the request does not check out, or the ledger would refuse the call,
   `success` is `false` and the HTTP status is `400`.
+- If the account reached its quota, the HTTP status is `429`.
 - If Filebase upload fails, `success` is `false` and the HTTP status is `502`.
 - Pinata pinning is disabled by default.
 - If enabled, Pinata pinning does not block the response. It runs after
@@ -82,7 +89,9 @@ TANSU_CONTRACT_ID=CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA
 `NETWORK_PASSPHRASE`, `TANSU_CONTRACT_ID` and `SOROBAN_RPC_URL` are plain
 variables, not secrets: `wrangler.toml` sets them per environment, the contract
 ids from `deployments/tansu-*`. All three are required: without
-`SOROBAN_RPC_URL` no upload can be checked.
+`SOROBAN_RPC_URL` no upload can be checked. `wrangler.toml` also binds the
+`UPLOAD_QUOTA` Durable Object, per environment (the first deploy runs its
+migration).
 
 ### Start the Worker
 
@@ -113,7 +122,7 @@ ENV=PROD bun run test:upload # Use production environment
 The upload script generates a CAR, simulates and signs a Tansu call recording
 its CID (never submitted) with a new friendbot-funded testnet account, or the
 one in `TEST_SIGNER_SECRET`, and sends the same JSON payload the dapp sends.
-A successful local test confirms
+It counts against that account's quota. A successful local test confirms
 the blocking Filebase upload path. When Pinata pinning is enabled, that step
 runs asynchronously after the response is returned.
 

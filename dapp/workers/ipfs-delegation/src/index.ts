@@ -9,7 +9,8 @@
  *
  * A signed envelope is never submitted by the worker, so a valid signature
  * proves nothing by itself: the worker also simulates it against the ledger
- * in enforce mode (the call must succeed, with its authorizations).
+ * in enforce mode (the call must succeed, with its authorizations), and an
+ * account may have only so much pinned in a day (`quota.ts`).
  */
 
 import {
@@ -23,6 +24,8 @@ import {
 } from "@stellar/stellar-sdk";
 import { CarReader } from "@ipld/car";
 
+export { UploadQuota } from "./quota";
+
 export interface Env {
   FILEBASE_TOKEN: string;
   PINATA_JWT?: string;
@@ -34,6 +37,8 @@ export interface Env {
   TANSU_CONTRACT_ID: string;
   /** Soroban RPC that simulates signed envelopes and checks `txHash` proofs. */
   SOROBAN_RPC_URL: string;
+  /** One `UploadQuota` Durable Object per source account. */
+  UPLOAD_QUOTA: DurableObjectNamespace;
 }
 
 interface WorkerExecutionContext {
@@ -146,13 +151,14 @@ export function callsTansuWith(
 
 /**
  * Check the envelope the dapp is about to send: for this network, signed by
- * its source, expiring within the hour, and calling Tansu with `cid`.
+ * its source, expiring within the hour, and calling Tansu with `cid`. Returns
+ * the source account.
  */
 export function validateSignedTransaction(
   signedTxXdr: string,
   cid: string,
   env: Pick<Env, "NETWORK_PASSPHRASE" | "TANSU_CONTRACT_ID">,
-): void {
+): string {
   let tx: Transaction;
   try {
     tx = new Transaction(signedTxXdr, env.NETWORK_PASSPHRASE);
@@ -174,6 +180,7 @@ export function validateSignedTransaction(
   if (!callsTansuWith(tx, cid, env.TANSU_CONTRACT_ID)) {
     throw new Error(`Transaction does not record ${cid} with Tansu`);
   }
+  return tx.source;
 }
 
 async function rpc<T>(
@@ -345,6 +352,7 @@ export default {
     const refuse = (error: string) => reply(400, { success: false, error });
 
     let body: UploadRequest;
+    let source: string | undefined;
     try {
       // Base64 takes 4 bytes per 3 of the CAR.
       const length = Number(request.headers.get("Content-Length") ?? 0);
@@ -356,7 +364,7 @@ export default {
       if (body.txHash) {
         await validateSubmittedTransaction(body.txHash, body.cid, env);
       } else {
-        validateSignedTransaction(body.signedTxXdr!, body.cid, env);
+        source = validateSignedTransaction(body.signedTxXdr!, body.cid, env);
       }
     } catch (error: any) {
       return refuse(error?.message ?? "Invalid upload request");
@@ -378,13 +386,35 @@ export default {
       return refuse(`CID mismatch: expected ${body.cid}, got ${calculatedCid}`);
     }
 
-    // Only an envelope nobody has sent yet needs the ledger's word: a landed
-    // transaction already paid for its CID.
-    if (body.signedTxXdr) {
+    // Only an envelope nobody has sent yet needs the ledger's word and a
+    // quota: a landed transaction already paid for its CID.
+    const quota = source
+      ? env.UPLOAD_QUOTA.get(env.UPLOAD_QUOTA.idFromName(source))
+      : undefined;
+    const ask = async (action: "reserve" | "release") =>
+      (await (
+        await quota!.fetch("https://quota", {
+          method: "POST",
+          body: JSON.stringify({ action, cid: body.cid, bytes: carBlob.size }),
+        })
+      ).json()) as { ok: boolean; retryAfter?: number };
+
+    if (quota) {
       try {
-        await simulateSignedTransaction(body.signedTxXdr, env);
+        await simulateSignedTransaction(body.signedTxXdr!, env);
       } catch (error: any) {
         return refuse(error?.message ?? "Transaction would not succeed");
+      }
+      const { ok, retryAfter } = await ask("reserve");
+      if (!ok) {
+        return reply(
+          429,
+          {
+            success: false,
+            error: "Upload quota of this account reached for today",
+          },
+          { "Retry-After": String(retryAfter) },
+        );
       }
     }
 
@@ -465,6 +495,7 @@ export default {
     try {
       await uploadToFilebase();
     } catch (error: any) {
+      if (quota) await ask("release");
       return reply(502, {
         success: false,
         error: error?.message ?? "Filebase upload failed",

@@ -18,6 +18,12 @@ import worker, {
   calculateCidFromCar,
   buildUploadBlob,
 } from "./index";
+import {
+  QUOTA_BYTES,
+  QUOTA_UPLOADS,
+  QUOTA_WINDOW_MS,
+  UploadQuota,
+} from "./quota";
 
 const CID = "bafyreitestcid";
 const TANSU = StrKey.encodeContract(Buffer.alloc(32, 1));
@@ -314,6 +320,72 @@ describe("simulateSignedTransaction", () => {
   });
 });
 
+describe("UploadQuota", () => {
+  const MB = 1024 * 1024;
+
+  function account() {
+    const data = new Map<string, unknown>();
+    const quota = new UploadQuota({
+      storage: {
+        get: async (key) => data.get(key) as any,
+        put: async (key, value) => void data.set(key, structuredClone(value)),
+      },
+    });
+    return async (action: "reserve" | "release", cid: string, bytes: number) =>
+      (await (
+        await quota.fetch(
+          new Request("https://quota", {
+            method: "POST",
+            body: JSON.stringify({ action, cid, bytes }),
+          }),
+        )
+      ).json()) as { ok: boolean; retryAfter?: number };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("allows a number of uploads a day", async () => {
+    const ask = account();
+    for (let i = 0; i < QUOTA_UPLOADS; i += 1) {
+      expect((await ask("reserve", `cid${i}`, 1)).ok).toBe(true);
+    }
+    expect((await ask("reserve", "one-more", 1)).ok).toBe(false);
+  });
+
+  it("allows a number of bytes a day", async () => {
+    const ask = account();
+    expect((await ask("reserve", "a", QUOTA_BYTES - MB)).ok).toBe(true);
+    expect((await ask("reserve", "b", 2 * MB)).ok).toBe(false);
+    expect((await ask("reserve", "c", MB)).ok).toBe(true);
+  });
+
+  it("charges a CID once, so a retry is free", async () => {
+    const ask = account();
+    await ask("reserve", "a", QUOTA_BYTES);
+    expect((await ask("reserve", "a", QUOTA_BYTES)).ok).toBe(true);
+    expect((await ask("reserve", "b", 1)).ok).toBe(false);
+  });
+
+  it("gives back what a failed upload reserved", async () => {
+    const ask = account();
+    await ask("reserve", "a", QUOTA_BYTES);
+    await ask("release", "a", QUOTA_BYTES);
+    expect((await ask("reserve", "b", QUOTA_BYTES)).ok).toBe(true);
+  });
+
+  it("starts over a day after the first upload, and says when", async () => {
+    vi.useFakeTimers();
+    const ask = account();
+    await ask("reserve", "a", QUOTA_BYTES);
+    vi.advanceTimersByTime(QUOTA_WINDOW_MS - 60_000);
+    expect(await ask("reserve", "b", 1)).toEqual({ ok: false, retryAfter: 60 });
+    vi.advanceTimersByTime(60_000);
+    expect((await ask("reserve", "b", 1)).ok).toBe(true);
+  });
+});
+
 describe("upload", () => {
   const SOURCE = Keypair.random();
   const CAR = "Y3ViZQo=";
@@ -321,6 +393,31 @@ describe("upload", () => {
   let calls: string[];
   let simulation: Record<string, unknown>;
   let filebaseStatus: number;
+
+  /** One quota per account, as the Durable Object namespace makes them. */
+  function quotas() {
+    const objects = new Map<string, (request: Request) => Promise<Response>>();
+    return {
+      idFromName: (name: string) => name,
+      get: (id: string) => {
+        if (!objects.has(id)) {
+          const data = new Map<string, unknown>();
+          const quota = new UploadQuota({
+            storage: {
+              get: async (key) => data.get(key) as any,
+              put: async (key, value) =>
+                void data.set(key, structuredClone(value)),
+            },
+          });
+          objects.set(id, (request) => quota.fetch(request));
+        }
+        return {
+          fetch: (url: string, init: RequestInit) =>
+            objects.get(id)!(new Request(url, init)),
+        };
+      },
+    };
+  }
 
   let env: Env;
 
@@ -344,6 +441,7 @@ describe("upload", () => {
     env = {
       ...ENV,
       FILEBASE_TOKEN: "token",
+      UPLOAD_QUOTA: quotas(),
     } as unknown as Env;
     vi.spyOn(CarReader, "fromBytes").mockResolvedValue({
       getRoots: async () => [{ toString: () => CID }],
@@ -398,17 +496,48 @@ describe("upload", () => {
     expect(calls).toEqual([]);
   });
 
-  it("answers 502 when Filebase fails", async () => {
+  it("stops an account that reached its quota, not the others", async () => {
+    for (let i = 0; i < QUOTA_UPLOADS; i += 1) {
+      const cid = `cid${i}`;
+      vi.mocked(CarReader.fromBytes).mockResolvedValue({
+        getRoots: async () => [{ toString: () => cid }],
+      } as any);
+      const response = await upload({
+        cid,
+        signedTxXdr: invokeTx({ cid, source: SOURCE }).toXDR(),
+      });
+      expect(response.status).toBe(200);
+    }
+    vi.mocked(CarReader.fromBytes).mockResolvedValue({
+      getRoots: async () => [{ toString: () => CID }],
+    } as any);
+    calls = [];
+    const response = await upload(signed());
+    expect(response.status).toBe(429);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(calls).toEqual(["simulateTransaction"]);
+
+    expect((await upload(signed(Keypair.random()))).status).toBe(200);
+  });
+
+  it("gives the quota back when Filebase fails", async () => {
     vi.useFakeTimers();
     filebaseStatus = 500;
     const failing = upload(signed());
     await vi.runAllTimersAsync();
     expect((await failing).status).toBe(502);
+
+    filebaseStatus = 200;
+    const body = signed();
+    const retry = await upload(body);
+    expect(retry.status).toBe(200);
   });
 
-  it("takes a landed transaction without simulating it", async () => {
-    const response = await upload({ txHash: "a".repeat(64) });
-    expect(response.status).toBe(200);
+  it("takes a landed transaction without simulating or counting it", async () => {
+    for (let i = 0; i < QUOTA_UPLOADS + 1; i += 1) {
+      const response = await upload({ txHash: "a".repeat(64) });
+      expect(response.status).toBe(200);
+    }
     expect(calls).not.toContain("simulateTransaction");
   });
 });
