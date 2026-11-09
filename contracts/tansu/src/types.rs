@@ -70,6 +70,7 @@ pub enum ProposalStatus {
     Rejected,
     Cancelled,
     Malicious,
+    Vetoed, // Rejected by a maintainer's veto, whatever the votes
 }
 
 #[contracttype]

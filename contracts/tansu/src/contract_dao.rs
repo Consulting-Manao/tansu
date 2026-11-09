@@ -613,6 +613,56 @@ impl DaoTrait for Tansu {
         .publish(&env);
     }
 
+    /// Veto a proposal.
+    ///
+    /// Any maintainer can veto an active proposal, during the vote and the
+    /// execute delay, whatever the votes are. A veto only rejects: the
+    /// proposal becomes `Vetoed`, runs no outcome call and cannot be executed
+    /// or voted on. Unlike [`DaoTrait::revoke_proposal`], which deletes spam
+    /// and forfeits the deposit, the proposal stays readable and the
+    /// proposer's deposit is repaid. It needs no tally, so it also ends an
+    /// anonymous proposal whose ballots cannot be tallied.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `maintainer` - The maintainer vetoing the proposal
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal to veto
+    /// * `reason` - IPFS content identifier of the explanation, published in the event
+    ///
+    /// # Panics
+    /// * If the maintainer is not authorized
+    /// * If the proposal is not active
+    /// * If the reason is not an IPFS content identifier of 32 to 64 characters
+    fn veto(env: Env, maintainer: Address, project_key: Bytes, proposal_id: u32, reason: String) {
+        Tansu::require_not_paused(env.clone());
+        crate::auth_maintainers(&env, &maintainer, &project_key);
+
+        let mut proposal = load_proposal(&env, &project_key, proposal_id);
+        if proposal.status != types::ProposalStatus::Active {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
+        }
+        if !(32..=64).contains(&reason.len()) {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalInputValidation);
+        }
+
+        refund_collateral(&env, &proposal.proposer);
+
+        proposal.status = types::ProposalStatus::Vetoed;
+        env.storage().persistent().set(
+            &types::ProjectKey::Proposal(project_key.clone(), proposal_id),
+            &proposal,
+        );
+
+        events::ProposalVetoed {
+            project_key,
+            proposal_id,
+            maintainer,
+            reason,
+        }
+        .publish(&env);
+    }
+
     /// Cast a vote on a proposal.
     ///
     /// Allows a member to vote on a proposal.
@@ -845,24 +895,7 @@ impl DaoTrait for Tansu {
             panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
         }
 
-        // Return proposal collateral to proposer
-        let token_stellar = token::StellarAssetClient::new(
-            &env,
-            &env.storage()
-                .instance()
-                .get::<_, Address>(&types::ContractKey::Collateral)
-                .unwrap_or_else(|| {
-                    panic_with_error!(&env, &errors::ContractErrors::UnexpectedError)
-                }),
-        );
-        match token_stellar.try_transfer(
-            &env.current_contract_address(),
-            &proposal.proposer,
-            &PROPOSAL_COLLATERAL,
-        ) {
-            Ok(..) => (),
-            _ => panic_with_error!(&env, &errors::ContractErrors::CollateralError),
-        }
+        refund_collateral(&env, &proposal.proposer);
 
         // tally to results
         proposal.status = match proposal.vote_data.public_voting {
@@ -915,6 +948,7 @@ impl DaoTrait for Tansu {
                 types::ProposalStatus::Rejected => String::from_str(&env, "Rejected"),
                 types::ProposalStatus::Cancelled => String::from_str(&env, "Cancelled"),
                 types::ProposalStatus::Malicious => String::from_str(&env, "Malicious"),
+                types::ProposalStatus::Vetoed => String::from_str(&env, "Vetoed"),
             },
             maintainer: maintainer.clone(),
         }
@@ -1264,6 +1298,25 @@ fn load_proposal(env: &Env, project_key: &Bytes, proposal_id: u32) -> types::Pro
             proposal_id,
         ))
         .unwrap_or_else(|| panic_with_error!(env, &errors::ContractErrors::NoProposalorPageFound))
+}
+
+/// Repay the deposit a proposer made when creating a proposal.
+fn refund_collateral(env: &Env, proposer: &Address) {
+    let token_stellar = token::StellarAssetClient::new(
+        env,
+        &env.storage()
+            .instance()
+            .get::<_, Address>(&types::ContractKey::Collateral)
+            .unwrap_or_else(|| panic_with_error!(env, &errors::ContractErrors::UnexpectedError)),
+    );
+    match token_stellar.try_transfer(
+        &env.current_contract_address(),
+        proposer,
+        &PROPOSAL_COLLATERAL,
+    ) {
+        Ok(..) => (),
+        _ => panic_with_error!(env, &errors::ContractErrors::CollateralError),
+    }
 }
 
 /// Write the provided governance override entries; `None` leaves the

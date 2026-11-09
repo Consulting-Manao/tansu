@@ -233,6 +233,8 @@ pub trait DaoTrait {
 
     fn revoke_proposal(env: Env, maintainer: Address, project_key: Bytes, proposal_id: u32);
 
+    fn veto(env: Env, maintainer: Address, project_key: Bytes, proposal_id: u32, reason: String);
+
     fn execute(
         env: Env,
         maintainer: Address,

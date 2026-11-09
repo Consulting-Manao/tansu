@@ -1,6 +1,8 @@
 use super::test_utils::{create_test_data, init_contract, scalars};
 use crate::contract_dao::{MAX_DEFAULT_WEIGHT_VOTES, MAX_VOTES_PER_PROPOSAL};
-use crate::events::{AnonymousVotingSetup, ProposalCreated, ProposalExecuted, VoteCast};
+use crate::events::{
+    AnonymousVotingSetup, ProposalCreated, ProposalExecuted, ProposalVetoed, VoteCast,
+};
 use crate::{
     errors::ContractErrors,
     types::{
@@ -780,6 +782,191 @@ fn proposal_revoke() {
     let page = setup.contract.get_dao(&id, &0);
     assert_eq!(page.proposals.len(), 1);
     assert_eq!(page.proposals.get(0).unwrap().id, next_id);
+}
+
+#[test]
+fn veto_rejects_whatever_the_votes_are() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let outcome_contract_id = setup.env.register(TestOutcomeContract, ());
+
+    setup.env.ledger().set_timestamp(1234567890);
+    let voting_ends_at = 1234567890 + 3600 * 24 * 2;
+    let title = String::from_str(&setup.env, "Test Proposal");
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let outcome = |function: &str| OutcomeContract {
+        address: outcome_contract_id.clone(),
+        execute_fn: Symbol::new(&setup.env, function),
+        args: vec![
+            &setup.env,
+            setup.mando.clone().into_val(&setup.env),
+            100u32.into_val(&setup.env),
+        ],
+    };
+    let outcomes = vec![
+        &setup.env,
+        outcome("execute_approve"),
+        outcome("execute_reject"),
+    ];
+
+    let balance_before = setup.token_stellar.balance(&setup.grogu);
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &title,
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &Some(outcomes),
+    );
+    assert!(setup.token_stellar.balance(&setup.grogu) < balance_before);
+
+    // an approving majority
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &Vote::PublicVote(PublicVote {
+            address: setup.mando.clone(),
+            weight: 1,
+            vote_choice: VoteChoice::Approve,
+        }),
+    );
+
+    // only a maintainer vetoes, with a reason that is a content identifier
+    let reason = String::from_str(
+        &setup.env,
+        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+    );
+    let kuiil = Address::generate(&setup.env);
+    let err = setup
+        .contract
+        .try_veto(&kuiil, &id, &proposal_id, &reason)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::UnauthorizedSigner.into());
+    let err = setup
+        .contract
+        .try_veto(
+            &setup.mando,
+            &id,
+            &proposal_id,
+            &String::from_str(&setup.env, "short"),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalInputValidation.into());
+
+    // the execute delay is still running: the veto lands before any execute
+    setup.env.ledger().set_timestamp(voting_ends_at + 1);
+    setup
+        .contract
+        .veto(&setup.mando, &id, &proposal_id, &reason);
+
+    let event = ProposalVetoed {
+        project_key: id.clone(),
+        proposal_id,
+        maintainer: setup.mando.clone(),
+        reason: reason.clone(),
+    };
+    let all_events = setup
+        .env
+        .events()
+        .all()
+        .filter_by_contract(&setup.contract_id);
+    assert_eq!(all_events, [event.to_xdr(&setup.env, &setup.contract_id)]);
+
+    // the proposal stays readable, and the deposit is repaid
+    let proposal = setup.contract.get_proposal(&id, &proposal_id);
+    assert_eq!(proposal.status, ProposalStatus::Vetoed);
+    assert_eq!(setup.token_stellar.balance(&setup.grogu), balance_before);
+
+    // nothing leads from a veto to an execution, a vote or a second veto
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalActive.into());
+    let err = setup
+        .contract
+        .try_veto(&setup.grogu, &id, &proposal_id, &reason)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalActive.into());
+    let err = setup
+        .contract
+        .try_remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalActive.into());
+}
+
+#[test]
+fn veto_needs_no_tally_and_not_a_finished_proposal() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    setup.contract.anonymous_voting_setup(
+        &setup.mando,
+        &id,
+        &String::from_str(&setup.env, "public key"),
+    );
+
+    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 2;
+    let ipfs = String::from_str(
+        &setup.env,
+        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+    );
+    let anonymous = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Anonymous"),
+        &ipfs,
+        &voting_ends_at,
+        &false,
+        &None,
+        &None,
+    );
+    let public = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(&setup.env, "Public"),
+        &ipfs,
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+
+    // an anonymous proposal is vetoed without a proof
+    setup.contract.veto(&setup.grogu, &id, &anonymous, &ipfs);
+    assert_eq!(
+        setup.contract.get_proposal(&id, &anonymous).status,
+        ProposalStatus::Vetoed
+    );
+
+    // a proposal that was executed is out of reach
+    setup
+        .env
+        .ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    setup
+        .contract
+        .execute(&setup.mando, &id, &public, &None, &None);
+    let err = setup
+        .contract
+        .try_veto(&setup.mando, &id, &public, &ipfs)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalActive.into());
 }
 
 #[test]

@@ -120,6 +120,16 @@ pub struct ProposalExecuted {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalVetoed {
+    #[topic]
+    pub project_key: Bytes,
+    pub proposal_id: u32,
+    pub maintainer: Address,
+    pub reason: String, // CID of the explanation
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractPaused {
     pub paused: bool,
     pub admin: Address,
