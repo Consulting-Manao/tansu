@@ -33,7 +33,7 @@ interface FlowDialogProps {
 export function FlowDialog({
   state,
   onClose,
-  steps = ["Prepare", "Sign in your wallet", "Upload to IPFS", "Send"],
+  steps = ["Prepare", "Sign in your wallet", "Send", "Upload to IPFS"],
   success,
   onSuccess,
   size,

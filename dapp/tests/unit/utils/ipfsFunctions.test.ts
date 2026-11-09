@@ -189,18 +189,24 @@ describe("remembered IPFS misses", () => {
     const upload = {
       cid: CID,
       carBlob: new Blob(["car"]),
-      signedTxXdr: "AAAA",
+      txHash: "a".repeat(64),
     };
     fetchMock.mockResolvedValue(new Response(NO_PROVIDERS, { status: 504 }));
     const ipfs = await load();
     await errorOf(ipfs.fetchFromIpfs(CID, "/tansu.toml"));
 
-    // A failed upload (tried twice, 1 s apart) keeps the miss.
+    // A failed upload (five tries, 1, 2, 4 and 8 s apart) keeps the miss.
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    fetchMock.mockClear();
     fetchMock.mockImplementation(async () =>
       Response.json({ error: "Filebase unavailable" }, { status: 502 }),
     );
-    const failed = await errorOf(ipfs.uploadToIpfsProxy(upload));
+    const failing = errorOf(ipfs.uploadToIpfsProxy(upload));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const failed = await failing;
+    vi.useRealTimers();
     expect(failed.message).toContain("Filebase unavailable");
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(await errorOf(ipfs.fetchFromIpfs(CID, "/tansu.toml"))).toMatchObject(
       { name: "IpfsMissError", fromCache: true },
     );
@@ -213,5 +219,35 @@ describe("remembered IPFS misses", () => {
     expect(
       await new QueryClient().query(ipfs.ipfsQuery(CID, "/tansu.toml")),
     ).toBe("VERSION = 1");
+  });
+});
+
+describe("checkIpfsService", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks the worker's /health before anyone signs", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { checkIpfsService } =
+      await import("../../../src/utils/ipfsFunctions");
+
+    await expect(checkIpfsService()).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      `${new URL(import.meta.env.PUBLIC_DELEGATION_API_URL).origin}/health`,
+    );
+  });
+
+  it("says nothing was signed when the service or its storage is down", async () => {
+    const { checkIpfsService } =
+      await import("../../../src/utils/ipfsFunctions");
+    for (const answer of [
+      () => Promise.resolve(Response.json({ ok: false }, { status: 503 })),
+      () => Promise.reject(new TypeError("Failed to fetch")),
+    ]) {
+      vi.stubGlobal("fetch", vi.fn(answer));
+      await expect(checkIpfsService()).rejects.toThrow(
+        "Nothing was signed or sent",
+      );
+    }
   });
 });

@@ -1,11 +1,14 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { kitSignMock, disconnectMock, uploadMock } = vi.hoisted(() => ({
-  kitSignMock: vi.fn(),
-  disconnectMock: vi.fn(),
-  uploadMock: vi.fn(),
-}));
+const { kitSignMock, disconnectMock, uploadMock, healthMock } = vi.hoisted(
+  () => ({
+    kitSignMock: vi.fn(),
+    disconnectMock: vi.fn(),
+    uploadMock: vi.fn(),
+    healthMock: vi.fn(),
+  }),
+);
 
 vi.mock("../../../src/components/stellar-wallets-kit", () => ({
   StellarWalletsKit: { signTransaction: kitSignMock },
@@ -14,6 +17,7 @@ vi.mock("../../../src/components/stellar-wallets-kit", () => ({
 vi.mock("../../../src/utils/ipfsFunctions", async (importOriginal) => ({
   ...(await importOriginal()),
   uploadToIpfsProxy: uploadMock,
+  checkIpfsService: healthMock,
 }));
 
 let connected = "";
@@ -27,6 +31,7 @@ vi.mock("../../../src/service/walletService", async (importOriginal) => ({
 import { queryClient } from "../../../src/service/queryClient";
 import {
   checkAuthorization,
+  LandedUploadError,
   packUpload,
   sendTransaction,
   sendXLM,
@@ -101,6 +106,7 @@ describe("sendTransaction", () => {
     order.length = 0;
     connected = StellarSdk.Keypair.random().publicKey();
     uploadMock.mockImplementation(async () => void order.push("upload"));
+    healthMock.mockImplementation(async () => void order.push("health"));
     send = vi
       .spyOn(rpc.Server.prototype, "sendTransaction")
       .mockImplementation(async () => {
@@ -117,7 +123,7 @@ describe("sendTransaction", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("signs once, uploads with the envelope, sends, and refetches", async () => {
+  it("asks the upload service, signs once, sends, uploads with the landed hash, and refetches", async () => {
     const envelope = signedEnvelope();
     kitSignMock.mockResolvedValue({ signedTxXdr: envelope });
     const refetch = vi.spyOn(queryClient, "invalidateQueries");
@@ -138,10 +144,10 @@ describe("sendTransaction", () => {
     );
     expect(uploadMock).toHaveBeenCalledWith({
       ...upload,
-      signedTxXdr: envelope,
+      txHash: "a".repeat(64),
     });
-    expect(order).toEqual(["upload", "send", "confirm"]);
-    expect(onProgress.mock.calls).toEqual([["upload"], ["send"]]);
+    expect(order).toEqual(["health", "send", "confirm", "upload"]);
+    expect(onProgress.mock.calls).toEqual([["send"], ["upload"]]);
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["proposals", "ab"] });
   });
 
@@ -156,17 +162,55 @@ describe("sendTransaction", () => {
     expect(send).not.toHaveBeenCalled();
     expect(poll).toHaveBeenCalledWith(hash);
     expect(uploadMock).toHaveBeenCalledWith({ ...upload, txHash: hash });
-    expect(order).toEqual(["confirm", "upload"]);
+    expect(order).toEqual(["health", "confirm", "upload"]);
   });
 
-  it("says the transaction is on-chain when the late upload fails", async () => {
-    const hash = "c".repeat(64);
-    kitSignMock.mockResolvedValue({ signedTxXdr: hash, submitted: true });
-    uploadMock.mockRejectedValue(new Error("Filebase HTTP 502"));
+  it("signs nothing when the upload service does not answer", async () => {
+    healthMock.mockRejectedValue(
+      new Error("The IPFS service is not reachable"),
+    );
 
     await expect(sendTransaction(call(), { upload })).rejects.toThrow(
-      `Transaction ${hash} is on-chain but its IPFS upload failed: Filebase HTTP 502`,
+      "not reachable",
     );
+    expect(kitSignMock).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("does not ask the upload service for a write without files", async () => {
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope() });
+    await sendTransaction(call());
+    expect(healthMock).not.toHaveBeenCalled();
+  });
+
+  it("says the transaction is on-chain when the upload fails, and can try again", async () => {
+    kitSignMock.mockResolvedValue({ signedTxXdr: signedEnvelope() });
+    uploadMock.mockRejectedValue(new Error("Filebase HTTP 502"));
+    const refetch = vi.spyOn(queryClient, "invalidateQueries");
+
+    const error = await sendTransaction(call(), {
+      upload,
+      invalidate: [["proposals", "ab"]],
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(LandedUploadError);
+    expect(error).toMatchObject({ hash: "a".repeat(64), cid: "bafy-dir" });
+    expect(error.message).toContain(
+      `Transaction ${"a".repeat(64)} is on-chain, but its files (CID bafy-dir) could not be uploaded to IPFS after 5 tries: Filebase HTTP 502.`,
+    );
+
+    // The service is back: the files go up, then the pages refetch.
+    refetch.mockClear();
+    uploadMock.mockResolvedValue("bafy-dir");
+    await error.retry();
+    expect(uploadMock).toHaveBeenLastCalledWith({
+      ...upload,
+      txHash: "a".repeat(64),
+    });
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["proposals", "ab"] });
+
+    uploadMock.mockRejectedValue(new Error("still down"));
+    await expect(error.retry()).rejects.toThrow("still down");
   });
 
   it("refetches after a failed transaction: it may still have landed", async () => {
@@ -273,6 +317,11 @@ describe("checkAuthorization", () => {
 });
 
 describe("packUpload", () => {
+  it("refuses files over the limit before anything is signed", async () => {
+    const big = new File([new Uint8Array(11 * 1024 * 1024)], "logo.png");
+    await expect(packUpload([big])).rejects.toThrow(/the limit is 10 MB/);
+  });
+
   it("shows the text files it packs without asking a gateway", async () => {
     const toml = new File(['VERSION = "2.0.0"'], "tansu.toml");
     const logo = new File([new Uint8Array([1, 2])], "logo.png");

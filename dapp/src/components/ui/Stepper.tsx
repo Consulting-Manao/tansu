@@ -2,7 +2,7 @@ import cx from "classnames";
 import { Spinner } from "./Spinner";
 
 interface StepperProps {
-  /** The steps, in order: "Sign", "Upload to IPFS", "Send". */
+  /** The steps, in order: "Sign", "Send", "Upload to IPFS". */
   steps: string[];
   /** The step at work, 0-based; past ones show as done. */
   current: number;

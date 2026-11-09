@@ -10,7 +10,7 @@ import {
 } from "..";
 import { Row, Section } from "./Section";
 
-const steps = ["Prepare", "Sign in your wallet", "Upload to IPFS", "Send"];
+const steps = ["Prepare", "Sign in your wallet", "Send", "Upload to IPFS"];
 
 export function Overlays() {
   const [dialog, setDialog] = useState(false);

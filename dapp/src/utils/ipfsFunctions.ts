@@ -224,24 +224,44 @@ interface UploadToIpfsProxyResponse {
 }
 
 /**
- * Upload a CAR through the delegation worker. The worker takes one proof: the
- * signed envelope about to be sent, or the hash of the transaction a wallet
- * already submitted with this CID.
+ * Whether the upload service, and the storage behind it, answers. Asked
+ * before anyone signs: a transaction is sent before its files are uploaded.
  */
-export async function uploadToIpfsProxy(
-  params: { cid: string; carBlob: Blob } & (
-    | { signedTxXdr: string; txHash?: undefined }
-    | { txHash: string; signedTxXdr?: undefined }
-  ),
-): Promise<string> {
-  const { cid, carBlob, signedTxXdr, txHash } = params;
+export async function checkIpfsService(): Promise<void> {
+  const notReachable = new Error(
+    "The IPFS service is not reachable right now. Nothing was signed or sent: try again in a moment.",
+  );
+  const response = await fetchWithin(
+    new URL("/health", import.meta.env.PUBLIC_DELEGATION_API_URL).toString(),
+    {},
+    8_000,
+  ).catch(() => {
+    throw notReachable;
+  });
+  if (!response.ok) throw notReachable;
+}
+
+/** Tries of an upload, a doubling second apart. */
+export const UPLOAD_TRIES = 5;
+
+/**
+ * Upload a CAR through the delegation worker, once the transaction that
+ * records its CID landed: the worker takes that transaction's hash as proof.
+ * Tried several times; the last error is thrown.
+ */
+export async function uploadToIpfsProxy(params: {
+  cid: string;
+  carBlob: Blob;
+  txHash: string;
+}): Promise<string> {
+  const { cid, carBlob, txHash } = params;
 
   if (!cid) {
     throw new Error("Missing expected CID for IPFS upload");
   }
 
-  if (!signedTxXdr && !txHash) {
-    throw new Error("Missing signed transaction for IPFS upload");
+  if (!txHash) {
+    throw new Error("Missing transaction hash for IPFS upload");
   }
 
   if (!(carBlob instanceof Blob) || carBlob.size === 0) {
@@ -261,9 +281,7 @@ export async function uploadToIpfsProxy(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          signedTxXdr ? { cid, signedTxXdr, car } : { cid, txHash, car },
-        ),
+        body: JSON.stringify({ cid, txHash, car }),
       },
       120_000,
     );
@@ -304,14 +322,14 @@ export async function uploadToIpfsProxy(
     return result.cid;
   }
 
-  try {
-    return await uploadOnce();
-  } catch (firstError) {
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  for (let attempt = 1; ; attempt += 1) {
     try {
       return await uploadOnce();
-    } catch {
-      throw firstError;
+    } catch (error) {
+      if (attempt === UPLOAD_TRIES) throw error;
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1_000 * 2 ** (attempt - 1)),
+      );
     }
   }
 }

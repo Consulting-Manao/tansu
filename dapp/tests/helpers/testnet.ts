@@ -110,32 +110,17 @@ async function packFiles(files: File[]): Promise<Pack> {
 }
 
 /**
- * Sign `tx`, upload the packed files with the signed envelope as proof, then
- * send it and wait for it to land; like the dapp's TxService, without a
- * wallet. Results are read back from the contract, not parsed from the
- * transaction. The files are served before it returns: a gateway takes a
- * while with new ones, and the pages under test read them there.
+ * Sign `tx`, send it and wait for it to land, then upload the packed files
+ * with the landed hash as proof; like the dapp's TxService, without a wallet.
+ * Results are read back from the contract, not parsed from the transaction.
+ * The files are served before it returns: a gateway takes a while with new
+ * ones, and the pages under test read them there.
  */
 async function land<T>(
   tx: contract.AssembledTransaction<T>,
   pack?: Pack,
 ): Promise<void> {
   await tx.sign();
-  if (pack) {
-    const response = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cid: pack.cid,
-        car: Buffer.from(await pack.carBlob.arrayBuffer()).toString("base64"),
-        signedTxXdr: tx.signed!.toXDR(),
-      }),
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!response.ok) {
-      throw new Error(`upload ${response.status}: ${await response.text()}`);
-    }
-  }
   const sent = await tx.send();
   const response = sent.getTransactionResponse;
   if (response?.status !== "SUCCESS") {
@@ -146,6 +131,19 @@ async function land<T>(
     );
   }
   if (pack) {
+    const upload = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cid: pack.cid,
+        car: Buffer.from(await pack.carBlob.arrayBuffer()).toString("base64"),
+        txHash: sent.sendTransactionResponse!.hash,
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!upload.ok) {
+      throw new Error(`upload ${upload.status}: ${await upload.text()}`);
+    }
     await Promise.all(
       pack.names.map((name) => read.ipfs(pack.cid, `/${name}`)),
     );

@@ -2,20 +2,20 @@ import { useState } from "react";
 import type { FlowState } from "./FlowDialog";
 
 /** A write's stages, in the order FlowDialog lists them. */
-const STAGES = ["prepare", "sign", "upload", "send"] as const;
+const STAGES = ["prepare", "sign", "send", "upload"] as const;
 export type FlowStage = (typeof STAGES)[number];
 
 /** The steps a write shows while it signs and sends: "the vote", … */
 export const flowSteps = (what: string) => [
   "Prepare the transaction",
   `Sign the ${what} transaction`,
-  "Upload to IPFS",
   "Send and confirm",
+  "Upload to IPFS",
 ];
 
 /**
  * A write flow's state for FlowDialog: its form, a stage of the write (the
- * services report "sign", "upload", "send"), done (FlowDialog then shows
+ * services report "sign", "send", "upload"), done (FlowDialog then shows
  * the toast and closes) or an error.
  */
 export function useFlow() {

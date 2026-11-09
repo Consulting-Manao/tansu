@@ -7,8 +7,10 @@ import type { QueryKey } from "@tanstack/react-query";
 import { rpcServer } from "../contracts/soroban_tansu";
 import { checkSimulationError } from "../utils/contractErrors";
 import {
+  checkIpfsService,
   ipfsQuery,
   packFilesToCar,
+  UPLOAD_TRIES,
   uploadToIpfsProxy,
 } from "../utils/ipfsFunctions";
 import { retryAsync } from "../utils/retry";
@@ -197,6 +199,10 @@ async function submit<T>(
   return confirm(tx, hash, maxTime);
 }
 
+const MB = 1024 * 1024;
+/** What the upload worker takes (its `MAX_CAR_BYTES`, on testnet). */
+const MAX_UPLOAD_BYTES = 10 * MB;
+
 /** Files packed for a call to point to, by their directory's CID. */
 export interface Upload {
   cid: string;
@@ -210,6 +216,11 @@ export interface Upload {
  */
 export async function packUpload(files: File[]): Promise<Upload> {
   const upload = await packFilesToCar(files);
+  if (upload.carBlob.size > MAX_UPLOAD_BYTES) {
+    throw new Error(
+      `These files are ${(upload.carBlob.size / MB).toFixed(1)} MB; the limit is ${MAX_UPLOAD_BYTES / MB} MB. Use smaller images.`,
+    );
+  }
   for (const file of files) {
     if (/\.(toml|md|json)$/.test(file.name)) {
       queryClient.setQueryData(
@@ -235,14 +246,15 @@ export interface SendOptions {
  * work, packing files), signed in the wallet, its files uploaded, sent and
  * confirmed.
  */
-export type TxStage = "prepare" | "sign" | "upload" | "send";
+export type TxStage = "prepare" | "sign" | "send" | "upload";
 
 /**
- * Sign a contract call once and land it, in the order the wallet allows. A
- * signed envelope authorizes the IPFS upload, then is sent. A transaction the
- * wallet submitted itself is confirmed first, and its hash authorizes the
- * upload. `uploadToIpfsProxy` checks the uploaded CID either way. The queries
- * the call changes are refetched even when it failed: it may have landed.
+ * Sign a contract call once and land it: sent and confirmed first, then the
+ * files it points to are uploaded, with the landed transaction as proof: a
+ * file is pinned only for a call that is on-chain. The upload service is asked
+ * before anyone signs. If the upload fails after its tries, the error carries
+ * `retry`. The queries the call changes are refetched even when it failed: it
+ * may have landed.
  */
 export async function sendTransaction<T>(
   tx: StellarSdk.contract.AssembledTransaction<T>,
@@ -252,42 +264,64 @@ export async function sendTransaction<T>(
   // A contract error shows before the wallet is asked to sign.
   checkSimulationError(tx);
   checkAuthorization(tx);
+  if (upload) await checkIpfsService();
   const signed = await sign(tx.toXDR());
-  return invalidateAfter(land(tx, signed, upload, onProgress), ...invalidate);
+  return invalidateAfter(
+    land(tx, signed, upload, invalidate, onProgress),
+    ...invalidate,
+  );
+}
+
+/** The upload of a call that landed failed: its files can be tried again. */
+export class LandedUploadError extends Error {
+  override name = "LandedUploadError";
+  constructor(
+    readonly hash: string,
+    readonly cid: string,
+    reason: string,
+    /** Upload again, then refetch what the call changed. */
+    readonly retry: () => Promise<void>,
+  ) {
+    super(
+      `Transaction ${hash} is on-chain, but its files (CID ${cid}) could not be uploaded to IPFS after ${UPLOAD_TRIES} tries: ${reason}. The change is recorded; its files will not load until they are uploaded. Closing this drops them.`,
+    );
+  }
 }
 
 async function land<T>(
   tx: StellarSdk.contract.AssembledTransaction<T>,
   signed: Signed,
   upload: SendOptions["upload"],
+  invalidate: QueryKey[],
   onProgress: SendOptions["onProgress"],
 ): Promise<Landed<T>> {
-  if (!upload) {
-    onProgress?.("send");
-    return "hash" in signed
-      ? confirm(tx, signed.hash, maxTimeOf(tx.built))
-      : submit(tx, signed.xdr);
-  }
-
-  if ("hash" in signed) {
-    const landed = await confirm(tx, signed.hash, maxTimeOf(tx.built));
-    onProgress?.("upload");
-    try {
-      await uploadToIpfsProxy({ ...upload, txHash: signed.hash });
-    } catch (error: any) {
-      throw new Error(
-        `Transaction ${signed.hash} is on-chain but its IPFS upload failed: ${error?.message ?? error}`,
-        { cause: error },
-      );
-    }
-    onProgress?.("send");
-    return landed;
-  }
+  onProgress?.("send");
+  const landed =
+    "hash" in signed
+      ? await confirm(tx, signed.hash, maxTimeOf(tx.built))
+      : await submit(tx, signed.xdr);
+  if (!upload) return landed;
 
   onProgress?.("upload");
-  await uploadToIpfsProxy({ ...upload, signedTxXdr: signed.xdr });
-  onProgress?.("send");
-  return submit(tx, signed.xdr);
+  const send = () => uploadToIpfsProxy({ ...upload, txHash: landed.hash });
+  try {
+    await send();
+  } catch (error: any) {
+    throw new LandedUploadError(
+      landed.hash,
+      upload.cid,
+      error?.message ?? String(error),
+      async () => {
+        await send();
+        await Promise.all(
+          invalidate.map((queryKey) =>
+            queryClient.invalidateQueries({ queryKey }),
+          ),
+        );
+      },
+    );
+  }
+  return landed;
 }
 
 /** A donation's message: a text memo holds 28 bytes. */
