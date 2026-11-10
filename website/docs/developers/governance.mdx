@@ -77,7 +77,7 @@ The contract enforces strict voting deadlines:
 
 - Votes can only be cast **before** the `voting_ends_at` timestamp
 - Attempts to vote after the deadline will be rejected
-- Only maintainers can execute proposals, once the voting period has ended **and** the execution delay has passed (24 hours by default)
+- Only maintainers can execute proposals, once unlocked: either when the voting period ends plus the execution delay, or earlier if a maintainer quorum is reached (see [Early execution on maintainer quorum](#early-execution-on-maintainer-quorum))
 - Voting periods must end between the project's minimum voting period (1 day by default) and 30 days from creation
 - Ballots live until **14 days after the earliest execution** (`voting_ends_at` plus the execution delay), then the network deletes them
 
@@ -92,6 +92,16 @@ Once a ballot expires it is deleted, not archived, and cannot be restored:
 - `get_proposal` no longer lists it, `remove_vote` reports `VoteNotFound`, and `proof`, which sums the individual ballots, no longer matches.
 - `execute` is unaffected: it checks the revealed tally against the persistent aggregate. But an anonymous tally is decrypted from the ballots, so execute an anonymous proposal before they expire.
 - Anyone can extend a ballot before it expires, with `stellar contract extend --durability temporary --key-xdr <ballot key>`.
+
+### Early execution on maintainer quorum
+
+When enough distinct project maintainers cast votes to reach quorum, the proposal unlocks for execution early without waiting for the full voting period to elapse:
+
+- **Quorum condition:** ceil(maintainers * attestation_threshold / 100) distinct maintainers must have voted on the proposal. Only votes cast by addresses in project.maintainers count toward this quorum. This rule applies uniformly to badge-weighted, NQG-weighted, and token-weighted proposals.
+- **Shortened veto window:** When maintainer quorum is reached, the ledger timestamp is recorded (quorum_reached_at) and emits a ProposalQuorumReached event. To preserve maintainers' ability to veto malicious or controversial proposals, execution is timelocked until:
+  \min(\text{voting\_ends\_at} + \text{execute\_delay},\ \text{quorum\_reached\_at} + \frac{\text{execute\_delay}}{2})
+- **Maintainer set dynamics & vote removal:** Quorum is evaluated against the current maintainers of the project. If a maintainer's vote is removed via 
+emove_vote and the remaining count drops below the quorum threshold, the quorum timestamp is cleared, returning execution eligibility to the normal voting period deadline.
 
 ## Project governance settings
 

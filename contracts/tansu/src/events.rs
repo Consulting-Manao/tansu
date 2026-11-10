@@ -110,6 +110,15 @@ pub struct VoteRemoved {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalQuorumReached {
+    #[topic]
+    pub project_key: Bytes,
+    pub proposal_id: u32,
+    pub quorum_reached_at: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProposalExecuted {
     #[topic]
     pub project_key: Bytes,
