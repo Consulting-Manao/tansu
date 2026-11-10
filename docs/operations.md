@@ -16,6 +16,41 @@ two variables:
 - `admin` selects the signing identity of the Stellar CLI. It defaults to
   `tansu-admin-<network>`.
 
+### Addresses
+
+The keys that hold a role on each network, as the ledger records them. Secrets are
+never listed here.
+
+| Role on mainnet                                      | Address                                                    |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| Admin, the identity `tansu-admin-mainnet`            | `GAEAODW6YYDMCGWLYZEF2FOXZGXKRGO4JESEEPJUEW6JAZQWCH3AJT5D` |
+| Admin, second key                                    | `GBMGZFAHF7IS4XTKMH5TMKDGEZL64GXOKCWX7QVMV3J67QDC4L7E5BFD` |
+| Maintainer of the `tansu` project                    | `GD4FXNCYPQWNDWZYZZD4WFYYFTP466IKAKCZOYE5TPFTSSOZDA4QF3ER` |
+| Owner of the dApp's domain (`PUBLIC_TANSU_OWNER_ID`) | `GD4FXNCYPQWNDWZYZZD4WFYYFTP466IKAKCZOYE5TPFTSSOZDA4QF3ER` |
+
+| Role on testnet                                              | Address                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| Admin, the identity `tansu-admin-testnet`                    | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+| Admin, second key                                            | `GBMGZFAHF7IS4XTKMH5TMKDGEZL64GXOKCWX7QVMV3J67QDC4L7E5BFD` |
+| Maintainer of the `tansu` project, `tansu-admin-testnet`     | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+| Maintainer of the `tansu` project, the identity `grogu`      | `GDKEVEDLMQALZ4CYRHLBCI7GJGWJNWZPWVXZPHGYPX6CS6EHBW3QDZIT` |
+| Maintainer of the `tansu` project                            | `GBNKPTZ6LUVSJASJB7X57NMZD6E3JEF2JQDF6KQVFVRTMO45LKS6XLPE` |
+| Maintainer of the `tansu` project                            | `GC53JCXZHW3SVNRE4CT6XFP46WX4ACFQU32P4PR3CU43OB7AKKMFXZ6Y` |
+| Maintainer of the `tansu` project                            | `GA4XYBSCE6DE33YW5DAA6CHBE7VAFEMR5EIPAIJZKUBBAJQKXL2PLYC5` |
+| Owner of the dApp's domain (`PUBLIC_TANSU_OWNER_ID`)         | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+
+The admin threshold is 1 on both networks. The ledger is the reference; compare this
+table with it after any change of admin or maintainer:
+
+```bash
+net=mainnet   # or testnet
+stellar contract invoke --id "$(cat deployments/tansu-$net)" --network $net \
+  --source-account tansu-admin-$net --send=no -- get_admins_config
+stellar contract invoke --id "$(cat deployments/tansu-$net)" --network $net \
+  --source-account tansu-admin-$net --send=no -- get_project \
+  --project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156
+```
+
 The contract also references external contracts:
 
 | Reference        | Value                                                                                     | Set with                                         |
