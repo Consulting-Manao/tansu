@@ -14,7 +14,7 @@ two variables:
 - `network` selects the network. It defaults to `testnet`, so production actions must
   pass `network=mainnet` explicitly. There is no confirmation prompt.
 - `admin` selects the signing identity of the Stellar CLI. It defaults to
-  `tansu-<network>`.
+  `tansu-admin-<network>`.
 
 The contract also references external contracts:
 
@@ -56,6 +56,12 @@ The following rules apply to admins:
   Stellar account with native multisig. The in-contract threshold only applies to
   accepting upgrades; pausing, unpausing, cancelling an upgrade and `set_executor`
   each take one admin.
+
+Mainnet identities are kept in the Stellar CLI secure store
+(`stellar keys add <name> --secure-store`), never as a plaintext identity file, so
+`make prepare` and `make funds` refuse `network=mainnet`. `grogu` is the default
+throwaway testnet identity, the second maintainer of `make contract_register` off
+mainnet; on mainnet, pass `maintainer2=<identity>`.
 
 On the project side, any single maintainer can call `update_config`, which replaces
 the maintainer list, `set_attestation_threshold` and `set_nqg_contract`. Projects

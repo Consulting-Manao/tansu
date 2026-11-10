@@ -8,7 +8,7 @@ ifndef network
 endif
 
 ifndef admin
-   override admin = tansu-$(network)
+   override admin = tansu-admin-$(network)
 endif
 
 # The account paying for the upload of a WASM, which anyone can do: it is
@@ -20,6 +20,12 @@ endif
 # `send=no` simulates a call without sending it.
 ifndef send
    override send = default
+endif
+
+ifndef maintainer2
+ifneq ($(network),mainnet)
+   override maintainer2 = grogu
+endif
 endif
 
 ifndef wasm
@@ -80,12 +86,19 @@ else
 		--network-passphrase "Standalone Network ; February 2017"
 endif
 
-prepare: prepare-network  ## Setup network and generate addresses and add funds
-	stellar keys generate grogu-$(network) --network $(network) && \
+# `prepare` and `funds` create plaintext identity files: never for mainnet, whose
+# identities live in the Stellar CLI secure store (`stellar keys add <name> --secure-store`).
+# `$(error)` is expanded by `make -n` too, so a dry run is refused as well.
+no_mainnet_keys:
+	$(if $(filter mainnet,$(network)),$(error Refusing network=mainnet: this would create a plaintext admin key. Add mainnet identities by hand with `stellar keys add <name> --secure-store`))
+
+# `grogu` is the default throwaway testnet identity, shared by every non-mainnet network.
+prepare: no_mainnet_keys prepare-network  ## Setup network and generate addresses and add funds (never mainnet)
+	stellar keys generate grogu --network $(network) && \
 	stellar keys generate $(admin) --network $(network)
 
-funds:
-	stellar keys fund grogu-$(network) --network $(network) && \
+funds: no_mainnet_keys  ## Fund the grogu and admin identities (never mainnet)
+	stellar keys fund grogu --network $(network) && \
 	stellar keys fund $(admin) --network $(network)
 
 rust-lint:
@@ -310,8 +323,11 @@ contract_version:
     	-- \
     	version
 
+# `maintainer2` is the second maintainer's identity: `grogu` off mainnet, and it must be
+# given on mainnet (`make contract_register network=mainnet maintainer2=<identity>`).
 # bafybeift4uou7f4qdrchrbwebxxvgf2ecmx56qqo6l2fyimmr4skb3iibi for salib
 contract_register:
+	$(if $(maintainer2),,$(error maintainer2 is required on mainnet: give the second maintainer's identity, e.g. maintainer2=<name>))
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -320,7 +336,7 @@ contract_register:
     	register \
     	--maintainer $(admin) \
     	--name tansu \
-    	--maintainers '["$(shell stellar keys address $(admin))", "$(shell stellar keys address grogu-$(network))"]' \
+    	--maintainers '["$(shell stellar keys address $(admin))", "$(shell stellar keys address $(maintainer2))"]' \
     	--url https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s \
     	--ipfs bafybeicnbbhyc4vhbuokk57lrmg4hkbvkmtcp6p3ubaptbus6kl2idthki
 
