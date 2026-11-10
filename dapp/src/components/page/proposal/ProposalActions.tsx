@@ -2,7 +2,11 @@ import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { votingPowerQuery } from "@service/MemberService";
-import { executeDelayQuery } from "@service/ProposalService";
+import {
+  executeDelayQuery,
+  quorumReachedAtQuery,
+} from "@service/ProposalService";
+import { Notice } from "components/ui";
 import { queryClient } from "@service/queryClient";
 import { connect } from "@service/walletService";
 import { Button, Card, LinkButton } from "components/ui";
@@ -54,16 +58,41 @@ const ProposalActions = ({
     },
     queryClient,
   ).data;
-  // A vote can be executed once its execute delay has passed too.
+  // A vote can be executed once its execute delay has passed or maintainer quorum was reached.
   const delay = useQuery(
     {
       ...executeDelayQuery(proposal.projectName, proposal.id),
-      enabled: proposal.status === "voted" && isMaintainer,
+      enabled: isPending && isMaintainer,
     },
     queryClient,
   ).data;
-  const executableAt =
+  const quorumReachedAt = useQuery(
+    {
+      ...quorumReachedAtQuery(proposal.projectName, proposal.id),
+      enabled: isPending && isMaintainer,
+    },
+    queryClient,
+  ).data;
+
+  const normalExecutableAt =
     delay === undefined ? undefined : (proposal.endDate + delay) * 1000;
+  const earlyExecutableAt =
+    delay === undefined || !quorumReachedAt
+      ? undefined
+      : (quorumReachedAt + Math.floor(delay / 2)) * 1000;
+
+  const executableAt =
+    normalExecutableAt === undefined
+      ? undefined
+      : earlyExecutableAt !== undefined
+        ? Math.min(normalExecutableAt, earlyExecutableAt)
+        : normalExecutableAt;
+
+  const isEarly =
+    executableAt !== undefined &&
+    normalExecutableAt !== undefined &&
+    executableAt < normalExecutableAt &&
+    executableAt <= Date.now();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (executableAt === undefined || executableAt <= now) return;
@@ -116,12 +145,20 @@ const ProposalActions = ({
       {isMaintainer && isPending && (
         <Card className="flex flex-col gap-3">
           <Eyebrow>Maintainer tools</Eyebrow>
-          {proposal.status === "voted" &&
-            executableAt !== undefined &&
+          {executableAt !== undefined &&
             (executableAt <= now ? (
-              <Button block onClick={onExecute}>
-                Execute proposal
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button block onClick={onExecute}>
+                  Execute proposal
+                </Button>
+                {isEarly && normalExecutableAt !== undefined && (
+                  <Notice tone="info">
+                    Early execution unlocked because maintainer quorum was
+                    reached. Normal execution would have been from{" "}
+                    {new Date(normalExecutableAt).toLocaleString()}.
+                  </Notice>
+                )}
+              </div>
             ) : (
               <p className="text-small text-ink-muted">
                 Can be executed from {new Date(executableAt).toLocaleString()}

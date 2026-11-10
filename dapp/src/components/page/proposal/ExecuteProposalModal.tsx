@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { isNoCall } from "@service/ContractIntrospectionService";
 import { projectQuery } from "@service/ProjectService";
-import { executeProposal } from "@service/ProposalService";
+import {
+  executeProposal,
+  executeDelayQuery,
+  quorumReachedAtQuery,
+} from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import {
   Button,
@@ -87,6 +91,29 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   const { data: project } = useQuery(projectQuery(projectName), queryClient);
   const isMaintainer =
     !!publicKey && !!project?.maintainers.includes(publicKey);
+
+  const { data: delay } = useQuery(
+    executeDelayQuery(projectName, proposalId),
+    queryClient,
+  );
+  const { data: quorumReachedAt } = useQuery(
+    quorumReachedAtQuery(projectName, proposalId),
+    queryClient,
+  );
+
+  const normalExecutableAt =
+    proposal && delay !== undefined
+      ? (proposal.voting_ends_at + delay) * 1000
+      : undefined;
+  const earlyExecutableAt =
+    delay !== undefined && quorumReachedAt
+      ? (quorumReachedAt + Math.floor(delay / 2)) * 1000
+      : undefined;
+
+  const isEarly =
+    normalExecutableAt !== undefined &&
+    earlyExecutableAt !== undefined &&
+    earlyExecutableAt < normalExecutableAt;
 
   const shownStatus = tally.tally?.voteStatus ?? voteStatus;
   const winner = shownStatus ? winningOutcome(shownStatus) : null;
@@ -199,7 +226,11 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           step={1}
           totalSteps={totalSteps}
           title="Finalizing the Vote"
-          description="The voting period has ended. Now, we need to count the votes and determine the final outcome."
+          description={
+            isEarly && normalExecutableAt
+              ? `Maintainer quorum was reached early. Execution unlocked ahead of the normal deadline (${new Date(normalExecutableAt).toLocaleString()}).`
+              : "The voting period has ended. Now, we need to count the votes and determine the final outcome."
+          }
           actions={
             <>
               {cancel}

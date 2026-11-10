@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import {
   executeDelayQuery,
+  quorumReachedAtQuery,
   proposalQuery,
   vetoQuery,
 } from "@service/ProposalService";
@@ -41,6 +42,7 @@ const steps = (
   proposal: ProposalView,
   delay: number | undefined,
   vetoedAt: bigint | undefined,
+  quorumReachedAt: number | null | undefined,
 ) => {
   const ended = proposal.endDate * 1000 <= Date.now();
   if (proposal.status === "vetoed") {
@@ -61,8 +63,30 @@ const steps = (
   const executed = ["approved", "rejected", "cancelled"].includes(
     proposal.status,
   );
+  const normalEnd = delay === undefined ? undefined : proposal.endDate + delay;
+  const earlyEnd =
+    delay === undefined || !quorumReachedAt
+      ? undefined
+      : quorumReachedAt + Math.floor(delay / 2);
+  const earliestSeconds =
+    normalEnd === undefined
+      ? undefined
+      : earlyEnd !== undefined
+        ? Math.min(normalEnd, earlyEnd)
+        : normalEnd;
+
+  const isEarly =
+    earliestSeconds !== undefined &&
+    normalEnd !== undefined &&
+    earliestSeconds < normalEnd;
+
   const from =
-    delay === undefined ? undefined : `From ${when(proposal.endDate + delay)}`;
+    earliestSeconds === undefined
+      ? undefined
+      : isEarly
+        ? `From ${when(earliestSeconds)} (early maintainer quorum)`
+        : `From ${when(earliestSeconds)}`;
+
   return [
     { label: "Submitted", state: "done" },
     {
@@ -73,7 +97,13 @@ const steps = (
     {
       label: "Execute",
       detail: executed ? undefined : from,
-      state: executed ? "done" : ended ? "now" : "todo",
+      state: executed
+        ? "done"
+        : ended ||
+            (earliestSeconds !== undefined &&
+              earliestSeconds * 1000 <= Date.now())
+          ? "now"
+          : "todo",
     },
     {
       label: "Executed",
@@ -100,6 +130,10 @@ const ProposalHead = () => {
     : null;
   const delay = useQuery(
     { ...executeDelayQuery(name, id), enabled: !!proposal },
+    queryClient,
+  ).data;
+  const quorumReachedAt = useQuery(
+    { ...quorumReachedAtQuery(name, id), enabled: !!proposal },
     queryClient,
   ).data;
   const vetoed = proposal?.status === "vetoed";
@@ -188,7 +222,7 @@ const ProposalHead = () => {
       <div className="mt-2 max-w-220">
         <Timeline
           label="Proposal"
-          steps={steps(proposal, delay, veto?.vetoed_at)}
+          steps={steps(proposal, delay, veto?.vetoed_at, quorumReachedAt)}
         />
       </div>
       {vetoed && <VetoNotice name={name} id={id} />}

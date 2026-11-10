@@ -83,6 +83,22 @@ export const executeDelayQuery = (name: string, id: number) =>
     staleTime: Infinity,
   });
 
+/**
+ * When a maintainer quorum was reached on the proposal, in ledger seconds, or
+ * null if quorum has not been reached.
+ */
+export const quorumReachedAtQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["quorumReachedAt", projectKeyHex(name), id],
+    queryFn: async () => {
+      const reached = await readStorage(
+        storageKey("QuorumReachedAt", projectBytes(name), xdr.ScVal.scvU32(id)),
+      );
+      return reached === undefined ? null : Number(reached);
+    },
+    staleTime: MINUTE,
+  });
+
 const DEFAULT_MIN_VOTING_PERIOD = 24 * 3600;
 export const MAX_GOVERNANCE_PERIOD = 30 * 24 * 3600;
 
