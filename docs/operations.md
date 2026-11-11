@@ -36,7 +36,7 @@ never listed here.
 | Maintainer of the `tansu` project, the identity `grogu`      | `GDKEVEDLMQALZ4CYRHLBCI7GJGWJNWZPWVXZPHGYPX6CS6EHBW3QDZIT` |
 | Maintainer of the `tansu` project                            | `GBNKPTZ6LUVSJASJB7X57NMZD6E3JEF2JQDF6KQVFVRTMO45LKS6XLPE` |
 | Maintainer of the `tansu` project                            | `GC53JCXZHW3SVNRE4CT6XFP46WX4ACFQU32P4PR3CU43OB7AKKMFXZ6Y` |
-| Maintainer of the `tansu` project                            | `GA4XYBSCE6DE33YW5DAA6CHBE7VAFEMR5EIPAIJZKUBBAJQKXL2PLYC5` |
+| Maintainer of the `tansu` project, `chimpdao-nft-admin-testnet` | `GA4XYBSCE6DE33YW5DAA6CHBE7VAFEMR5EIPAIJZKUBBAJQKXL2PLYC5` |
 | Owner of the dApp's domain (`PUBLIC_TANSU_OWNER_ID`)         | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
 
 The admin threshold is 1 on both networks. The ledger is the reference; compare this
