@@ -78,7 +78,7 @@ The contract enforces strict voting deadlines:
 - Votes can only be cast **before** the `voting_ends_at` timestamp
 - Attempts to vote after the deadline will be rejected
 - Only maintainers can execute proposals, once the voting period has ended **and** the execution delay has passed (24 hours by default)
-- Voting periods must end between the project's minimum voting period (1 day by default) and 30 days from creation
+- Voting periods must end between the project's minimum voting period (1 day by default) and 30 days from creation. On a project with an NQG contract, keep them within the contract's power hold (7 days with stellar-membership), see [NQG contract weight](./membership.mdx#nqg-contract-weight)
 - Ballots live until **14 days after the earliest execution** (`voting_ends_at` plus the execution delay), then the network deletes them
 
 Both durations can be changed per project, see [Project governance settings](#project-governance-settings).
@@ -463,7 +463,7 @@ Deposits are paid in the collateral asset set when the contract is deployed (the
 
 **Weight is the Sybil defense** -- when weight is bound to an identity. Then a vote only counts for as much weight as its address has earned, and creating many addresses buys nothing:
 
-- On a project with an [NQG contract](./membership.mdx#nqg-contract-weight) (such as the SCF Public Goods Award rounds), weight is what that contract gives the voter. A fresh address has none, and weight **zero** cannot vote. Reputation, not capital, decides who is heard.
+- On a project with an [NQG contract](./membership.mdx#nqg-contract-weight) (such as the SCF Public Goods Award rounds), weight is what that contract gives the voter. A fresh address has none, and weight **zero** cannot vote. Reputation, not capital, decides who is heard. This holds only while each proposal's voting period stays within the NQG contract's power hold (7 days with stellar-membership): see [Keep proposals within the power hold](./membership.mdx#nqg-contract-weight).
 - On badge-based projects, weight comes from badges that maintainers grant to specific addresses. An address without badges still votes with weight **1**, so badge weights (500 000 and above) dominate by construction. Weight-1 votes take at most **500** of a proposal's 1,000 slots, so fresh addresses cannot fill a proposal and leave badge holders out.
 
 :::warning[Token-weighted proposals are not Sybil-resistant]

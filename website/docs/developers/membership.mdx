@@ -114,6 +114,14 @@ Tansu reads NQG through the [stellar-membership](https://radicle.network/nodes/r
 
 This is also what makes the project Sybil-resistant without asking voters for collateral: weight is earned reputation, so new addresses carry none. See [Spam and Sybil resistance](./governance.mdx#spam-and-sybil-resistance).
 
+:::warning[Keep proposals within the power hold]
+
+Tansu reads the weight when a ballot is cast and keeps no snapshot. A member can move their membership to a new address (`move_key`, or a recovery). The old address loses its weight at once, and the new one reads **0** for the hold, 7 days in stellar-membership (`POWER_HOLD`), and then the full weight again. A vote that stays open longer than the hold lets one member vote again from each new address, once per hold.
+
+Operators of a project with an NQG contract keep the two in sync: every proposal's voting period is at most the hold (7 days with stellar-membership), and a change to the hold in the NQG contract changes this limit too. The contract does not enforce it: `create_proposal` accepts up to 30 days, so the proposer sets `voting_ends_at` within the hold.
+
+:::
+
 The Stellar community membership itself (the soulbound token with a member's role, verified accounts and projects) is that separate contract. It also exposes the NQG score per member through its `governance` function.
 
 ### Token-based proposals
