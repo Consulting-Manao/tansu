@@ -109,8 +109,10 @@ A release is built first, checked, and tagged last. The contracts are built from
 in a Stellar CLI container pinned by digest (the `image` of the Makefile), the checks run
 on that build as a Radicle job of the commit, and only a build that passed is tagged and
 published as signed Radicle artifacts. A mainnet WASM is never built by hand outside that
-flow. Another delegate rebuilds with the same image on the same architecture, compares
-the WASM hashes in `SHA256SUMS` and attests the artifacts.
+flow. Anyone can rebuild the tagged commit with the same image on the same architecture
+(`.radicle/release.sh build`), check the files with `rad-artifact verify` and attest
+them; the repository has one delegate today, so there is no second delegate's
+attestation yet.
 
 Tags and releases are immutable. The WASM carries SEP-58 build and source metadata
 (`bldimg`, `bldopt`, `source_sha256`); read it with `stellar contract info meta`.
@@ -156,7 +158,7 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
 
 3. **Propose.** Check the state first: [Checklist before a state change](#checklist-before-a-state-change),
    no active proposal that the new code could not finish, the XLM of the upload (about
-   1 XLM per KB of code on mainnet). The command uploads, proposes and shows the proposal:
+   0.9 XLM per KB of code on mainnet: 78 XLM for v4). The command uploads, proposes and shows the proposal:
    its hash is the one of the WASM in `release/<tag>/SHA256SUMS`. Never run it with
    `make -n`: make sends the upload while printing.
 
@@ -185,7 +187,9 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
    make radicle_register wasm=$wasm tag=$tag network=$network
    ```
 
-7. **Keep alive.** The upload pays 120 days of the new code. See
+7. **Keep alive**, after the finalize and never before: the command extends the code
+   the contract runs at that moment. The upload paid 120 days of the new code, and
+   bringing it to 180 costs about half the upload again. See
    [Rent on mainnet](#rent-on-mainnet):
 
    ```bash
@@ -402,16 +406,17 @@ Read the TTLs first with `stellar ledger entry fetch` (`liveUntilLedgerSeq`). To
 cost, pipe the command with `--build-only` into `stellar tx simulate --network mainnet
 --source-account <identity>`. `--build-only` alone does not simulate.
 
-An upgrade uploads a new code entry, which pays its first 120 days (about 77 XLM for
-v4). The rent left on the old code is lost. Hence, extend the code after an upgrade and
+An upgrade uploads a new code entry, which pays its first 120 days (78.01 XLM for v4, on
+2026-11-12). The rent left on the old code is lost. Hence, extend the code after an upgrade and
 not before, and time the upgrade close to the old code's expiry. The old code must still
 be live when `finalize_upgrade` runs. The upgrade does not extend the instance.
 
 Status on 2026-11-07, ledger 65,351,521: instance expires at 66,740,745 (about 26
 January 2027), code at 66,810,899, the executor's code and instance at about the same
 (30 January). Extending the code to the maximum then costs about 63 XLM, the instances
-and the executor code about 1.2 XLM. Uploading v4 in late January replaces the code
-extension.
+and the executor code about 1.2 XLM. The v4 code, uploaded on 2026-11-12, lives until
+ledger 67,520,383 (about 12 March 2027); extending it to the maximum then simulated at
+44.9 XLM. The v3 code is left to expire once v4 runs.
 
 Instance storage holds the pause flag, the admin set, the pending upgrade, the
 collateral asset and the executor. Persistent storage holds projects,
@@ -424,8 +429,9 @@ execution of its proposal (`BALLOT_GRACE`), then deleted: a vote costs about 0.0
 mainnet instead of the 120-day persistent minimum (0.48 XLM). An anonymous proposal
 must be executed before its ballots expire: the tally is decrypted from them. If it
 cannot, extend them first with `stellar contract extend --durability temporary
---key-xdr <ballot key> --ledgers-to-extend <n>`. Ballots of proposals open during an
-upgrade to v4 were persistent and are no longer read: upgrade with no proposal open.
+--key-xdr <ballot key> --ledgers-to-extend <n>`. The ballots written before v4
+were persistent and v4 does not read them, those of executed proposals included:
+`get_proposal` returns these proposals without votes.
 
 Once a round is executed, save its ballots before they expire. The script writes one
 JSON line per proposal of the project, as `get_proposal` returns it, readable and as XDR:
@@ -498,6 +504,11 @@ transaction hash, a Stellar.Expert link and the state read back after submission
 Only verified outcomes are recorded. When a submission result is unclear, the
 transaction is looked up by hash and its `status` field is read. The diagnostic events
 of a Soroban transaction can contain the word `Error` even when it succeeded.
+
+| Date (UTC)       | Action                                  | Signer          | Transaction                                                                                                                    | Read back                                                    |
+| ---------------- | --------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| 2026-11-12 21:46 | Upload of the v4.0.0 WASM (78.01 XLM)   | `GAEAODW6…JT5D` | [`a0d73538…bf46`](https://stellar.expert/explorer/public/tx/a0d73538b01977ff3d4b6569394dc4937780a05e3d1abafc1845587388f1bf46) | code `0c254b05…4984` on the ledger                           |
+| 2026-11-12 21:46 | `propose_upgrade` to v4.0.0             | `GAEAODW6…JT5D` | [`d4a6af54…0f25`](https://stellar.expert/explorer/public/tx/d4a6af54873eb012a5077fde05ab6d969a1d894853db50716965c90d68260f25) | `get_upgrade_proposal`: that hash, executable 2026-11-13 21:46 |
 
 ## Incident response
 
