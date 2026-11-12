@@ -203,8 +203,9 @@ The commands to copy are the
    workflow, which records evidence), and publishes the bundle, which must be the build
    of the tagged commit: the source, WASMs, SBOM, provenance and checksums are registered
    as Radicle artifacts, which is your attestation of them, seeded from your node, and a
-   publication job is recorded. Have another delegate rebuild, compare the hashes of
-   `SHA256SUMS` (`rad-artifact verify <file>`) and attest the artifact CIDs. SEP-55 only defines a GitHub source, so a verifier that knows only
+   publication job is recorded. Anyone can rebuild the tagged commit, compare the hashes
+   of `SHA256SUMS` (`rad-artifact verify <file>`) and attest the artifact CIDs; a second
+   delegate's attestation needs a second delegate. SEP-55 only defines a GitHub source, so a verifier that knows only
    GitHub does not follow the `radicle:` one; see the guide.
 3. The on-chain upgrade, with the exact WASM of the release
    (`wasm=release/<tag>/tansu_v<package-version>.wasm`):
