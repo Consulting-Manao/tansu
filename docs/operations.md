@@ -105,17 +105,95 @@ small and monitor the corresponding events.
 
 ## Release and verification
 
-Contract releases are built from a tag in a Stellar CLI container pinned by digest and
-published as signed Radicle artifacts (`make radicle_release`, `radicle_release_verify`,
-`radicle_release_publish`; see `CONTRIBUTING.md`). A mainnet WASM is never built by hand
-outside that flow. Another delegate rebuilds with the same image, compares the WASM
-hashes in `SHA256SUMS` and attests the artifacts.
+A release is built first, checked, and tagged last. The contracts are built from a commit
+in a Stellar CLI container pinned by digest (the `image` of the Makefile), the checks run
+on that build as a Radicle job of the commit, and only a build that passed is tagged and
+published as signed Radicle artifacts. A mainnet WASM is never built by hand outside that
+flow. Another delegate rebuilds with the same image on the same architecture, compares
+the WASM hashes in `SHA256SUMS` and attests the artifacts.
 
 Tags and releases are immutable. The WASM carries SEP-58 build and source metadata
 (`bldimg`, `bldopt`, `source_sha256`); read it with `stellar contract info meta`.
 
-The other workflows in `.github/workflows` run tests, linters, SBOM generation and
-vulnerability scans. Their results are checked before tagging a release.
+The checks are the tests, clippy, the format and Trivy (critical and high, the tree and
+the SBOM of the bundle). The upgrade test installs the release WASM and the registry
+manager's tests run it; the other tests run the same commit natively. What only a
+deployed contract shows (the dApp journeys) is checked on testnet, whose builds differ
+from a release by their timelock.
+
+### Release run sheet
+
+For a release that needs no data migration. One that does adds its steps around the
+finalize and gets its own document. Set the release once, then every command is as
+written; `admin` and `uploader` default to `tansu-admin-<network>`:
+
+```bash
+tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
+```
+
+1. **Candidate.** Commit what must go in (the build is the commit, the checks run in the
+   working tree). The command pushes `main` to Radicle, builds both contracts into
+   `release/<tag>/` and checks that build, as one Radicle job; nothing is tagged.
+   `STELLAR_CONTAINER_ENGINE` picks the container engine, and Apple's needs
+   `RELEASE_BUILD_FLAGS='--memory 4g --cpus 4'`. Read the run and its log: the hashes, the
+   number of tests, no finding. After a failure, fix, commit, move `release/<tag>/` away
+   and run it again.
+
+   ```bash
+   make radicle_release_candidate tag=$tag
+   rad-job show --pretty "$(git rev-parse HEAD)"
+   ```
+
+2. **Release.** Once you are happy with the candidate. It tags `HEAD`, pushes the tag to
+   Radicle and publishes the bundle, which must be the build of the tagged commit. The
+   seeder runs (`rad-artifact node status`, else `rad-artifact node start`). The tag does
+   not go to GitHub: a `v*` tag there starts `sbom.yml`, which records evidence on-chain.
+
+   ```bash
+   make radicle_release tag=$tag
+   ```
+
+3. **Propose.** Check the state first: [Checklist before a state change](#checklist-before-a-state-change),
+   no active proposal that the new code could not finish, the XLM of the upload (about
+   1 XLM per KB of code on mainnet). The command uploads, proposes and shows the proposal:
+   its hash is the one of the WASM in `release/<tag>/SHA256SUMS`. Never run it with
+   `make -n`: make sends the upload while printing.
+
+   ```bash
+   make contract_propose_upgrade network=$network wasm=$wasm
+   ```
+
+4. **Finalize**, after `executable_at` (24 hours) and, with a threshold above 1,
+   `make contract_approve_upgrade network=$network admin=<other-admin>`. It prints the
+   hash of the code on-chain, which must be the same one, and the version.
+
+   ```bash
+   make contract_finalize_upgrade network=$network
+   ```
+
+5. **Open.** When the release changes what the dApp or the upload worker call, they are
+   deployed before the contract is used again: pause before finalizing, check
+   `https://ipfs.tansu.dev/health` and the dApp, then `make contract_unpause network=$network`.
+6. **Declare.** The maintainer of the Tansu project records the commit and the provenance
+   as evidence (`FILEBASE_TOKEN` in the environment; `sign=--sign-with-lab` for a wallet),
+   and the author of the name publishes the WASM on the Stellar Registry
+   (`dry=--dry-run` first):
+
+   ```bash
+   make contract_release tag=$tag network=$network admin=<maintainer> sign=--sign-with-lab
+   make radicle_register wasm=$wasm tag=$tag network=$network
+   ```
+
+7. **Keep alive.** The upload pays 120 days of the new code. See
+   [Rent on mainnet](#rent-on-mainnet):
+
+   ```bash
+   make contract_extend network=$network
+   ```
+
+Record each transaction in the [record of admin actions](#record-of-admin-actions). Until
+the finalize, `make contract_cancel_upgrade network=$network` drops the proposal; after
+it, a rollback is a full upgrade to the previous hash, with its timelock.
 
 ## Initial setup
 
@@ -164,10 +242,12 @@ make contract_approve_upgrade network=mainnet admin=<other-admin>
 make contract_finalize_upgrade network=mainnet
 ```
 
-`contract_propose_upgrade` also passes a `new_admins_config`. The value written in
-the target becomes the new admin set, so it must be compared with the intended set
-before every use. `contract_finalize_upgrade` accepts the proposal. To cancel a
-proposal instead, call the contract directly:
+`contract_propose_upgrade` uploads the WASM, proposes it and shows the proposal; it
+passes no `new_admins_config`, so the admin set is kept (changing it is a direct call
+with that argument). `contract_finalize_upgrade` accepts the proposal, then prints the
+hash of the code on-chain and its version. The whole sequence of a release is the
+[release run sheet](#release-run-sheet). To cancel a proposal instead, run
+`make contract_cancel_upgrade network=mainnet`, or call the contract directly:
 
 ```bash
 stellar contract invoke --source-account <admin> --network mainnet \
@@ -307,7 +387,8 @@ Rent is at the network minimum while the live Soroban state is below 2 GB (1.62 
 13% below what a simulation shows.
 
 Extend the contract code and instance, and the executor's too (its own id and wasm
-hash). Data entries are left to the transactions that use them:
+hash): `make contract_extend network=mainnet` does the four, to the maximum. Data entries
+are left to the transactions that use them. By hand:
 
 ```bash
 stellar contract extend --id "$(cat deployments/tansu-mainnet)" --network mainnet \

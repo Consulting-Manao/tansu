@@ -183,43 +183,41 @@ Once on Netlify on production, the dApp can be deployed on IPFS:
 
 ### Smart contract release and upgrade
 
-Contract artifacts are built locally from a tag, in a container, and published as
-signed Radicle release artifacts. The scripts are the `.radicle` submodule
-(`git submodule update --init`); commands, prerequisites and the independent
-rebuild procedure are in [`.radicle/README.md`](.radicle/README.md).
+A release is built first, checked, and tagged last, then published as signed Radicle
+release artifacts. The scripts are the `.radicle` submodule
+(`git submodule update --init`), documented in [`.radicle/README.md`](.radicle/README.md).
+The commands to copy are the
+[release run sheet](docs/operations.md#release-run-sheet); in short:
 
-1. Ensure code is merged and stable on `main`.
-2. Create a release tag (for example `v3.0.1`) and push it to Radicle.
-3. The Stellar CLI image is a trusted single-architecture one pinned by digest; the
-   Makefile defaults it (`image=` overrides). Run `make radicle_release tag=v3.0.1` to build both contracts
-   from the tag's source, with SEP-58 build/source fields and a SEP-55
-   `source_repo` embedded in each WASM. `STELLAR_CONTAINER_ENGINE` picks the
-   container engine the Stellar CLI uses.
-4. Run `make radicle_release_verify tag=v3.0.1` to check the bundle's checksums
-   and tagged source. Independently rebuild and compare the WASM hashes as
-   described in the Radicle guide, then review the provenance.
-5. Start the local seeder (`rad-artifact node start`) and run
-   `make radicle_release_publish tag=v3.0.1`. This registers and attests the
-   source, WASMs, SBOM, provenance and checksums as Radicle artifacts, seeds them
-   from your node and records a publication job. Have another delegate verify
-   and attest the artifact CIDs. GitHub tag pushes no longer release contracts.
-   SEP-55 only defines a GitHub source, so a verifier that knows only GitHub does
-   not follow the `radicle:` one; see the guide.
-
-Then execute on-chain upgrade flow (see `Makefile` targets for exact commands):
-
-1. Verify the release's signed checksums and rebuild, then use its exact WASM
-   (`wasm=release/<tag>/tansu_v<package-version>.wasm`) for the upload.
-2. Propose upgrade (`make contract_propose_upgrade network=<network>`).
-3. Approve upgrade (`make contract_approve_upgrade network=<network>`).
-4. Finalize upgrade (`make contract_finalize_upgrade network=<network>`).
-
-Register each contract's release WASM on the
-[Stellar Registry](https://stellar.rgstry.xyz), one Radicle job per contract
-after its release job:
-`make radicle_register wasm=<release WASM> tag=<vX.Y.Z> network=<network>`,
-signed by the author of the name. A version already published succeeds;
-`dry=--dry-run` simulates without recording a job.
+1. `make radicle_release_candidate tag=v3.0.1`, on the commit of `main` to release. It
+   pushes `main` to Radicle, builds both contracts from that commit in the Stellar CLI
+   image the Makefile pins by digest (a single-architecture one; `image=` overrides, and
+   `STELLAR_CONTAINER_ENGINE` picks the container engine), with SEP-58 build/source fields
+   and a SEP-55 `source_repo` in each WASM, and runs the checks on that build: the tests
+   with the release WASM, clippy, the format, and Trivy on the tree and on the SBOM. All
+   of it is one Radicle job of the commit; `rad-job show "$(git rev-parse HEAD)"` lists
+   the run and its log is on the `rad-ci` branch. Nothing is tagged.
+2. `make radicle_release tag=v3.0.1`, once the candidate has succeeded and you are happy
+   with it, and with the local seeder running (`rad-artifact node start`). It tags the
+   commit, pushes the tag to Radicle only (a `v*` tag pushed to GitHub starts the SBOM
+   workflow, which records evidence), and publishes the bundle, which must be the build
+   of the tagged commit: the source, WASMs, SBOM, provenance and checksums are registered
+   and attested as Radicle artifacts, seeded from your node, and a publication job is
+   recorded. Have another delegate rebuild, compare the hashes of `SHA256SUMS` and attest
+   the artifact CIDs. SEP-55 only defines a GitHub source, so a verifier that knows only
+   GitHub does not follow the `radicle:` one; see the guide.
+3. The on-chain upgrade, with the exact WASM of the release
+   (`wasm=release/<tag>/tansu_v<package-version>.wasm`):
+   `make contract_propose_upgrade network=<network> wasm=<wasm>`, then
+   `make contract_approve_upgrade network=<network>` where the threshold asks for it,
+   and, after the timelock, `make contract_finalize_upgrade network=<network>`, which
+   prints the hash of the code on-chain.
+4. `make contract_release tag=v3.0.1 network=<network>` declares the release on Tansu
+   (its commit, and its provenance as evidence), and each contract's release WASM goes on
+   the [Stellar Registry](https://stellar.rgstry.xyz), one Radicle job per contract:
+   `make radicle_register wasm=<release WASM> tag=<vX.Y.Z> network=<network>`,
+   signed by the author of the name. A version already published succeeds;
+   `dry=--dry-run` simulates without recording a job.
 
 ### Website (`website/`) deployment
 
