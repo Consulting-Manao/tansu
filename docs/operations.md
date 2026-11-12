@@ -160,7 +160,8 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
 3. **Propose.** Check the state first: [Checklist before a state change](#checklist-before-a-state-change),
    no active proposal that the new code could not finish, the XLM of the upload (about
    0.9 XLM per KB of code on mainnet: 78 XLM for v4). The command uploads, proposes and shows the proposal:
-   its hash is the one of the WASM in `release/<tag>/SHA256SUMS`. Never run it with
+   its hash is the SHA-256 of the WASM, which the candidate printed and
+   `release/<tag>/provenance.json` lists. Never run it with
    `make -n`: make sends the upload while printing.
 
    ```bash
@@ -181,8 +182,10 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
 6. **Declare.** The maintainer of the Tansu project records the commit and the provenance
    as evidence (`FILEBASE_TOKEN` in the environment; `sign=--sign-with-lab` for a wallet),
    and the author of the name publishes the hash of the WASM on the Stellar Registry
-   (`dry=--dry-run` first; the Stellar CLI signs, since the registry plugin cannot use a
-   key of the secure store):
+   (`dry=--dry-run` first: it prints the fee, which is high when the registry's own
+   entries are archived and the call restores them; the Stellar CLI signs, since the
+   registry plugin cannot use a key of the secure store). A version below the current
+   one is refused, so versions are published in order:
 
    ```bash
    make contract_declare_release tag=$tag network=$network admin=<maintainer> sign=--sign-with-lab
@@ -511,6 +514,7 @@ of a Soroban transaction can contain the word `Error` even when it succeeded.
 | ---------------- | --------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | 2026-11-12 21:46 | Upload of the v4.0.0 WASM (78.01 XLM)   | `GAEAODW6…JT5D` | [`a0d73538…bf46`](https://stellar.expert/explorer/public/tx/a0d73538b01977ff3d4b6569394dc4937780a05e3d1abafc1845587388f1bf46) | code `0c254b05…4984` on the ledger                           |
 | 2026-11-12 21:46 | `propose_upgrade` to v4.0.0             | `GAEAODW6…JT5D` | [`d4a6af54…0f25`](https://stellar.expert/explorer/public/tx/d4a6af54873eb012a5077fde05ab6d969a1d894853db50716965c90d68260f25) | `get_upgrade_proposal`: that hash, executable 2026-11-13 21:46 |
+| 2026-11-12 22:05 | `tansu` 4.0.0 on the Stellar Registry (37.22 XLM, all rent: the call restored the registry's archived code and instance) | `GAEAODW6…JT5D` | [`c5ae0ed9…1267`](https://stellar.expert/explorer/public/tx/c5ae0ed97e15424e8f9f3ed8e94db1d54ce1c8c68614f32e122b3d1364ff1267) | `fetch-hash tansu --version 4.0.0`: `0c254b05…4984`, current version 4.0.0 |
 
 ## Incident response
 

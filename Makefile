@@ -296,7 +296,6 @@ radicle_release_candidate:  ## Build tag=<vX.Y.Z> from HEAD in the pinned image 
 	git push rad main
 	RADICLE_CI_CMD="STELLAR_CONTAINER_ENGINE='$(engine)' RELEASE_BUILD_FLAGS='$(build_flags)' STELLAR_IMAGE='$(image)' \
 		RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev .radicle/release.sh build '$(tag)' && \
-		cat release/$(tag)/SHA256SUMS && \
 		mkdir -p target/wasm32v1-none/release && cp release/$(tag)/tansu_v*.wasm target/wasm32v1-none/release/tansu.wasm && \
 		$(ci_checks) && \
 		trivy sbom --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH release/$(tag)/sbom.spdx.json" .radicle/ci.sh

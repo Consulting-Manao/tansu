@@ -202,10 +202,10 @@ The commands to copy are the
    commit with an annotated tag, which names the Radicle release, pushes the tag to
    Radicle only (a `v*` tag pushed to GitHub starts the SBOM
    workflow, which records evidence), and publishes the bundle, which must be the build
-   of the tagged commit: the source, WASMs, SBOM, provenance and checksums are registered
-   as Radicle artifacts, which is your attestation of them, seeded from your node, and a
+   of the tagged commit: the WASMs, the SBOM and the provenance, which lists them with
+   their SHA-256, are registered as Radicle artifacts (the source is the commit itself), which is your attestation of them, seeded from your node, and a
    publication job is recorded. Anyone can rebuild the tagged commit, compare the hashes
-   of `SHA256SUMS` (`rad-artifact verify <file>`) and attest the artifact CIDs; a second
+   the build prints (`rad-artifact verify <file>`) and attest the artifact CIDs; a second
    delegate's attestation needs a second delegate. SEP-55 only defines a GitHub source, so a verifier that knows only
    GitHub does not follow the `radicle:` one; see the guide.
 3. The on-chain upgrade, with the exact WASM of the release
