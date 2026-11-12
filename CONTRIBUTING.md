@@ -192,7 +192,7 @@ The commands to copy are the
 1. `make radicle_release_candidate tag=v3.0.1`, on the commit of `main` to release. It
    pushes `main` to Radicle, builds both contracts from that commit in the Stellar CLI
    image the Makefile pins by digest (a single-architecture one; `image=` overrides, and
-   `STELLAR_CONTAINER_ENGINE` picks the container engine), with SEP-58 build/source fields
+   `engine=docker` replaces Apple's `container`), with SEP-58 build/source fields
    and a SEP-55 `source_repo` in each WASM, and runs the checks on that build: the tests
    with the release WASM, clippy, the format, and Trivy on the tree and on the SBOM. All
    of it is one Radicle job of the commit; `rad-job show "$(git rev-parse HEAD)"` lists
@@ -202,9 +202,9 @@ The commands to copy are the
    commit, pushes the tag to Radicle only (a `v*` tag pushed to GitHub starts the SBOM
    workflow, which records evidence), and publishes the bundle, which must be the build
    of the tagged commit: the source, WASMs, SBOM, provenance and checksums are registered
-   and attested as Radicle artifacts, seeded from your node, and a publication job is
-   recorded. Have another delegate rebuild, compare the hashes of `SHA256SUMS` and attest
-   the artifact CIDs. SEP-55 only defines a GitHub source, so a verifier that knows only
+   as Radicle artifacts, which is your attestation of them, seeded from your node, and a
+   publication job is recorded. Have another delegate rebuild, compare the hashes of
+   `SHA256SUMS` (`rad-artifact verify <file>`) and attest the artifact CIDs. SEP-55 only defines a GitHub source, so a verifier that knows only
    GitHub does not follow the `radicle:` one; see the guide.
 3. The on-chain upgrade, with the exact WASM of the release
    (`wasm=release/<tag>/tansu_v<package-version>.wasm`):

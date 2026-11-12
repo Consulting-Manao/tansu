@@ -39,6 +39,17 @@ ifndef image
    override image = docker.io/stellar/stellar-cli@sha256:038a39c82927d7fa32066ed8fea9e44b402b0bdecf483450a2bbe2c7c0daba11
 endif
 
+# The container engine of the release build, as the Stellar CLI names it (`apple-container`
+# or `docker`), and the resources the build gets: Apple's engine starts a container with
+# 1 GiB, which the compiler outgrows.
+ifndef engine
+   override engine = apple-container
+endif
+
+ifndef build_flags
+   override build_flags = --memory 4g --cpus 4
+endif
+
 ifndef executor_wasm
 	override executor_wasm = target/wasm32v1-none/release/tansu_executor.wasm
 endif
@@ -280,10 +291,11 @@ radicle_ci:  ## Build, test, lint and scan HEAD as a Radicle job
 # job of HEAD builds both contracts in the pinned image into release/<tag>/ and checks that
 # build: its Tansu WASM replaces the local one for the tests, and Trivy also reads its SBOM.
 # The job's log holds the build and the hashes of what was checked. To build again, move
-# release/<tag>/ away.
+# release/<tag>/ away. The build runs in engine= with build_flags= (see their defaults).
 radicle_release_candidate:  ## Build tag=<vX.Y.Z> from HEAD in the pinned image and check that build, as a Radicle job; nothing is tagged
 	git push rad main
-	RADICLE_CI_CMD="STELLAR_IMAGE='$(image)' RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev .radicle/release.sh build '$(tag)' && \
+	RADICLE_CI_CMD="STELLAR_CONTAINER_ENGINE='$(engine)' RELEASE_BUILD_FLAGS='$(build_flags)' STELLAR_IMAGE='$(image)' \
+		RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev .radicle/release.sh build '$(tag)' && \
 		cat release/$(tag)/SHA256SUMS && \
 		mkdir -p target/wasm32v1-none/release && cp release/$(tag)/tansu_v*.wasm target/wasm32v1-none/release/tansu.wasm && \
 		$(ci_checks) && \
@@ -291,8 +303,9 @@ radicle_release_candidate:  ## Build tag=<vX.Y.Z> from HEAD in the pinned image 
 
 # Once the candidate's job has succeeded and its log has been read. The tag goes to Radicle
 # only: a v* tag pushed to GitHub starts sbom.yml, which records evidence on-chain. The
-# publication refuses a bundle that is not the build of the tagged commit, registers,
-# attests and seeds every file of it, and needs `rad-artifact node start` running.
+# publication refuses a bundle that is not the build of the tagged commit, registers and
+# seeds every file of it, and needs `rad-artifact node start` running. If it stops midway,
+# `.radicle/release.sh publish <tag>` takes it up again: the tag is already there.
 radicle_release:  ## Tag HEAD as tag=<vX.Y.Z>, push the tag to Radicle and publish the checked build there
 	git tag "$(tag)"
 	git push rad "$(tag)"

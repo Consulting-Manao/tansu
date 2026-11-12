@@ -133,11 +133,10 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
 
 1. **Candidate.** Commit what must go in (the build is the commit, the checks run in the
    working tree). The command pushes `main` to Radicle, builds both contracts into
-   `release/<tag>/` and checks that build, as one Radicle job; nothing is tagged.
-   `STELLAR_CONTAINER_ENGINE` picks the container engine, and Apple's needs
-   `RELEASE_BUILD_FLAGS='--memory 4g --cpus 4'`. Read the run and its log: the hashes, the
-   number of tests, no finding. After a failure, fix, commit, move `release/<tag>/` away
-   and run it again.
+   `release/<tag>/` and checks that build, as one Radicle job; nothing is tagged. The
+   build runs in Apple's `container` with 4 GiB (`engine=docker` and `build_flags=`
+   change that). Read the run and its log: the hashes, the number of tests, no finding.
+   After a failure, fix, commit, move `release/<tag>/` away and run it again.
 
    ```bash
    make radicle_release_candidate tag=$tag
@@ -146,8 +145,10 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
 
 2. **Release.** Once you are happy with the candidate. It tags `HEAD`, pushes the tag to
    Radicle and publishes the bundle, which must be the build of the tagged commit. The
-   seeder runs (`rad-artifact node status`, else `rad-artifact node start`). The tag does
-   not go to GitHub: a `v*` tag there starts `sbom.yml`, which records evidence on-chain.
+   seeder runs (`rad-artifact node status`, else `rad-artifact node start`), and one
+   `rad-artifact` is on the `PATH` (`which -a rad-artifact`). The tag does not go to
+   GitHub: a `v*` tag there starts `sbom.yml`, which records evidence on-chain. If the
+   publication stops midway, `.radicle/release.sh publish $tag` takes it up again.
 
    ```bash
    make radicle_release tag=$tag
@@ -425,6 +426,13 @@ must be executed before its ballots expire: the tally is decrypted from them. If
 cannot, extend them first with `stellar contract extend --durability temporary
 --key-xdr <ballot key> --ledgers-to-extend <n>`. Ballots of proposals open during an
 upgrade to v4 were persistent and are no longer read: upgrade with no proposal open.
+
+Once a round is executed, save its ballots before they expire. The script writes one
+JSON line per proposal of the project, as `get_proposal` returns it, readable and as XDR:
+
+```bash
+uv run tools/export_ballots.py --project stellarpgq4 --network mainnet > stellarpgq4.jsonl
+```
 
 The addresses that voted on a proposal stay in one persistent entry, which each vote
 rewrites and grows by 44 bytes. A proposal takes at most 1,000 votes, 44 KB of the
