@@ -145,8 +145,9 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
    rad-job show --pretty "$(git rev-parse HEAD)"
    ```
 
-2. **Release.** Once you are happy with the candidate. It tags `HEAD`, pushes the tag to
-   Radicle and publishes the bundle, which must be the build of the tagged commit. The
+2. **Release.** Once you are happy with the candidate. It tags `HEAD` with an annotated
+   tag, pushes the tag to Radicle and publishes the bundle, which must be the build of the
+   tagged commit. The Radicle release records the tag and is titled by it. The
    seeder runs (`rad-artifact node status`, else `rad-artifact node start`), and one
    `rad-artifact` is on the `PATH` (`which -a rad-artifact`). The tag does not go to
    GitHub: a `v*` tag there starts `sbom.yml`, which records evidence on-chain. If the
@@ -179,11 +180,12 @@ tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
    `https://ipfs.tansu.dev/health` and the dApp, then `make contract_unpause network=$network`.
 6. **Declare.** The maintainer of the Tansu project records the commit and the provenance
    as evidence (`FILEBASE_TOKEN` in the environment; `sign=--sign-with-lab` for a wallet),
-   and the author of the name publishes the WASM on the Stellar Registry
-   (`dry=--dry-run` first):
+   and the author of the name publishes the hash of the WASM on the Stellar Registry
+   (`dry=--dry-run` first; the Stellar CLI signs, since the registry plugin cannot use a
+   key of the secure store):
 
    ```bash
-   make contract_release tag=$tag network=$network admin=<maintainer> sign=--sign-with-lab
+   make contract_declare_release tag=$tag network=$network admin=<maintainer> sign=--sign-with-lab
    make radicle_register wasm=$wasm tag=$tag network=$network
    ```
 

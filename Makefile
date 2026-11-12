@@ -303,11 +303,12 @@ radicle_release_candidate:  ## Build tag=<vX.Y.Z> from HEAD in the pinned image 
 
 # Once the candidate's job has succeeded and its log has been read. The tag goes to Radicle
 # only: a v* tag pushed to GitHub starts sbom.yml, which records evidence on-chain. The
+# tag is an annotated one, so the Radicle release records it and is titled by it. The
 # publication refuses a bundle that is not the build of the tagged commit, registers and
 # seeds every file of it, and needs `rad-artifact node start` running. If it stops midway,
 # `.radicle/release.sh publish <tag>` takes it up again: the tag is already there.
 radicle_release:  ## Tag HEAD as tag=<vX.Y.Z>, push the tag to Radicle and publish the checked build there
-	git tag "$(tag)"
+	git tag -a "$(tag)" -m "$(tag)"
 	git push rad "$(tag)"
 	.radicle/release.sh publish "$(tag)"
 
@@ -461,7 +462,7 @@ override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa54
 # provenance in release/<tag>/ becomes evidence of it. The maintainer of the project
 # signs, as admin=<identity or address>; one without a local key adds
 # sign=--sign-with-lab. Needs an unpaused contract.
-contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
+contract_declare_release:  ## Declare release tag=<vX.Y.Z> on the Tansu project: its commit, and its provenance as evidence
 	.radicle/release.sh verify "$(tag)"
 	stellar contract invoke \
 	--source-account $(admin) \

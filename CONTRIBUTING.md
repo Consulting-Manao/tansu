@@ -199,7 +199,8 @@ The commands to copy are the
    the run and its log is on the `rad-ci` branch. Nothing is tagged.
 2. `make radicle_release tag=v3.0.1`, once the candidate has succeeded and you are happy
    with it, and with the local seeder running (`rad-artifact node start`). It tags the
-   commit, pushes the tag to Radicle only (a `v*` tag pushed to GitHub starts the SBOM
+   commit with an annotated tag, which names the Radicle release, pushes the tag to
+   Radicle only (a `v*` tag pushed to GitHub starts the SBOM
    workflow, which records evidence), and publishes the bundle, which must be the build
    of the tagged commit: the source, WASMs, SBOM, provenance and checksums are registered
    as Radicle artifacts, which is your attestation of them, seeded from your node, and a
@@ -213,7 +214,7 @@ The commands to copy are the
    `make contract_approve_upgrade network=<network>` where the threshold asks for it,
    and, after the timelock, `make contract_finalize_upgrade network=<network>`, which
    prints the hash of the code on-chain.
-4. `make contract_release tag=v3.0.1 network=<network>` declares the release on Tansu
+4. `make contract_declare_release tag=v3.0.1 network=<network>` declares the release on Tansu
    (its commit, and its provenance as evidence), and each contract's release WASM goes on
    the [Stellar Registry](https://stellar.rgstry.xyz), one Radicle job per contract:
    `make radicle_register wasm=<release WASM> tag=<vX.Y.Z> network=<network>`,
