@@ -228,7 +228,9 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           title="Finalizing the Vote"
           description={
             isEarly && normalExecutableAt
-              ? `Maintainer quorum was reached early. Execution unlocked ahead of the normal deadline (${new Date(normalExecutableAt).toLocaleString()}).`
+              ? proposal && proposal.voting_ends_at * 1000 > Date.now()
+                ? `Voting is still open (ends ${new Date(proposal.voting_ends_at * 1000).toLocaleString()}), but execution unlocked early because maintainer quorum was reached (normal execution would have been from ${new Date(normalExecutableAt).toLocaleString()}).`
+                : `Maintainer quorum was reached early. Execution unlocked ahead of the normal deadline (${new Date(normalExecutableAt).toLocaleString()}).`
               : "The voting period has ended. Now, we need to count the votes and determine the final outcome."
           }
           actions={

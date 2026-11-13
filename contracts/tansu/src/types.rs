@@ -220,6 +220,8 @@ pub enum ProjectKey {
     DefaultVotes(Bytes, u32),            // Number of weight-1 votes on a proposal
     MaintainerVotes(Bytes, u32),         // Number of distinct maintainers who voted on a proposal
     QuorumReachedAt(Bytes, u32),         // Ledger timestamp when maintainer quorum was reached
+    ProposalMaintainers(Bytes, u32),     // Project maintainers snapshotted at proposal creation
+    ProposalQuorumCount(Bytes, u32),     // Required maintainer quorum count snapshotted at proposal creation
     Nqg(Bytes),                          // Contract giving the project's voting weights
     PendingGovernance(Bytes), // Loosening governance update waiting out its notice window
     Attestation(BytesN<32>),  // keccak256 digest of (project_key, commit_hash, target)

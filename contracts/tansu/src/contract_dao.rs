@@ -372,6 +372,24 @@ impl DaoTrait for Tansu {
         }
         let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
 
+        // Snapshot maintainers and required maintainer quorum count at proposal creation
+        // so changes to maintainers during voting do not alter the quorum threshold
+        // or allow unauthorized votes/removals.
+        let project = <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone());
+        let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
+            env.clone(),
+            project_key.clone(),
+        );
+        let required_quorum = (project.maintainers.len() * threshold).div_ceil(100);
+        env.storage().persistent().set(
+            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
+            &project.maintainers,
+        );
+        env.storage().persistent().set(
+            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
+            &required_quorum,
+        );
+
         set_ballot(
             &env,
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
@@ -482,29 +500,31 @@ impl DaoTrait for Tansu {
                 .set(&key, &default_votes.saturating_sub(1));
         }
 
-        let project = <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone());
-        if project.maintainers.contains(&voter) {
-            let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
-            let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
-            let new_m_votes = m_votes.saturating_sub(1);
-            if new_m_votes > 0 {
-                env.storage().persistent().set(&m_key, &new_m_votes);
-            } else {
-                env.storage().persistent().remove(&m_key);
-            }
+        let snapshot_maintainers: Option<Vec<Address>> = env.storage().persistent().get(
+            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
+        );
+        let required_quorum: Option<u32> = env.storage().persistent().get(
+            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
+        );
+        if let (Some(maintainers), Some(required_quorum)) = (snapshot_maintainers, required_quorum) {
+            if maintainers.contains(&voter) {
+                let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
+                let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
+                let new_m_votes = m_votes.saturating_sub(1);
+                if new_m_votes > 0 {
+                    env.storage().persistent().set(&m_key, &new_m_votes);
+                } else {
+                    env.storage().persistent().remove(&m_key);
+                }
 
-            let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
-                env.clone(),
-                project_key.clone(),
-            );
-            let required_quorum = (project.maintainers.len() * threshold).div_ceil(100);
-            if new_m_votes < required_quorum {
-                env.storage()
-                    .persistent()
-                    .remove(&types::ProjectKey::QuorumReachedAt(
-                        project_key.clone(),
-                        proposal_id,
-                    ));
+                if new_m_votes < required_quorum {
+                    env.storage()
+                        .persistent()
+                        .remove(&types::ProjectKey::QuorumReachedAt(
+                            project_key.clone(),
+                            proposal_id,
+                        ));
+                }
             }
         }
 
@@ -631,6 +651,14 @@ impl DaoTrait for Tansu {
             proposal_id,
         ));
         storage.remove(&types::ProjectKey::QuorumReachedAt(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::ProposalMaintainers(
+            project_key.clone(),
+            proposal_id,
+        ));
+        storage.remove(&types::ProjectKey::ProposalQuorumCount(
             project_key.clone(),
             proposal_id,
         ));
@@ -854,29 +882,30 @@ impl DaoTrait for Tansu {
             }
         }
 
-        let project = <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone());
-        if project.maintainers.contains(&voter) {
-            let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
-            let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
-            let new_m_votes = m_votes + 1;
-            env.storage().persistent().set(&m_key, &new_m_votes);
+        let snapshot_maintainers: Option<Vec<Address>> = env.storage().persistent().get(
+            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
+        );
+        let required_quorum: Option<u32> = env.storage().persistent().get(
+            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
+        );
+        if let (Some(maintainers), Some(required_quorum)) = (snapshot_maintainers, required_quorum) {
+            if maintainers.contains(&voter) {
+                let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
+                let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
+                let new_m_votes = m_votes + 1;
+                env.storage().persistent().set(&m_key, &new_m_votes);
 
-            let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
-                env.clone(),
-                project_key.clone(),
-            );
-            let required_quorum = (project.maintainers.len() * threshold).div_ceil(100);
-
-            let quorum_key = types::ProjectKey::QuorumReachedAt(project_key.clone(), proposal_id);
-            if new_m_votes >= required_quorum && !env.storage().persistent().has(&quorum_key) {
-                let quorum_time = curr_timestamp;
-                env.storage().persistent().set(&quorum_key, &quorum_time);
-                events::ProposalQuorumReached {
-                    project_key: project_key.clone(),
-                    proposal_id,
-                    quorum_reached_at: quorum_time,
+                let quorum_key = types::ProjectKey::QuorumReachedAt(project_key.clone(), proposal_id);
+                if new_m_votes >= required_quorum && !env.storage().persistent().has(&quorum_key) {
+                    let quorum_time = curr_timestamp;
+                    env.storage().persistent().set(&quorum_key, &quorum_time);
+                    events::ProposalQuorumReached {
+                        project_key: project_key.clone(),
+                        proposal_id,
+                        quorum_reached_at: quorum_time,
+                    }
+                    .publish(&env);
                 }
-                .publish(&env);
             }
         }
 
@@ -888,7 +917,8 @@ impl DaoTrait for Tansu {
             &env,
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone()),
             &vote,
-            earliest_executable_at(&env, &project_key, &proposal),
+            proposal.vote_data.voting_ends_at
+                + proposal_execute_delay(&env, &project_key, proposal_id),
         );
         voters.push_back(voter.clone());
         env.storage().persistent().set(

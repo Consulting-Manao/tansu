@@ -83,20 +83,26 @@ export const executeDelayQuery = (name: string, id: number) =>
     staleTime: Infinity,
   });
 
+export const quorumReachedAtKey = (name: string, id: number) => [
+  "quorumReachedAt",
+  projectKeyHex(name),
+  id,
+];
+
 /**
  * When a maintainer quorum was reached on the proposal, in ledger seconds, or
  * null if quorum has not been reached.
  */
 export const quorumReachedAtQuery = (name: string, id: number) =>
   queryOptions({
-    queryKey: ["quorumReachedAt", projectKeyHex(name), id],
+    queryKey: quorumReachedAtKey(name, id),
     queryFn: async () => {
       const reached = await readStorage(
         storageKey("QuorumReachedAt", projectBytes(name), xdr.ScVal.scvU32(id)),
       );
       return reached === undefined ? null : Number(reached);
     },
-    staleTime: MINUTE,
+    staleTime: 0,
   });
 
 const DEFAULT_MIN_VOTING_PERIOD = 24 * 3600;
@@ -618,9 +624,15 @@ export async function vote(
     vote: payload,
   });
   const { hash } = await sendTransaction(tx, {
-    invalidate: [proposalKey(projectName, proposalId)],
+    invalidate: [
+      proposalKey(projectName, proposalId),
+      quorumReachedAtKey(projectName, proposalId),
+    ],
   });
   await refetchUntilVoted(projectName, proposalId, voter);
+  await queryClient.invalidateQueries({
+    queryKey: quorumReachedAtKey(projectName, proposalId),
+  });
   return {
     projectName,
     proposalId,
@@ -674,6 +686,10 @@ async function refetchUntilVoted(name: string, id: number, voter: string) {
     queryKey: proposalQuery(name, id).queryKey,
     exact: true,
   });
+  await queryClient.invalidateQueries({
+    queryKey: quorumReachedAtKey(name, id),
+    exact: true,
+  });
 }
 
 /** Revoke a proposal as malicious. */
@@ -688,7 +704,13 @@ export async function revokeProposal(
     proposal_id: proposalId,
   });
   await sendTransaction(tx, {
-    invalidate: [proposalKey(projectName, proposalId)],
+    invalidate: [
+      proposalKey(projectName, proposalId),
+      quorumReachedAtKey(projectName, proposalId),
+    ],
+  });
+  await queryClient.invalidateQueries({
+    queryKey: quorumReachedAtKey(projectName, proposalId),
   });
 }
 
@@ -761,7 +783,13 @@ export async function removeVote(
     voter: voterAddress,
   });
   await sendTransaction(tx, {
-    invalidate: [proposalKey(projectName, proposalId)],
+    invalidate: [
+      proposalKey(projectName, proposalId),
+      quorumReachedAtKey(projectName, proposalId),
+    ],
+  });
+  await queryClient.invalidateQueries({
+    queryKey: quorumReachedAtKey(projectName, proposalId),
   });
 }
 

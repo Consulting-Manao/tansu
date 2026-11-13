@@ -97,11 +97,11 @@ Once a ballot expires it is deleted, not archived, and cannot be restored:
 
 When enough distinct project maintainers cast votes to reach quorum, the proposal unlocks for execution early without waiting for the full voting period to elapse:
 
-- **Quorum condition:** ceil(maintainers * attestation_threshold / 100) distinct maintainers must have voted on the proposal. Only votes cast by addresses in project.maintainers count toward this quorum. This rule applies uniformly to badge-weighted, NQG-weighted, and token-weighted proposals.
-- **Shortened veto window:** When maintainer quorum is reached, the ledger timestamp is recorded (quorum_reached_at) and emits a ProposalQuorumReached event. To preserve maintainers' ability to veto malicious or controversial proposals, execution is timelocked until:
-  \min(\text{voting\_ends\_at} + \text{execute\_delay},\ \text{quorum\_reached\_at} + \frac{\text{execute\_delay}}{2})
-- **Maintainer set dynamics & vote removal:** Quorum is evaluated against the current maintainers of the project. If a maintainer's vote is removed via 
-emove_vote and the remaining count drops below the quorum threshold, the quorum timestamp is cleared, returning execution eligibility to the normal voting period deadline.
+- **Quorum condition:** `ceil(maintainers * attestation_threshold / 100)` distinct maintainers must have voted on the proposal. Quorum is evaluated against a snapshot of the maintainer list and required quorum taken at proposal creation. Only votes cast by members of that snapshot count toward this quorum. This rule applies uniformly to badge-weighted, NQG-weighted, and token-weighted proposals.
+- **Shortened veto window:** When maintainer quorum is reached, the ledger timestamp is recorded (`quorum_reached_at`) and emits a `ProposalQuorumReached` event. To preserve maintainers' ability to veto malicious or controversial proposals, execution is timelocked until:
+  $$\min(\text{voting\_ends\_at} + \text{execute\_delay},\ \text{quorum\_reached\_at} + \frac{\text{execute\_delay}}{2})$$
+- **Maintainer set dynamics & vote removal:** Adding or removing maintainers in project configuration after a proposal is created does not affect that proposal's snapshot or required quorum. If a snapshot maintainer's vote is removed via `remove_vote` and the remaining count drops below the snapshotted quorum threshold, the quorum timestamp is cleared, returning execution eligibility to the normal voting period deadline.
+- **Upgrade compatibility:** Proposals already open prior to the contract upgrade do not have a maintainer snapshot; votes cast on those pre-upgrade proposals will not trigger early quorum finalization and must follow the standard voting and execution timelock.
 
 ## Project governance settings
 

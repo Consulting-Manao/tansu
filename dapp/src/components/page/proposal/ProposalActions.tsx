@@ -151,11 +151,35 @@ const ProposalActions = ({
                 <Button block onClick={onExecute}>
                   Execute proposal
                 </Button>
-                {isEarly && normalExecutableAt !== undefined && (
-                  <Notice tone="info">
-                    Early execution unlocked because maintainer quorum was
-                    reached. Normal execution would have been from{" "}
-                    {new Date(normalExecutableAt).toLocaleString()}.
+                {isEarly && (
+                  <Notice tone="warning">
+                    {proposal.endDate * 1000 > now ? (
+                      <>
+                        Voting is still open (ends{" "}
+                        {new Date(proposal.endDate * 1000).toLocaleString()}),
+                        but execution was unlocked early because maintainer
+                        quorum was reached.
+                        {normalExecutableAt !== undefined && (
+                          <>
+                            {" "}
+                            Normal execution would have been from{" "}
+                            {new Date(normalExecutableAt).toLocaleString()}.
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Early execution unlocked because maintainer quorum was
+                        reached.
+                        {normalExecutableAt !== undefined && (
+                          <>
+                            {" "}
+                            Normal execution would have been from{" "}
+                            {new Date(normalExecutableAt).toLocaleString()}.
+                          </>
+                        )}
+                      </>
+                    )}
                   </Notice>
                 )}
               </div>
