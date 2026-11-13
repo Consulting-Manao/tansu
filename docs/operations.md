@@ -328,8 +328,14 @@ The scripts `contracts/registry-tansu-manager/e2e-*.sh` exercise a manager on te
 ## Upgrade and pause
 
 `pause` stops every state-changing call and leaves reads available. It can be called
-again while the contract is already paused. Upgrades use the flow described in
-[Admin operations](#admin-operations).
+again while the contract is already paused. The upgrade calls do not check it: a paused
+contract is proposed to, approved and finalized like any other.
+
+An upgrade is three calls: `propose_upgrade` with the hash of the new WASM,
+`approve_upgrade` by other admins where the threshold asks for it, and `finalize_upgrade`
+once the timelock is over. The commands (`make contract_propose_upgrade`, `contract_approve_upgrade`,
+`contract_finalize_upgrade`) are in the [release run sheet](#release-run-sheet), and what
+the contract enforces in [Admin operations](#admin-operations).
 
 For an upgrade:
 
@@ -549,7 +555,10 @@ the name.
 ### Faulty deployment or upgrade
 
 1. Pause the contract.
-2. Propose an upgrade to the previous WASM hash and complete the approval flow.
+2. Propose an upgrade to the previous WASM and complete the approval flow:
+   `make contract_propose_upgrade network=mainnet wasm=<the previous release's WASM>`,
+   which uploads nothing again while that code is still on the ledger, then
+   `make contract_finalize_upgrade network=mainnet` after the timelock.
 3. Check the main reads, such as `get_admins_config`, `get_project`, `get_commit` and
    `get_attestation_finality`, before unpausing.
 
