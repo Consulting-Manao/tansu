@@ -1,5 +1,5 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
-.PHONY: radicle_ci radicle_release radicle_release_verify radicle_release_publish radicle_register
+.PHONY: radicle_ci radicle_release_candidate radicle_release radicle_register
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -8,7 +8,7 @@ ifndef network
 endif
 
 ifndef admin
-   override admin = tansu-$(network)
+   override admin = tansu-admin-$(network)
 endif
 
 # The account paying for the upload of a WASM, which anyone can do: it is
@@ -22,8 +22,32 @@ ifndef send
    override send = default
 endif
 
+ifndef maintainer2
+ifneq ($(network),mainnet)
+   override maintainer2 = grogu
+endif
+endif
+
 ifndef wasm
 	override wasm = target/wasm32v1-none/release/tansu.wasm
+endif
+
+# The Stellar CLI image the contracts are released in, pinned by digest: stellar-cli
+# 28.0.0, linux/arm64. The digest is written into each WASM's metadata (`bldimg`), so
+# an independent rebuild uses the same image on the same architecture.
+ifndef image
+   override image = docker.io/stellar/stellar-cli@sha256:038a39c82927d7fa32066ed8fea9e44b402b0bdecf483450a2bbe2c7c0daba11
+endif
+
+# The container engine of the release build, as the Stellar CLI names it (`apple-container`
+# or `docker`), and the resources the build gets: Apple's engine starts a container with
+# 1 GiB, which the compiler outgrows.
+ifndef engine
+   override engine = apple-container
+endif
+
+ifndef build_flags
+   override build_flags = --memory 4g --cpus 4
 endif
 
 ifndef executor_wasm
@@ -73,12 +97,19 @@ else
 		--network-passphrase "Standalone Network ; February 2017"
 endif
 
-prepare: prepare-network  ## Setup network and generate addresses and add funds
-	stellar keys generate grogu-$(network) --network $(network) && \
+# `prepare` and `funds` create plaintext identity files: never for mainnet, whose
+# identities live in the Stellar CLI secure store (`stellar keys add <name> --secure-store`).
+# `$(error)` is expanded by `make -n` too, so a dry run is refused as well.
+no_mainnet_keys:
+	$(if $(filter mainnet,$(network)),$(error Refusing network=mainnet: this would create a plaintext admin key. Add mainnet identities by hand with `stellar keys add <name> --secure-store`))
+
+# `grogu` is the default throwaway testnet identity, shared by every non-mainnet network.
+prepare: no_mainnet_keys prepare-network  ## Setup network and generate addresses and add funds (never mainnet)
+	stellar keys generate grogu --network $(network) && \
 	stellar keys generate $(admin) --network $(network)
 
-funds:
-	stellar keys fund grogu-$(network) --network $(network) && \
+funds: no_mainnet_keys  ## Fund the grogu and admin identities (never mainnet)
+	stellar keys fund grogu --network $(network) && \
 	stellar keys fund $(admin) --network $(network)
 
 rust-lint:
@@ -177,7 +208,7 @@ contract_cancel_upgrade:  ## Cancel the current upgrade proposal
 	--admin $(admin) \
 	--accept false
 
-contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>, uploaded by uploader=; the admin set is kept
+contract_propose_upgrade:  ## Upload the release WASM given as wasm=<path> (paid by uploader=), propose it and show the proposal; the admin set is kept
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -186,6 +217,7 @@ contract_propose_upgrade:  ## Propose the release WASM given as wasm=<path>, upl
     	propose_upgrade \
 		--admin $(admin) \
 		--new_wasm_hash $(shell stellar contract upload --source-account $(uploader) --network $(network) --wasm $(wasm))
+	$(MAKE) contract_get_upgrade_proposal
 
 contract_approve_upgrade:  ## Approve the current upgrade proposal
 	stellar contract invoke \
@@ -196,7 +228,7 @@ contract_approve_upgrade:  ## Approve the current upgrade proposal
     	approve_upgrade \
 		--admin $(admin)
 
-contract_finalize_upgrade:  ## Execute the approved upgrade proposal
+contract_finalize_upgrade:  ## Execute the approved upgrade proposal, then show the hash of the code on-chain and its version
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -205,6 +237,18 @@ contract_finalize_upgrade:  ## Execute the approved upgrade proposal
     	finalize_upgrade \
 		--admin $(admin) \
 		--accept true
+	stellar contract fetch --id $(tansu_id) --network $(network) | shasum -a 256
+	$(MAKE) contract_version
+
+# The instance and the code of Tansu and of its executor, each to the maximum of 3,110,400
+# ledgers (about 180 days). The code is the one on-chain now. "Rent on mainnet" in
+# docs/operations.md has what it costs.
+contract_extend:  ## Extend the TTL of the instance and the code of Tansu and of its executor to the maximum
+	for id in $(tansu_id) $(executor_id); do \
+		stellar contract extend --id $$id --network $(network) --source-account $(admin) --ledgers-to-extend 3110400 && \
+		stellar contract extend --wasm-hash $$(stellar contract fetch --id $$id --network $(network) | shasum -a 256 | cut -d' ' -f1) \
+			--network $(network) --source-account $(admin) --ledgers-to-extend 3110400 || exit; \
+	done
 
 contract_get_upgrade_proposal:  ## Get the current upgrade proposal
 	stellar contract invoke \
@@ -232,17 +276,39 @@ dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, sign
 radicle_push:
 	git push rad main
 
-radicle_ci:  ## Run the tests as a Radicle job; the log goes to the rad-ci branch
-	RADICLE_CI_CMD='cargo test' .radicle/ci.sh
+# What CI checks once a Tansu WASM is in target/wasm32v1-none/release: the tests (the
+# upgrade test installs that WASM and the registry manager's tests run it; the others run
+# the same source natively), clippy, the format, and Trivy as .github/workflows/trivy-fs.yml.
+ci_checks = cargo test && cargo clippy --all-targets --all-features -- -Dwarnings && cargo fmt --check && \
+	trivy fs --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH --skip-dirs '**/node_modules,**/target,release,.claude' .
 
-radicle_release:  ## Build tag=v3.0.1 in the stellar-cli container image=<registry/image@sha256:digest>
-	STELLAR_IMAGE='$(image)' RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev \
-		.radicle/release.sh build "$(tag)"
+# A Radicle job of HEAD (`rad-job show $(git rev-parse HEAD)` lists its runs); the log goes
+# to the rad-ci branch. It runs in the working tree: commit first.
+radicle_ci:  ## Build, test, lint and scan HEAD as a Radicle job
+	RADICLE_CI_CMD="make contract_build && $(ci_checks)" .radicle/ci.sh
 
-radicle_release_verify:  ## Check a built release's checksums and tagged commit: tag=v3.0.1
-	.radicle/release.sh verify "$(tag)"
+# The candidate of a release, before any tag exists. main goes to Radicle, then one Radicle
+# job of HEAD builds both contracts in the pinned image into release/<tag>/ and checks that
+# build: its Tansu WASM replaces the local one for the tests, and Trivy also reads its SBOM.
+# The job's log holds the build and the hashes of what was checked. To build again, move
+# release/<tag>/ away. The build runs in engine= with build_flags= (see their defaults).
+radicle_release_candidate:  ## Build tag=<vX.Y.Z> from HEAD in the pinned image and check that build, as a Radicle job; nothing is tagged
+	git push rad main
+	RADICLE_CI_CMD="STELLAR_CONTAINER_ENGINE='$(engine)' RELEASE_BUILD_FLAGS='$(build_flags)' STELLAR_IMAGE='$(image)' \
+		RELEASE_PACKAGES='tansu tansu-executor' RELEASE_HOME_DOMAIN=tansu.dev .radicle/release.sh build '$(tag)' && \
+		mkdir -p target/wasm32v1-none/release && cp release/$(tag)/tansu_v*.wasm target/wasm32v1-none/release/tansu.wasm && \
+		$(ci_checks) && \
+		trivy sbom --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH release/$(tag)/sbom.spdx.json" .radicle/ci.sh
 
-radicle_release_publish:  ## Register, attest and seed a verified release on Radicle: tag=v3.0.1
+# Once the candidate's job has succeeded and its log has been read. The tag goes to Radicle
+# only: a v* tag pushed to GitHub starts sbom.yml, which records evidence on-chain. The
+# tag is an annotated one, so the Radicle release records it and is titled by it. The
+# publication refuses a bundle that is not the build of the tagged commit, registers and
+# seeds every file of it, and needs `rad-artifact node start` running. If it stops midway,
+# `.radicle/release.sh publish <tag>` takes it up again: the tag is already there.
+radicle_release:  ## Tag HEAD as tag=<vX.Y.Z>, push the tag to Radicle and publish the checked build there
+	git tag -a "$(tag)" -m "$(tag)"
+	git push rad "$(tag)"
 	.radicle/release.sh publish "$(tag)"
 
 # A Radicle job of the commit of tag=<vX.Y.Z>, run after the release job of a contract: its
@@ -303,8 +369,11 @@ contract_version:
     	-- \
     	version
 
+# `maintainer2` is the second maintainer's identity: `grogu` off mainnet, and it must be
+# given on mainnet (`make contract_register network=mainnet maintainer2=<identity>`).
 # bafybeift4uou7f4qdrchrbwebxxvgf2ecmx56qqo6l2fyimmr4skb3iibi for salib
 contract_register:
+	$(if $(maintainer2),,$(error maintainer2 is required on mainnet: give the second maintainer's identity, e.g. maintainer2=<name>))
 	stellar contract invoke \
     	--source-account $(admin) \
     	--network $(network) \
@@ -313,7 +382,7 @@ contract_register:
     	register \
     	--maintainer $(admin) \
     	--name tansu \
-    	--maintainers '["$(shell stellar keys address $(admin))", "$(shell stellar keys address grogu-$(network))"]' \
+    	--maintainers '["$(shell stellar keys address $(admin))", "$(shell stellar keys address $(maintainer2))"]' \
     	--url https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s \
     	--ipfs bafybeicnbbhyc4vhbuokk57lrmg4hkbvkmtcp6p3ubaptbus6kl2idthki
 
@@ -392,7 +461,7 @@ override tansu_key = 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa54
 # provenance in release/<tag>/ becomes evidence of it. The maintainer of the project
 # signs, as admin=<identity or address>; one without a local key adds
 # sign=--sign-with-lab. Needs an unpaused contract.
-contract_release:  ## Declare release tag=<vX.Y.Z> on Tansu: its commit and its attestations
+contract_declare_release:  ## Declare release tag=<vX.Y.Z> on the Tansu project: its commit, and its provenance as evidence
 	.radicle/release.sh verify "$(tag)"
 	stellar contract invoke \
 	--source-account $(admin) \

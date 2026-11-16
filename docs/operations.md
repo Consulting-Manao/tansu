@@ -14,7 +14,42 @@ two variables:
 - `network` selects the network. It defaults to `testnet`, so production actions must
   pass `network=mainnet` explicitly. There is no confirmation prompt.
 - `admin` selects the signing identity of the Stellar CLI. It defaults to
-  `tansu-<network>`.
+  `tansu-admin-<network>`.
+
+### Addresses
+
+The keys that hold a role on each network, as the ledger records them. Secrets are
+never listed here.
+
+| Role on mainnet                                      | Address                                                    |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| Admin, the identity `tansu-admin-mainnet`            | `GAEAODW6YYDMCGWLYZEF2FOXZGXKRGO4JESEEPJUEW6JAZQWCH3AJT5D` |
+| Admin, second key                                    | `GBMGZFAHF7IS4XTKMH5TMKDGEZL64GXOKCWX7QVMV3J67QDC4L7E5BFD` |
+| Maintainer of the `tansu` project                    | `GD4FXNCYPQWNDWZYZZD4WFYYFTP466IKAKCZOYE5TPFTSSOZDA4QF3ER` |
+| Owner of the dApp's domain (`PUBLIC_TANSU_OWNER_ID`) | `GD4FXNCYPQWNDWZYZZD4WFYYFTP466IKAKCZOYE5TPFTSSOZDA4QF3ER` |
+
+| Role on testnet                                              | Address                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| Admin, the identity `tansu-admin-testnet`                    | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+| Admin, second key                                            | `GBMGZFAHF7IS4XTKMH5TMKDGEZL64GXOKCWX7QVMV3J67QDC4L7E5BFD` |
+| Maintainer of the `tansu` project, `tansu-admin-testnet`     | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+| Maintainer of the `tansu` project, the identity `grogu`      | `GDKEVEDLMQALZ4CYRHLBCI7GJGWJNWZPWVXZPHGYPX6CS6EHBW3QDZIT` |
+| Maintainer of the `tansu` project                            | `GBNKPTZ6LUVSJASJB7X57NMZD6E3JEF2JQDF6KQVFVRTMO45LKS6XLPE` |
+| Maintainer of the `tansu` project                            | `GC53JCXZHW3SVNRE4CT6XFP46WX4ACFQU32P4PR3CU43OB7AKKMFXZ6Y` |
+| Maintainer of the `tansu` project, `chimpdao-nft-admin-testnet` | `GA4XYBSCE6DE33YW5DAA6CHBE7VAFEMR5EIPAIJZKUBBAJQKXL2PLYC5` |
+| Owner of the dApp's domain (`PUBLIC_TANSU_OWNER_ID`)         | `GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN` |
+
+The admin threshold is 1 on both networks. The ledger is the reference; compare this
+table with it after any change of admin or maintainer:
+
+```bash
+net=mainnet   # or testnet
+stellar contract invoke --id "$(cat deployments/tansu-$net)" --network $net \
+  --source-account tansu-admin-$net --send=no -- get_admins_config
+stellar contract invoke --id "$(cat deployments/tansu-$net)" --network $net \
+  --source-account tansu-admin-$net --send=no -- get_project \
+  --project_key 37ae83c06fde1043724743335ac2f3919307892ee6307cce8c0c63eaa549e156
+```
 
 The contract also references external contracts:
 
@@ -57,6 +92,12 @@ The following rules apply to admins:
   accepting upgrades; pausing, unpausing, cancelling an upgrade and `set_executor`
   each take one admin.
 
+Mainnet identities are kept in the Stellar CLI secure store
+(`stellar keys add <name> --secure-store`), never as a plaintext identity file, so
+`make prepare` and `make funds` refuse `network=mainnet`. `grogu` is the default
+throwaway testnet identity, the second maintainer of `make contract_register` off
+mainnet; on mainnet, pass `maintainer2=<identity>`.
+
 On the project side, any single maintainer can call `update_config`, which replaces
 the maintainer list, `set_attestation_threshold` and `set_nqg_contract`. Projects
 that need stronger guarantees make their maintainer a multisig account, keep the list
@@ -64,17 +105,105 @@ small and monitor the corresponding events.
 
 ## Release and verification
 
-Contract releases are built from a tag in a Stellar CLI container pinned by digest and
-published as signed Radicle artifacts (`make radicle_release`, `radicle_release_verify`,
-`radicle_release_publish`; see `CONTRIBUTING.md`). A mainnet WASM is never built by hand
-outside that flow. Another delegate rebuilds with the same image, compares the WASM
-hashes in `SHA256SUMS` and attests the artifacts.
+A release is built first, checked, and tagged last. The contracts are built from a commit
+in a Stellar CLI container pinned by digest (the `image` of the Makefile), the checks run
+on that build as a Radicle job of the commit, and only a build that passed is tagged and
+published as signed Radicle artifacts. A mainnet WASM is never built by hand outside that
+flow. Anyone can rebuild the tagged commit with the same image on the same architecture
+(`.radicle/release.sh build`), check the files with `rad-artifact verify` and attest
+them; the repository has one delegate today, so there is no second delegate's
+attestation yet.
 
 Tags and releases are immutable. The WASM carries SEP-58 build and source metadata
 (`bldimg`, `bldopt`, `source_sha256`); read it with `stellar contract info meta`.
 
-The other workflows in `.github/workflows` run tests, linters, SBOM generation and
-vulnerability scans. Their results are checked before tagging a release.
+The checks are the tests, clippy, the format and Trivy (critical and high, the tree and
+the SBOM of the bundle). The upgrade test installs the release WASM and the registry
+manager's tests run it; the other tests run the same commit natively. What only a
+deployed contract shows (the dApp journeys) is checked on testnet, whose builds differ
+from a release by their timelock.
+
+### Release run sheet
+
+For a release that needs no data migration. One that does adds its steps around the
+finalize and gets its own document. Set the release once, then every command is as
+written; `admin` and `uploader` default to `tansu-admin-<network>`:
+
+```bash
+tag=v4.0.0 wasm=release/v4.0.0/tansu_v4.0.0.wasm network=mainnet
+```
+
+1. **Candidate.** Commit what must go in (the build is the commit, the checks run in the
+   working tree). The command pushes `main` to Radicle, builds both contracts into
+   `release/<tag>/` and checks that build, as one Radicle job; nothing is tagged. The
+   build runs in Apple's `container` with 4 GiB (`engine=docker` and `build_flags=`
+   change that). Read the run and its log: the hashes, the number of tests, no finding.
+   After a failure, fix, commit, move `release/<tag>/` away and run it again.
+
+   ```bash
+   make radicle_release_candidate tag=$tag
+   rad-job show --pretty "$(git rev-parse HEAD)"
+   ```
+
+2. **Release.** Once you are happy with the candidate. It tags `HEAD` with an annotated
+   tag, pushes the tag to Radicle and publishes the bundle, which must be the build of the
+   tagged commit. The Radicle release records the tag and is titled by it. The
+   seeder runs (`rad-artifact node status`, else `rad-artifact node start`), and one
+   `rad-artifact` is on the `PATH` (`which -a rad-artifact`). The tag does not go to
+   GitHub: a `v*` tag there starts `sbom.yml`, which records evidence on-chain. If the
+   publication stops midway, `.radicle/release.sh publish $tag` takes it up again.
+
+   ```bash
+   make radicle_release tag=$tag
+   ```
+
+3. **Propose.** Check the state first: [Checklist before a state change](#checklist-before-a-state-change),
+   no active proposal that the new code could not finish, the XLM of the upload (about
+   0.9 XLM per KB of code on mainnet: 78 XLM for v4). The command uploads, proposes and shows the proposal:
+   its hash is the SHA-256 of the WASM, which the candidate printed and
+   `release/<tag>/provenance.json` lists. Never run it with
+   `make -n`: make sends the upload while printing.
+
+   ```bash
+   make contract_propose_upgrade network=$network wasm=$wasm
+   ```
+
+4. **Finalize**, after `executable_at` (24 hours) and, with a threshold above 1,
+   `make contract_approve_upgrade network=$network admin=<other-admin>`. It prints the
+   hash of the code on-chain, which must be the same one, and the version.
+
+   ```bash
+   make contract_finalize_upgrade network=$network
+   ```
+
+5. **Open.** When the release changes what the dApp or the upload worker call, they are
+   deployed before the contract is used again: pause before finalizing, check
+   `https://ipfs.tansu.dev/health` and the dApp, then `make contract_unpause network=$network`.
+6. **Declare.** The maintainer of the Tansu project records the commit and the provenance
+   as evidence (`FILEBASE_TOKEN` in the environment; `sign=--sign-with-lab` for a wallet),
+   and the author of the name publishes the hash of the WASM on the Stellar Registry
+   (`dry=--dry-run` first: it prints the fee, which is high when the registry's own
+   entries are archived and the call restores them; the Stellar CLI signs, since the
+   registry plugin cannot use a key of the secure store). A version below the current
+   one is refused, so versions are published in order:
+
+   ```bash
+   make contract_declare_release tag=$tag network=$network admin=<maintainer> sign=--sign-with-lab
+   make radicle_register wasm=$wasm tag=$tag network=$network
+   ```
+
+7. **Keep alive**, after the finalize and never before: the command extends the code
+   the contract runs at that moment. The upload paid 120 days of the new code, and
+   bringing it to 180 costs about half the upload again. See
+   [Rent on mainnet](#rent-on-mainnet):
+
+   ```bash
+   make contract_extend network=$network
+   ```
+
+Record each transaction in the [record of admin actions](#record-of-admin-actions). Until
+the finalize, `make contract_cancel_upgrade network=$network` drops the proposal; after
+it, a rollback is a full upgrade to the previous hash, with its timelock.
 
 ## Initial setup
 
@@ -123,10 +252,12 @@ make contract_approve_upgrade network=mainnet admin=<other-admin>
 make contract_finalize_upgrade network=mainnet
 ```
 
-`contract_propose_upgrade` also passes a `new_admins_config`. The value written in
-the target becomes the new admin set, so it must be compared with the intended set
-before every use. `contract_finalize_upgrade` accepts the proposal. To cancel a
-proposal instead, call the contract directly:
+`contract_propose_upgrade` uploads the WASM, proposes it and shows the proposal; it
+passes no `new_admins_config`, so the admin set is kept (changing it is a direct call
+with that argument). `contract_finalize_upgrade` accepts the proposal, then prints the
+hash of the code on-chain and its version. The whole sequence of a release is the
+[release run sheet](#release-run-sheet). To cancel a proposal instead, run
+`make contract_cancel_upgrade network=mainnet`, or call the contract directly:
 
 ```bash
 stellar contract invoke --source-account <admin> --network mainnet \
@@ -197,8 +328,14 @@ The scripts `contracts/registry-tansu-manager/e2e-*.sh` exercise a manager on te
 ## Upgrade and pause
 
 `pause` stops every state-changing call and leaves reads available. It can be called
-again while the contract is already paused. Upgrades use the flow described in
-[Admin operations](#admin-operations).
+again while the contract is already paused. The upgrade calls do not check it: a paused
+contract is proposed to, approved and finalized like any other.
+
+An upgrade is three calls: `propose_upgrade` with the hash of the new WASM,
+`approve_upgrade` by other admins where the threshold asks for it, and `finalize_upgrade`
+once the timelock is over. The commands (`make contract_propose_upgrade`, `contract_approve_upgrade`,
+`contract_finalize_upgrade`) are in the [release run sheet](#release-run-sheet), and what
+the contract enforces in [Admin operations](#admin-operations).
 
 For an upgrade:
 
@@ -266,7 +403,8 @@ Rent is at the network minimum while the live Soroban state is below 2 GB (1.62 
 13% below what a simulation shows.
 
 Extend the contract code and instance, and the executor's too (its own id and wasm
-hash). Data entries are left to the transactions that use them:
+hash): `make contract_extend network=mainnet` does the four, to the maximum. Data entries
+are left to the transactions that use them. By hand:
 
 ```bash
 stellar contract extend --id "$(cat deployments/tansu-mainnet)" --network mainnet \
@@ -279,16 +417,17 @@ Read the TTLs first with `stellar ledger entry fetch` (`liveUntilLedgerSeq`). To
 cost, pipe the command with `--build-only` into `stellar tx simulate --network mainnet
 --source-account <identity>`. `--build-only` alone does not simulate.
 
-An upgrade uploads a new code entry, which pays its first 120 days (about 77 XLM for
-v4). The rent left on the old code is lost. Hence, extend the code after an upgrade and
+An upgrade uploads a new code entry, which pays its first 120 days (78.01 XLM for v4, on
+2026-11-12). The rent left on the old code is lost. Hence, extend the code after an upgrade and
 not before, and time the upgrade close to the old code's expiry. The old code must still
 be live when `finalize_upgrade` runs. The upgrade does not extend the instance.
 
 Status on 2026-11-07, ledger 65,351,521: instance expires at 66,740,745 (about 26
 January 2027), code at 66,810,899, the executor's code and instance at about the same
 (30 January). Extending the code to the maximum then costs about 63 XLM, the instances
-and the executor code about 1.2 XLM. Uploading v4 in late January replaces the code
-extension.
+and the executor code about 1.2 XLM. The v4 code, uploaded on 2026-11-12, lives until
+ledger 67,520,383 (about 12 March 2027); extending it to the maximum then simulated at
+44.9 XLM. The v3 code is left to expire once v4 runs.
 
 Instance storage holds the pause flag, the admin set, the pending upgrade, the
 collateral asset and the executor. Persistent storage holds projects,
@@ -301,8 +440,16 @@ execution of its proposal (`BALLOT_GRACE`), then deleted: a vote costs about 0.0
 mainnet instead of the 120-day persistent minimum (0.48 XLM). An anonymous proposal
 must be executed before its ballots expire: the tally is decrypted from them. If it
 cannot, extend them first with `stellar contract extend --durability temporary
---key-xdr <ballot key> --ledgers-to-extend <n>`. Ballots of proposals open during an
-upgrade to v4 were persistent and are no longer read: upgrade with no proposal open.
+--key-xdr <ballot key> --ledgers-to-extend <n>`. The ballots written before v4
+were persistent and v4 does not read them, those of executed proposals included:
+`get_proposal` returns these proposals without votes.
+
+Once a round is executed, save its ballots before they expire. The script writes one
+JSON line per proposal of the project, as `get_proposal` returns it, readable and as XDR:
+
+```bash
+uv run tools/export_ballots.py --project stellarpgq4 --network mainnet > stellarpgq4.jsonl
+```
 
 The addresses that voted on a proposal stay in one persistent entry, which each vote
 rewrites and grows by 44 bytes. A proposal takes at most 1,000 votes, 44 KB of the
@@ -369,6 +516,12 @@ Only verified outcomes are recorded. When a submission result is unclear, the
 transaction is looked up by hash and its `status` field is read. The diagnostic events
 of a Soroban transaction can contain the word `Error` even when it succeeded.
 
+| Date (UTC)       | Action                                  | Signer          | Transaction                                                                                                                    | Read back                                                    |
+| ---------------- | --------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| 2026-11-12 21:46 | Upload of the v4.0.0 WASM (78.01 XLM)   | `GAEAODW6…JT5D` | [`a0d73538…bf46`](https://stellar.expert/explorer/public/tx/a0d73538b01977ff3d4b6569394dc4937780a05e3d1abafc1845587388f1bf46) | code `0c254b05…4984` on the ledger                           |
+| 2026-11-12 21:46 | `propose_upgrade` to v4.0.0             | `GAEAODW6…JT5D` | [`d4a6af54…0f25`](https://stellar.expert/explorer/public/tx/d4a6af54873eb012a5077fde05ab6d969a1d894853db50716965c90d68260f25) | `get_upgrade_proposal`: that hash, executable 2026-11-13 21:46 |
+| 2026-11-12 22:05 | `tansu` 4.0.0 on the Stellar Registry (37.22 XLM, all rent: the call restored the registry's archived code and instance) | `GAEAODW6…JT5D` | [`c5ae0ed9…1267`](https://stellar.expert/explorer/public/tx/c5ae0ed97e15424e8f9f3ed8e94db1d54ce1c8c68614f32e122b3d1364ff1267) | `fetch-hash tansu --version 4.0.0`: `0c254b05…4984`, current version 4.0.0 |
+
 ## Incident response
 
 ### Unexplained state change
@@ -402,7 +555,10 @@ the name.
 ### Faulty deployment or upgrade
 
 1. Pause the contract.
-2. Propose an upgrade to the previous WASM hash and complete the approval flow.
+2. Propose an upgrade to the previous WASM and complete the approval flow:
+   `make contract_propose_upgrade network=mainnet wasm=<the previous release's WASM>`,
+   which uploads nothing again while that code is still on the ledger, then
+   `make contract_finalize_upgrade network=mainnet` after the timelock.
 3. Check the main reads, such as `get_admins_config`, `get_project`, `get_commit` and
    `get_attestation_finality`, before unpausing.
 

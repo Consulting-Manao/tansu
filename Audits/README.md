@@ -1,15 +1,16 @@
 # Audits: current state
 
-Last updated: 2026-11-09 (contracts round added). This page is the entry point: what has been assessed, what is open, where the reports are. Update it whenever an item is fixed or accepted, or a round is added.
+Last updated: 2026-11-10 (contracts and worker round added). This page is the entry point: what has been assessed, what is open, where the reports are. Update it whenever an item is fixed or accepted, or a round is added.
 
 ## Where things stand
 
 | | |
 |---|---|
-| Latest assessment | [2026-11-09 contracts pre-audit](2026-11-09-contracts-pre-audit.md) (v4, before deployment) |
-| Source assessed | git `d3ce864`, `contracts/` clean |
-| Scope | The Soroban contracts only, with the veto, the `set_badges` self-removal, the 1,000-vote cap and the page-cap removal in. A partial pass: three gaps listed in the report |
-| Result | No critical or high. 1 medium and 1 low confirmed (F-07, F-08), both open. Two methods ran independently; both reached F-07 |
+| Latest assessment | [2026-11-10 pre-audit](2026-11-10-pre-audit.md) (contracts v4 and the rewritten upload worker, before the worker is deployed) |
+| Source assessed | git `27311af`, clean tree |
+| Scope | The Soroban contracts (the three areas the contracts round left: attestation pruning, the manager's authorization chain, the getters; plus a Soroban checklist) and the whole IPFS upload worker. A partial pass |
+| Result | No critical, high or medium. 1 low confirmed (H-1, known, now with a test that defeats its mitigation). 3 worker leads reproduced locally that each need one deployment fact (N-07, N-08, N-09). The worker's proof, the pruning and the manager's chain held |
+| Previous contracts round | [2026-11-09 contracts pre-audit](2026-11-09-contracts-pre-audit.md) at `d3ce864` (same contract source as now): 1 medium and 1 low confirmed (F-07, F-08), both open, not re-verified since |
 | Previous whole-repository round | [2026-11-09 pre-audit](2026-11-09-pre-audit.md) at `5c474a7`: 2 medium and 4 low confirmed, 6 leads that need a fact only the deployment shows. Fixed in code since: F-02 and F-06 in `140d9e9`; H-1 (partly) and H-2 in `302933a`. F-01 is accepted |
 
 ## Open items
@@ -30,9 +31,12 @@ Severity is the verified one. "Open" means no change in the code yet.
 | N-02 | Lead | Worker | A 1 MB CAR of tiny blocks needs about 180 MiB of memory before the root is compared | Fixed in `89403ce`, not deployed yet: the body is read up to the cap, the CAR is decoded after the transaction checks, block by block with at most 2048 blocks and no per-block structure (a 10 MB CAR of 225,000 tiny blocks is refused in 41 ms, no extra memory; it took 645 ms and 579 MB before), and the cap is 10 MB on both networks |
 | N-03 | Lead | Worker | Only the CAR header root is checked; blocks are not hashed or required. Unverified | Fixed in `89403ce`, not deployed yet: every block must hash (SHA-256) to its CID, every link must lead to a block in the file and every block must be linked from the root (`src/car.ts`) |
 | N-04 | Lead | Contract | The registry manager's `trigger` reads every ballot: about 380 ballots or more may make a proposal impossible to run | Confirmed as F-07 by a test (2026-11-09 contracts round); the live limit is still the owner's check |
+| N-07 | Lead | Worker | A stranger can spend another address's daily upload quota: the quota is charged to the address in the landed call, a replay is free only when the Filebase pin check answers "pinned", that check fails open, and a CAR may repeat blocks up to 10 MB (2026-11-10 round, reproduced with `pin/ls` answering 503) | Open. Fix: refuse a CAR with a repeated block; when the pin check does not answer, accept only a recently landed transaction. Owner check: how often `pin/ls` fails or throttles |
+| N-08 | Lead | Worker | `GET /health` has no rate limit and shares no probe in flight (50 concurrent requests made 50 Filebase calls); one 429 from Filebase reads as "down" for 30 s and the dApp then signs no write with files | Open. Fix: share the pending probe, rate-limit the route, count a 429 as an answer. Owner check: Filebase rate limits |
+| N-09 | Lead | Worker | Decoding a CAR under the 10 MB cap ran out of a 128 MB heap under Node (base64 decode before the length check), and one block with 262,000 links ran out of 256 MB; N-02's fix does not cover these two paths, and an honest 10 MB upload takes the first | Open. Fix: check the base64 length first, decode into one array, cap links. Owner check: one 10 MB upload under `wrangler dev` |
 | N-05 | Lead | CI | The maintainer signing key and publishing credentials sit behind workflows any ref can start | Owner check: GitHub environments, secret scope, write access |
 | N-06 | Lead | CI | A third-party action at `@main` runs in a job that can mint a GitHub OIDC token | Owner check: which services trust the OIDC identity |
-| H-1 | Medium | Contract | A maintainer of many cheap projects can fill any member's single record to the ledger entry limit (first noted as L-04 in the [2026-09-28 pre-audit](2026-09-28-pre-audit.md)) | Mitigated in `302933a`, not closed: a member can remove a project from its own record, but re-adding costs the attacker one transaction. Structural fix: one entry per `(project, member)` |
+| H-1 | Low | Contract | A maintainer of many cheap projects can fill any member's single record to the ledger entry limit (first noted as L-04 in the [2026-09-28 pre-audit](2026-09-28-pre-audit.md)) | Open. Mitigated in `302933a`, not closed: a member can remove a project from its own record, but re-adding costs the attacker one transaction. Confirmed by a test in the 2026-11-10 round and rated low there (510 projects, 2,550 XLM not returned; another project's badge for the member then fails, and the removal loses to the re-add). Structural fix: one entry per `(project, member)` |
 | H-2 | Low | Contract | Every proposal id was permanent, so 9,000 proposals closed a project's governance | Fixed in `302933a`: the page cap is removed |
 
 ## Still to do
@@ -45,6 +49,7 @@ One dated file per round, in this folder, newest first. Earlier rounds describe 
 
 | Date | Report | Assessed | Findings (critical, high, medium, low, info) |
 |---|---|---|---|
+| 2026-11-10 | [Pre-audit](2026-11-10-pre-audit.md) | `contracts/` and the upload worker at `27311af` | 0, 0, 0, 1, 0; and 3 leads |
 | 2026-11-09 | [Contracts pre-audit](2026-11-09-contracts-pre-audit.md) | `contracts/` at `d3ce864` (v4) | 0, 0, 1, 1, 0 |
 | 2026-11-09 | [Pre-audit](2026-11-09-pre-audit.md) | The whole repository at `5c474a7` | 0, 0, 2, 4, 0; and 6 leads |
 | 2026-09-28 | [Pre-audit](2026-09-28-pre-audit.md) | `tansu` 2.1.0, `tansu-executor` at `f48aca4` | 0, 0, 2, 11, 12 |
