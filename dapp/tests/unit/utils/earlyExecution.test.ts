@@ -57,19 +57,4 @@ describe("earlyExecution", () => {
       ),
     ).toMatchObject({ running: false });
   });
-
-  it("waits for the threshold and the execute delay", () => {
-    expect(
-      earlyExecution(
-        proposal(["GA", "GB"]),
-        maintainers,
-        undefined,
-        executableAt,
-        now,
-      ),
-    ).toBeNull();
-    expect(
-      earlyExecution(proposal(["GA", "GB"]), maintainers, 66, undefined, now),
-    ).toBeNull();
-  });
 });

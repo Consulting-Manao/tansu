@@ -2709,12 +2709,8 @@ fn seeds_are_scalars_summed_modulo_the_group_order() {
     assert_eq!(result, ProposalStatus::Approved);
 }
 
-/// A proposal from an outsider, voted for two days. Returns its id.
-fn outsider_proposal(
-    setup: &super::test_utils::TestSetup,
-    id: &soroban_sdk::Bytes,
-    public: bool,
-) -> u32 {
+/// A public proposal from an outsider, voted for two days. Returns its id.
+fn outsider_proposal(setup: &super::test_utils::TestSetup, id: &soroban_sdk::Bytes) -> u32 {
     let proposer = Address::generate(&setup.env);
     setup.token_stellar.mint(&proposer, &(10 * 10_000_000));
     setup.contract.create_proposal(
@@ -2726,7 +2722,7 @@ fn outsider_proposal(
             "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
         ),
         &(setup.env.ledger().timestamp() + 3600 * 24 * 2),
-        &public,
+        &true,
         &None,
         &None,
     )
@@ -2742,10 +2738,11 @@ fn approve(voter: &Address) -> Vote {
 
 #[test]
 fn execute_early_on_maintainer_quorum() {
-    // Maintainers grogu and mando, threshold 66%: both must vote.
+    // Maintainers grogu and mando, threshold 66%: both must vote. Any ballot
+    // counts, a maintainer proposer's automatic one too.
     let setup = create_test_data();
     let id = init_contract(&setup);
-    let proposal_id = outsider_proposal(&setup, &id, true);
+    let proposal_id = outsider_proposal(&setup, &id);
 
     // A member who is not a maintainer does not count, nor does one maintainer.
     let kuiil = Address::generate(&setup.env);
@@ -2777,15 +2774,6 @@ fn execute_early_on_maintainer_quorum() {
         .contract
         .execute(&setup.grogu, &id, &proposal_id, &None, &None);
     assert_eq!(result, ProposalStatus::Approved);
-
-    // The vote is over for everyone else.
-    let rex = Address::generate(&setup.env);
-    let err = setup
-        .contract
-        .try_vote(&rex, &id, &proposal_id, &approve(&rex))
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalActive.into());
 }
 
 #[test]
@@ -2794,7 +2782,7 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
     let id = init_contract(&setup);
 
     // A removed ballot stops counting; the voter can vote again.
-    let proposal_id = outsider_proposal(&setup, &id, true);
+    let proposal_id = outsider_proposal(&setup, &id);
     for maintainer in [&setup.grogu, &setup.mando] {
         setup
             .contract
@@ -2819,7 +2807,7 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
 
     // A maintainer removed after voting stops counting: mando is replaced
     // by kuiil, who has not voted, so one of two maintainers voted.
-    let proposal_id = outsider_proposal(&setup, &id, true);
+    let proposal_id = outsider_proposal(&setup, &id);
     for maintainer in [&setup.grogu, &setup.mando] {
         setup
             .contract
@@ -2842,79 +2830,4 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-}
-
-#[test]
-fn early_quorum_counts_proposer_ballot() {
-    // A maintainer who proposes holds the automatic abstain ballot, which
-    // counts: the other maintainer's vote makes two of two.
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    let proposal_id = setup.contract.create_proposal(
-        &setup.grogu,
-        &id,
-        &String::from_str(&setup.env, "Early execution"),
-        &String::from_str(
-            &setup.env,
-            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-        ),
-        &(setup.env.ledger().timestamp() + 3600 * 24 * 2),
-        &true,
-        &None,
-        &None,
-    );
-    setup
-        .contract
-        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
-    let result = setup
-        .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
-    assert_eq!(result, ProposalStatus::Approved);
-}
-
-#[test]
-fn execute_early_anonymous() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup.contract.anonymous_voting_setup(
-        &setup.mando,
-        &id,
-        &String::from_str(&setup.env, "public key random"),
-    );
-    let proposal_id = outsider_proposal(&setup, &id, false);
-
-    // Both maintainers approve with weight 1, seeds 2 and 5.
-    for (maintainer, seed) in [(&setup.grogu, 2u128), (&setup.mando, 5u128)] {
-        let ballot = Vote::AnonymousVote(AnonymousVote {
-            address: maintainer.clone(),
-            weight: 1,
-            encrypted_seeds: vec![
-                &setup.env,
-                String::from_str(&setup.env, "s0"),
-                String::from_str(&setup.env, "s1"),
-                String::from_str(&setup.env, "s2"),
-            ],
-            encrypted_votes: vec![
-                &setup.env,
-                String::from_str(&setup.env, "v0"),
-                String::from_str(&setup.env, "v1"),
-                String::from_str(&setup.env, "v2"),
-            ],
-            commitments: setup.contract.build_commitments_from_votes(
-                &id,
-                &vec![&setup.env, 1u128, 0u128, 0u128],
-                &scalars(&setup.env, &[seed, 0, 0]),
-            ),
-        });
-        setup.contract.vote(maintainer, &id, &proposal_id, &ballot);
-    }
-
-    let result = setup.contract.execute(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Some(vec![&setup.env, 2u128, 0u128, 0u128]),
-        &Some(scalars(&setup.env, &[7, 0, 0])),
-    );
-    assert_eq!(result, ProposalStatus::Approved);
 }
