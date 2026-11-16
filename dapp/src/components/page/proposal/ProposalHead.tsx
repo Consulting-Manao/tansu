@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { thresholdQuery } from "@service/AttestationService";
+import { projectQuery } from "@service/ProjectService";
 import {
   executeDelayQuery,
   proposalQuery,
@@ -24,6 +26,7 @@ import {
 } from "utils/urls";
 import {
   capitalizeFirstLetter,
+  earlyExecution,
   modifyProposalFromContract,
   modifyProposalToView,
   truncateMiddle,
@@ -41,6 +44,7 @@ const steps = (
   proposal: ProposalView,
   delay: number | undefined,
   vetoedAt: bigint | undefined,
+  early: boolean,
 ) => {
   const ended = proposal.endDate * 1000 <= Date.now();
   if (proposal.status === "vetoed") {
@@ -72,7 +76,11 @@ const steps = (
     },
     {
       label: "Execute",
-      detail: executed ? undefined : from,
+      detail: executed
+        ? undefined
+        : early
+          ? "Open now: maintainer quorum"
+          : from,
       state: executed ? "done" : ended ? "now" : "todo",
     },
     {
@@ -100,6 +108,15 @@ const ProposalHead = () => {
     : null;
   const delay = useQuery(
     { ...executeDelayQuery(name, id), enabled: !!proposal },
+    queryClient,
+  ).data;
+  const pending = proposal?.status === "active" || proposal?.status === "voted";
+  const maintainers = useQuery(
+    { ...projectQuery(name), enabled: pending },
+    queryClient,
+  ).data?.maintainers;
+  const threshold = useQuery(
+    { ...thresholdQuery(name), enabled: pending },
     queryClient,
   ).data;
   const vetoed = proposal?.status === "vetoed";
@@ -188,7 +205,20 @@ const ProposalHead = () => {
       <div className="mt-2 max-w-220">
         <Timeline
           label="Proposal"
-          steps={steps(proposal, delay, veto?.vetoed_at)}
+          steps={steps(
+            proposal,
+            delay,
+            veto?.vetoed_at,
+            !!earlyExecution(
+              proposal,
+              maintainers ?? [],
+              threshold,
+              delay === undefined
+                ? undefined
+                : (proposal.endDate + delay) * 1000,
+              Date.now(),
+            ),
+          )}
         />
       </div>
       {vetoed && <VetoNotice name={name} id={id} />}

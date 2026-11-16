@@ -1,15 +1,17 @@
 import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { thresholdQuery } from "@service/AttestationService";
 import { votingPowerQuery } from "@service/MemberService";
 import { executeDelayQuery } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { connect } from "@service/walletService";
 import { Button, Card, LinkButton } from "components/ui";
-import type { ProposalView } from "types/proposal";
+import type { EarlyExecution, ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
-import { hasUserVoted } from "utils/utils";
+import { earlyExecution, hasUserVoted } from "utils/utils";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
+import EarlyExecutionNotice from "./EarlyExecutionNotice";
 import MarkMaliciousModal from "./MarkMaliciousModal";
 import RemoveVoteModal from "./RemoveVoteModal";
 import VetoProposalModal from "./VetoProposalModal";
@@ -23,8 +25,9 @@ const Eyebrow = ({ children }: { children: string }) => (
 /**
  * What the connected member can do with a proposal: vote while it runs
  * (Vote alone stands out; the wallet picker comes first without a wallet),
- * and, for its maintainers, execute it once its delay passed, remove a
- * ballot, revoke it (spam) or veto it, as quieter text actions.
+ * and, for its maintainers, execute it once its delay passed (or earlier,
+ * with a warning, once enough maintainers voted), remove a ballot, revoke
+ * it (spam) or veto it, as quieter text actions.
  */
 const ProposalActions = ({
   proposal,
@@ -35,7 +38,7 @@ const ProposalActions = ({
   proposal: ProposalView;
   maintainers: string[];
   onVote: () => void;
-  onExecute: () => void;
+  onExecute: (early: EarlyExecution | null) => void;
 }) => {
   const address = useStore(connectedPublicKey);
   const [shown, setShown] = useState<
@@ -54,11 +57,19 @@ const ProposalActions = ({
     },
     queryClient,
   ).data;
-  // A vote can be executed once its execute delay has passed too.
+  // A vote can be executed once its execute delay has passed too, or
+  // earlier once enough maintainers voted.
   const delay = useQuery(
     {
       ...executeDelayQuery(proposal.projectName, proposal.id),
-      enabled: proposal.status === "voted" && isMaintainer,
+      enabled: isPending && isMaintainer,
+    },
+    queryClient,
+  ).data;
+  const threshold = useQuery(
+    {
+      ...thresholdQuery(proposal.projectName),
+      enabled: isPending && isMaintainer,
     },
     queryClient,
   ).data;
@@ -72,6 +83,13 @@ const ProposalActions = ({
     const timer = setTimeout(() => setNow(Date.now()), wait);
     return () => clearTimeout(timer);
   }, [executableAt, now]);
+  const early = earlyExecution(
+    proposal,
+    maintainers,
+    threshold,
+    executableAt,
+    now,
+  );
 
   const vote = async () => {
     if (!address) {
@@ -116,17 +134,26 @@ const ProposalActions = ({
       {isMaintainer && isPending && (
         <Card className="flex flex-col gap-3">
           <Eyebrow>Maintainer tools</Eyebrow>
-          {proposal.status === "voted" &&
+          {early ? (
+            <>
+              <Button block onClick={() => onExecute(early)}>
+                Execute proposal
+              </Button>
+              <EarlyExecutionNotice early={early} />
+            </>
+          ) : (
+            proposal.status === "voted" &&
             executableAt !== undefined &&
             (executableAt <= now ? (
-              <Button block onClick={onExecute}>
+              <Button block onClick={() => onExecute(null)}>
                 Execute proposal
               </Button>
             ) : (
               <p className="text-small text-ink-muted">
                 Can be executed from {new Date(executableAt).toLocaleString()}
               </p>
-            ))}
+            ))
+          )}
           {/* Votes can be removed until the proposal is executed. */}
           <div className="-ml-3 flex flex-wrap gap-1">
             <Button tone="ghost" size="sm" onClick={() => setShown("remove")}>

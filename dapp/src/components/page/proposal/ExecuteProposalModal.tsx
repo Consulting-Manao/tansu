@@ -14,10 +14,16 @@ import {
   Title,
   toast,
 } from "components/ui";
-import type { Proposal, ProposalOutcome, VoteStatus } from "types/proposal";
+import type {
+  EarlyExecution,
+  Proposal,
+  ProposalOutcome,
+  VoteStatus,
+} from "types/proposal";
 import { OUTCOMES, winningOutcome } from "utils/proposalOutcomes";
 import { connectedPublicKey } from "utils/store";
 import { KeyFileField, TallyResult } from "./AnonymousTallyParts";
+import EarlyExecutionNotice from "./EarlyExecutionNotice";
 import RegistryCheck from "./RegistryCheck";
 import { useAnonymousTally } from "./useAnonymousTally";
 import VotingResult from "./VotingResult";
@@ -29,6 +35,8 @@ interface ExecuteProposalModalProps {
   proposal: Proposal | undefined;
   outcome: ProposalOutcome | null;
   voteStatus: VoteStatus | undefined;
+  /** Set when it is executed before its normal time. */
+  early: EarlyExecution | null;
 }
 
 /** A step: its illustration, the step bar, the title, then its body. */
@@ -67,8 +75,9 @@ const Step = ({
 );
 
 /**
- * For maintainers, once the vote ended: count it (an anonymous vote from the
- * key file, in the browser), review the outcome and its call, and execute.
+ * For maintainers, once the vote ended or enough maintainers voted: count it
+ * (an anonymous vote from the key file, in the browser), review the outcome
+ * and its call, and execute.
  */
 const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   projectName,
@@ -76,6 +85,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
   proposal,
   outcome,
   voteStatus,
+  early,
   onClose,
 }) => {
   const isAnonymous = proposal ? !proposal.publicVoting : false;
@@ -163,6 +173,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           }
           actions={cancel}
         >
+          {early && <EarlyExecutionNotice early={early} />}
           <KeyFileField tally={tally} onCounted={() => setStep(2)} />
         </Step>
       ) : step === 2 && isAnonymous ? (
@@ -199,7 +210,11 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
           step={1}
           totalSteps={totalSteps}
           title="Finalizing the Vote"
-          description="The voting period has ended. Now, we need to count the votes and determine the final outcome."
+          description={
+            early
+              ? "Now, we need to count the votes and determine the final outcome."
+              : "The voting period has ended. Now, we need to count the votes and determine the final outcome."
+          }
           actions={
             <>
               {cancel}
@@ -218,6 +233,7 @@ const ExecuteProposalModal: React.FC<ExecuteProposalModalProps> = ({
             </>
           }
         >
+          {early && <EarlyExecutionNotice early={early} />}
           <VotingResult voteStatus={shownStatus} withDetail />
         </Step>
       ) : (

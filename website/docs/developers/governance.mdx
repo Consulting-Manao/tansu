@@ -77,21 +77,30 @@ The contract enforces strict voting deadlines:
 
 - Votes can only be cast **before** the `voting_ends_at` timestamp
 - Attempts to vote after the deadline will be rejected
-- Only maintainers can execute proposals, once the voting period has ended **and** the execution delay has passed (24 hours by default)
+- Only maintainers can execute proposals, once the voting period has ended **and** the execution delay has passed (24 hours by default), or earlier once enough maintainers voted, see [Early execution](#early-execution)
 - Voting periods must end between the project's minimum voting period (1 day by default) and 30 days from creation. On a project with an NQG contract, keep them within the contract's power hold (7 days with stellar-membership), see [NQG contract weight](./membership.mdx#nqg-contract-weight)
-- Ballots live until **14 days after the earliest execution** (`voting_ends_at` plus the execution delay), then the network deletes them
+- Ballots live until **14 days after the normal execution time** (`voting_ends_at` plus the execution delay), then the network deletes them
 
 Both durations can be changed per project, see [Project governance settings](#project-governance-settings).
 
 ### Ballot lifetime
 
-Each ballot is a temporary ledger entry. The voter pays its rent only until 14 days after the proposal can first be executed, which keeps a vote cheap (about 0.04 XLM on mainnet for a 7-day vote, against 0.48 XLM for a persistent entry, whose minimum lifetime is 120 days). The proposal, its list of voters and its tallies stay persistent.
+Each ballot is a temporary ledger entry. The voter pays its rent only until 14 days after the proposal's normal execution time, which keeps a vote cheap (about 0.04 XLM on mainnet for a 7-day vote, against 0.48 XLM for a persistent entry, whose minimum lifetime is 120 days). The proposal, its list of voters and its tallies stay persistent.
 
 Once a ballot expires it is deleted, not archived, and cannot be restored:
 
 - `get_proposal` no longer lists it, `remove_vote` reports `VoteNotFound`, and `proof`, which sums the individual ballots, no longer matches.
 - `execute` is unaffected: it checks the revealed tally against the persistent aggregate. But an anonymous tally is decrypted from the ballots, so execute an anonymous proposal before they expire.
 - Anyone can extend a ballot before it expires, with `stellar contract extend --durability temporary --key-xdr <ballot key>`.
+
+### Early execution
+
+A maintainer can execute a proposal before `voting_ends_at` plus the execution delay, even while the vote runs, once the project's finality threshold of its maintainers voted on it:
+
+- The rule is `voted × 100 ≥ maintainers × attestation_threshold`, where `voted` counts the **current** maintainers that hold a ballot on the proposal. With the default threshold of 66%, that is two of two maintainers, two of three, or one of one.
+- Only maintainers count, whatever the choice they voted and whatever the proposal's weights (badges, NQG contract or token). `execute` checks it when it is called: a maintainer removed from the project, or a ballot removed with `remove_vote`, stops counting.
+- There is no waiting time after the quorum, and executing ends the vote for everyone who has not voted. A maintainer can still `veto` until the proposal is executed.
+- The proposer's automatic abstain ballot counts like any other. Since a proposer cannot vote again, a maintainer who wants their vote to count proposes from another account. In a project with a single maintainer, a proposal that maintainer creates can be executed at once; with only that abstain ballot, it ends `Cancelled`.
 
 ## Project governance settings
 

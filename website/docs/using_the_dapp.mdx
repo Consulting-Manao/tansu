@@ -71,7 +71,7 @@ Maintainers can mark addresses as conflicted under **Conflict of Interest**, whi
 
 ## 8. Execute
 
-After the voting window closes and the project's execution delay (24 hours by default) has passed, any maintainer can press **Execute Proposal**. If the proposal includes outcome contracts, the contract matching the result index is invoked (Approved = index 0, Rejected = index 1, Cancelled = index 2). A contract picked by its Stellar Registry name is looked up again first, and the maintainer is warned if the name now points elsewhere.
+After the voting window closes and the project's execution delay (24 hours by default) has passed, any maintainer can press **Execute Proposal**. It shows earlier, with a warning, once enough of the project's maintainers voted (two thirds by default, the project's finality threshold): executing then ends the vote for everyone who has not voted yet. See [Early execution](./developers/governance.mdx#early-execution). If the proposal includes outcome contracts, the contract matching the result index is invoked (Approved = index 0, Rejected = index 1, Cancelled = index 2). A contract picked by its Stellar Registry name is looked up again first, and the maintainer is warned if the name now points elsewhere.
 
 ## Install the app
 

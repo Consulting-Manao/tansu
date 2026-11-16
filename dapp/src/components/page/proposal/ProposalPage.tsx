@@ -14,7 +14,11 @@ import { projectNameFromUrl, proposalIdFromUrl } from "utils/urls";
 import { withErrorBoundary } from "components/utils/ErrorBoundary";
 import { Loading } from "components/ui";
 import React, { useEffect, useState } from "react";
-import type { ProposalOutcome, ProposalView } from "types/proposal";
+import type {
+  EarlyExecution,
+  ProposalOutcome,
+  ProposalView,
+} from "types/proposal";
 import { connectedPublicKey } from "utils/store";
 import {
   hasUserVoted,
@@ -33,8 +37,10 @@ const ProposalPage: React.FC = () => {
   const projectName = projectNameFromUrl();
   const connectedAddress = useStore(connectedPublicKey);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
-  const [isExecuteProposalModalOpen, setIsExecuteProposalModalOpen] =
-    useState(false);
+  // Open with what Execute was shown with: early, or not.
+  const [executing, setExecuting] = useState<{
+    early: EarlyExecution | null;
+  } | null>(null);
   const [description, setDescription] = useState("");
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [discussion, setDiscussion] = useState<string | null>(null);
@@ -147,7 +153,7 @@ const ProposalPage: React.FC = () => {
           proposal={proposal}
           maintainers={projectMaintainers}
           onVote={() => setIsVotingModalOpen(true)}
-          onExecute={() => setIsExecuteProposalModalOpen(true)}
+          onExecute={(early) => setExecuting({ early })}
         />
       </div>
       {isVotingModalOpen && (
@@ -159,14 +165,15 @@ const ProposalPage: React.FC = () => {
           onClose={() => setIsVotingModalOpen(false)}
         />
       )}
-      {isExecuteProposalModalOpen && (
+      {executing && (
         <ExecuteProposalModal
           projectName={projectName}
           proposalId={id}
           proposal={appProposal || undefined}
           outcome={outcome}
           voteStatus={proposal.voteStatus}
-          onClose={() => setIsExecuteProposalModalOpen(false)}
+          early={executing.early}
+          onClose={() => setExecuting(null)}
         />
       )}
     </div>

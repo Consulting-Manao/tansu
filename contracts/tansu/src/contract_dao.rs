@@ -1,7 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
-    DaoTrait, MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, errors, events, types,
+    DaoTrait, MembershipTrait, Tansu, TansuArgs, TansuClient, TansuTrait, VersioningTrait, errors,
+    events, types,
 };
 use soroban_sdk::crypto::bls12_381::{Bls12381Fr, Bls12381G1Affine};
 use soroban_sdk::{
@@ -855,30 +856,27 @@ impl DaoTrait for Tansu {
         .publish(&env);
     }
 
-    /// Execute a vote after the voting period ends.
+    /// Execute a proposal once its vote and execute delay passed, or earlier,
+    /// even while the vote runs, once the attestation threshold (percent) of
+    /// the project's current maintainers have a ballot on it.
     ///
-    /// Processes the voting results and determines the final status of the proposal.
-    /// For public votes, the results are calculated directly from vote counts.
-    /// For anonymous votes, tallies and seeds are validated against vote commitments
-    /// to ensure the results are correct.
+    /// Public votes are counted from the tallies; for anonymous votes, the
+    /// revealed tallies and seeds are checked against the commitments.
     ///
     /// # Arguments
-    /// * `env` - The environment object
-    /// * `maintainer` - The address of the maintainer executing the proposal
+    /// * `maintainer` - The maintainer executing the proposal
     /// * `project_key` - The project key identifier
-    /// * `proposal_id` - The ID of the proposal to execute
-    /// * [`Option<tallies>`] - decoded tally values (scaled by weights), respectively Approve, reject and abstain
-    /// * [`Option<seeds>`] - decoded seed values (scaled by weights, modulo the group order), respectively Approve, reject and abstain
+    /// * `proposal_id` - The ID of the proposal
+    /// * `tallies` - Anonymous votes: decoded tallies (scaled by weights): approve, reject, abstain
+    /// * `seeds` - Anonymous votes: decoded seeds (scaled by weights, modulo the group order)
     ///
     /// # Returns
-    /// * `types::ProposalStatus` - The final status of the proposal (Approved, Rejected, or Cancelled)
+    /// * `types::ProposalStatus` - Approved, Rejected or Cancelled
     ///
     /// # Panics
-    /// * If the voting period hasn't ended
-    /// * If the proposal doesn't exist
-    /// * If the proposal is not active anymore
-    /// * If tallies/seeds are missing for anonymous votes
-    /// * If commitment validation fails for anonymous votes
+    /// * If it is too early (see above)
+    /// * If the proposal doesn't exist or is not active anymore
+    /// * If tallies/seeds are missing or do not match the commitments
     /// * If the maintainer is not authorized
     fn execute(
         env: Env,
@@ -903,7 +901,28 @@ impl DaoTrait for Tansu {
             < proposal.vote_data.voting_ends_at
                 + proposal_execute_delay(&env, &project_key, proposal_id)
         {
-            panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
+            // Early: the attestation threshold of the current maintainers
+            // has a ballot on the proposal.
+            let maintainers =
+                <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone())
+                    .maintainers;
+            let voted = maintainers
+                .iter()
+                .filter(|m| {
+                    env.storage().temporary().has(&types::ProjectKey::Vote(
+                        project_key.clone(),
+                        proposal_id,
+                        m.clone(),
+                    ))
+                })
+                .count() as u32;
+            let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
+                env.clone(),
+                project_key.clone(),
+            );
+            if voted * 100 < maintainers.len() * threshold {
+                panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
+            }
         }
 
         refund_collateral(&env, &proposal.proposer);
