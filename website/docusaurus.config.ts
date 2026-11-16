@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
@@ -61,6 +62,28 @@ const config: Config = {
   ],
 
   themes: ["@docusaurus/theme-mermaid"],
+
+  plugins: [
+    // RFC 9116; the dApp writes the same (dapp/astro.config.mjs).
+    // Expires must stay under a year away: each deploy renews it.
+    () => ({
+      name: "security-txt",
+      async postBuild({ outDir }) {
+        await mkdir(`${outDir}/.well-known`, { recursive: true });
+        await writeFile(
+          `${outDir}/.well-known/security.txt`,
+          [
+            "Contact: mailto:legal@consulting-manao.com?subject=SECURITY",
+            `Expires: ${new Date(Date.now() + 360 * 86_400_000).toISOString()}`,
+            "Preferred-Languages: en, de",
+            "Canonical: https://tansu.dev/.well-known/security.txt",
+            "Policy: https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s/tree/SECURITY.md",
+            "",
+          ].join("\n"),
+        );
+      },
+    }),
+  ],
 
   themeConfig: {
     image: "img/social-card.png",

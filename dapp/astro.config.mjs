@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
@@ -31,6 +31,19 @@ function serviceWorker() {
         await writeFile(
           `${root}version.json`,
           JSON.stringify({ build: BUILD }),
+        );
+        // RFC 9116; the website writes the same (website/docusaurus.config.ts).
+        // Expires must stay under a year away: each deploy renews it.
+        await mkdir(`${root}.well-known`, { recursive: true });
+        await writeFile(
+          `${root}.well-known/security.txt`,
+          [
+            "Contact: mailto:legal@consulting-manao.com?subject=SECURITY",
+            `Expires: ${new Date(Date.now() + 360 * 86_400_000).toISOString()}`,
+            "Preferred-Languages: en, de",
+            "Policy: https://radicle.network/nodes/radicle.consulting-manao.com/rad%3AzssaAF91kxuquZmZCV2SiK2FNX6s/tree/SECURITY.md",
+            "",
+          ].join("\n"),
         );
         await stampPreloads(root);
         const stamp = await deployStamp(root);

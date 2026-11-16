@@ -82,3 +82,17 @@ test("the fonts keep their OpenType features", async ({ page }) => {
   expect(widths.oldstyle).not.toBe(widths.lining);
   expect(widths.tabular).toBeGreaterThan(widths.proportional);
 });
+
+// RFC 9116: each build writes the contact with an expiry under a year away.
+test("the build serves a security contact", async ({ request }) => {
+  const response = await request.get("/.well-known/security.txt");
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toMatch(/^text\/plain/);
+  const text = await response.text();
+  expect(text).toContain(
+    "Contact: mailto:legal@consulting-manao.com?subject=SECURITY",
+  );
+  const expires = Date.parse(/^Expires: (.+)$/m.exec(text)?.[1] ?? "");
+  expect(expires).toBeGreaterThan(Date.now());
+  expect(expires).toBeLessThan(Date.now() + 365 * 86_400_000);
+});

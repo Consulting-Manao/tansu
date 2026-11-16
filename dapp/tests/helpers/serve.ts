@@ -23,6 +23,7 @@ const types: Record<string, string> = {
   ".md": "text/markdown",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".txt": "text/plain",
   ".wasm": "application/wasm",
   ".webmanifest": "application/manifest+json",
 };
