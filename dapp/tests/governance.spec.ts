@@ -1,4 +1,4 @@
-import { Badge } from "../packages/tansu/src/index.ts";
+import { Badge, type Vote } from "../packages/tansu/src/index.ts";
 import { expect, test } from "./helpers/app";
 import {
   castVote,
@@ -159,4 +159,67 @@ test("propose, vote, remove a vote, revoke, veto and execute", async ({
       timeout: 120_000,
     })
     .toBe("Approved");
+});
+
+test("a maintainer quorum executes a proposal while its vote runs", async ({
+  page,
+  wallet,
+}) => {
+  test.setTimeout(300_000);
+  const name = uniqueName("quorum");
+  const [second, proposer] = await Promise.all([
+    fundedKeypair(),
+    fundedKeypair(),
+  ]);
+  await registerProject(name, [wallet, second], {
+    minVotingPeriod: 30,
+    executeDelay: 1,
+  });
+  // An outsider proposes, for an hour: both maintainers' votes count, and
+  // two of two reach the default threshold of 66%.
+  const id = await createProposal(
+    proposer,
+    name,
+    "Adopt a release checklist",
+    3600,
+  );
+  for (const maintainer of [wallet, second]) {
+    const approve: Vote = {
+      tag: "PublicVote",
+      values: [
+        {
+          address: maintainer.publicKey(),
+          weight: 1,
+          vote_choice: { tag: "Approve", values: undefined },
+        },
+      ],
+    };
+    await castVote(maintainer, name, id, approve);
+  }
+
+  await page.goto("/");
+  await connectWallet(page);
+  await page.goto(`/proposal/?id=${id}&name=${name}`);
+  await expect(page.getByText("Open now: maintainer quorum")).toBeVisible();
+  await expect(
+    page.getByText("2 of 2 maintainers have voted, so this proposal can"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Execute proposal" }).click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByText("Executing ends the vote for everyone who has not voted yet."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("button", { name: "Execute Transaction" }).click();
+  await expect
+    .poll(async () => (await read.proposal(name, id))?.status.tag, {
+      timeout: 120_000,
+    })
+    .toBe("Approved");
+  // Executed before its vote ended.
+  const endsAt = Number(
+    (await read.proposal(name, id))!.vote_data.voting_ends_at,
+  );
+  expect(Date.now() / 1000).toBeLessThan(endsAt);
 });

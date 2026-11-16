@@ -52,6 +52,17 @@ export enum VoteType {
   CANCEL = "abstain",
 }
 
+/** A pending proposal a maintainer can execute before its normal time. */
+export interface EarlyExecution {
+  /** The current maintainers who voted, and how many there are. */
+  voted: number;
+  total: number;
+  /** When it could be executed without them, in ms. */
+  executableAt: number;
+  /** Whether its vote still runs: executing ends it. */
+  running: boolean;
+}
+
 export interface VoteStatus {
   approve: VoteData;
   reject: VoteData;

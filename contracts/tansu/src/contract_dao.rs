@@ -372,24 +372,6 @@ impl DaoTrait for Tansu {
         }
         let execute_delay = delay_override.unwrap_or(types::TIMELOCK_DELAY);
 
-        // Snapshot maintainers and required maintainer quorum count at proposal creation
-        // so changes to maintainers during voting do not alter the quorum threshold
-        // or allow unauthorized votes/removals.
-        let project = <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone());
-        let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
-            env.clone(),
-            project_key.clone(),
-        );
-        let required_quorum = (project.maintainers.len() * threshold).div_ceil(100);
-        env.storage().persistent().set(
-            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
-            &project.maintainers,
-        );
-        env.storage().persistent().set(
-            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
-            &required_quorum,
-        );
-
         set_ballot(
             &env,
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, proposer.clone()),
@@ -498,34 +480,6 @@ impl DaoTrait for Tansu {
             env.storage()
                 .persistent()
                 .set(&key, &default_votes.saturating_sub(1));
-        }
-
-        let snapshot_maintainers: Option<Vec<Address>> = env.storage().persistent().get(
-            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
-        );
-        let required_quorum: Option<u32> = env.storage().persistent().get(
-            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
-        );
-        if let (Some(maintainers), Some(required_quorum)) = (snapshot_maintainers, required_quorum) {
-            if maintainers.contains(&voter) {
-                let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
-                let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
-                let new_m_votes = m_votes.saturating_sub(1);
-                if new_m_votes > 0 {
-                    env.storage().persistent().set(&m_key, &new_m_votes);
-                } else {
-                    env.storage().persistent().remove(&m_key);
-                }
-
-                if new_m_votes < required_quorum {
-                    env.storage()
-                        .persistent()
-                        .remove(&types::ProjectKey::QuorumReachedAt(
-                            project_key.clone(),
-                            proposal_id,
-                        ));
-                }
-            }
         }
 
         // Remove voter from the voters list
@@ -643,22 +597,6 @@ impl DaoTrait for Tansu {
             proposal_id,
         ));
         storage.remove(&types::ProjectKey::DefaultVotes(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::MaintainerVotes(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::QuorumReachedAt(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::ProposalMaintainers(
-            project_key.clone(),
-            proposal_id,
-        ));
-        storage.remove(&types::ProjectKey::ProposalQuorumCount(
             project_key.clone(),
             proposal_id,
         ));
@@ -882,33 +820,6 @@ impl DaoTrait for Tansu {
             }
         }
 
-        let snapshot_maintainers: Option<Vec<Address>> = env.storage().persistent().get(
-            &types::ProjectKey::ProposalMaintainers(project_key.clone(), proposal_id),
-        );
-        let required_quorum: Option<u32> = env.storage().persistent().get(
-            &types::ProjectKey::ProposalQuorumCount(project_key.clone(), proposal_id),
-        );
-        if let (Some(maintainers), Some(required_quorum)) = (snapshot_maintainers, required_quorum) {
-            if maintainers.contains(&voter) {
-                let m_key = types::ProjectKey::MaintainerVotes(project_key.clone(), proposal_id);
-                let m_votes: u32 = env.storage().persistent().get(&m_key).unwrap_or(0);
-                let new_m_votes = m_votes + 1;
-                env.storage().persistent().set(&m_key, &new_m_votes);
-
-                let quorum_key = types::ProjectKey::QuorumReachedAt(project_key.clone(), proposal_id);
-                if new_m_votes >= required_quorum && !env.storage().persistent().has(&quorum_key) {
-                    let quorum_time = curr_timestamp;
-                    env.storage().persistent().set(&quorum_key, &quorum_time);
-                    events::ProposalQuorumReached {
-                        project_key: project_key.clone(),
-                        proposal_id,
-                        quorum_reached_at: quorum_time,
-                    }
-                    .publish(&env);
-                }
-            }
-        }
-
         // Record the vote as a temporary entry, paid until BALLOT_GRACE after
         // the earliest execution. The network then deletes it: the tallies
         // stay, but the ballot can no longer be read, removed or used by
@@ -945,33 +856,27 @@ impl DaoTrait for Tansu {
         .publish(&env);
     }
 
-    /// Execute a vote once unlocked.
+    /// Execute a proposal once its vote and execute delay passed, or earlier,
+    /// even while the vote runs, once the attestation threshold (percent) of
+    /// the project's current maintainers have a ballot on it.
     ///
-    /// Processes the voting results and determines the final status of the proposal.
-    /// Execution unlocks after the voting period ends plus the proposal's execution
-    /// delay, or earlier if a maintainer quorum was reached: in that case, execution
-    /// unlocks at min(voting_ends_at + execute_delay, quorum_reached_at + execute_delay / 2).
-    /// For public votes, the results are calculated directly from vote counts.
-    /// For anonymous votes, tallies and seeds are validated against vote commitments
-    /// to ensure the results are correct.
+    /// Public votes are counted from the tallies; for anonymous votes, the
+    /// revealed tallies and seeds are checked against the commitments.
     ///
     /// # Arguments
-    /// * `env` - The environment object
-    /// * `maintainer` - The address of the maintainer executing the proposal
+    /// * `maintainer` - The maintainer executing the proposal
     /// * `project_key` - The project key identifier
-    /// * `proposal_id` - The ID of the proposal to execute
-    /// * [`Option<tallies>`] - decoded tally values (scaled by weights), respectively Approve, reject and abstain
-    /// * [`Option<seeds>`] - decoded seed values (scaled by weights, modulo the group order), respectively Approve, reject and abstain
+    /// * `proposal_id` - The ID of the proposal
+    /// * `tallies` - Anonymous votes: decoded tallies (scaled by weights): approve, reject, abstain
+    /// * `seeds` - Anonymous votes: decoded seeds (scaled by weights, modulo the group order)
     ///
     /// # Returns
-    /// * `types::ProposalStatus` - The final status of the proposal (Approved, Rejected, or Cancelled)
+    /// * `types::ProposalStatus` - Approved, Rejected or Cancelled
     ///
     /// # Panics
-    /// * If the voting period hasn't ended
-    /// * If the proposal doesn't exist
-    /// * If the proposal is not active anymore
-    /// * If tallies/seeds are missing for anonymous votes
-    /// * If commitment validation fails for anonymous votes
+    /// * If it is too early (see above)
+    /// * If the proposal doesn't exist or is not active anymore
+    /// * If tallies/seeds are missing or do not match the commitments
     /// * If the maintainer is not authorized
     fn execute(
         env: Env,
@@ -992,8 +897,32 @@ impl DaoTrait for Tansu {
         if proposal.status != types::ProposalStatus::Active {
             panic_with_error!(&env, &errors::ContractErrors::ProposalActive);
         }
-        if curr_timestamp < earliest_executable_at(&env, &project_key, &proposal) {
-            panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
+        if curr_timestamp
+            < proposal.vote_data.voting_ends_at
+                + proposal_execute_delay(&env, &project_key, proposal_id)
+        {
+            // Early: the attestation threshold of the current maintainers
+            // has a ballot on the proposal.
+            let maintainers =
+                <Tansu as VersioningTrait>::get_project(env.clone(), project_key.clone())
+                    .maintainers;
+            let voted = maintainers
+                .iter()
+                .filter(|m| {
+                    env.storage().temporary().has(&types::ProjectKey::Vote(
+                        project_key.clone(),
+                        proposal_id,
+                        m.clone(),
+                    ))
+                })
+                .count() as u32;
+            let threshold = <Tansu as VersioningTrait>::get_attestation_threshold(
+                env.clone(),
+                project_key.clone(),
+            );
+            if voted * 100 < maintainers.len() * threshold {
+                panic_with_error!(&env, &errors::ContractErrors::ProposalVotingTime);
+            }
         }
 
         refund_collateral(&env, &proposal.proposer);
@@ -1474,28 +1403,6 @@ pub(crate) fn promote_pending_governance(env: &Env, project_key: &Bytes) {
             pending.execute_delay,
         );
         storage.remove(&pending_key);
-    }
-}
-
-/// Earliest time a proposal can be executed:
-/// either when voting ends + execute delay, or, if a maintainer quorum was reached,
-/// the earlier of (voting_ends_at + execute_delay, quorum_reached_at + execute_delay / 2).
-fn earliest_executable_at(env: &Env, project_key: &Bytes, proposal: &types::Proposal) -> u64 {
-    let delay = proposal_execute_delay(env, project_key, proposal.id);
-    let normal_end = proposal.vote_data.voting_ends_at.saturating_add(delay);
-    let quorum_time: Option<u64> =
-        env.storage()
-            .persistent()
-            .get(&types::ProjectKey::QuorumReachedAt(
-                project_key.clone(),
-                proposal.id,
-            ));
-    match quorum_time {
-        Some(reached_at) => {
-            let early_end = reached_at.saturating_add(delay / 2);
-            normal_end.min(early_end)
-        }
-        None => normal_end,
     }
 }
 

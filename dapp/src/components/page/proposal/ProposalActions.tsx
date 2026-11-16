@@ -1,19 +1,17 @@
 import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { thresholdQuery } from "@service/AttestationService";
 import { votingPowerQuery } from "@service/MemberService";
-import {
-  executeDelayQuery,
-  quorumReachedAtQuery,
-} from "@service/ProposalService";
-import { Notice } from "components/ui";
+import { executeDelayQuery } from "@service/ProposalService";
 import { queryClient } from "@service/queryClient";
 import { connect } from "@service/walletService";
 import { Button, Card, LinkButton } from "components/ui";
-import type { ProposalView } from "types/proposal";
+import type { EarlyExecution, ProposalView } from "types/proposal";
 import { connectedPublicKey } from "utils/store";
-import { hasUserVoted } from "utils/utils";
+import { earlyExecution, hasUserVoted } from "utils/utils";
 import ConflictOfInterestModal from "./ConflictOfInterestModal";
+import EarlyExecutionNotice from "./EarlyExecutionNotice";
 import MarkMaliciousModal from "./MarkMaliciousModal";
 import RemoveVoteModal from "./RemoveVoteModal";
 import VetoProposalModal from "./VetoProposalModal";
@@ -27,8 +25,9 @@ const Eyebrow = ({ children }: { children: string }) => (
 /**
  * What the connected member can do with a proposal: vote while it runs
  * (Vote alone stands out; the wallet picker comes first without a wallet),
- * and, for its maintainers, execute it once its delay passed, remove a
- * ballot, revoke it (spam) or veto it, as quieter text actions.
+ * and, for its maintainers, execute it once its delay passed (or earlier,
+ * with a warning, once enough maintainers voted), remove a ballot, revoke
+ * it (spam) or veto it, as quieter text actions.
  */
 const ProposalActions = ({
   proposal,
@@ -39,7 +38,7 @@ const ProposalActions = ({
   proposal: ProposalView;
   maintainers: string[];
   onVote: () => void;
-  onExecute: () => void;
+  onExecute: (early: EarlyExecution | null) => void;
 }) => {
   const address = useStore(connectedPublicKey);
   const [shown, setShown] = useState<
@@ -58,7 +57,8 @@ const ProposalActions = ({
     },
     queryClient,
   ).data;
-  // A vote can be executed once its execute delay has passed or maintainer quorum was reached.
+  // A vote can be executed once its execute delay has passed too, or
+  // earlier once enough maintainers voted.
   const delay = useQuery(
     {
       ...executeDelayQuery(proposal.projectName, proposal.id),
@@ -66,33 +66,15 @@ const ProposalActions = ({
     },
     queryClient,
   ).data;
-  const quorumReachedAt = useQuery(
+  const threshold = useQuery(
     {
-      ...quorumReachedAtQuery(proposal.projectName, proposal.id),
+      ...thresholdQuery(proposal.projectName),
       enabled: isPending && isMaintainer,
     },
     queryClient,
   ).data;
-
-  const normalExecutableAt =
-    delay === undefined ? undefined : (proposal.endDate + delay) * 1000;
-  const earlyExecutableAt =
-    delay === undefined || !quorumReachedAt
-      ? undefined
-      : (quorumReachedAt + Math.floor(delay / 2)) * 1000;
-
   const executableAt =
-    normalExecutableAt === undefined
-      ? undefined
-      : earlyExecutableAt !== undefined
-        ? Math.min(normalExecutableAt, earlyExecutableAt)
-        : normalExecutableAt;
-
-  const isEarly =
-    executableAt !== undefined &&
-    normalExecutableAt !== undefined &&
-    executableAt < normalExecutableAt &&
-    executableAt <= Date.now();
+    delay === undefined ? undefined : (proposal.endDate + delay) * 1000;
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (executableAt === undefined || executableAt <= now) return;
@@ -101,6 +83,13 @@ const ProposalActions = ({
     const timer = setTimeout(() => setNow(Date.now()), wait);
     return () => clearTimeout(timer);
   }, [executableAt, now]);
+  const early = earlyExecution(
+    proposal,
+    maintainers,
+    threshold,
+    executableAt,
+    now,
+  );
 
   const vote = async () => {
     if (!address) {
@@ -145,49 +134,26 @@ const ProposalActions = ({
       {isMaintainer && isPending && (
         <Card className="flex flex-col gap-3">
           <Eyebrow>Maintainer tools</Eyebrow>
-          {executableAt !== undefined &&
+          {early ? (
+            <>
+              <Button block onClick={() => onExecute(early)}>
+                Execute proposal
+              </Button>
+              <EarlyExecutionNotice early={early} />
+            </>
+          ) : (
+            proposal.status === "voted" &&
+            executableAt !== undefined &&
             (executableAt <= now ? (
-              <div className="flex flex-col gap-2">
-                <Button block onClick={onExecute}>
-                  Execute proposal
-                </Button>
-                {isEarly && (
-                  <Notice tone="warning">
-                    {proposal.endDate * 1000 > now ? (
-                      <>
-                        Voting is still open (ends{" "}
-                        {new Date(proposal.endDate * 1000).toLocaleString()}),
-                        but execution was unlocked early because maintainer
-                        quorum was reached.
-                        {normalExecutableAt !== undefined && (
-                          <>
-                            {" "}
-                            Normal execution would have been from{" "}
-                            {new Date(normalExecutableAt).toLocaleString()}.
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        Early execution unlocked because maintainer quorum was
-                        reached.
-                        {normalExecutableAt !== undefined && (
-                          <>
-                            {" "}
-                            Normal execution would have been from{" "}
-                            {new Date(normalExecutableAt).toLocaleString()}.
-                          </>
-                        )}
-                      </>
-                    )}
-                  </Notice>
-                )}
-              </div>
+              <Button block onClick={() => onExecute(null)}>
+                Execute proposal
+              </Button>
             ) : (
               <p className="text-small text-ink-muted">
                 Can be executed from {new Date(executableAt).toLocaleString()}
               </p>
-            ))}
+            ))
+          )}
           {/* Votes can be removed until the proposal is executed. */}
           <div className="-ml-3 flex flex-wrap gap-1">
             <Button tone="ghost" size="sm" onClick={() => setShown("remove")}>

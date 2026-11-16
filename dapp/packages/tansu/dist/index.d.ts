@@ -462,29 +462,28 @@ export interface Client {
   ) => Promise<AssembledTransaction<boolean>>;
   /**
    * Construct and simulate a execute transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Execute a vote after the voting period ends.
+   * Execute a proposal once its vote and execute delay passed, or earlier,
+   * even while the vote runs, once the attestation threshold (percent) of
+   * the project's current maintainers have a ballot on it.
    *
-   * Processes the voting results and determines the final status of the proposal.
-   * For public votes, the results are calculated directly from vote counts.
-   * For anonymous votes, tallies and seeds are validated against vote commitments
-   * to ensure the results are correct.
+   * Public votes are counted from the tallies; for anonymous votes, the
+   * revealed tallies and seeds are checked against the commitments.
    *
    * # Arguments
-   * * `env` - The environment object
-   * * `maintainer` - The address of the maintainer executing the proposal
+   * * `maintainer` - The maintainer executing the proposal
    * * `project_key` - The project key identifier
-   * * `proposal_id` - The ID of the proposal to execute
-   * * [`Option<tallies>`] - decoded tally values (scaled by weights), respectively Approve, reject and abstain
-   * * [`Option<seeds>`] - decoded seed values (scaled by weights, modulo the group order), respectively Approve, reject and abstain
+   * * `proposal_id` - The ID of the proposal
+   * * `tallies` - Anonymous votes: decoded tallies (scaled by weights): approve, reject, abstain
+   * * `seeds` - Anonymous votes: decoded seeds (scaled by weights, modulo the group order)
    *
    * # Returns
-   * * `types::ProposalStatus` - The final status of the proposal (Approved, Rejected, or Cancelled)
+   * * `types::ProposalStatus` - Approved, Rejected or Cancelled
    *
    * # Panics
-   * * If the voting period hasn't ended
-   * * If the proposal doesn't exist
-   * * If the proposal is not active anymore
-   * * If tallies/seeds are missing for anonymo
+   * * If it is too early (see above)
+   * * If the proposal doesn't exist or is not active anymore
+   * * If tallies/seeds are missing or do not match the commitments
+   * * If the maintainer is not authorized
    */
   execute: (
     {

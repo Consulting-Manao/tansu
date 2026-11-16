@@ -12,7 +12,7 @@ use crate::{
 };
 use soroban_sdk::testutils::{Address as _, Events, Ledger, storage::Temporary as _};
 use soroban_sdk::{
-    Address, BytesN, Env, Event, IntoVal, String, Symbol, U256, contract, contractimpl, token, vec,
+    Address, BytesN, Env, Event, IntoVal, String, Symbol, contract, contractimpl, vec,
 };
 
 #[contract]
@@ -491,6 +491,14 @@ fn voting_errors() {
         .unwrap();
     assert_eq!(error, ContractErrors::BadCommitment.into());
 
+    // Too early to execute: one maintainer of two holds a ballot
+    let err = setup
+        .contract
+        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
     // Vote successfully with another user
     setup.contract.vote(
         &setup.mando,
@@ -550,14 +558,6 @@ fn voting_errors() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::NoProposalorPageFound.into());
-
-    // Too early to execute
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 
     // advance time to allow execution
     setup
@@ -1754,6 +1754,10 @@ fn execute_delay_override_applies_to_execute() {
     // A project with a per-project execute delay of 60s should allow execute()
     // 60s past voting_ends_at, even though TIMELOCK_DELAY is 24h.
     let setup = create_test_data();
+    // An outsider proposes: one maintainer's vote is not a quorum, so the
+    // execute delay applies.
+    let proposer = Address::generate(&setup.env);
+    setup.token_stellar.mint(&proposer, &(100 * 10_000_000));
 
     let name = String::from_str(&setup.env, "fastdao");
     let url = String::from_str(&setup.env, "github.com/fastdao");
@@ -1783,7 +1787,7 @@ fn execute_delay_override_applies_to_execute() {
     );
     let voting_ends_at = setup.env.ledger().timestamp() + 2 * 24 * 3600;
     let proposal_id = setup.contract.create_proposal(
-        &setup.grogu,
+        &proposer,
         &id,
         &title,
         &prop_ipfs,
@@ -1940,6 +1944,10 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
     // Changing the project delay after a proposal is created must not change
     // that proposal's timelock; only proposals created afterwards see it.
     let setup = create_test_data();
+    // An outsider proposes: one maintainer's vote is not a quorum, so the
+    // execute delay applies.
+    let proposer = Address::generate(&setup.env);
+    setup.token_stellar.mint(&proposer, &(100 * 10_000_000));
 
     let name = String::from_str(&setup.env, "fastdao");
     let url = String::from_str(&setup.env, "github.com/fastdao");
@@ -1969,7 +1977,7 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
     );
     let voting_ends_at = setup.env.ledger().timestamp() + 2 * 24 * 3600;
     let proposal_a = setup.contract.create_proposal(
-        &setup.grogu,
+        &proposer,
         &id,
         &title,
         &prop_ipfs,
@@ -1992,7 +2000,7 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
         &None,
     );
     let proposal_b = setup.contract.create_proposal(
-        &setup.grogu,
+        &proposer,
         &id,
         &title,
         &prop_ipfs,
@@ -2041,6 +2049,10 @@ fn execute_delay_loosening_waits_out_notice() {
     // proposals created before activation keep the old delay, proposals
     // created after get the new one.
     let setup = create_test_data();
+    // An outsider proposes: one maintainer's vote is not a quorum, so the
+    // execute delay applies.
+    let proposer = Address::generate(&setup.env);
+    setup.token_stellar.mint(&proposer, &(100 * 10_000_000));
 
     let name = String::from_str(&setup.env, "slowdao");
     let url = String::from_str(&setup.env, "github.com/slowdao");
@@ -2085,14 +2097,7 @@ fn execute_delay_loosening_waits_out_notice() {
     // so it keeps the global 24h delay.
     let ends_a = t0 + 3 * 24 * 3600;
     let proposal_a = setup.contract.create_proposal(
-        &setup.grogu,
-        &id,
-        &title,
-        &prop_ipfs,
-        &ends_a,
-        &true,
-        &None,
-        &None,
+        &proposer, &id, &title, &prop_ipfs, &ends_a, &true, &None, &None,
     );
     setup.contract.vote(
         &setup.mando,
@@ -2109,14 +2114,7 @@ fn execute_delay_loosening_waits_out_notice() {
     setup.env.ledger().set_timestamp(t0 + 2 * 24 * 3600 + 10);
     let ends_b = setup.env.ledger().timestamp() + 24 * 3600;
     let proposal_b = setup.contract.create_proposal(
-        &setup.grogu,
-        &id,
-        &title,
-        &prop_ipfs,
-        &ends_b,
-        &true,
-        &None,
-        &None,
+        &proposer, &id, &title, &prop_ipfs, &ends_b, &true, &None, &None,
     );
     setup.contract.vote(
         &setup.mando,
@@ -2710,446 +2708,164 @@ fn seeds_are_scalars_summed_modulo_the_group_order() {
     );
     assert_eq!(result, ProposalStatus::Approved);
 }
-#[test]
-fn early_finalization_maintainer_quorum_flow() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
 
-    let title = String::from_str(&setup.env, "Maintainer Quorum Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 14;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
+/// A proposal from an outsider, voted for two days. Returns its id.
+fn outsider_proposal(
+    setup: &super::test_utils::TestSetup,
+    id: &soroban_sdk::Bytes,
+    public: bool,
+) -> u32 {
+    let proposer = Address::generate(&setup.env);
+    setup.token_stellar.mint(&proposer, &(10 * 10_000_000));
+    setup.contract.create_proposal(
+        &proposer,
+        id,
+        &String::from_str(&setup.env, "Early execution"),
+        &String::from_str(
+            &setup.env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &(setup.env.ledger().timestamp() + 3600 * 24 * 2),
+        &public,
         &None,
         &None,
-    );
+    )
+}
 
-    // Maintainers are grogu and mando (2 maintainers). Threshold = 66%.
-    // Required quorum = (2 * 66 + 99) / 100 = 2.
-    // Non-maintainers voting should NOT reach quorum.
-    let rex = Address::generate(&setup.env);
-    setup.contract.add_member(
-        &rex,
-        &String::from_str(&setup.env, "rex_meta"),
-        &None,
-        &None,
-        &None,
-    );
-    setup
-        .contract
-        .set_badges(&setup.mando, &id, &rex, &vec![&setup.env, Badge::Community]);
-    setup.contract.vote(
-        &rex,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: rex.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Cannot execute: non-maintainer vote does not trigger maintainer quorum
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // Maintainer 1 (mando) votes
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // 1 maintainer voted < 2 required
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    let quorum_time = setup.env.ledger().timestamp();
-    // Maintainer 2 (grogu) votes -> reaches quorum (2/2)
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Cannot execute immediately! Must wait out shortened veto window (execute_delay / 2 = 12h)
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // Advance to just before shortened delay (TIMELOCK_DELAY / 2 - 1)
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2 - 1);
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // Advance past shortened delay
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
-    let result = setup
-        .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
-    assert_eq!(result, ProposalStatus::Approved);
+fn approve(voter: &Address) -> Vote {
+    Vote::PublicVote(PublicVote {
+        address: voter.clone(),
+        weight: 1,
+        vote_choice: VoteChoice::Approve,
+    })
 }
 
 #[test]
-fn early_finalization_veto_in_shortened_window_works() {
+fn execute_early_on_maintainer_quorum() {
+    // Maintainers grogu and mando, threshold 66%: both must vote.
     let setup = create_test_data();
     let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
+    let proposal_id = outsider_proposal(&setup, &id, true);
 
-    let title = String::from_str(&setup.env, "Veto Quorum Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
+    // A member who is not a maintainer does not count, nor does one maintainer.
+    let kuiil = Address::generate(&setup.env);
+    setup.contract.add_member(
+        &kuiil,
+        &String::from_str(&setup.env, "kuiil"),
         &None,
         &None,
-    );
-
-    // Both maintainers vote approve
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Grogu vetos within shortened window
-    let reason = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        &None,
     );
     setup
         .contract
-        .veto(&setup.grogu, &id, &proposal_id, &reason);
-
-    let proposal = setup.contract.get_proposal(&id, &proposal_id);
-    assert_eq!(proposal.status, ProposalStatus::Vetoed);
-
-    // Execute must fail because proposal is vetoed
+        .vote(&kuiil, &id, &proposal_id, &approve(&kuiil));
+    setup
+        .contract
+        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
     let err = setup
         .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .try_execute(&setup.grogu, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
+
+    // Both maintainers voted: it executes while the vote still runs.
+    setup
+        .contract
+        .vote(&setup.grogu, &id, &proposal_id, &approve(&setup.grogu));
+    let result = setup
+        .contract
+        .execute(&setup.grogu, &id, &proposal_id, &None, &None);
+    assert_eq!(result, ProposalStatus::Approved);
+
+    // The vote is over for everyone else.
+    let rex = Address::generate(&setup.env);
+    let err = setup
+        .contract
+        .try_vote(&rex, &id, &proposal_id, &approve(&rex))
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalActive.into());
 }
 
 #[test]
-fn early_finalization_remove_vote_resets_quorum() {
+fn early_quorum_follows_live_maintainers_and_ballots() {
     let setup = create_test_data();
     let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
 
-    let title = String::from_str(&setup.env, "Reset Quorum Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
-        &None,
-        &None,
-    );
-
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-    let quorum_time = setup.env.ledger().timestamp();
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Maintainer removes grogu's vote (malicious or mistaken)
+    // A removed ballot stops counting; the voter can vote again.
+    let proposal_id = outsider_proposal(&setup, &id, true);
+    for maintainer in [&setup.grogu, &setup.mando] {
+        setup
+            .contract
+            .vote(maintainer, &id, &proposal_id, &approve(maintainer));
+    }
     setup
         .contract
-        .remove_vote(&setup.mando, &id, &proposal_id, &setup.grogu);
-
-    // Advance time past the previous shortened window
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2 + 10);
-
-    // Execute must fail because quorum was reset!
+        .remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
     let err = setup
         .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
+        .try_execute(&setup.grogu, &id, &proposal_id, &None, &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // Once normal voting ends + delay, execution succeeds
     setup
-        .env
-        .ledger()
-        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+        .contract
+        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
     let result = setup
         .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
+        .execute(&setup.grogu, &id, &proposal_id, &None, &None);
     assert_eq!(result, ProposalStatus::Approved);
+
+    // A maintainer removed after voting stops counting: mando is replaced
+    // by kuiil, who has not voted, so one of two maintainers voted.
+    let proposal_id = outsider_proposal(&setup, &id, true);
+    for maintainer in [&setup.grogu, &setup.mando] {
+        setup
+            .contract
+            .vote(maintainer, &id, &proposal_id, &approve(maintainer));
+    }
+    let kuiil = Address::generate(&setup.env);
+    setup.contract.update_config(
+        &setup.grogu,
+        &id,
+        &vec![&setup.env, setup.grogu.clone(), kuiil],
+        &String::from_str(&setup.env, "github.com/tansu"),
+        &String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990"),
+        &None,
+        &None,
+        &None,
+    );
+    let err = setup
+        .contract
+        .try_execute(&setup.grogu, &id, &proposal_id, &None, &None)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 }
 
 #[test]
-fn early_finalization_single_maintainer_project() {
+fn early_quorum_counts_proposer_ballot() {
+    // A maintainer who proposes holds the automatic abstain ballot, which
+    // counts: the other maintainer's vote makes two of two.
     let setup = create_test_data();
-    let id = String::from_str(&setup.env, "singleproject");
-    let key = setup.env.crypto().keccak256(&id.to_bytes()).into();
-    setup.token_stellar.mint(&setup.mando, &(100 * 10_000_000));
-
-    // Register project with only 1 maintainer (mando)
-    let maintainers = vec![&setup.env, setup.mando.clone()];
-    setup.contract.register(
-        &setup.mando,
+    let id = init_contract(&setup);
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
         &id,
-        &maintainers,
-        &String::from_str(&setup.env, "https://github.com/mando/repo"),
+        &String::from_str(&setup.env, "Early execution"),
         &String::from_str(
             &setup.env,
             "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
         ),
-        &None,
-        &None,
-        &None,
-    );
-
-    let title = String::from_str(&setup.env, "Single Maintainer Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposer = Address::generate(&setup.env);
-    setup.token_stellar.mint(&proposer, &(100 * 10_000_000));
-
-    let proposal_id = setup.contract.create_proposal(
-        &proposer,
-        &key,
-        &title,
-        &ipfs,
-        &voting_ends_at,
+        &(setup.env.ledger().timestamp() + 3600 * 24 * 2),
         &true,
         &None,
         &None,
     );
-
-    // Required quorum: ceil(1 * 66 / 100) = (1 * 66 + 99) / 100 = 1 maintainer.
-    let quorum_time = setup.env.ledger().timestamp();
-    setup.contract.vote(
-        &setup.mando,
-        &key,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Immediately before shortened window: fails
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &key, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // After shortened window (12 hours)
     setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
-    let result = setup
         .contract
-        .execute(&setup.mando, &key, &proposal_id, &None, &None);
-    assert_eq!(result, ProposalStatus::Approved);
-}
-
-#[test]
-fn early_finalization_token_weighted_and_nqg_use_maintainer_count() {
-    let setup = create_test_data();
-    // Register project with 3 maintainers: grogu, mando, and rex
-    let rex = Address::generate(&setup.env);
-    let maintainers = vec![
-        &setup.env,
-        setup.grogu.clone(),
-        setup.mando.clone(),
-        rex.clone(),
-    ];
-    let name = String::from_str(&setup.env, "tokenproject");
-    let url = String::from_str(&setup.env, "github.com/tokenproject");
-    let ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
-    setup
-        .token_stellar
-        .mint(&setup.grogu, &(1_000_000 * 10_000_000));
-    let id = setup.contract.register(
-        &setup.grogu,
-        &name,
-        &maintainers,
-        &url,
-        &ipfs,
-        &None,
-        &None,
-        &None,
-    );
-
-    // Create a mock token for token-weighted proposal
-    let token_admin = Address::generate(&setup.env);
-    let token_contract = setup
-        .env
-        .register_stellar_asset_contract_v2(token_admin.clone());
-    let token_client = token::StellarAssetClient::new(&setup.env, &token_contract.address());
-    token_client.mint(&setup.mando, &(1_000 * 10_000_000));
-    token_client.mint(&rex, &(500 * 10_000_000));
-
-    let title = String::from_str(&setup.env, "Token Weighted Proposal");
-    let prop_ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    // Grogu proposes (as maintainer).
-    let proposal_id = setup.contract.create_proposal(
-        &setup.grogu,
-        &id,
-        &title,
-        &prop_ipfs,
-        &voting_ends_at,
-        &true,
-        &Some(token_contract.address()),
-        &None,
-    );
-
-    // 3 maintainers, threshold 66% -> required quorum = (3 * 66 + 99) / 100 = 2.
-    // Mando votes with 1000 tokens (weight 1000). Total maintainers voted = 1 < 2.
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1000,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    let quorum_time = setup.env.ledger().timestamp();
-    // Rex votes with 500 tokens -> second maintainer reached (2/3 maintainers >= quorum)!
-    setup.contract.vote(
-        &rex,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: rex.clone(),
-            weight: 500,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Wait out shortened delay
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
+        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
     let result = setup
         .contract
         .execute(&setup.mando, &id, &proposal_id, &None, &None);
@@ -3157,489 +2873,48 @@ fn early_finalization_token_weighted_and_nqg_use_maintainer_count() {
 }
 
 #[test]
-fn early_finalization_anonymous_proposal_flow() {
+fn execute_early_anonymous() {
     let setup = create_test_data();
     let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
     setup.contract.anonymous_voting_setup(
-        &setup.grogu,
-        &id,
-        &String::from_str(&setup.env, "test_pubkey"),
-    );
-
-    let title = String::from_str(&setup.env, "Anonymous Quorum Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &false,
-        &None,
-        &None,
-    );
-
-    let seed = U256::from_u32(&setup.env, 1);
-    let commitments = setup.contract.build_commitments_from_votes(
-        &id,
-        &vec![&setup.env, 1u128, 0u128, 0u128],
-        &vec![&setup.env, seed.clone(), seed.clone(), seed.clone()],
-    );
-
-    // Mando votes anonymously
-    setup.contract.vote(
         &setup.mando,
         &id,
-        &proposal_id,
-        &Vote::AnonymousVote(AnonymousVote {
-            address: setup.mando.clone(),
+        &String::from_str(&setup.env, "public key random"),
+    );
+    let proposal_id = outsider_proposal(&setup, &id, false);
+
+    // Both maintainers approve with weight 1, seeds 2 and 5.
+    for (maintainer, seed) in [(&setup.grogu, 2u128), (&setup.mando, 5u128)] {
+        let ballot = Vote::AnonymousVote(AnonymousVote {
+            address: maintainer.clone(),
             weight: 1,
             encrypted_seeds: vec![
                 &setup.env,
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "1"),
+                String::from_str(&setup.env, "s0"),
+                String::from_str(&setup.env, "s1"),
+                String::from_str(&setup.env, "s2"),
             ],
             encrypted_votes: vec![
                 &setup.env,
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "0"),
-                String::from_str(&setup.env, "0"),
+                String::from_str(&setup.env, "v0"),
+                String::from_str(&setup.env, "v1"),
+                String::from_str(&setup.env, "v2"),
             ],
-            commitments: commitments.clone(),
-        }),
-    );
-
-    let quorum_time = setup.env.ledger().timestamp();
-    // Grogu votes anonymously
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::AnonymousVote(AnonymousVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            encrypted_seeds: vec![
-                &setup.env,
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "1"),
-            ],
-            encrypted_votes: vec![
-                &setup.env,
-                String::from_str(&setup.env, "1"),
-                String::from_str(&setup.env, "0"),
-                String::from_str(&setup.env, "0"),
-            ],
-            commitments: commitments.clone(),
-        }),
-    );
-
-    // Wait shortened delay
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
-
-    let tallies = vec![&setup.env, 2u128, 0u128, 0u128];
-    let sum_seed = U256::from_u32(&setup.env, 2);
-    let seeds = vec![&setup.env, sum_seed.clone(), sum_seed.clone(), sum_seed];
+            commitments: setup.contract.build_commitments_from_votes(
+                &id,
+                &vec![&setup.env, 1u128, 0u128, 0u128],
+                &scalars(&setup.env, &[seed, 0, 0]),
+            ),
+        });
+        setup.contract.vote(maintainer, &id, &proposal_id, &ballot);
+    }
 
     let result = setup.contract.execute(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Some(tallies),
-        &Some(seeds),
-    );
-    assert_eq!(result, ProposalStatus::Approved);
-}
-
-#[test]
-fn early_finalization_ballot_does_not_underflow_when_voting_after_early_quorum() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
-
-    let title = String::from_str(&setup.env, "Underflow Test Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    // 30-day voting window
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 30;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
-        &None,
-        &None,
-    );
-
-    // Maintainers mando and grogu vote on day 1 -> reaches quorum
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-    setup.contract.vote(
         &setup.grogu,
         &id,
         &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
+        &Some(vec![&setup.env, 2u128, 0u128, 0u128]),
+        &Some(scalars(&setup.env, &[7, 0, 0])),
     );
-
-    // Advance 20 days: early execution unlocked long ago (at day 1 + 12h),
-    // but voting is still open until day 30.
-    setup
-        .env
-        .ledger()
-        .set_timestamp(setup.env.ledger().timestamp() + 3600 * 24 * 20);
-
-    // Non-maintainer voter casts a vote on day 20.
-    // This MUST NOT underflow when computing temporary ballot ledgers!
-    let late_voter = Address::generate(&setup.env);
-    setup.contract.add_member(
-        &late_voter,
-        &String::from_str(&setup.env, "late_meta"),
-        &None,
-        &None,
-        &None,
-    );
-    setup
-        .contract
-        .set_badges(&setup.mando, &id, &late_voter, &vec![&setup.env, Badge::Community]);
-    setup.contract.vote(
-        &late_voter,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: late_voter.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-}
-
-#[test]
-fn early_finalization_maintainer_set_change_edge_cases() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
-
-    let title = String::from_str(&setup.env, "Maintainer Dynamics Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
-        &None,
-        &None,
-    );
-
-    // Member bob votes
-    let bob = Address::generate(&setup.env);
-    setup.contract.add_member(
-        &bob,
-        &String::from_str(&setup.env, "bob_meta"),
-        &None,
-        &None,
-        &None,
-    );
-    setup
-        .contract
-        .set_badges(&setup.mando, &id, &bob, &vec![&setup.env, Badge::Community]);
-    setup.contract.vote(
-        &bob,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: bob.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Mando and grogu vote -> reaches quorum (2/2)
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-    let quorum_time = setup.env.ledger().timestamp();
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Now promote Bob to maintainer in project config
-    let url = String::from_str(&setup.env, "github.com/tansu");
-    let reg_ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
-    let expanded_maintainers = vec![
-        &setup.env,
-        setup.grogu.clone(),
-        setup.mando.clone(),
-        bob.clone(),
-    ];
-    setup.contract.update_config(
-        &setup.grogu,
-        &id,
-        &expanded_maintainers,
-        &url,
-        &reg_ipfs,
-        &None,
-        &None,
-        &None,
-    );
-
-    // Maintainer mando removes Bob's vote.
-    // Because Bob was NOT in the proposal's maintainers snapshot, removing Bob's vote
-    // must NOT decrement MaintainerVotes or clear QuorumReachedAt!
-    setup
-        .contract
-        .remove_vote(&setup.mando, &id, &proposal_id, &bob);
-
-    // Quorum is still reached: advancing past shortened window allows execution
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
-    let result = setup
-        .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
-    assert_eq!(result, ProposalStatus::Approved);
-}
-
-#[test]
-fn early_finalization_promoted_maintainer_does_not_count_on_existing_proposal() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
-
-    let title = String::from_str(&setup.env, "Promoted Maintainer Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    // Proposal created with snapshot maintainers: [grogu, mando]. Required = 2.
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
-        &None,
-        &None,
-    );
-
-    // Promote new maintainer 'alice' in project
-    let alice = Address::generate(&setup.env);
-    setup.contract.add_member(
-        &alice,
-        &String::from_str(&setup.env, "alice_meta"),
-        &None,
-        &None,
-        &None,
-    );
-    let url = String::from_str(&setup.env, "github.com/tansu");
-    let reg_ipfs = String::from_str(&setup.env, "2ef4f49fdd8fa9dc463f1f06a094c26b88710990");
-    let new_maintainers = vec![
-        &setup.env,
-        setup.grogu.clone(),
-        setup.mando.clone(),
-        alice.clone(),
-    ];
-    setup.contract.update_config(
-        &setup.grogu,
-        &id,
-        &new_maintainers,
-        &url,
-        &reg_ipfs,
-        &None,
-        &None,
-        &None,
-    );
-
-    // Mando votes (1 snapshot maintainer)
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Alice votes (maintainer now, but NOT in proposal snapshot)
-    setup.contract.vote(
-        &alice,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: alice.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Execution fails: Alice does not count towards snapshot quorum, so only 1/2 voted
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    let quorum_time = setup.env.ledger().timestamp();
-    // Grogu votes (in snapshot) -> reaches 2/2 snapshot quorum!
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Shortened delay allows execution
-    setup
-        .env
-        .ledger()
-        .set_timestamp(quorum_time + TIMELOCK_DELAY / 2);
-    let result = setup
-        .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
-    assert_eq!(result, ProposalStatus::Approved);
-}
-
-#[test]
-fn early_finalization_pre_upgrade_proposal_without_snapshot_requires_normal_deadline() {
-    let setup = create_test_data();
-    let id = init_contract(&setup);
-    setup
-        .token_stellar
-        .mint(&setup.contract_admin, &(100 * 10_000_000));
-
-    let title = String::from_str(&setup.env, "Pre-upgrade Proposal");
-    let ipfs = String::from_str(
-        &setup.env,
-        "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
-    );
-    let voting_ends_at = setup.env.ledger().timestamp() + 3600 * 24 * 7;
-
-    let proposal_id = setup.contract.create_proposal(
-        &setup.contract_admin,
-        &id,
-        &title,
-        &ipfs,
-        &voting_ends_at,
-        &true,
-        &None,
-        &None,
-    );
-
-    // Simulate pre-upgrade proposal by clearing snapshot keys
-    setup.env.as_contract(&setup.contract_id, || {
-        let key = setup.env.crypto().keccak256(&id.to_bytes()).into();
-        setup.env.storage().persistent().remove(&types::ProjectKey::ProposalMaintainers(key, proposal_id));
-        let key2 = setup.env.crypto().keccak256(&id.to_bytes()).into();
-        setup.env.storage().persistent().remove(&types::ProjectKey::ProposalQuorumCount(key2, proposal_id));
-    });
-
-    // Both maintainers vote
-    setup.contract.vote(
-        &setup.mando,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.mando.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-    setup.contract.vote(
-        &setup.grogu,
-        &id,
-        &proposal_id,
-        &Vote::PublicVote(PublicVote {
-            address: setup.grogu.clone(),
-            weight: 1,
-            vote_choice: VoteChoice::Approve,
-        }),
-    );
-
-    // Shortened window passes: execute MUST FAIL because pre-upgrade proposals lack snapshot
-    setup
-        .env
-        .ledger()
-        .set_timestamp(setup.env.ledger().timestamp() + TIMELOCK_DELAY / 2);
-    let err = setup
-        .contract
-        .try_execute(&setup.mando, &id, &proposal_id, &None, &None)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-
-    // Normal window passes: execution succeeds
-    setup
-        .env
-        .ledger()
-        .set_timestamp(voting_ends_at + TIMELOCK_DELAY);
-    let result = setup
-        .contract
-        .execute(&setup.mando, &id, &proposal_id, &None, &None);
     assert_eq!(result, ProposalStatus::Approved);
 }

@@ -6,6 +6,7 @@ import type { Vote } from "../../packages/tansu";
 import type { ProposalSummary } from "../service/ProposalService";
 import {
   VoteType,
+  type EarlyExecution,
   type Proposal,
   type ProposalStatus,
   type ProposalView,
@@ -276,6 +277,31 @@ export const summaryToView = (
   ),
   voters: summary.voters,
 });
+
+/**
+ * Whether a maintainer can execute a pending proposal before its normal time
+ * (`executableAt`, in ms), as `execute` checks: the finality threshold
+ * (percent) of the project's current maintainers voted on it. Null otherwise.
+ */
+export function earlyExecution(
+  proposal: Pick<ProposalView, "status" | "endDate" | "voters">,
+  maintainers: string[],
+  threshold: number | undefined,
+  executableAt: number | undefined,
+  now: number,
+): EarlyExecution | null {
+  if (threshold === undefined || executableAt === undefined) return null;
+  if (now >= executableAt || maintainers.length === 0) return null;
+  if (proposal.status !== "active" && proposal.status !== "voted") return null;
+  const voted = maintainers.filter((m) => proposal.voters.includes(m)).length;
+  if (voted * 100 < maintainers.length * threshold) return null;
+  return {
+    voted,
+    total: maintainers.length,
+    executableAt,
+    running: proposal.endDate * 1000 > now,
+  };
+}
 
 /** Whether `address` voted on a listed proposal. */
 export const votedOn = (
