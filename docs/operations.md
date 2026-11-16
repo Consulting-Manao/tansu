@@ -444,6 +444,27 @@ cannot, extend them first with `stellar contract extend --durability temporary
 were persistent and v4 does not read them, those of executed proposals included:
 `get_proposal` returns these proposals without votes.
 
+A round is checked off chain, then executed, with one script. For each proposal it
+reads the ballots and the sums the contract keeps, and redoes the arithmetic locally:
+each anonymous ballot is opened with the project's key file and must be bound to its
+voter, project and proposal, choose one option and match its commitments on chain (a
+ballot that does not is named); the weighted ballots must add up to the sums on chain;
+the tallies and seeds of the valid ballots must open those sums, as `execute` checks
+them; an executed proposal's status must be the outcome of its tallies. Public votes are
+summed and compared with the tallies on chain. Without a signer, nothing is sent:
+
+```bash
+uv run tools/tally.py --project stellarpgq4 --network mainnet --proposal-ids 0-23 \
+  --key-file stellarpgq4.json
+```
+
+With `--source`, a Stellar CLI identity, each active proposal whose vote has ended and
+whose checks pass is then executed, one `stellar contract invoke` after the other. A
+maintainer who signs with a wallet gives the address and `--sign-with lab` (or
+`ledger`). Executed proposals are not sent again, so the run can be repeated after a
+failure. A ballot that cannot count must be removed (`remove_vote`, or Remove on the
+proposal page in the dApp) before its proposal can be executed.
+
 Once a round is executed, save its ballots before they expire. The script writes one
 JSON line per proposal of the project, as `get_proposal` returns it, readable and as XDR:
 

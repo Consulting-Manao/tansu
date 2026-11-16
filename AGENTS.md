@@ -23,6 +23,7 @@ This file provides comprehensive guidance for AI assistants (Claude, Cursor, Vib
 - `website/` — Docusaurus documentation site
 - `pre-commit/` — custom pre-push hook that records the commit hash on-chain
 - `tools/evidence/` — publish SBOM/audit evidence artifacts to IPFS and record CIDs on-chain
+- `tools/*.py` — governance round scripts, run with `uv run`: `tally.py` (check the votes of a list of proposals off chain; with `--source`, execute those that pass), `check_conflicts.py`, `export_ballots.py`
 
 ## Commands Reference
 

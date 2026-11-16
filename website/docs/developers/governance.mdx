@@ -231,6 +231,13 @@ flowchart TD
 3. **Voting**: Members generate commitments and encrypted payloads off-chain, then submit `AnonymousVote` via the contract
 4. **Execution**: After voting ends, any maintainer with the RSA private key decrypts votes, computes weighted tallies, and submits to `execute()` for verification
 
+The dApp does this one proposal at a time. For a round of many proposals, `tools/tally.py` in the Tansu repository checks the votes off chain, independently of the contract and the dApp: it opens each ballot with the key file and checks it against its commitments, checks that the weighted ballots add up to the sums the contract keeps, and that the tallies open them. Given a signer, it then executes each proposal whose vote has ended and whose checks pass:
+
+```bash
+uv run tools/tally.py --project <name> --network mainnet --proposal-ids 0-23 \
+  --key-file <key file> [--source <identity>]
+```
+
 :::tip
 
 For a high-level sequence diagram of the anonymous voting flow, see the [User Flows documentation](./user_flows.mdx#2-governance-flow).
