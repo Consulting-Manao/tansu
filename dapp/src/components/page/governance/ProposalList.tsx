@@ -58,7 +58,7 @@ const ProposalList: React.FC = () => {
 
   const isLoading = countRead.isLoading || isPageLoading;
 
-  const sortedProposals = useMemo(
+  const groups = useMemo(
     () =>
       orderProposalsForVoter(
         summaries
@@ -86,7 +86,8 @@ const ProposalList: React.FC = () => {
             </Button>
           </div>
         </Notice>
-      ) : sortedProposals.length === 0 && totalPage <= 1 ? (
+      ) : groups.inProgress.length + groups.done.length === 0 &&
+        totalPage <= 1 ? (
         <EmptyState
           image="/images/box-with-coin-outside.svg"
           title="No proposals yet"
@@ -95,19 +96,32 @@ const ProposalList: React.FC = () => {
         </EmptyState>
       ) : (
         <div className="flex w-full flex-col gap-8">
-          <div className="flex flex-col gap-4">
-            {sortedProposals.map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                onVoteClick={() => {
-                  setProposalId(proposal.id);
-                  setProposalTitle(proposal.title);
-                  setShowVotingModal(true);
-                }}
-              />
-            ))}
-          </div>
+          {(
+            [
+              ["In progress", groups.inProgress],
+              ["Done", groups.done],
+            ] as const
+          ).map(
+            ([title, proposals]) =>
+              proposals.length > 0 && (
+                <section key={title} className="flex flex-col gap-4">
+                  <h3 className="text-small font-semibold text-ink-muted">
+                    {title}
+                  </h3>
+                  {proposals.map((proposal) => (
+                    <ProposalCard
+                      key={proposal.id}
+                      proposal={proposal}
+                      onVoteClick={() => {
+                        setProposalId(proposal.id);
+                        setProposalTitle(proposal.title);
+                        setShowVotingModal(true);
+                      }}
+                    />
+                  ))}
+                </section>
+              ),
+          )}
           <Pagination
             totalPage={totalPage}
             currentPage={currentPage + 1}

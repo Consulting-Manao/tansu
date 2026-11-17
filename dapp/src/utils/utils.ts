@@ -212,29 +212,33 @@ function rank(seed: string, project: string, id: number): number {
 }
 
 /**
- * Connected: the active proposals they have not voted on, in the order of
- * their seed; then the ended ones they did not vote on, and last the ones
- * they voted on, both newest first. Logged out: newest first.
+ * A list's two groups. In progress (voting or waiting to be executed): for a
+ * connected voter, the ones they have not voted on yet first, in the order of
+ * their seed, then the rest newest first. Done: newest first.
  */
 export function orderProposalsForVoter(
   proposals: ProposalView[],
   connectedAddress: string | undefined,
   seed: string = visitorSeed(),
-): ProposalView[] {
+): { inProgress: ProposalView[]; done: ProposalView[] } {
   const newestFirst = (a: ProposalView, b: ProposalView) => b.id - a.id;
-  if (!connectedAddress) return [...proposals].sort(newestFirst);
+  const isInProgress = (p: ProposalView) =>
+    p.status === "active" || p.status === "voted";
+  const isToVote = (p: ProposalView) =>
+    !!connectedAddress &&
+    p.status === "active" &&
+    !votedOn(p, connectedAddress);
 
-  const voted = (p: ProposalView) => votedOn(p, connectedAddress);
   const toVote = proposals
-    .filter((p) => p.status === "active" && !voted(p))
+    .filter(isToVote)
     .map((p) => ({ p, rank: rank(seed, p.projectName, p.id) }))
     .sort((a, b) => a.rank - b.rank || b.p.id - a.p.id)
     .map(({ p }) => p);
-  const ended = proposals
-    .filter((p) => p.status !== "active" && !voted(p))
+  const waiting = proposals
+    .filter((p) => isInProgress(p) && !isToVote(p))
     .sort(newestFirst);
-  const done = proposals.filter(voted).sort(newestFirst);
-  return [...toVote, ...ended, ...done];
+  const done = proposals.filter((p) => !isInProgress(p)).sort(newestFirst);
+  return { inProgress: [...toVote, ...waiting], done };
 }
 
 export const modifyProposalToView = (

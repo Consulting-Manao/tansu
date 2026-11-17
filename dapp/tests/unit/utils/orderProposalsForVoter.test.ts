@@ -45,22 +45,36 @@ function proposal(
 describe("orderProposalsForVoter", () => {
   const voter = "GABC";
   const ids = (list: ProposalView[]) => list.map((p) => p.id);
+  const order = (
+    proposals: ProposalView[],
+    address: string | undefined,
+    seed: string,
+  ) => {
+    const { inProgress, done } = orderProposalsForVoter(
+      proposals,
+      address,
+      seed,
+    );
+    return { inProgress: ids(inProgress), done: ids(done) };
+  };
 
-  it("sorts newest-first when logged out", () => {
-    const result = orderProposalsForVoter(
+  it("groups newest first when logged out", () => {
+    const result = order(
       [
         proposal(1, "active", emptyVotes()),
         proposal(3, "approved", emptyVotes()),
         proposal(2, "active", emptyVotes()),
+        proposal(4, "voted", emptyVotes()),
+        proposal(5, "vetoed", emptyVotes()),
       ],
       undefined,
       "seed",
     );
-    expect(ids(result)).toEqual([3, 2, 1]);
+    expect(result).toEqual({ inProgress: [4, 2, 1], done: [5, 3] });
   });
 
-  it("puts what is left to vote on first, then ended, then voted", () => {
-    const result = orderProposalsForVoter(
+  it("puts what is left to vote on first, then the rest in progress, then done", () => {
+    const result = order(
       [
         proposal(1, "active", emptyVotes()),
         proposal(4, "approved", emptyVotes()),
@@ -68,35 +82,34 @@ describe("orderProposalsForVoter", () => {
         proposal(3, "active", emptyVotes()),
         proposal(5, "voted", emptyVotes()),
         proposal(6, "approved", withVoter(voter)),
+        proposal(7, "cancelled", emptyVotes()),
       ],
       voter,
       "seed",
     );
-    expect(ids(result).slice(0, 2).sort()).toEqual([1, 3]);
-    expect(ids(result).slice(2)).toEqual([5, 4, 6, 2]);
+    expect(result.inProgress.slice(0, 2).sort()).toEqual([1, 3]);
+    expect(result.inProgress.slice(2)).toEqual([5, 2]);
+    expect(result.done).toEqual([7, 6, 4]);
   });
 
   it("keeps a visitor's order as they vote", () => {
     const active = Array.from({ length: 12 }, (_, id) =>
       proposal(id, "active", emptyVotes()),
     );
-    const before = ids(orderProposalsForVoter(active, voter, "seed"));
-    expect(ids(orderProposalsForVoter(active, voter, "seed"))).toEqual(before);
+    const before = order(active, voter, "seed").inProgress;
+    expect(order(active, voter, "seed").inProgress).toEqual(before);
     // Not just newest first, and another visitor gets another order.
     expect(before).not.toEqual([...before].sort((a, b) => b - a));
-    expect(ids(orderProposalsForVoter(active, voter, "other"))).not.toEqual(
-      before,
-    );
+    expect(order(active, voter, "other").inProgress).not.toEqual(before);
 
-    // A vote on the third moves it last; the others keep their places.
+    // A vote on the third moves it after the ones left to vote on; the
+    // others keep their places.
     const votedOn = before[2]!;
-    const after = ids(
-      orderProposalsForVoter(
-        active.map((p) => (p.id === votedOn ? { ...p, voters: [voter] } : p)),
-        voter,
-        "seed",
-      ),
-    );
+    const after = order(
+      active.map((p) => (p.id === votedOn ? { ...p, voters: [voter] } : p)),
+      voter,
+      "seed",
+    ).inProgress;
     expect(after).toEqual([...before.filter((id) => id !== votedOn), votedOn]);
   });
 });
