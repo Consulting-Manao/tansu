@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { expect, test } from "./helpers/app";
+import { acceptTermsIn, expect, test } from "./helpers/app";
 import { E2E_ENV } from "./helpers/env";
 
 test.use({ serviceWorkers: "allow" });
@@ -116,3 +116,58 @@ test("a new deploy is offered without a service worker", async ({
   await expect(page.getByText("A new version is ready")).toBeHidden();
   await context.close();
 });
+
+// After Reload, the pages the tab saw before the deploy must not come back
+// from the browser's cache (tests/helpers/serve.ts).
+for (const serviceWorkers of ["allow", "block"] as const) {
+  test(`Reload takes the new version on every page (service worker: ${serviceWorkers})`, async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000);
+    const context = await browser.newContext({
+      baseURL: baseURL!,
+      serviceWorkers,
+    });
+    await acceptTermsIn(context);
+    const page = await context.newPage();
+    await page.goto("/");
+    if (serviceWorkers === "allow")
+      await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.goto("/terms/");
+    await page.goto("/");
+    const footer = page.getByTitle("Version");
+    const running = await footer.textContent();
+
+    deploy(`e2e-4-${serviceWorkers}`);
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    await expect(page.getByText("A new version is ready")).toBeVisible();
+    await Promise.all([
+      page.waitForEvent("load"),
+      page.getByRole("button", { name: "Reload" }).click(),
+    ]);
+    await expect(footer).not.toHaveText(running!);
+    const current = await footer.textContent();
+
+    // A page change through the ClientRouter, then a full load. Each run
+    // the page's own script, which looks at version.json when the tab is back.
+    const check = async () => {
+      const answered = page.waitForResponse("**/version.json");
+      await page.evaluate(() =>
+        document.dispatchEvent(new Event("visibilitychange")),
+      );
+      await answered;
+      await expect(page.getByText("A new version is ready")).toBeHidden();
+    };
+    await page.getByRole("link", { name: "Terms" }).click();
+    await expect(page).toHaveURL(/\/terms\/$/);
+    await expect.soft(footer).toHaveText(current!);
+    await check();
+    await page.goto("/terms/");
+    await expect.soft(footer).toHaveText(current!);
+    await check();
+    await context.close();
+  });
+}

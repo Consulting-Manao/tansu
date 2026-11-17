@@ -6,6 +6,11 @@
  * Like the CDN in front of Netlify, an /_astro/ file is immutable: the first
  * answer for a URL is kept. With ?dpl= that is the deploy asked for. Without
  * it, a rebuild leaves the plain URL on the deploy that first served it.
+ *
+ * The cache headers are the ones browsers get in production. Pages, sw.js
+ * and version.json must be asked for again each time: Cloudflare in front of
+ * Netlify once raised their max-age to a day, and a tab that had pressed
+ * Reload then met the old version again on the other pages it had seen.
  */
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
@@ -46,11 +51,16 @@ createServer(async (request, response) => {
         types[extname(file)] ?? "application/octet-stream",
       );
       if (path.startsWith("/_astro/")) {
+        response.setHeader(
+          "cache-control",
+          "public, max-age=31536000, immutable",
+        );
         const key = request.url ?? path;
         if (!edge.has(key)) edge.set(key, await readFile(file));
         response.end(edge.get(key));
         return;
       }
+      response.setHeader("cache-control", "public,max-age=0,must-revalidate");
       createReadStream(file).pipe(response);
       return;
     }
