@@ -6,7 +6,7 @@ import {
   registerProject,
   uniqueName,
 } from "./helpers/testnet";
-import { connectWallet } from "./helpers/wallet";
+import { connectWallet, mockWallet } from "./helpers/wallet";
 
 test("support a project: a donation to the maintainer picked, with a message that fits its memo", async ({
   page,
@@ -48,26 +48,24 @@ test("support a project: a donation to the maintainer picked, with a message tha
   });
 });
 
-// A wallet friendbot never funded.
-const unfunded = test.extend({
-  wallet: async ({}, use) => use(Keypair.random()),
+test("an unfunded wallet is offered funding over the form being filled", async ({
+  page,
+  context,
+}) => {
+  // Explicitly install a wallet Friendbot never funded. Do not request the
+  // funded `wallet` fixture for this failure path.
+  await mockWallet(context, Keypair.random());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Join", exact: true }).click();
+  await page.getByPlaceholder("Enter your name").fill("Grace");
+  // Linking a git handle connects the wallet first.
+  await page
+    .getByRole("button", { name: "+ Link Git Handle (optional)" })
+    .click();
+  await page.getByText("GHOSTSIG", { exact: true }).click();
+  await expect(page.getByText("Wallet not funded")).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  // The form is still there, as it was.
+  await expect(page.getByPlaceholder("Enter your name")).toHaveValue("Grace");
+  await expect(page.getByText("Link Git Identity")).toBeVisible();
 });
-
-unfunded(
-  "an unfunded wallet is offered funding over the form being filled",
-  async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "Join", exact: true }).click();
-    await page.getByPlaceholder("Enter your name").fill("Grace");
-    // Linking a git handle connects the wallet first.
-    await page
-      .getByRole("button", { name: "+ Link Git Handle (optional)" })
-      .click();
-    await page.getByText("GHOSTSIG", { exact: true }).click();
-    await expect(page.getByText("Wallet not funded")).toBeVisible();
-    await page.getByRole("button", { name: "Close", exact: true }).click();
-    // The form is still there, as it was.
-    await expect(page.getByPlaceholder("Enter your name")).toHaveValue("Grace");
-    await expect(page.getByText("Link Git Identity")).toBeVisible();
-  },
-);

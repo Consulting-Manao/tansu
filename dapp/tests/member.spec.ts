@@ -56,7 +56,9 @@ test("join with a picture and a git identity, then edit the profile", async ({
   await page.getByLabel("Its private key file").fill(keyFile);
   // The command the page prints signs, with the developer's own ssh-keygen.
   const command = await page.getByLabel("Signing command").textContent();
-  const signature = execSync(command!, { shell: "/bin/bash" }).toString();
+  const signature = execSync(command!, {
+    shell: process.env.TANSU_E2E_BASH ?? "/bin/bash",
+  }).toString();
   const verify = page.getByRole("button", { name: "Verify Signature" });
   await page.getByLabel("Signature").fill(Buffer.alloc(64).toString("base64"));
   await verify.click();

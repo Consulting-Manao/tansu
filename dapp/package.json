@@ -67,6 +67,7 @@
     "start": "astro dev",
     "test": "bun playwright test --reporter=dot",
     "test:unit": "bunx vitest run",
+    "export:votes": "bunx vitest run --config scripts/export-decoded-votes.config.ts",
     "lint": "prettier -c . && eslint src/ --ext .ts,.tsx,.jsx && knip && bun scripts/validate-contract-errors.js && bun scripts/check-tokens.js",
     "validate-errors": "bun scripts/validate-contract-errors.js",
     "format": "prettier --write .",

@@ -78,9 +78,8 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
     page.getByRole("button", { name: "Download key file" }),
   ).toHaveCount(0);
 
-  // An anonymous proposal that ends within the test, with time to follow
-  // the votes while it is open.
-  const id = await createProposal(proposer, name, "Adopt the new logo", 180, {
+  // Leave time for live transactions; maintainer quorum permits early execution.
+  const id = await createProposal(proposer, name, "Adopt the new logo", 3600, {
     publicVoting: false,
   });
 
@@ -143,15 +142,9 @@ test("anonymous voting: the key file is saved, ballots are checked, an invalid o
   // The voter can vote again, and does the same.
   await cheat();
 
-  const endsAt = Number(
-    (await read.proposal(name, id))!.vote_data.voting_ends_at,
-  );
-  await expect
-    .poll(() => Date.now() / 1000, { timeout: 300_000, intervals: [5_000] })
-    .toBeGreaterThan(endsAt + 10);
-
-  // Once the vote ends, the tally flags it again; execution waits for its
-  // removal.
+  // The sole maintainer has voted, so quorum permits execution now. The tally
+  // still flags the invalid ballot; execution waits for its removal. The
+  // normal vote deadline is covered by governance.spec.ts.
   await page.goto(`/proposal/?id=${id}&name=${name}`);
   await page.getByRole("button", { name: "Execute proposal" }).click();
   await page.getByLabel("Choose key file").setInputFiles(keyFile);

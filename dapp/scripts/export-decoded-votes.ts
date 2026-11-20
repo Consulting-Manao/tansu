@@ -3,7 +3,7 @@
 // decode/CSV logic as the UI (utils/anonymousVoting, utils/anonymousVotingCsv)
 // so the output matches what ExportDecodedVotesModal would produce.
 //
-// Run via vitest (see tests/unit/scripts/export-decoded-votes.test.ts) since
+// Run with `bun run export:votes` (export-decoded-votes.manual.ts) since
 // this module chain imports the "packages/tansu" workspace package by
 // relative path, which only the project's Vite-based resolver (used by
 // vitest) resolves correctly - plain `bun run`/`node` cannot.

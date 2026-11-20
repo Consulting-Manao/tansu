@@ -85,7 +85,9 @@ test("an upload that fails after the transaction landed can be tried again", asy
     timeout: 120_000,
   });
   await expect(dialog).toContainText("Filebase HTTP 502");
-  expect(await read.member(wallet.publicKey())).toBeTruthy();
+  const landed = await read.member(wallet.publicKey());
+  // A contract error is also a truthy object: require an actual member CID.
+  expect(landed).toMatchObject({ meta: expect.stringMatching(/\S+/) });
 
   // The service is back: the same files go up, and the flow ends.
   failing = false;
@@ -94,5 +96,11 @@ test("an upload that fails after the transaction landed can be tried again", asy
     timeout: 120_000,
   });
   const meta = (await read.member(wallet.publicKey()))!.meta;
-  await read.ipfs(meta, "/profile-image.png");
+  expect(meta).toBe(landed!.meta);
+  expect(await (await read.ipfs(meta, "/profile.json")).json()).toMatchObject({
+    name: "Grace",
+    image: "profile-image.png",
+  });
+  const picture = await read.ipfs(meta, "/profile-image.png");
+  expect(Buffer.from(await picture.arrayBuffer())).toEqual(PICTURE);
 });
