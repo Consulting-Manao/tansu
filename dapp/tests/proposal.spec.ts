@@ -3,6 +3,7 @@ import { Badge } from "../packages/tansu/src/index.ts";
 import { expect, test } from "./helpers/app";
 import { E2E_ENV } from "./helpers/env";
 import {
+  castVote,
   createProposal,
   fundedKeypair,
   join,
@@ -105,29 +106,31 @@ test("outcome calls land in their slots, typed, and execute", async ({
   // approved slot is the filler executes too. A call picked by a Registry
   // name is checked again at execution: the typed call's name now points to
   // another contract, the Registry call's still to its own.
-  // Each proposal is approved as soon as it exists: an upload can take a
-  // minute, longer than its voting window.
+  // Keep a generous voting window so live uploads cannot race the deadline.
+  // The sole maintainer's vote permits execution without waiting for it.
   const approve = async (id: number) => {
-    await page.goto(`/proposal/?id=${id}&name=${name}`);
-    await page.getByRole("button", { name: "Vote", exact: true }).click();
-    await page.getByText("Approve", { exact: true }).click();
-    await page
-      .getByRole("button", { name: "Vote", exact: true })
-      .last()
-      .click();
-    await expect(
-      page.getByText("Your vote was submitted successfully."),
-    ).toBeVisible({ timeout: 120_000 });
+    // Voting through the UI is covered by governance.spec.ts. These real
+    // ballots prepare the outcome-execution cases without repeating that flow.
+    await castVote(wallet, name, id, {
+      tag: "PublicVote",
+      values: [
+        {
+          address: wallet.publicKey(),
+          weight: 1,
+          vote_choice: { tag: "Approve", values: undefined },
+        },
+      ],
+    });
     return id;
   };
   const typed = await approve(
-    await createProposal(proposer, name, "Typed call", 120, {
+    await createProposal(proposer, name, "Typed call", 3600, {
       outcomeContracts: calls,
       outcomes: registryOutcome(XLM, "balance"),
     }),
   );
   const filler = await approve(
-    await createProposal(proposer, name, "Filler call", 120, {
+    await createProposal(proposer, name, "Filler call", 3600, {
       outcomeContracts: [calls[1], calls[1], calls[2]],
     }),
   );
@@ -137,7 +140,7 @@ test("outcome calls land in their slots, typed, and execute", async ({
     args: [nativeToScVal("registry", { type: "string" })],
   };
   const named = await approve(
-    await createProposal(proposer, name, "Registry call", 120, {
+    await createProposal(proposer, name, "Registry call", 3600, {
       outcomeContracts: [registryCall],
       outcomes: registryOutcome(REGISTRY, "fetch_contract_id"),
     }),
@@ -146,14 +149,13 @@ test("outcome calls land in their slots, typed, and execute", async ({
     [typed]: `now points to ${REGISTRY}`,
     [named]: "still points to the contract this proposal calls",
   };
-  const endsAt = Number(
-    (await read.proposal(name, named))!.vote_data.voting_ends_at,
-  );
-  await expect
-    .poll(() => Date.now() / 1000, { timeout: 180_000, intervals: [5_000] })
-    .toBeGreaterThan(endsAt + 10);
+  // The sole maintainer approved each proposal: its quorum permits immediate
+  // execution. governance.spec.ts covers waiting for the normal vote deadline.
   for (const id of [typed, filler, named]) {
     await page.goto(`/proposal/?id=${id}&name=${name}`);
+    await expect(
+      page.getByRole("button", { name: "Execute proposal" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Execute proposal" }).click();
     await page.getByRole("button", { name: "Next", exact: true }).click();
     const check = registryCheck[id];

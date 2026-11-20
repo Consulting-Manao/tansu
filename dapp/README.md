@@ -119,10 +119,24 @@ The Playwright journeys build the app and use it as a person would, against **te
 
 - `testnet.ts`: sets up what a journey starts from through the contract bindings (`registerProject`, `createProposal`, …), uploads through the real worker (`land()`) and reads the chain back (`read.*`);
 - `wallet.ts`: a GHOSTSIG wallet that signs with a friendbot-funded key;
-- `app.ts`: the fixtures (the wallet, the Terms accepted) and the rule that any page error fails the test;
+- `app.ts`: accepted Terms and page-error checks for every tab; a test only funds an account and installs the wallet when it requests the `wallet` fixture;
 - `serve.ts` and `env.ts`: serve `dist/` on port 4321, the origin the testnet upload worker accepts.
 
 A journey that writes fails when the testnet upload worker or Filebase is down: check them before the code. `tests/kit.spec.ts` checks the kit page, with no wallet and no network.
+
+See [test coverage and runtime](./tests/README.md) for the purpose of each journey,
+the cleanup decisions, and commands to measure the suite. The update journey runs
+last, even if a testnet journey fails, and shares one rebuild across its tabs.
+
+The operational CSV exporter is separate from the unit suite. It uses Vitest's
+Vite resolver, but is not a regression test and never runs under `test:unit`:
+
+```bash
+EXPORT_KEY_FILE=/path/to/key.json EXPORT_PROJECT_NAME=myproject bun run export:votes
+```
+
+This command reads live proposals and writes CSV files into `decoded-votes-export/`.
+It requires a maintainer's key file; the normal tests do not.
 
 TypeScript stays on 6.0: typescript-eslint and `astro check` do not support newer versions yet.
 

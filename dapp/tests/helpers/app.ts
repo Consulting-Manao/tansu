@@ -26,25 +26,30 @@ const { lastUpdated } = JSON.parse(
 
 /** Pages of `target` start with the current Terms accepted. */
 export const acceptTermsIn = (target: Page | BrowserContext) =>
-  target.addInitScript(
-    (version: string) =>
-      localStorage.setItem("tansu_tos_accepted", JSON.stringify({ version })),
-    lastUpdated,
-  );
+  target.addInitScript((version: string) => {
+    // Context scripts also run on a new tab's opaque about:blank document.
+    if (location.protocol !== "http:" && location.protocol !== "https:") return;
+    localStorage.setItem("tansu_tos_accepted", JSON.stringify({ version }));
+  }, lastUpdated);
 
 /**
- * Every test runs the production build against testnet, with a GHOSTSIG
- * wallet that signs with `wallet`, and fails on any uncaught page error.
+ * Every test runs the production build and fails on uncaught errors in any
+ * tab. Only tests requesting `wallet` fund an account and install GHOSTSIG.
  */
 export const test = base.extend<Fixtures>({
   acceptTerms: [true, { option: true }],
-  wallet: async ({}, use) => use(await fundedKeypair()),
-  page: async ({ page, wallet, acceptTerms }, use) => {
-    await mockWallet(page.context(), wallet);
-    if (acceptTerms) await acceptTermsIn(page);
+  wallet: async ({ context }, use) => {
+    const wallet = await fundedKeypair();
+    await mockWallet(context, wallet);
+    await use(wallet);
+  },
+  context: async ({ context, acceptTerms }, use) => {
+    if (acceptTerms) await acceptTermsIn(context);
     const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await use(page);
+    context.on("page", (page) => {
+      page.on("pageerror", (error) => errors.push(error.message));
+    });
+    await use(context);
     expect(errors).toEqual([]);
   },
 });
