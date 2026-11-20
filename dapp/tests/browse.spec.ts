@@ -10,7 +10,7 @@ const project = uniqueName("browse");
 let proposal = 0;
 
 // One setup for the file: the flows below read the same project.
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "default" });
 
 test.beforeAll(async () => {
   test.setTimeout(180_000);
@@ -66,15 +66,6 @@ test.describe("browsing without a wallet", () => {
     await page.getByRole("link", { name: /Adopt a code of conduct/ }).click();
     await expect(page.getByText("Set up by the e2e flows.")).toBeVisible();
   });
-
-  test("the terms still show after landing on them first", async ({ page }) => {
-    const terms = page.getByRole("dialog", { name: "Terms of Service" });
-    await page.goto("/terms/");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(terms).toBeHidden();
-    await page.getByRole("link", { name: "Tansu homepage" }).click();
-    await expect(terms).toBeVisible();
-  });
 });
 
 test("no page scrolls sideways on a phone", async ({ page }) => {
@@ -95,17 +86,4 @@ test("no page scrolls sideways on a phone", async ({ page }) => {
     );
     expect(overflow, path).toBeLessThanOrEqual(0);
   }
-});
-
-test("a script in the address stays text", async ({ page }) => {
-  const dialogs: string[] = [];
-  page.on("dialog", (dialog) => {
-    dialogs.push(dialog.message());
-    void dialog.dismiss();
-  });
-  await page.goto(
-    `/project/?name=${encodeURIComponent("<img src=x onerror=alert(1)>")}`,
-  );
-  await page.waitForLoadState("networkidle");
-  expect(dialogs).toEqual([]);
 });

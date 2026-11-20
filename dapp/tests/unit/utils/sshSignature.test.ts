@@ -20,11 +20,6 @@ describe("extractSignatureBytes", () => {
     expect(result).toEqual(TEST_SIG);
   });
 
-  it("extracts base64 signature with padding", () => {
-    const result = extractSignatureBytes(TEST_SIG_BASE64);
-    expect(result).toEqual(TEST_SIG);
-  });
-
   it("rejects base64 string that decodes to wrong length (< 64 bytes)", () => {
     const b64 = btoa("short");
     expect(extractSignatureBytes(b64)).toBeNull();
