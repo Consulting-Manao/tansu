@@ -4,10 +4,12 @@
     python3 scripts/history-art.py        (or: bun run art)
 
 Writes src/assets/art/{hero-desk,hero-phone,band}.svg. The drawing is
-fixed: the same seeds give the same files. Colours and motion come from
-src/styles/history-art.css, by class.
+fixed: the same seeds give the same files. The hero's SVGs carry their
+walk in data-art, which src/utils/historyArt.ts redraws on each visit.
+Colours and motion come from src/styles/history-art.css, by class.
 """
 
+import json
 import math
 import random
 from pathlib import Path
@@ -37,6 +39,7 @@ class Art:
         self.fx0 = 0.1  # how faint the lanes start, on the left
         self.grad = ((width * 0.2, height * 0.9), (width * 0.85, height * 0.15))
         self.layers = {"ghosts": [], "lanes": [], "main": [], "nodes": [], "seal": []}
+        self.spec = {"step": step, "ox": ox, "oy": oy, "lanes": [], "nodes": []}
 
     def P(self, ij):
         return (
@@ -53,6 +56,7 @@ class Art:
     def main(self, start, seq):
         """The featured history: a path that draws itself once."""
         self.mp = walk(start, seq)
+        self.spec["seq"] = seq
         self.total = len(self.mp) - 1
         dd, u = self.d(self.mp), self.uid
         self.grad = (self.P(self.mp[0]), self.P(self.mp[-1]))
@@ -67,6 +71,9 @@ class Art:
         end = self.mp.index(pts[-1]) if pts[-1] in self.mp else at + len(seq)
         self.layers["lanes"].append(
             f'<path class="art-branch" style="--t0: {self.t(at)}; --t1: {self.t(end)}" d="{self.d(pts)}" pathLength="1"></path>'
+        )
+        self.spec["lanes"].append(
+            [at, end - at, None if avatar_at is None else min(avatar_at, end - at - 1)]
         )
         if avatar_at is not None:
             x, y = self.P(pts[avatar_at])
@@ -87,6 +94,7 @@ class Art:
                 )
 
     def nodes(self, ks, big=()):
+        self.spec["nodes"] += ks
         for k in ks:
             x, y = self.P(self.mp[k])
             merge = " art-node--merge" if k in big else ""
@@ -121,9 +129,14 @@ class Art:
                 f'<filter id="{u}glow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="8"></feGaussianBlur></filter>',
             )
         layers = self.layers
+        art = (
+            f" data-art='{json.dumps(self.spec, separators=(',', ':'))}'"
+            if history
+            else ""
+        )
         return "\n".join(
             [
-                f'<svg class="{cls}" viewBox="0 0 {W} {H}" preserveAspectRatio="{align}" aria-hidden="true">',
+                f'<svg class="{cls}" viewBox="0 0 {W} {H}" preserveAspectRatio="{align}"{art} aria-hidden="true">',
                 "<defs>",
                 *defs,
                 "</defs>",
