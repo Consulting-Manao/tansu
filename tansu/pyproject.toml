@@ -79,3 +79,6 @@ packages = ["src/tansu"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+
+[tool.uv]
+exclude-newer = "7 days"

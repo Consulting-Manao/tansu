@@ -5,6 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tansu_pre_push"
 version = "1.0.0"
+requires-python = ">=3.12"
 dependencies = [
     "soroban",
 ]
@@ -14,3 +15,6 @@ tansu-pre-push = "tansu_pre_push:main"
 
 [tool.hatch.build]
 include = ["tansu_pre_push.py"]
+
+[tool.uv]
+exclude-newer = "7 days"

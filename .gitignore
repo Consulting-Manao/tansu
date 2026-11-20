@@ -1,4 +1,5 @@
 # Soroban
+/dependency-update-*/
 release
 target
 contract/target

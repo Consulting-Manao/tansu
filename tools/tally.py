@@ -6,6 +6,8 @@
 #     "pycryptodome",
 #     "py_ecc",
 # ]
+# [tool.uv]
+# exclude-newer = "7 days"
 # ///
 """
 Check the votes of a round of proposals off chain, and execute them.
