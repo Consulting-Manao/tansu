@@ -1,5 +1,5 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
-.PHONY: radicle_ci radicle_release_candidate radicle_release radicle_register
+.PHONY: radicle_ci radicle_lint radicle_release_candidate radicle_release radicle_register
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -286,6 +286,23 @@ ci_checks = cargo test && cargo clippy --all-targets --all-features -- -Dwarning
 # to the rad-ci branch. It runs in the working tree: commit first.
 radicle_ci:  ## Build, test, lint and scan HEAD as a Radicle job
 	RADICLE_CI_CMD="make contract_build && $(ci_checks)" .radicle/ci.sh
+
+# The pre-commit hooks of .github/workflows/lint.yml (zizmor, ruff, clippy, rustfmt) as a
+# Radicle job of HEAD, with the Stellar CLI that workflow installs. Clippy compiles the
+# registry manager, which imports the Tansu WASM, so the WASM is built first. Needs
+# pre-commit, rad-job and rustup's wasm32v1-none target; the hooks fetch their own tools.
+stellar_cli_lint = $(shell sed -n 's|.*stellar/stellar-cli@v\([0-9.]*\).*|\1|p' .github/workflows/lint.yml)
+lint_hook = pre-commit run --all-files --show-diff-on-failure --color=always
+radicle_lint:  ## Run the lint.yml pre-commit hooks as a Radicle job of HEAD
+	@for tool in pre-commit rad-job; do \
+		command -v $$tool > /dev/null || { echo "radicle_lint needs $$tool"; exit 1; }; \
+	done
+	@v=$$(stellar --version 2> /dev/null); case "$$v" in "stellar $(stellar_cli_lint) "*) ;; \
+		*) echo "radicle_lint needs the Stellar CLI $(stellar_cli_lint) of lint.yml, found: $${v:-none}"; exit 1 ;; esac
+	@git diff --quiet HEAD || { echo "radicle_lint checks HEAD: commit your changes first"; exit 1; }
+	RADICLE_CI_CMD="stellar --version && rustup target add wasm32v1-none && stellar contract build --package tansu && \
+		$(lint_hook) zizmor && $(lint_hook) ruff-check && $(lint_hook) ruff-format && \
+		$(lint_hook) clippy && $(lint_hook) rustfmt" .radicle/ci.sh
 
 # The candidate of a release, before any tag exists. main goes to Radicle, then one Radicle
 # job of HEAD builds both contracts in the pinned image into release/<tag>/ and checks that
