@@ -41,6 +41,10 @@ You only need to configure this if you're working on the IPFS delegation worker 
 
 ### Testing
 
+For dependency refreshes, use the isolated resolver and the existing Radicle job runner
+described in [Dependency updates on Radicle](docs/dependency-updates.md). Start with
+`make dependency_update`, review its patch, and validate with `make dependency_checks`.
+
 Testing your code is paramount. Without continuous integration, we **cannot**
 guaranty the quality of the code. Some minor modification on a function can
 have unexpected implications. With a single commit, everything can go south!
