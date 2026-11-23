@@ -2,18 +2,11 @@
 #
 # These CVEs cannot be fixed by updating project dependencies.
 #
-# GHSA-gv7w-rqvm-qjhr (esbuild): Affects Deno module binary integrity.
-# We don't use Deno, and esbuild is a build-time-only dev dependency.
-# astro/vite pin esbuild to ^0.27.3; forcing ^0.28.x breaks Astro's
-# dynamic module imports. This is a build-tool CVE with no runtime risk.
 #
 # CVE-2026-33176 (activesupport): Ruby gem vulnerability found in
 # Gemfile.lock files bundled inside the published npm package
 # @stellar/js-xdr (under node_modules). These are third-party Ruby
 # dependencies — we cannot update them.
-
-# esbuild (build-time tool, Deno-specific CVE, astro/vite pin to 0.27.x)
-GHSA-gv7w-rqvm-qjhr
 
 # activesupport in @stellar/js-xdr's bundled Gemfile.lock (third-party Ruby dep)
 CVE-2026-33176
