@@ -29,8 +29,8 @@ The worker checks the upload request by:
   not know it yet), checking it succeeded, and checking it calls
   `TANSU_CONTRACT_ID` with `cid` as the CID argument of a function that records
   one (`CID_CALLS` in `src/index.ts`: `add_member`, `update_member`, `register`,
-  `update_config`, `set_evidence`, `create_proposal`, `veto`). The CID anywhere
-  else in the call does not count
+  `update_config`, `set_evidence`, `create_proposal`, `veto`, `vote`, whose
+  comment is optional). The CID anywhere else in the call does not count
 - the address that authorized that call may have 50 CIDs and 100 MB pinned in a
   day (`src/quota.ts`, one `UploadQuota` Durable Object per address, reset a day
   after the first upload). It is the address in the call, not the transaction's

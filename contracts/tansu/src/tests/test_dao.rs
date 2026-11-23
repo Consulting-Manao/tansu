@@ -88,6 +88,7 @@ fn proposal_flow() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Verify vote cast event
@@ -194,6 +195,7 @@ fn scf_voting() {
             weight: 10_000_000,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup
@@ -358,7 +360,9 @@ fn dao_anonymous() {
             &scalars(&setup.env, &[5, 4, 6]),
         ),
     });
-    setup.contract.vote(&kuiil, &id, &proposal_id, &vote_);
+    setup
+        .contract
+        .vote(&kuiil, &id, &proposal_id, &vote_, &None);
 
     setup
         .env
@@ -446,6 +450,7 @@ fn voting_errors() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -463,6 +468,7 @@ fn voting_errors() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -486,6 +492,7 @@ fn voting_errors() {
                     BytesN::from_array(&setup.env, &[0; 96]),
                 ],
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -509,6 +516,7 @@ fn voting_errors() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Cannot vote twice
@@ -523,6 +531,7 @@ fn voting_errors() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -546,6 +555,7 @@ fn voting_errors() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -660,6 +670,7 @@ fn proposal_execution() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup.contract.vote(
@@ -671,6 +682,7 @@ fn proposal_execution() {
             weight: Badge::Community as u32,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup
@@ -835,6 +847,7 @@ fn veto_rejects_whatever_the_votes_are() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // only a maintainer vetoes, with a reason that is a content identifier
@@ -1059,6 +1072,7 @@ fn voter_weight_validation() {
                 weight: u32::MAX,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -1083,6 +1097,7 @@ fn voter_weight_validation() {
             weight: 42, // kuiil has up to 11M
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     let proposal = setup.contract.get_proposal(&id, &proposal_id);
@@ -1185,6 +1200,7 @@ fn outcomes_execution() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup.contract.vote(
@@ -1196,6 +1212,7 @@ fn outcomes_execution() {
             weight: Badge::Community as u32,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup
@@ -1263,6 +1280,7 @@ fn token_based_proposal_flow() {
             weight: vote_weight,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     let balance_voter_after_vote = setup.token_stellar.balance(&setup.mando);
@@ -1407,6 +1425,7 @@ fn conflict_of_interest_flow() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -1442,6 +1461,7 @@ fn conflict_of_interest_flow() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Non-maintainer cannot remove themselves
@@ -1525,6 +1545,7 @@ fn remove_vote_public_flips_outcome() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // rex votes Reject with high weight outcome would be Rejected without removal
@@ -1537,6 +1558,7 @@ fn remove_vote_public_flips_outcome() {
             weight: Badge::Community as u32,
             vote_choice: VoteChoice::Reject,
         }),
+        &None,
     );
 
     let balance_rex_after_vote = setup.token_stellar.balance(&rex);
@@ -1637,7 +1659,9 @@ fn remove_vote_anonymous_flips_outcome() {
             &scalars(&setup.env, &[2, 0, 0]),
         ),
     });
-    setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
+    setup
+        .contract
+        .vote(&kuiil, &id, &proposal_id, &kuiil_vote, &None);
 
     // rex votes Reject, weight=3 (Community badge)
     // Without removal: reject=3 ties approve=3 → Cancelled
@@ -1663,7 +1687,9 @@ fn remove_vote_anonymous_flips_outcome() {
             &scalars(&setup.env, &[0, 3, 0]),
         ),
     });
-    setup.contract.vote(&rex, &id, &proposal_id, &rex_vote);
+    setup
+        .contract
+        .vote(&rex, &id, &proposal_id, &rex_vote, &None);
 
     // Remove rex's reject vote (maintainer action)
     setup
@@ -1806,6 +1832,7 @@ fn execute_delay_override_applies_to_execute() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Before per-project delay: execute should panic.
@@ -2020,6 +2047,7 @@ fn execute_delay_snapshot_shields_in_flight_proposals() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         );
     }
 
@@ -2108,6 +2136,7 @@ fn execute_delay_loosening_waits_out_notice() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Past the 48h notice window: proposal B picks up the 60s delay.
@@ -2125,6 +2154,7 @@ fn execute_delay_loosening_waits_out_notice() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup.env.ledger().set_timestamp(ends_b + fast_delay);
@@ -2257,13 +2287,13 @@ fn weight_one_votes_take_at_most_half_the_slots() {
         let voter = Address::generate(env);
         setup
             .contract
-            .vote(&voter, &id, &proposal_id, &approve(&voter, 1));
+            .vote(&voter, &id, &proposal_id, &approve(&voter, 1), &None);
         fresh.push_back(voter);
     }
     let extra = Address::generate(env);
     let err = setup
         .contract
-        .try_vote(&extra, &id, &proposal_id, &approve(&extra, 1))
+        .try_vote(&extra, &id, &proposal_id, &approve(&extra, 1), &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::VoteLimitExceeded.into());
@@ -2281,6 +2311,7 @@ fn weight_one_votes_take_at_most_half_the_slots() {
         &id,
         &proposal_id,
         &approve(&member, Badge::Community as u32),
+        &None,
     );
 
     // removing a weight-1 vote frees its slot
@@ -2289,7 +2320,7 @@ fn weight_one_votes_take_at_most_half_the_slots() {
         .remove_vote(&setup.mando, &id, &proposal_id, &fresh.get(0).unwrap());
     setup
         .contract
-        .vote(&extra, &id, &proposal_id, &approve(&extra, 1));
+        .vote(&extra, &id, &proposal_id, &approve(&extra, 1), &None);
 }
 
 #[test]
@@ -2322,12 +2353,12 @@ fn a_proposal_takes_at_most_a_thousand_votes() {
         let voter = Address::generate(env);
         setup
             .contract
-            .vote(&voter, &id, &proposal_id, &approve(&voter));
+            .vote(&voter, &id, &proposal_id, &approve(&voter), &None);
     }
     let extra = Address::generate(env);
     let err = setup
         .contract
-        .try_vote(&extra, &id, &proposal_id, &approve(&extra))
+        .try_vote(&extra, &id, &proposal_id, &approve(&extra), &None)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::VoteLimitExceeded.into());
@@ -2390,6 +2421,7 @@ fn token_proposals_are_for_maintainers_and_not_nqg_projects() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -2467,6 +2499,7 @@ fn anonymous_ballot_strings_are_bounded() {
                 encrypted_votes: vec![env, long, short.clone(), short],
                 commitments,
             }),
+            &None,
         )
         .unwrap_err()
         .unwrap();
@@ -2529,19 +2562,33 @@ fn ballots_expire_after_the_grace_period() {
             &scalars(env, &[2, 0, 0]),
         ),
     });
-    setup.contract.vote(&kuiil, &id, &proposal_id, &kuiil_vote);
+    // An anonymous ballot takes a comment too: it is public, like the voter.
+    let comment = Some(String::from_str(
+        env,
+        "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    ));
+    setup
+        .contract
+        .vote(&kuiil, &id, &proposal_id, &kuiil_vote, &comment);
 
-    // Both ballots, the proposer's and kuiil's, are temporary entries paid
-    // until 14 days after the earliest execution.
+    // Both ballots, the proposer's and kuiil's, and kuiil's comment are
+    // temporary entries paid until 14 days after the earliest execution.
     let ttl =
         ((voting_ends_at + TIMELOCK_DELAY + 14 * 24 * 3600 - env.ledger().timestamp()) / 5) as u32;
-    for voter in [&setup.grogu, &kuiil] {
-        let key = ProjectKey::Vote(id.clone(), proposal_id, voter.clone());
+    for key in [
+        ProjectKey::Vote(id.clone(), proposal_id, setup.grogu.clone()),
+        ProjectKey::Vote(id.clone(), proposal_id, kuiil.clone()),
+        ProjectKey::VoteComment(id.clone(), proposal_id, kuiil.clone()),
+    ] {
         env.as_contract(&setup.contract_id, || {
             assert!(!env.storage().persistent().has(&key));
             assert_eq!(env.storage().temporary().get_ttl(&key), ttl);
         });
     }
+    assert_eq!(
+        setup.contract.get_vote_comment(&id, &proposal_id, &kuiil),
+        comment
+    );
 
     // While the ballots live, proof sums them and kuiil cannot vote again.
     let proposal = setup.contract.get_proposal(&id, &proposal_id);
@@ -2550,7 +2597,7 @@ fn ballots_expire_after_the_grace_period() {
     assert_eq!(
         setup
             .contract
-            .try_vote(&kuiil, &id, &proposal_id, &kuiil_vote),
+            .try_vote(&kuiil, &id, &proposal_id, &kuiil_vote, &None),
         Err(Ok(ContractErrors::AlreadyVoted.into()))
     );
 
@@ -2561,6 +2608,10 @@ fn ballots_expire_after_the_grace_period() {
     });
     let proposal = setup.contract.get_proposal(&id, &proposal_id);
     assert_eq!(proposal.vote_data.votes.len(), 0);
+    assert_eq!(
+        setup.contract.get_vote_comment(&id, &proposal_id, &kuiil),
+        None
+    );
     assert!(!setup.contract.proof(&id, &proposal, &tallies, &seeds));
     assert_eq!(
         setup
@@ -2608,15 +2659,23 @@ fn removed_voter_can_vote_again() {
             vote_choice: choice,
         })
     };
-    setup
-        .contract
-        .vote(&setup.mando, &id, &proposal_id, &vote(VoteChoice::Reject));
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vote(VoteChoice::Reject),
+        &None,
+    );
     setup
         .contract
         .remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
-    setup
-        .contract
-        .vote(&setup.mando, &id, &proposal_id, &vote(VoteChoice::Approve));
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &vote(VoteChoice::Approve),
+        &None,
+    );
 
     env.ledger()
         .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
@@ -2624,6 +2683,131 @@ fn removed_voter_can_vote_again() {
         .contract
         .execute(&setup.grogu, &id, &proposal_id, &None, &None);
     assert_eq!(result, ProposalStatus::Approved);
+}
+
+#[test]
+fn vote_with_a_comment() {
+    let setup = create_test_data();
+    let id = init_contract(&setup);
+    let env = &setup.env;
+
+    let voting_ends_at = env.ledger().timestamp() + 3600 * 24 * 2;
+    let proposal_id = setup.contract.create_proposal(
+        &setup.grogu,
+        &id,
+        &String::from_str(env, "Explain a vote"),
+        &String::from_str(
+            env,
+            "bafybeib6ioupho3p3pliusx7tgs7dvi6mpu2bwfhayj6w6ie44lo3vvc4i",
+        ),
+        &voting_ends_at,
+        &true,
+        &None,
+        &None,
+    );
+    let comment = Some(String::from_str(
+        env,
+        "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    ));
+
+    // A CID is 32 to 64 characters; a refused comment records no vote.
+    for cid in ["too short", &"b".repeat(65)] {
+        assert_eq!(
+            setup.contract.try_vote(
+                &setup.mando,
+                &id,
+                &proposal_id,
+                &approve(&setup.mando),
+                &Some(String::from_str(env, cid)),
+            ),
+            Err(Ok(ContractErrors::ProposalInputValidation.into()))
+        );
+    }
+    assert_eq!(
+        setup
+            .contract
+            .get_proposal(&id, &proposal_id)
+            .vote_data
+            .votes
+            .len(),
+        1
+    );
+
+    // The vote counts as a plain one and is announced the same way.
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &approve(&setup.mando),
+        &comment,
+    );
+    let event = VoteCast {
+        project_key: id.clone(),
+        proposal_id,
+        voter: setup.mando.clone(),
+    };
+    assert_eq!(
+        env.events().all().filter_by_contract(&setup.contract_id),
+        [event.to_xdr(env, &setup.contract_id)]
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_vote_comment(&id, &proposal_id, &setup.mando),
+        comment
+    );
+    // The proposer's own ballot has none.
+    assert_eq!(
+        setup
+            .contract
+            .get_vote_comment(&id, &proposal_id, &setup.grogu),
+        None
+    );
+
+    // Every check of a vote applies.
+    assert_eq!(
+        setup.contract.try_vote(
+            &setup.mando,
+            &id,
+            &proposal_id,
+            &approve(&setup.mando),
+            &comment,
+        ),
+        Err(Ok(ContractErrors::AlreadyVoted.into()))
+    );
+
+    // Removing the vote removes its comment; a new vote without one has none.
+    setup
+        .contract
+        .remove_vote(&setup.grogu, &id, &proposal_id, &setup.mando);
+    assert_eq!(
+        setup
+            .contract
+            .get_vote_comment(&id, &proposal_id, &setup.mando),
+        None
+    );
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &approve(&setup.mando),
+        &None,
+    );
+    assert_eq!(
+        setup
+            .contract
+            .get_vote_comment(&id, &proposal_id, &setup.mando),
+        None
+    );
+
+    env.ledger()
+        .set_timestamp(voting_ends_at + TIMELOCK_DELAY + 1);
+    assert_eq!(
+        setup
+            .contract
+            .execute(&setup.grogu, &id, &proposal_id, &None, &None),
+        ProposalStatus::Approved
+    );
 }
 
 #[test]
@@ -2684,7 +2868,7 @@ fn seeds_are_scalars_summed_modulo_the_group_order() {
                 &vec![env, largest.clone(), largest.clone(), largest.clone()],
             ),
         });
-        setup.contract.vote(&voter, &id, &proposal_id, &vote);
+        setup.contract.vote(&voter, &id, &proposal_id, &vote, &None);
     }
 
     // the seed sums exceed u128: reduced or not, they prove the tally
@@ -2755,10 +2939,14 @@ fn execute_early_on_maintainer_quorum() {
     );
     setup
         .contract
-        .vote(&kuiil, &id, &proposal_id, &approve(&kuiil));
-    setup
-        .contract
-        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
+        .vote(&kuiil, &id, &proposal_id, &approve(&kuiil), &None);
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &approve(&setup.mando),
+        &None,
+    );
     let err = setup
         .contract
         .try_execute(&setup.grogu, &id, &proposal_id, &None, &None)
@@ -2767,9 +2955,13 @@ fn execute_early_on_maintainer_quorum() {
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
 
     // Both maintainers voted: it executes while the vote still runs.
-    setup
-        .contract
-        .vote(&setup.grogu, &id, &proposal_id, &approve(&setup.grogu));
+    setup.contract.vote(
+        &setup.grogu,
+        &id,
+        &proposal_id,
+        &approve(&setup.grogu),
+        &None,
+    );
     let result = setup
         .contract
         .execute(&setup.grogu, &id, &proposal_id, &None, &None);
@@ -2786,7 +2978,7 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
     for maintainer in [&setup.grogu, &setup.mando] {
         setup
             .contract
-            .vote(maintainer, &id, &proposal_id, &approve(maintainer));
+            .vote(maintainer, &id, &proposal_id, &approve(maintainer), &None);
     }
     setup
         .contract
@@ -2797,9 +2989,13 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractErrors::ProposalVotingTime.into());
-    setup
-        .contract
-        .vote(&setup.mando, &id, &proposal_id, &approve(&setup.mando));
+    setup.contract.vote(
+        &setup.mando,
+        &id,
+        &proposal_id,
+        &approve(&setup.mando),
+        &None,
+    );
     let result = setup
         .contract
         .execute(&setup.grogu, &id, &proposal_id, &None, &None);
@@ -2811,7 +3007,7 @@ fn early_quorum_follows_live_maintainers_and_ballots() {
     for maintainer in [&setup.grogu, &setup.mando] {
         setup
             .contract
-            .vote(maintainer, &id, &proposal_id, &approve(maintainer));
+            .vote(maintainer, &id, &proposal_id, &approve(maintainer), &None);
     }
     let kuiil = Address::generate(&setup.env);
     setup.contract.update_config(

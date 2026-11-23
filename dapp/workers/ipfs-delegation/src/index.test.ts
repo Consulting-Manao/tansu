@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   Account,
+  contract,
   Keypair,
   Networks,
   Operation,
@@ -10,12 +11,14 @@ import {
   type xdr,
 } from "@stellar/stellar-sdk";
 import worker, {
+  CID_CALLS,
   type Env,
   pinStatus,
   uploadActor,
   validateSubmittedTransaction,
   validateUploadRequest,
 } from "./index";
+import bindings from "../../../packages/tansu/src/index.ts?raw";
 import { verifiedRoot } from "./car";
 import {
   QUOTA_BYTES,
@@ -85,60 +88,37 @@ describe("uploadActor", () => {
   });
 
   it("knows where each function takes its CID", () => {
-    // The contract's signatures, written out (env left out): the CID is the
-    // argument named `cid`, `ipfs`, `meta` or `reason`.
-    const address = () =>
-      nativeToScVal(Keypair.random().publicKey(), { type: "address" });
-    const signatures: Record<string, string[]> = {
-      add_member: [
-        "member_address",
-        "meta",
-        "git_identity",
-        "git_pubkey",
-        "git_sig",
-      ],
-      update_member: [
-        "member_address",
-        "meta",
-        "git_identity",
-        "git_pubkey",
-        "git_sig",
-      ],
-      register: [
-        "maintainer",
-        "name",
-        "maintainers",
-        "url",
-        "ipfs",
-        "min_voting_period",
-      ],
-      update_config: [
-        "maintainer",
-        "key",
-        "maintainers",
-        "url",
-        "ipfs",
-        "min_voting_period",
-      ],
-      set_evidence: ["maintainer", "project_key", "commit_hash", "kind", "cid"],
-      create_proposal: [
-        "proposer",
-        "project_key",
-        "title",
-        "ipfs",
-        "voting_ends_at",
-      ],
-      veto: ["maintainer", "project_key", "proposal_id", "reason"],
-    };
-    for (const [fn, names] of Object.entries(signatures)) {
-      const args = names.map((name, i) => (i === 0 ? address() : text(name)));
-      const cid = names.find((name) =>
-        ["meta", "ipfs", "cid", "reason"].includes(name),
-      )!;
-      args[names.indexOf(cid)] = text(CID);
+    // The CID and the actor of each call, as the generated bindings of the
+    // contract name them: the CID is a string, or an optional one, named
+    // `cid`, `ipfs`, `meta` or `reason`, the actor an address.
+    const entries = bindings
+      .slice(bindings.indexOf("new ContractSpec(["))
+      .match(/"AAAA[A-Za-z0-9+/=]+"/g)!
+      .map((entry: string) => entry.slice(1, -1));
+    const spec = new contract.Spec(entries);
+    for (const [fn, { actor, cid }] of Object.entries(CID_CALLS)) {
+      const { inputs } = spec.getFunc(fn);
+      // A CID may be optional, as a vote's comment is
+      const cidType = inputs[cid]!.type;
+      const stored =
+        cidType.type === "scSpecTypeOption"
+          ? cidType.option.valueType
+          : cidType;
+      expect(stored.type, fn).toBe("scSpecTypeString");
+      expect(["cid", "ipfs", "meta", "reason"], fn).toContain(
+        inputs[cid]!.name.toString(),
+      );
+      expect(inputs[actor]?.type.type, fn).toBe("scSpecTypeAddress");
+
+      const args = inputs.map((_, i) =>
+        i === actor
+          ? nativeToScVal(Keypair.random().publicKey(), { type: "address" })
+          : text(i === cid ? CID : `arg${i}`),
+      );
       expect(call(invokeTx({ fn, args })), fn).toBeDefined();
       // Any other string argument is not the CID.
-      expect(call(invokeTx({ fn, args }), "title"), fn).toBeUndefined();
+      args[cid] = text("x");
+      expect(call(invokeTx({ fn, args })), fn).toBeUndefined();
     }
   });
 
@@ -158,7 +138,7 @@ describe("uploadActor", () => {
   it("refuses another function, another contract and another CID", () => {
     const other = StrKey.encodeContract(Buffer.alloc(32, 2));
     for (const tx of [
-      invokeTx({ fn: "vote" }),
+      invokeTx({ fn: "execute" }),
       invokeTx({ contract: other }),
       invokeTx({ cid: "bafyreiother" }),
     ]) {

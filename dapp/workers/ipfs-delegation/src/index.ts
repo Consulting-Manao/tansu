@@ -112,7 +112,7 @@ export function validateUploadRequest(body: UploadRequest): void {
  * arguments and where the address that authorizes the call is. Only the
  * argument named here counts, so a CID tucked in another one proves nothing.
  */
-const CID_CALLS: Record<string, { actor: number; cid: number }> = {
+export const CID_CALLS: Record<string, { actor: number; cid: number }> = {
   add_member: { actor: 0, cid: 1 },
   update_member: { actor: 0, cid: 1 },
   register: { actor: 0, cid: 4 },
@@ -120,6 +120,7 @@ const CID_CALLS: Record<string, { actor: number; cid: number }> = {
   set_evidence: { actor: 0, cid: 4 },
   create_proposal: { actor: 0, cid: 3 },
   veto: { actor: 0, cid: 3 },
+  vote: { actor: 0, cid: 4 },
 };
 
 /**

@@ -206,8 +206,9 @@ pub enum ProjectKey {
     Dao(Bytes, u32),                       // Proposal ids of a page, pagination
     Proposal(Bytes, u32),                  // One proposal, by id
     DaoTotalProposals(Bytes),
-    Voters(Bytes, u32),        // Voter addresses for proposal
-    Vote(Bytes, u32, Address), // Proposal vote keyed by voter
+    Voters(Bytes, u32),               // Voter addresses for proposal
+    Vote(Bytes, u32, Address),        // Proposal vote keyed by voter
+    VoteComment(Bytes, u32, Address), // CID of a vote's comment, keyed by voter
     ProposalTallies(Bytes, u32),
     Veto(Bytes, u32), // Who vetoed a proposal, why and when
     AnonymousVoteConfig(Bytes),

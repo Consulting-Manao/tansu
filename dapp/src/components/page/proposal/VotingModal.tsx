@@ -2,10 +2,30 @@ import { voteTypeDescriptionMap, voteTypeLabelMap } from "constants/constants";
 import { useState, useEffect } from "react";
 import { VoteType } from "types/proposal";
 import { loadedPublicKey } from "../../../service/walletService";
-import { getVotingPower, vote } from "../../../service/ProposalService";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ballotsExpireAt,
+  executeDelayQuery,
+  getVotingPower,
+  MAX_VOTE_COMMENT,
+  proposalSummaryQuery,
+  vote,
+} from "../../../service/ProposalService";
+import { queryClient } from "../../../service/queryClient";
+import type { LandedUploadError } from "../../../service/TxService";
+import VoteCommentField from "./VoteCommentField";
+import VoteReceiptView from "./VoteReceiptView";
 import { errorMessage } from "../../../utils/contractErrors";
 import { toast } from "../../../utils/utils";
-import { Button, Dialog, RadioGroup, Title } from "components/ui";
+import {
+  Button,
+  Dialog,
+  flowSteps,
+  RadioGroup,
+  Stepper,
+  Title,
+  useFlow,
+} from "components/ui";
 
 interface VotersModalProps {
   projectName: string;
@@ -32,38 +52,29 @@ const VotingModal: React.FC<VotersModalProps> = ({
   const [voteReceipt, setVoteReceipt] = useState<
     import("types/proposal").VoteReceipt | null
   >(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [unuploaded, setUnuploaded] = useState<LandedUploadError>();
+  const [comment, setComment] = useState("");
+  const flow = useFlow();
+  const summary = useQuery(
+    {
+      ...proposalSummaryQuery(projectName, proposalId ?? 0),
+      enabled: proposalId !== undefined,
+    },
+    queryClient,
+  ).data?.proposal;
+  const delay = useQuery(
+    {
+      ...executeDelayQuery(projectName, proposalId ?? 0),
+      enabled: proposalId !== undefined,
+    },
+    queryClient,
+  ).data;
+  const keptUntil =
+    summary && ballotsExpireAt(Number(summary.vote_data.voting_ends_at), delay);
   const isInsufficientVotingPower = maxWeight <= 0;
   // Closing while the vote lands would lose its receipt.
   const close = () => {
     if (!isLoading) onClose();
-  };
-
-  const downloadReceipt = async () => {
-    if (!voteReceipt) return;
-    setIsDownloading(true);
-    try {
-      const { renderVoteReceipt, voteReceiptFileName } =
-        await import("./VoteReceiptPdf");
-      const pdf = await renderVoteReceipt(voteReceipt);
-      const url = URL.createObjectURL(
-        new Blob([pdf as BlobPart], { type: "application/pdf" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = voteReceiptFileName(voteReceipt);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (error) {
-      toast.error(
-        "Vote receipt",
-        `Could not create the PDF: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      setIsDownloading(false);
-    }
   };
 
   const insufficientPowerMessage = isTokenVoting
@@ -149,15 +160,18 @@ const VotingModal: React.FC<VotersModalProps> = ({
     if (!validateVote()) return;
 
     setIsLoading(true);
+    flow.stage("prepare");
     try {
-      const receipt = await vote(
+      const cast = await vote(
         projectName,
         proposalId!,
         selectedOption as VoteType,
         selectedWeight,
+        { comment, onProgress: flow.stage },
       );
 
-      setVoteReceipt(receipt);
+      setUnuploaded(cast.unuploaded);
+      setVoteReceipt(cast.receipt);
       toast.success(
         "Congratulations!",
         "Your vote was submitted successfully.",
@@ -170,6 +184,7 @@ const VotingModal: React.FC<VotersModalProps> = ({
             : errorMessage(error)
         }`,
       );
+      flow.reset();
       return;
     } finally {
       setIsLoading(false);
@@ -178,122 +193,23 @@ const VotingModal: React.FC<VotersModalProps> = ({
 
   if (voteReceipt) {
     return (
-      <Dialog size="auto" onClose={onClose}>
-        <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto">
-          <div className="flex flex-col gap-2 border-b pb-4">
-            <h2 className="text-section font-bold text-ink">Vote Receipt</h2>
-            <p className="text-ui text-ink-muted">
-              {voteReceipt.isPublicVoting
-                ? "Your vote was public. You can check the transaction hash on a Stellar explorer to verify it is on-chain."
-                : "Your vote was anonymous. Keep this receipt safe. You can verify your commitment on-chain using the transaction hash. At the end of the vote, the tally can be checked by verifying all commitments against the encrypted votes."}
-            </p>
-          </div>
+      <VoteReceiptView
+        receipt={voteReceipt}
+        unuploaded={unuploaded}
+        onClose={onClose}
+      />
+    );
+  }
 
-          <div className="flex flex-col gap-4 bg-sunken p-4 rounded-control overflow-x-auto text-ui">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <span className="font-semibold">Project:</span>{" "}
-                {voteReceipt.projectName}
-              </div>
-              <div>
-                <span className="font-semibold">Proposal ID:</span>{" "}
-                {voteReceipt.proposalId}
-              </div>
-              <div>
-                <span className="font-semibold">Vote Type:</span>{" "}
-                <span className="capitalize">{voteReceipt.voteType}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Weight:</span>{" "}
-                {voteReceipt.weight.toLocaleString()}
-              </div>
-              <div>
-                <span className="font-semibold">Voting Type:</span>{" "}
-                {voteReceipt.isPublicVoting ? "Public" : "Anonymous"}
-              </div>
-            </div>
-
-            {voteReceipt.transactionHash && (
-              <div className="mt-2">
-                <span className="font-semibold block mb-1">
-                  Transaction Hash:
-                </span>
-                <code className="bg-surface px-2 py-1 rounded border break-all text-label">
-                  {voteReceipt.transactionHash}
-                </code>
-              </div>
-            )}
-
-            {!voteReceipt.isPublicVoting && (
-              <>
-                <div className="mt-2">
-                  <span className="font-semibold block mb-1">Public Key:</span>
-                  <code className="bg-surface px-2 py-1 rounded border break-all text-label">
-                    {voteReceipt.publicKey}
-                  </code>
-                </div>
-
-                <div className="mt-2">
-                  <span className="font-semibold block mb-1">
-                    Votes (Approve, Reject, Abstain):
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    {voteReceipt.votes?.map((v, i) => (
-                      <code
-                        key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-label"
-                      >
-                        {v}
-                      </code>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <span className="font-semibold block mb-1">
-                    Seeds (Approve, Reject, Abstain):
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    {voteReceipt.seeds?.map((s, i) => (
-                      <code
-                        key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-label"
-                      >
-                        {s}
-                      </code>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <span className="font-semibold block mb-1">Commitments:</span>
-                  <div className="flex flex-col gap-1">
-                    {voteReceipt.commitments?.map((c, i) => (
-                      <code
-                        key={i}
-                        className="bg-surface px-2 py-1 rounded border break-all text-label"
-                      >
-                        {c}
-                      </code>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-3 mt-4">
-            <Button tone="secondary" onClick={onClose}>
-              Close
-            </Button>
-            <Button
-              onClick={downloadReceipt}
-              loading={isDownloading}
-              disabled={isDownloading}
-            >
-              Download PDF
-            </Button>
-          </div>
+  if (flow.working) {
+    return (
+      <Dialog onClose={close} closable={false}>
+        <div className="flex flex-col gap-6">
+          <h2 className="text-section font-bold">Sending your transaction</h2>
+          <Stepper
+            steps={flowSteps("vote").slice(0, comment.trim() ? 4 : 3)}
+            current={flow.state.step ?? 0}
+          />
         </div>
       </Dialog>
     );
@@ -335,6 +251,12 @@ const VotingModal: React.FC<VotersModalProps> = ({
                 description: voteTypeDescriptionMap[voteType],
               }),
             )}
+          />
+          <VoteCommentField
+            value={comment}
+            onChange={setComment}
+            anonymous={summary?.vote_data.public_voting === false}
+            keptUntil={keptUntil}
           />
           {voteError && (
             <div className="bg-danger-soft border border-danger/40 text-danger px-4 py-2 rounded">
@@ -385,14 +307,16 @@ const VotingModal: React.FC<VotersModalProps> = ({
               </Button>
               <Button
                 loading={isLoading}
-                disabled={isInsufficientVotingPower}
+                disabled={
+                  isInsufficientVotingPower || comment.length > MAX_VOTE_COMMENT
+                }
                 onClick={() => !isLoading && handleVote()}
               >
                 Vote
               </Button>
             </div>
             <p className="text-ui sm:text-body text-ink-muted text-right">
-              Once submitted, your vote cannot be changed.
+              Once submitted, your vote and its comment cannot be changed.
             </p>
             <p className="px-3 py-1 text-ui sm:text-body bg-sunken text-ink">
               {isTokenVoting ? (

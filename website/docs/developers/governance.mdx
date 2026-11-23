@@ -93,6 +93,15 @@ Once a ballot expires it is deleted, not archived, and cannot be restored:
 - `execute` is unaffected: it checks the revealed tally against the persistent aggregate. But an anonymous tally is decrypted from the ballots, so execute an anonymous proposal before they expire.
 - Anyone can extend a ballot before it expires, with `stellar contract extend --durability temporary --key-xdr <ballot key>`.
 
+### Vote comments
+
+A voter can explain their vote. `vote(voter, project_key, proposal_id, vote, ipfs)` takes the CID of the comment as its optional last argument and keeps it beside the ballot; `None` casts the vote without one. The CID is checked like a proposal's `ipfs` (32 to 64 characters). The client uploads the comment once the vote landed; the upload worker accepts the vote as proof, like every call that records a CID.
+
+- `get_vote_comment(project_key, proposal_id, voter)` returns the CID, or nothing when the vote has none.
+- The comment is a temporary entry of its own (`VoteComment`) with the ballot's lifetime: it is deleted with the ballot, 14 days after the normal execution time, and `remove_vote` removes it with the vote. A comment is read around the vote, not kept. Extending a ballot does not extend its comment: extend both keys.
+- `VoteCast` is the same event with or without a comment.
+- A comment is public, on an anonymous proposal too: it is stored under the voter's address and can tell how they voted.
+
 ### Early execution
 
 A maintainer can execute a proposal before `voting_ends_at` plus the execution delay, even while the vote runs, once the project's finality threshold of its maintainers voted on it:

@@ -343,6 +343,7 @@ export async function castVote(
     project_key: projectKey(name),
     proposal_id: id,
     vote,
+    ipfs: undefined,
   });
   await land(tx);
 }
@@ -394,6 +395,15 @@ export const read = {
       ? Number(scValToNative(entry.val.contractData.val))
       : undefined;
   },
+  /** The CID of a vote's comment; `undefined` when it has none. */
+  voteComment: async (name: string, id: number, voter: string) =>
+    (
+      await tansu().get_vote_comment({
+        project_key: projectKey(name),
+        proposal_id: id,
+        voter,
+      })
+    ).result,
   proposal: async (name: string, id: number) =>
     (
       await tansu().get_proposal({

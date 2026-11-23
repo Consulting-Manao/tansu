@@ -97,6 +97,9 @@ export const VoteReceiptDocument = ({
       {receipt.transactionHash && (
         <Values label="Transaction Hash" values={[receipt.transactionHash]} />
       )}
+      {receipt.comment && (
+        <Values label="Comment (IPFS CID)" values={[receipt.comment]} />
+      )}
       {!receipt.isPublicVoting && (
         <>
           {receipt.publicKey && (

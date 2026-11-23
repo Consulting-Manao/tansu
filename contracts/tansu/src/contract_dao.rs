@@ -464,8 +464,15 @@ impl DaoTrait for Tansu {
             .get::<types::ProjectKey, types::Vote>(&vote_key)
             .unwrap_or_else(|| panic_with_error!(&env, &errors::ContractErrors::VoteNotFound));
 
-        // Remove the vote entry
+        // Remove the vote entry and its comment
         env.storage().temporary().remove(&vote_key);
+        env.storage()
+            .temporary()
+            .remove(&types::ProjectKey::VoteComment(
+                project_key.clone(),
+                proposal_id,
+                voter.clone(),
+            ));
 
         // Free the weight-1 slot it held
         let vote_weight = match &vote {
@@ -693,17 +700,35 @@ impl DaoTrait for Tansu {
     /// * `project_key` - The project key identifier
     /// * `proposal_id` - The ID of the proposal to vote on
     /// * `vote` - The vote data (public or anonymous)
+    /// * `ipfs` - CID of the voter's comment, if any: public, on an anonymous
+    ///   proposal too, kept beside the ballot with its lifetime and read with
+    ///   [`DaoTrait::get_vote_comment`]
     ///
     /// # Panics
+    /// * If the comment's CID is not 32 to 64 characters long
     /// * If the voter has already voted
     /// * If the voting period has ended
     /// * If the proposal is not active anymore
     /// * If the proposal doesn't exist
     /// * If the voter's weight exceeds their maximum allowed weight
-    fn vote(env: Env, voter: Address, project_key: Bytes, proposal_id: u32, vote: types::Vote) {
+    fn vote(
+        env: Env,
+        voter: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        vote: types::Vote,
+        ipfs: Option<String>,
+    ) {
         Tansu::require_not_paused(env.clone());
 
         voter.require_auth();
+
+        if ipfs
+            .as_ref()
+            .is_some_and(|cid| !(32..=64).contains(&cid.len()))
+        {
+            panic_with_error!(&env, &errors::ContractErrors::ProposalInputValidation);
+        }
 
         let proposal = load_proposal(&env, &project_key, proposal_id);
 
@@ -823,14 +848,23 @@ impl DaoTrait for Tansu {
         // Record the vote as a temporary entry, paid until BALLOT_GRACE after
         // the earliest execution. The network then deletes it: the tallies
         // stay, but the ballot can no longer be read, removed or used by
-        // proof. Anyone can extend its TTL.
+        // proof. Anyone can extend its TTL. A comment lives as long.
+        let executable_at = proposal.vote_data.voting_ends_at
+            + proposal_execute_delay(&env, &project_key, proposal_id);
         set_ballot(
             &env,
             &types::ProjectKey::Vote(project_key.clone(), proposal_id, voter.clone()),
             &vote,
-            proposal.vote_data.voting_ends_at
-                + proposal_execute_delay(&env, &project_key, proposal_id),
+            executable_at,
         );
+        if let Some(cid) = ipfs {
+            set_ballot(
+                &env,
+                &types::ProjectKey::VoteComment(project_key.clone(), proposal_id, voter.clone()),
+                &cid,
+                executable_at,
+            );
+        }
         voters.push_back(voter.clone());
         env.storage().persistent().set(
             &types::ProjectKey::Voters(project_key.clone(), proposal_id),
@@ -1208,6 +1242,33 @@ impl DaoTrait for Tansu {
             })
     }
 
+    /// Get the comment of a vote: the CID [`DaoTrait::vote`] kept beside the
+    /// ballot.
+    ///
+    /// # Arguments
+    /// * `env` - The environment object
+    /// * `project_key` - The project key identifier
+    /// * `proposal_id` - The ID of the proposal
+    /// * `voter` - The address of the voter
+    ///
+    /// # Returns
+    /// * `Option<String>` - The CID, or None when the vote has no comment,
+    ///   was removed or its ballot expired
+    fn get_vote_comment(
+        env: Env,
+        project_key: Bytes,
+        proposal_id: u32,
+        voter: Address,
+    ) -> Option<String> {
+        env.storage()
+            .temporary()
+            .get(&types::ProjectKey::VoteComment(
+                project_key,
+                proposal_id,
+                voter,
+            ))
+    }
+
     /// Add addresses to the conflict-of-interest list of a proposal.
     ///
     /// Addresses on the list cannot cast a vote on the proposal.
@@ -1418,14 +1479,20 @@ fn proposal_execute_delay(env: &Env, project_key: &Bytes, proposal_id: u32) -> u
         .unwrap_or(types::TIMELOCK_DELAY)
 }
 
-/// Store a ballot as a temporary entry, paid until `BALLOT_GRACE` after
-/// `executable_at`, the earliest time its proposal can execute.
-fn set_ballot(env: &Env, key: &types::ProjectKey, vote: &types::Vote, executable_at: u64) {
+/// Store a ballot, or its comment, as a temporary entry, paid until
+/// `BALLOT_GRACE` after `executable_at`, the earliest time its proposal can
+/// execute.
+fn set_ballot<V: IntoVal<Env, Val>>(
+    env: &Env,
+    key: &types::ProjectKey,
+    value: &V,
+    executable_at: u64,
+) {
     let ledgers = ((executable_at + BALLOT_GRACE - env.ledger().timestamp()) / LEDGER_SECONDS)
         .try_into()
         .unwrap_or(u32::MAX);
     let storage = env.storage().temporary();
-    storage.set(key, vote);
+    storage.set(key, value);
     storage.extend_ttl(key, ledgers, ledgers);
 }
 
