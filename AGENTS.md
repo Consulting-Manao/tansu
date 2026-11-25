@@ -72,7 +72,7 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-`make radicle_lint` runs the CI hooks (zizmor, ruff, clippy, rustfmt) as a Radicle job of `HEAD`, with the Stellar CLI of `lint.yml`.
+`make radicle_lint` runs the CI hooks (zizmor, ruff, clippy, rustfmt) as a Radicle job of `HEAD`, with the Stellar CLI of `contract.yml`.
 
 Hooks: zizmor (GitHub Actions), ruff + ruff-format (Python), clippy `-Dwarnings` + rustfmt (Rust), prettier + eslint + astro check (dApp), website format/lint. A pre-push stage hook records the commit hash on-chain.
 
