@@ -221,7 +221,14 @@ pub trait DaoTrait {
         outcome_contracts: Option<Vec<types::OutcomeContract>>,
     ) -> u32;
 
-    fn vote(env: Env, voter: Address, project_key: Bytes, proposal_id: u32, vote: types::Vote);
+    fn vote(
+        env: Env,
+        voter: Address,
+        project_key: Bytes,
+        proposal_id: u32,
+        vote: types::Vote,
+        ipfs: Option<String>,
+    );
 
     fn remove_vote(
         env: Env,
@@ -257,6 +264,13 @@ pub trait DaoTrait {
     fn get_proposal(env: Env, project_key: Bytes, proposal_id: u32) -> types::Proposal;
 
     fn get_veto(env: Env, project_key: Bytes, proposal_id: u32) -> types::Veto;
+
+    fn get_vote_comment(
+        env: Env,
+        project_key: Bytes,
+        proposal_id: u32,
+        voter: Address,
+    ) -> Option<String>;
 
     fn add_conflict_of_interest(
         env: Env,

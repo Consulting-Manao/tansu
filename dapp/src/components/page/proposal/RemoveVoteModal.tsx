@@ -52,6 +52,7 @@ const RemoveVoteModal: FC<RemoveVoteModalProps> = ({
           <h2 className="text-card font-semibold">Remove a vote</h2>
           <p className="text-small text-ink-muted">
             As a maintainer you can remove a malicious or non-compliant vote.
+            Its comment is removed with it.
           </p>
         </div>
 

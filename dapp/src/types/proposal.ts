@@ -104,6 +104,8 @@ export interface VoteReceipt {
   weight: number;
   isPublicVoting: boolean;
   transactionHash?: string;
+  /** CID of the voter's comment, when they wrote one. */
+  comment?: string | undefined;
   seeds?: string[];
   votes?: string[];
   commitments?: string[];

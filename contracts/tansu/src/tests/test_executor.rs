@@ -199,6 +199,7 @@ fn manager_authorization_reaches_the_target_through_the_executor() {
         &key,
         &proposal_id,
         &public_approve(&setup.mando),
+        &None,
     );
     env.ledger().set_timestamp(ends + 24 * 3600 + 1);
 

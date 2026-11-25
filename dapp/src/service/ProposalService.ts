@@ -35,7 +35,13 @@ import {
   tokenVoteWeightToContract,
 } from "./TokenBalanceService";
 import { decode, readEntry, readStorage, storageKey } from "./ledger";
-import { packUpload, sendTransaction, type TxStage } from "./TxService";
+import {
+  LandedUploadError,
+  packUpload,
+  sendTransaction,
+  type TxStage,
+} from "./TxService";
+import { isValidCid } from "../utils/contentHashes";
 import { connectedAddress } from "./walletService";
 
 const MINUTE = 60_000;
@@ -230,6 +236,57 @@ export const proposalQuery = (name: string, id: number) =>
       );
       const { proposal } = summary;
       return { ...proposal, vote_data: { ...proposal.vote_data, votes } };
+    },
+    staleTime: MINUTE,
+  });
+
+/** The file of a vote's comment, in the directory its CID names. */
+export const VOTE_COMMENT_FILE = "comment.md";
+
+/** The longest comment the dApp sends; the contract keeps only its CID. */
+export const MAX_VOTE_COMMENT = 2000;
+
+/** How long a ballot, and its comment, live after the proposal can execute. */
+const BALLOT_GRACE = 14 * 24 * 3600;
+
+/**
+ * When a proposal's ballots and comments are deleted, in ms: 14 days after
+ * it can execute; `undefined` until its execute delay is read.
+ */
+export const ballotsExpireAt = (endDate: number, executeDelay?: number) =>
+  executeDelay === undefined
+    ? undefined
+    : (endDate + executeDelay + BALLOT_GRACE) * 1000;
+
+/**
+ * The comments voters kept beside their ballots, in the voters' order: the
+ * `VoteComment` entries, temporary like the ballots. Any client can store
+ * any string there, so only a CID counts.
+ */
+export const voteCommentsQuery = (name: string, id: number) =>
+  queryOptions({
+    queryKey: ["proposal", projectKeyHex(name), id, "comments"],
+    queryFn: async (): Promise<{ voter: string; cid: string }[]> => {
+      const summary = await queryClient.query(proposalSummaryQuery(name, id));
+      if (!summary) return [];
+      const entries = await Promise.all(
+        summary.voters.map((voter) =>
+          readEntry(
+            storageKey(
+              "VoteComment",
+              projectBytes(name),
+              xdr.ScVal.scvU32(id),
+              new Address(voter).toScVal(),
+            ),
+            true,
+          ),
+        ),
+      );
+      return summary.voters.flatMap((voter, i) => {
+        const entry = entries[i];
+        const cid = entry && scValToNative(entry);
+        return isValidCid(cid) ? [{ voter, cid }] : [];
+      });
     },
     staleTime: MINUTE,
   });
@@ -483,15 +540,30 @@ const VOTE_CHOICES: Record<VoteType, VoteChoice> = {
 };
 
 /**
- * Vote on a proposal, publicly or anonymously as the proposal says. The
- * receipt holds what an anonymous voter keeps to prove their vote later.
+ * A vote that landed: its receipt, and the upload of its comment when that
+ * failed after the vote landed (it carries `retry`).
+ */
+export interface CastVote {
+  receipt: VoteReceipt;
+  unuploaded?: LandedUploadError | undefined;
+}
+
+/**
+ * Vote on a proposal, publicly or anonymously as the proposal says, with an
+ * optional comment: a `comment.md` whose CID goes with the vote and which is
+ * uploaded once it landed. The receipt holds what an anonymous voter keeps to
+ * prove their vote later.
  */
 export async function vote(
   projectName: string,
   proposalId: number,
   voteType: VoteType,
   customWeight?: number,
-): Promise<VoteReceipt> {
+  {
+    comment,
+    onProgress,
+  }: { comment?: string; onProgress?: (stage: TxStage) => void } = {},
+): Promise<CastVote> {
   const voter = connectedAddress();
   const project_key = deriveProjectKey(projectName);
 
@@ -595,24 +667,45 @@ export async function vote(
     }
   }
 
+  const text = comment?.trim();
+  const upload = text
+    ? await packUpload([new File([text], VOTE_COMMENT_FILE)])
+    : undefined;
+  onProgress?.("sign");
   const tx = await tansuFor(voter).vote({
     voter,
     project_key,
     proposal_id: proposalId,
     vote: payload,
+    ipfs: upload?.cid,
   });
-  const { hash } = await sendTransaction(tx, {
-    invalidate: [proposalKey(projectName, proposalId)],
-  });
+  let hash: string;
+  let unuploaded: LandedUploadError | undefined;
+  try {
+    ({ hash } = await sendTransaction(tx, {
+      upload,
+      onProgress,
+      invalidate: [proposalKey(projectName, proposalId)],
+    }));
+  } catch (error) {
+    // The vote is in: its receipt matters more than its comment's upload.
+    if (!(error instanceof LandedUploadError)) throw error;
+    hash = error.hash;
+    unuploaded = error;
+  }
   await refetchUntilVoted(projectName, proposalId, voter);
   return {
-    projectName,
-    proposalId,
-    voteType,
-    weight,
-    isPublicVoting,
-    transactionHash: hash,
-    ...receipt,
+    receipt: {
+      projectName,
+      proposalId,
+      voteType,
+      weight,
+      isPublicVoting,
+      transactionHash: hash,
+      comment: upload?.cid,
+      ...receipt,
+    },
+    unuploaded,
   };
 }
 

@@ -68,7 +68,7 @@ const ONCHAIN_METHODS: Record<string, MethodMeta> = {
         : "created proposal",
   },
   vote: {
-    paramNames: ["voter", "project_key", "proposal_id", "vote"],
+    paramNames: ["voter", "project_key", "proposal_id", "vote", "ipfs"],
     summary: () => "voted",
   },
   execute: {

@@ -31,10 +31,13 @@ test("propose, vote, remove a vote, revoke, veto and execute", async ({
   await page.goto("/");
   await connectWallet(page);
 
-  // The maintainer approves it, with the weight of a Developer badge.
+  // The maintainer approves it, with the weight of a Developer badge, and
+  // explains why: a comment.md on IPFS, its CID kept with the ballot.
+  const why = "The dark theme follows the device, as the design asked.";
   await page.goto(`/proposal/?id=${soon}&name=${name}`);
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.getByText("Approve", { exact: true }).click();
+  await page.getByLabel("Explain your vote (optional)").fill(why);
   await page.getByRole("button", { name: "Vote", exact: true }).last().click();
   await expect(
     page.getByText("Your vote was submitted successfully."),
@@ -49,6 +52,11 @@ test("propose, vote, remove a vote, revoke, veto and execute", async ({
   await expect(
     page.getByRole("button", { name: "Already Voted" }),
   ).toBeDisabled();
+  const comment = await read.voteComment(name, soon, wallet.publicKey());
+  expect(await (await read.ipfs(comment!, "/comment.md")).text()).toBe(why);
+  await expect(
+    page.getByRole("region", { name: "Comments" }).getByText(why),
+  ).toBeVisible();
 
   // A new proposal, stored on IPFS; its proposer abstains by default.
   await page.goto(`/project/?name=${name}&tab=proposals`);

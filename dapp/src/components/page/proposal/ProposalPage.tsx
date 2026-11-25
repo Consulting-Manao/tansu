@@ -29,6 +29,7 @@ import DiscussionSection from "./DiscussionSection";
 import ExecuteProposalModal from "./ExecuteProposalModal";
 import ProposalDetail from "./ProposalDetail";
 import ProposalActions from "./ProposalActions";
+import ProposalComments from "./ProposalComments";
 import ProposalTally from "./ProposalTally";
 import VotingModal from "./VotingModal";
 
@@ -134,6 +135,7 @@ const ProposalPage: React.FC = () => {
     <div className="mx-auto grid w-full max-w-280 gap-6 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-10">
       <div className="flex min-w-0 flex-col gap-6">
         <ProposalTally proposal={proposal} maintainers={projectMaintainers} />
+        <ProposalComments proposal={proposal} />
         <ProposalDetail
           ipfsLink={proposal.ipfsLink || null}
           description={description}

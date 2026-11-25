@@ -73,6 +73,7 @@ fn test_cost_vote_on_proposal() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     let budget = setup.env.cost_estimate().budget();
@@ -113,6 +114,7 @@ fn test_cost_execute_proposal() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Move past voting deadline
@@ -170,6 +172,7 @@ fn test_cost_multiple_proposals_flow() {
                 weight: 1,
                 vote_choice: VoteChoice::Approve,
             }),
+            &None,
         );
     }
 
@@ -269,6 +272,7 @@ fn test_cost_comprehensive_dao_workflow() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     setup.contract.vote(
@@ -280,6 +284,7 @@ fn test_cost_comprehensive_dao_workflow() {
             weight: 1,
             vote_choice: VoteChoice::Approve,
         }),
+        &None,
     );
 
     // Step 5: Execute proposal

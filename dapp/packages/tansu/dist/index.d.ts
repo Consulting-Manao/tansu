@@ -392,13 +392,13 @@ export interface Client {
    * * `project_key` - The project key identifier
    * * `proposal_id` - The ID of the proposal to vote on
    * * `vote` - The vote data (public or anonymous)
+   * * `ipfs` - CID of the voter's comment, if any: public, on an anonymous
+   * proposal too, kept beside the ballot with its lifetime and read with
+   * [`DaoTrait::get_vote_comment`]
    *
    * # Panics
-   * * If the voter has already voted
-   * * If the voting period has ended
-   * * If the proposal is not active anymore
-   * * If the proposal doesn't exist
-   * * If the voter's weight exceeds their maximum allowed weight
+   * * If the comment's CID is not 32 to 64 characters long
+   * * If the voter has alre
    */
   vote: (
     {
@@ -406,11 +406,13 @@ export interface Client {
       project_key,
       proposal_id,
       vote,
+      ipfs,
     }: {
       voter: string;
       project_key: Buffer;
       proposal_id: u32;
       vote: Vote;
+      ipfs: Option<string>;
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
@@ -699,6 +701,33 @@ export interface Client {
     },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<null>>;
+  /**
+   * Construct and simulate a get_vote_comment transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Get the comment of a vote: the CID [`DaoTrait::vote`] kept beside the
+   * ballot.
+   *
+   * # Arguments
+   * * `env` - The environment object
+   * * `project_key` - The project key identifier
+   * * `proposal_id` - The ID of the proposal
+   * * `voter` - The address of the voter
+   *
+   * # Returns
+   * * `Option<String>` - The CID, or None when the vote has no comment,
+   * was removed or its ballot expired
+   */
+  get_vote_comment: (
+    {
+      project_key,
+      proposal_id,
+      voter,
+    }: {
+      project_key: Buffer;
+      proposal_id: u32;
+      voter: string;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<Option<string>>>;
   /**
    * Construct and simulate a anonymous_voting_setup transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Setup anonymous voting for a project.
@@ -1798,6 +1827,7 @@ export declare class Client extends ContractClient {
     get_proposal: (json: string) => AssembledTransaction<Proposal>;
     create_proposal: (json: string) => AssembledTransaction<number>;
     revoke_proposal: (json: string) => AssembledTransaction<null>;
+    get_vote_comment: (json: string) => AssembledTransaction<Option<string>>;
     anonymous_voting_setup: (json: string) => AssembledTransaction<null>;
     add_conflict_of_interest: (json: string) => AssembledTransaction<null>;
     get_conflict_of_interest: (json: string) => AssembledTransaction<string[]>;
