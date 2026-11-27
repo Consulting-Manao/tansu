@@ -23,7 +23,7 @@
     "@docusaurus/preset-classic": "3.10.2",
     "@docusaurus/theme-mermaid": "3.10.2",
     "@mdx-js/react": "^3.1.1",
-    "caniuse-lite": "^1.0.30001823",
+    "caniuse-lite": "^1.0.30001826",
     "clsx": "^2.1.1",
     "mermaid": "^12.3.0",
     "prism-react-renderer": "^2.4.1",
@@ -38,7 +38,7 @@
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@stellar/prettier-config": "^1.2.0",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "typescript": "7.0.2"
   },
   "overrides": {
