@@ -351,7 +351,6 @@ Köppling 35
 8565 Söding-Sankt Johann, Austria  
 Commercial register (Firmenbuch): FN 571029z, Landesgericht für ZRS Graz  
 VAT ID: ATU77780135  
-Managing Director: Dr. DI Pamphile Tupui Christophe Roy
 
 **Contact**:  
 Email: legal@consulting-manao.com  
