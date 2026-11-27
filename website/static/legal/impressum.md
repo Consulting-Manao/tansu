@@ -19,7 +19,6 @@ Sitz: Söding-Sankt Johann
 Firmenbuchnummer: FN 571029z  
 Firmenbuchgericht: Landesgericht für ZRS Graz  
 UID-Nummer: ATU77780135  
-Geschäftsführung: Dr. DI Pamphile Tupui Christophe Roy  
 Unternehmensgegenstand: Dienstleistungen in der automatischen Datenverarbeitung und Informationstechnik
 
 ## Kammer, Gewerberecht und Aufsicht
