@@ -23,7 +23,7 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   fullyParallel: true,
   retries: 0,
-  workers: 2,
+  workers: 4,
   reporter: [["line"]],
   use: {
     ...devices["Desktop Chrome"],
@@ -38,9 +38,10 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: "flows", testIgnore: "update.spec.ts" },
-    // Rebuilds dist/ the way a deploy would, so it runs after the flows.
-    { name: "update", testMatch: "update.spec.ts", dependencies: ["flows"] },
+    { name: "flows", testIgnore: "update.spec.ts", teardown: "update" },
+    // Rebuilds dist/, so it must run last. A teardown project still runs when
+    // a testnet journey fails; an unrelated outage must not hide update bugs.
+    { name: "update", testMatch: "update.spec.ts" },
   ],
   webServer: {
     command: "bun run build && bun tests/helpers/serve.ts",
