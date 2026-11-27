@@ -4,6 +4,8 @@
 #     "stellar-sdk",
 #     "pycryptodome",
 # ]
+# [tool.uv]
+# exclude-newer = "7 days"
 # ///
 """
 Save every proposal of a project with its ballots, one JSON line per proposal.

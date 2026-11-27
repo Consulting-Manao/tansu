@@ -4,6 +4,8 @@
 #     "stellar-sdk",
 #     "pycryptodome",
 # ]
+# [tool.uv]
+# exclude-newer = "7 days"
 # ///
 """
 Check whether votes on one or more proposals were cast by conflicted addresses.

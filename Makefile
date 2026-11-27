@@ -1,5 +1,6 @@
 .PHONY: help install prepare rust-lint clean testnet_reset contract_build contract_test contract_deploy contract_help pre_push_hook
 .PHONY: radicle_ci radicle_release_candidate radicle_release radicle_register
+.PHONY: dependency_update dependency_checks radicle_dependency_checks
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -271,6 +272,17 @@ dapp_ipfs:  ## Point the dApp on xlm.sh at the IPFS CID given as cid=<cid>, sign
 	--data-value $$(printf %s '$(cid)' | xxd -p | tr -d '\n')
 
 # --------- Radicle --------- #
+
+dependency_engine ?= docker
+
+dependency_update:  ## Export compatible dependency updates from an isolated Docker/Podman container
+	DEPENDENCY_ENGINE='$(dependency_engine)' bash tools/dependencies/update.sh
+
+dependency_checks:  ## Validate a reviewed dependency patch (local database/testnet prerequisites apply)
+	bash tools/dependencies/check.sh
+
+radicle_dependency_checks:  ## Record dependency validation of committed HEAD using the existing Radicle CI runner
+	RADICLE_CI_CMD='make dependency_checks' .radicle/ci.sh
 
 # .radicle is the radicle-ci-cd submodule: git submodule update --init
 radicle_push:
