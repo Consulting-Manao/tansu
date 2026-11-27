@@ -35,7 +35,7 @@ We keep no user accounts. Data about you ends up in these places:
 
 - The Stellar address (public key) of your wallet
 - The member profile you choose to publish: name, description, links, picture and git identity
-- The projects, proposals, votes and configuration files you submit
+- The projects, proposals, votes, comments on your votes and configuration files you submit
 - The messages you send to legal@consulting-manao.com, including reports of illegal content
 
 **User Responsibility**: You are responsible for ensuring uploaded content complies with privacy laws and does not contain personal data of others without consent.
@@ -114,7 +114,7 @@ These providers process data on our behalf, under our accounts:
 | Host | Run by | When | What it receives |
 | --- | --- | --- | --- |
 | app.tansu.dev, testnet.tansu.dev, tansu.dev | Netlify, for us | Every visit | Your IP address, the pages and files requested, your user agent |
-| ipfs.tansu.dev, ipfs-testnet.tansu.dev | Cloudflare, for us | When you save a profile, project, proposal or other file | Your IP address, the files, and the signed transaction with your Stellar address |
+| ipfs.tansu.dev, ipfs-testnet.tansu.dev | Cloudflare, for us | When you save a profile, project, proposal, vote comment or other file | Your IP address, the files, and the signed transaction with your Stellar address |
 | radicle.consulting-manao.com | Us: a Radicle seed node | The home page (Tansu's logo); the Tansu repository | Your IP address, the file requested |
 
 ### 6.3 Hosts Your Browser Calls Directly

@@ -57,6 +57,16 @@ analysis of the code using black and ruff for Python, prettier for JS/MD/MDX and
 
 This allows to spot naming errors for example as well as other style errors.
 
+The linters are the pre-commit hooks of `.pre-commit-config.yaml`: zizmor, ruff, clippy
+and rustfmt run as a Radicle job, and the dApp and website hooks run on your commits.
+`make radicle_lint` runs that job on `HEAD` (commit first;
+`rad-job show "$(git rev-parse HEAD)"` lists the run, its log is on the `rad-ci` branch).
+It needs [pre-commit](https://pre-commit.com), `rad`, `rad-job` and the Stellar CLI
+version that `.github/workflows/contract.yml` installs (the `Makefile` reads it from there):
+clippy compiles the registry manager, which imports the Tansu WASM, so the job builds it
+with the Stellar CLI first. It checks these and a clean working tree before it records a
+job. `RADICLE_CI_JOB=none make radicle_lint` runs the hooks without recording a job.
+
 ## GIT
 
 ### Workflow
